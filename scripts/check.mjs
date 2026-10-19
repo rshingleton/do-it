@@ -4,7 +4,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { ROOT, listSkills } from './lib/skills.mjs';
+import { ROOT, listSkills, userInvoked } from './lib/skills.mjs';
 
 const SKILL_LINE_BUDGET = 100;
 const SKILL_LINE_LIMIT = 150;
@@ -15,6 +15,7 @@ const rel = (p) => path.relative(ROOT, p);
 
 const skills = listSkills();
 const names = new Set(skills.map((s) => s.meta.name));
+const userOnly = new Set(skills.filter(userInvoked).map((s) => s.meta.name));
 
 function markdownFiles(dir) {
   const out = [];
@@ -33,7 +34,8 @@ for (const s of skills) {
   if (!s.meta.description) errors.push(`${where}: missing description`);
   else if (s.meta.description.length > 1024) errors.push(`${where}: description over 1024 characters`);
 
-  const lines = s.text.split('\n').length;
+  // Count lines the way wc -l does: a trailing newline does not start a new line.
+  const lines = s.text.replace(/\n$/, '').split('\n').length;
   if (lines > SKILL_LINE_LIMIT) errors.push(`${where}: ${lines} lines (limit ${SKILL_LINE_LIMIT}); move detail to a sibling file`);
   else if (lines > SKILL_LINE_BUDGET) warnings.push(`${where}: ${lines} lines (budget ${SKILL_LINE_BUDGET})`);
 }
@@ -46,18 +48,39 @@ for (const file of docs) {
   const text = fs.readFileSync(file, 'utf8');
   const where = rel(file);
 
-  for (const m of text.matchAll(/Skill tool with "([^"]+)"/g)) {
+  // Every Skill-tool mention must name its target, or the checks below cannot
+  // see it (a generic "call the step with the Skill tool" hid user-only calls).
+  // Any case, optional backticks: "the `Skill` tool", "skill tool".
+  const mentions = [...text.matchAll(/`?Skill`?\s+tool/gi)].length;
+  const named = [...text.matchAll(/`?Skill`?\s+tool\s+with\s+"[^"]+"/gi)].length;
+  if (mentions > named) errors.push(`${where}: mentions the Skill tool without naming the skill ("Skill tool with \\"x\\"")`);
+
+  // Calls often wrap across lines ("call the Skill tool with\n  \"x\"").
+  for (const m of text.matchAll(/`?Skill`?\s+tool\s+with\s+"([^"]+)"/gi)) {
     const target = m[1];
-    if (!names.has(target) && target !== 'resolving-merge-conflicts') {
+    if (target.startsWith('<')) continue; // a placeholder in prose about the convention
+    if (!names.has(target)) {
       errors.push(`${where}: calls skill "${target}", which this repo does not ship`);
+    } else if (userOnly.has(target)) {
+      errors.push(
+        `${where}: calls user-invoked skill "${target}" through the Skill tool, which the host refuses; follow ../${target}/SKILL.md by path instead`,
+      );
     }
   }
 
-  const prose = text.replace(/```[\s\S]*?```/g, '');
-  for (const m of prose.matchAll(/\[[^\]]*\]\(([^)\s]+)\)/g)) {
-    const target = m[1].split('#')[0];
+  // Prose: no ``` or ~~~ fences, no inline code. Examples live there.
+  const prose = text.replace(/^(```|~~~)[\s\S]*?^\1/gm, '').replace(/`[^`\n]*`/g, '');
+  const targets = [
+    // [t](path), [t](path "title"), [t](<path with spaces>)
+    ...[...prose.matchAll(/\[[^\]]*\]\(\s*(<[^>]+>|[^)\s]+)(?:\s+"[^"]*")?\s*\)/g)].map((m) => m[1]),
+    // [ref]: path
+    ...[...prose.matchAll(/^\s{0,3}\[[^\]]+\]:\s*(<[^>]+>|\S+)/gm)].map((m) => m[1]),
+  ];
+  for (const raw of targets) {
+    const link = raw.replace(/^<|>$/g, '');
+    const target = link.split('#')[0];
     if (!target || /^[a-z]+:/.test(target)) continue;
-    if (!fs.existsSync(path.resolve(path.dirname(file), target))) errors.push(`${where}: broken link ${m[1]}`);
+    if (!fs.existsSync(path.resolve(path.dirname(file), target))) errors.push(`${where}: broken link ${link}`);
   }
 
   if (file.includes(`${path.sep}skills${path.sep}`) && prose.includes('—')) {

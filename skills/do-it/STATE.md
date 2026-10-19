@@ -22,7 +22,7 @@ kebab-case slug.
 id: ABC-123
 title: Rate-limit the login endpoint
 lane: m
-status: building        # planned | building | auditing | shipping | done
+status: building        # planned | building | blocked | auditing | shipping
 tracker: { kind: jira, ref: ABC-123, phases: { 1: ABC-124, 2: ABC-125 } }
 sources: [docs/issues/login-rate-limit.md]
 base_ref: 1a2b3c4       # HEAD when build-it started
@@ -34,29 +34,32 @@ phases:
   - { n: 2, title: Wire into login, blocked_by: [1], status: ready }
 assumptions:
   - "Limit is 5 attempts per minute per IP (reversible: config)"
-audit: { verdict: null, round: 0, fingerprint: null }
+audit: { verdict: null, round: 0, must: [], fingerprint: null }
+ship: { prepared: null, fingerprint: null }
+blocker: null           # one line, set with status: blocked
 ---
 ```
 
-Lane S has no `phases:` list; its plan body holds the steps.
+Lane S has no `phases:` list; its plan body holds the steps. There is no
+`done` status: a shipped item's plan is deleted at commit time.
 
 ## Rules
 
-- **Owner.** The running step is the only writer. `plan-it` creates the block;
-  `build-it`, `audit-it` and `ship-it` update their own fields.
+- **Owner.** The running step is the only writer. `scope-it` creates the block;
+  `build-it`, `prove-it` and `ship-it` update their own fields.
 - **Approvals are recorded or they did not happen.** Never infer approval from
   an earlier conversation.
 - **Verification is a claim about code.** A phase's `verified` holds while its
-  files are unchanged; `audit-it` re-runs everything regardless.
+  files are unchanged; `prove-it` re-runs everything regardless.
 - **Fingerprint.** `audit.fingerprint` is the hash of the change at audit time,
-  excluding the planning files:
-
-  ```bash
-  bash <do-it skill dir>/scripts/fingerprint.sh <base_ref>
-  ```
-
-  `ship-it` recomputes it; a mismatch means the code moved since the audit.
-- **Status moves forward.** `planned → building → auditing → shipping → done`.
-  A failed audit sets it back to `building`.
+  excluding the planning files, from `scripts/fingerprint.sh <base_ref>` in
+  this skill's directory. The script runs from the repo root whatever the
+  current directory and exits non-zero on a bad base. `ship-it` recomputes it;
+  a mismatch means the code moved since the audit. Once ship-it has written
+  the docs it records `ship.fingerprint` and compares against that instead.
+- **Status moves forward.** `planned → building → auditing → shipping`, then
+  the plan is deleted at commit. A failed audit (`round` + 1) or a rejected
+  assumption at ship sets it back to `building`; `blocked` waits for the user
+  and returns to `building`.
 - **No commits until ship.** Steps leave their work in the working tree.
   `base_ref` plus the working tree is the whole change.

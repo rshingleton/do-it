@@ -1,0 +1,197 @@
+{
+  "threshold": 0.9,
+  "maxSimilarity": 0.75,
+  "skills": {
+    "debug-it": {
+      "positive": [
+        "the checkout page throws a TypeError after yesterday's deploy, can you debug this",
+        "login keeps failing intermittently, diagnose what is broken",
+        "the nightly import got really slow since last week, find out why",
+        "this function is throwing on empty input and I can't see why"
+      ],
+      "negative": [
+        { "prompt": "write the tests first and then implement the parser, red green refactor", "owner": "test-it" },
+        { "prompt": "audit this codebase for bugs and tech debt", "owner": "sweep-it" }
+      ]
+    },
+    "design-it": {
+      "positive": [
+        "help me design the interface for the payment module so it is easier to test",
+        "where should the seam go between the scheduler and the queue",
+        "this module is shallow, how do I make it deeper",
+        "make the storage layer more testable and AI-navigable"
+      ],
+      "negative": [
+        { "prompt": "build a quick throwaway prototype of the new dashboard UI", "owner": "sketch-it" },
+        { "prompt": "update the glossary with the new domain term", "owner": "name-it" }
+      ]
+    },
+    "doubt-it": {
+      "positive": [
+        "before we drop that column, double-check the claim that nothing reads it",
+        "sanity-check this conclusion before we run the migration",
+        "I think this change is safe but prove me wrong before we do it"
+      ],
+      "negative": [
+        { "prompt": "grill me on my plan for the new billing flow", "owner": "grill-it" },
+        { "prompt": "review my branch changes since main", "owner": "review-it" }
+      ]
+    },
+    "grill-it": {
+      "positive": [
+        "grill me on this plan before I commit to it",
+        "stress-test my thinking about splitting the monolith",
+        "ask me hard questions about this idea until we agree on it"
+      ],
+      "negative": [
+        { "prompt": "double-check this risky claim with a fresh agent before we deploy", "owner": "doubt-it" },
+        { "prompt": "research how the OAuth device flow works", "owner": "look-it-up" }
+      ]
+    },
+    "guard-it": {
+      "positive": [
+        "run a compliance check on my changes before I open the PR",
+        "scan this diff for leaked secrets and dependency policy problems",
+        "add a compliance rule that bans console.log in production code",
+        "security pre-flight before marking the PR ready"
+      ],
+      "negative": [
+        { "prompt": "audit the whole repo for tech debt and test gaps", "owner": "sweep-it" },
+        { "prompt": "review this branch against our coding standards and the spec", "owner": "review-it" }
+      ]
+    },
+    "it-core": {
+      "positive": [
+        "follow the coding posture: reuse before writing and keep changes surgical",
+        "keep this refactor minimal, think first and record any shortcuts"
+      ],
+      "negative": [
+        { "prompt": "build this feature test-first with red green refactor", "owner": "test-it" }
+      ]
+    },
+    "log-it": {
+      "positive": [
+        "log a bug: the export button does nothing on Safari",
+        "file this for later, we need rate limiting on the search API",
+        "here is an email from a customer, capture it as an issue",
+        "add a todo to the tracker to clean up the old CSV importer"
+      ],
+      "negative": [
+        { "prompt": "what tracker config is in effect for this repo", "owner": "track-it" },
+        { "prompt": "debug why the export button throws on Safari", "owner": "debug-it" }
+      ]
+    },
+    "look-it-up": {
+      "positive": [
+        "research how Postgres advisory locks behave across connections",
+        "gather the official docs on the GitHub REST API rate limits",
+        "investigate what the WCAG guidance says about focus order and write it up"
+      ],
+      "negative": [
+        { "prompt": "map how this codebase is structured", "owner": "map-it" },
+        { "prompt": "grill me on whether we should use advisory locks", "owner": "grill-it" }
+      ]
+    },
+    "map-it": {
+      "positive": [
+        "I'm new to this repo, map how it is structured",
+        "where does the billing logic live and how does it fit together",
+        "write reference docs for the auth area before we plan changes there",
+        "docs/reference is stale, refresh the map of the codebase"
+      ],
+      "negative": [
+        { "prompt": "audit this codebase for bugs and test gaps", "owner": "sweep-it" },
+        { "prompt": "find deepening opportunities in the module design", "owner": "design-it" }
+      ]
+    },
+    "name-it": {
+      "positive": [
+        "we keep calling the same thing an order and a purchase, sort out the terminology",
+        "add the new term to GLOSSARY.md",
+        "record an ADR for the decision to use event sourcing",
+        "sharpen the domain model for shipments and returns"
+      ],
+      "negative": [
+        { "prompt": "map the codebase structure for onboarding", "owner": "map-it" }
+      ]
+    },
+    "review-it": {
+      "positive": [
+        "review my branch since main",
+        "review this PR against our coding standards and the original issue",
+        "review the work in progress changes since the last tag",
+        "does the code on this branch match the spec"
+      ],
+      "negative": [
+        { "prompt": "scan my changes for secrets before the PR", "owner": "guard-it" },
+        { "prompt": "audit the entire existing codebase for debt", "owner": "sweep-it" }
+      ]
+    },
+    "sketch-it": {
+      "positive": [
+        "build a throwaway prototype to check if this state model feels right",
+        "mock up a few UI variants for the settings page so I can pick one",
+        "quick prototype to answer whether the undo logic works"
+      ],
+      "negative": [
+        { "prompt": "design the interface for the settings module with deep modules", "owner": "design-it" },
+        { "prompt": "build the settings feature test-first", "owner": "test-it" }
+      ]
+    },
+    "skill-it": {
+      "positive": [
+        "write a new skill for our release process",
+        "edit the AGENTS.md so agents run the right test command",
+        "improve the description of this skill so it triggers reliably",
+        "update CLAUDE.md with our conventions"
+      ],
+      "negative": [
+        { "prompt": "write reference docs mapping the codebase", "owner": "map-it" }
+      ]
+    },
+    "sweep-it": {
+      "positive": [
+        "audit this codebase for bugs, security risks and tech debt",
+        "we just inherited this service, do a health survey",
+        "find test gaps and dead code in the payments package",
+        "look for pre-existing problems in the hot spots before we plan work there"
+      ],
+      "negative": [
+        { "prompt": "review my branch changes since main", "owner": "review-it" },
+        { "prompt": "run a compliance check on this diff for secrets", "owner": "guard-it" }
+      ]
+    },
+    "test-it": {
+      "positive": [
+        "build this feature test-first",
+        "fix the bug with a failing test first, red green refactor",
+        "add integration tests for the order service",
+        "let's do TDD on the new parser"
+      ],
+      "negative": [
+        { "prompt": "diagnose why this test is flaky and failing intermittently", "owner": "debug-it" }
+      ]
+    },
+    "track-it": {
+      "positive": [
+        "what's the status of ABC-123",
+        "fetch issue #42 and summarize it",
+        "which tracker is configured for this repo",
+        "close the Jira issue and add a resolution comment"
+      ],
+      "negative": [
+        { "prompt": "log a bug for later: the export button is broken", "owner": "log-it" }
+      ]
+    },
+    "merge-it": {
+      "positive": [
+        "resolve the merge conflicts in this rebase",
+        "git merge stopped with conflicts in three files, fix them",
+        "help me finish this conflicted merge"
+      ],
+      "negative": [
+        { "prompt": "review my branch before merging", "owner": "review-it" }
+      ]
+    }
+  }
+}

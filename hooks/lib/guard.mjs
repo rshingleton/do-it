@@ -3,8 +3,8 @@
 
 import { execFileSync, spawnSync } from 'node:child_process';
 import path from 'node:path';
-import { loadConfig, isOn } from '../../skills/tracker/scripts/config.mjs';
-import { loadChecks, scan, format, addedText, editedFile } from './checks.mjs';
+import { loadConfig, isOn } from '../../skills/track-it/scripts/config.mjs';
+import { loadChecks, scan, format, addedText, editedFile, editedFiles } from './checks.mjs';
 
 export function setup(cwd) {
   const config = loadConfig({ cwd });
@@ -21,12 +21,15 @@ function split(findings) {
   };
 }
 
-// Before a file edit: block HIGH findings in the text being added.
+// Before a file edit: block HIGH findings in the text being added, and any
+// path rule (env files) on every file the edit touches.
 export function beforeEdit(ctx, input) {
   if (!ctx.enabled) return { action: 'allow' };
-  const file = editedFile(input);
-  const rel = file ? path.relative(ctx.root, path.resolve(ctx.root, file)) : '';
-  const { block, warn } = split(scan(addedText(input), ctx.rules, rel));
+  const files = editedFiles(input).map((f) => path.relative(ctx.root, path.resolve(ctx.root, f)));
+  const rel = files[0] || '';
+  const findings = scan(addedText(input), ctx.rules, rel);
+  for (const other of files.slice(1)) findings.push(...scan('', ctx.rules, other));
+  const { block, warn } = split(findings);
   if (block.length) {
     return {
       action: 'block',
@@ -43,7 +46,9 @@ export function afterEdit(ctx, input, { spawn = spawnSync } = {}) {
   const file = editedFile(input);
   if (!file) return { action: 'allow' };
   const abs = path.resolve(ctx.root, file);
-  const cmd = ctx.cfg.DO_IT_LINT_CMD.replaceAll('{file}', JSON.stringify(abs));
+  // Single quotes: the shell expands $ and backticks inside double quotes,
+  // and paths like app/routes/$id.tsx are common.
+  const cmd = ctx.cfg.DO_IT_LINT_CMD.replaceAll('{file}', `'${abs.replaceAll("'", `'\\''`)}'`);
   const res = spawn(cmd, {
     cwd: ctx.root,
     shell: true,
@@ -58,15 +63,35 @@ export function afterEdit(ctx, input, { spawn = spawnSync } = {}) {
   return { action: 'feedback', message: `do-it lint failed for ${path.relative(ctx.root, abs)} (\`${ctx.cfg.DO_IT_LINT_CMD}\`):\n${out}` };
 }
 
-const GIT_COMMIT = /(^|[;&|]\s*|\s)git\s+(-[^\s]+\s+)*commit\b/;
+// `git` at the start of a command (or after ; & | && ( ), any global options
+// (-C dir, -c k=v, --no-pager), then the `commit` subcommand itself, not
+// commit-tree or a quoted mention.
+const GIT_COMMIT = /(?:^|[;&|(]\s*)git((?:\s+(?:-[Cc]\s+(?:'[^']*'|"[^"]*"|\S+)|--?[\w-]+(?:=\S+)?))*)\s+commit(?=\s|$)([^;&|]*)/;
 
-// Before a shell command: a git commit gets the staged diff scanned.
+export function parseGitCommit(command) {
+  const m = String(command || '').match(GIT_COMMIT);
+  if (!m) return null;
+  const dir = m[1].match(/-C\s+(?:'([^']*)'|"([^"]*)"|(\S+))/);
+  const args = m[2];
+  // -a / --all, or a short-flag cluster that includes a (-am).
+  const all = /(?:^|\s)(?:--all|-[A-Za-z]*a[A-Za-z]*)(?=\s|$)/.test(args);
+  return { dir: dir ? dir[1] ?? dir[2] ?? dir[3] : null, all };
+}
+
+// Before a shell command: a git commit gets the change it will record
+// scanned (the staged diff, or every tracked change for commit -a).
 export function beforeShell(ctx, command, { git = defaultGit } = {}) {
-  if (!ctx.enabled || !GIT_COMMIT.test(command || '')) return { action: 'allow' };
-  const staged = git(['diff', '--cached', '--name-only', '--diff-filter=ACMR'], ctx.root).split('\n').filter(Boolean);
+  const commit = ctx.enabled ? parseGitCommit(command) : null;
+  if (!commit) return { action: 'allow' };
+  const cwd = commit.dir ? path.resolve(ctx.root, commit.dir) : ctx.root;
+  const range = commit.all ? ['HEAD'] : ['--cached'];
+  // -z and quotePath=false keep non-ASCII and quoted names intact.
+  const staged = git(['-c', 'core.quotePath=false', 'diff', ...range, '--name-only', '-z', '--diff-filter=ACMR'], cwd)
+    .split('\0')
+    .filter(Boolean);
   const findings = [];
   for (const file of staged) {
-    const added = git(['diff', '--cached', '-U0', '--', file], ctx.root)
+    const added = git(['-c', 'core.quotePath=false', 'diff', ...range, '-U0', '--', file], cwd)
       .split('\n')
       .filter((l) => l.startsWith('+') && !l.startsWith('+++'))
       .map((l) => l.slice(1))

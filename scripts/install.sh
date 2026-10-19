@@ -51,23 +51,27 @@ link() {
   echo "link  $dst"
 }
 
-# unlink_ours <target> <expected source>
+# unlink_ours <dir> <prefix>: remove every symlink in <dir> that points under
+# <prefix>, including links to skills since renamed or removed.
 unlink_ours() {
-  if [ -L "$1" ] && [ "$(readlink "$1")" = "$2" ]; then
-    run rm "$1"
-    echo "unlink $1"
-  fi
+  local entry target
+  for entry in "$1"/*; do
+    [ -L "$entry" ] || continue
+    target="$(readlink "$entry")"
+    case "$target" in
+      "$2"/*)
+        run rm "$entry"
+        echo "unlink $entry"
+        ;;
+    esac
+  done
 }
 
 if [ "$uninstall" = 1 ]; then
   for dir in "${skill_dirs[@]}"; do
-    for skill in "$root"/skills/*/; do
-      unlink_ours "$dir/$(basename "$skill")" "${skill%/}"
-    done
+    unlink_ours "$dir" "$root/skills"
   done
-  for cmd in "$root"/.opencode/command/*.md; do
-    unlink_ours "$command_dir/$(basename "$cmd")" "$cmd"
-  done
+  unlink_ours "$command_dir" "$root/.opencode/command"
   if [ "$dry" = 1 ]; then
     node "$root/scripts/install-hooks.mjs" claude --remove --dry-run
     node "$root/scripts/install-hooks.mjs" opencode --remove --dry-run

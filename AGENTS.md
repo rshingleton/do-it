@@ -17,14 +17,24 @@ not an application.
 
 ## Rules
 
-- `skills/core/SKILL.md` is the single source of the coding posture; the
+- `skills/it-core/SKILL.md` is the single source of the coding posture; the
   hooks and the OpenCode plugin read it. Do not restate it elsewhere.
-- A rule lives in one skill; other skills call that skill ("Call the Skill
-  tool with \"x\"") or link to its file. `npm run check` fails on calls to a
-  skill this repo does not ship.
+- A rule lives in one skill; other skills call that skill (Call the Skill
+  tool with "<name>") or link to its file. A user-invoked skill
+  (`disable-model-invocation: true`) cannot be called that way; follow its
+  `../<name>/SKILL.md` by path. `npm run check` fails on a call to a skill
+  this repo does not ship, a Skill-tool call to a user-invoked skill, and a
+  Skill-tool mention that names no skill.
 - User-invoked skills (`disable-model-invocation: true`) get a one-line,
   human-facing description. Model-invoked skills get "what it does" plus
   "Use when ..." triggers. Never summarize the process in a description.
+- Skill names are `-it` verbs (`scope-it`, `grill-it`, `track-it`) so they
+  never collide with other skill repos installed beside this one. Check a new
+  name against mattpocock/skills and rshingleton/skills before adding it.
+- A new model-invoked skill needs positive and negative prompts in
+  `evals/routing.json`; `npm run check` runs the routing eval.
+- Skills are written in this repo's own words. Ideas from other repos are
+  welcome and credited in the README; their text is not copied in.
 - SKILL.md budget: 100 lines (warning), 150 (error).
 - No em-dashes in skills.
 - No runtime dependencies. Node 18+ built-ins and bash only.

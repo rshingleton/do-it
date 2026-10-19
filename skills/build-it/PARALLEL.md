@@ -14,8 +14,9 @@ The scratch commits never reach the user's branch.
 ## 1. Scratch integration branch
 
 ```bash
-repo=$(basename "$(git rev-parse --show-toplevel)")
-root="../$repo.do-it/<id>"
+top=$(git rev-parse --show-toplevel)
+# Absolute, so every later git -C and worktree command resolves it the same way.
+root="$(dirname "$top")/$(basename "$top").do-it/<id>"
 git worktree add "$root/int" -b "do-it/<id>" <base_ref>
 ```
 
@@ -26,7 +27,7 @@ squash cannot collide with the uncommitted plan.
 ## 2. One implementer per frontier phase
 
 ```bash
-git -C "$root/int" worktree add "$root/phase-N" -b "do-it/<id>--phase-N" "do-it/<id>"
+git worktree add "$root/phase-N" -b "do-it/<id>--phase-N" "do-it/<id>"
 ```
 
 Start one background subagent per phase, on the mid-tier model (`model:
@@ -48,7 +49,7 @@ git merge --no-ff "do-it/<id>--phase-N" -m "<id> phase-N (scratch)"
 ```
 
 Run the project's checks there. On a conflict, call the Skill tool with
-"resolving-merge-conflicts" if it exists, else resolve by the plan's intent.
+"merge-it", passing the plan path so it resolves by the plan's intent.
 On a failed check, `git merge --abort` or `git reset --hard HEAD~1` in the
 scratch worktree only, mark the phase `blocked`, and keep going with phases
 that do not depend on it.

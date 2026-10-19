@@ -102,44 +102,70 @@ Rules:
 
 ## 5. Skills
 
+Every skill is named as an `-it` verb so this repo can be installed beside
+mattpocock/skills or rshingleton/skills without name collisions (symlink and
+OpenCode installs have no namespace). Renamed from their sources:
+
+| Old | New | Old | New |
+|-----|-----|-----|-----|
+| issue-it | log-it | research | look-it-up |
+| plan-it | scope-it | prototype | sketch-it |
+| audit-it | prove-it | handoff | pass-it |
+| improve-codebase-architecture | deepen-it | writing-for-agents | skill-it |
+| grilling | grill-it | doubt | doubt-it |
+| tdd | test-it | compliance | guard-it |
+| code-review | review-it | tracker | track-it |
+| codebase-design | design-it | core | it-core |
+| domain-modeling | name-it | diagnosing-bugs | debug-it |
+
 ### Flow (user-invoked, short descriptions)
 
 | Skill | Replaces | Job |
 |-------|----------|-----|
 | `do-it` | ask-matt router, the `Next:` chain | Size, pick lane, resume from state, run steps |
-| `issue-it` | issue-it, from-jira intake | Capture to `docs/issues/`; also receives out-of-scope discoveries (`propose_work`) |
-| `plan-it` | plan-it, from-jira, to-spec, to-tickets | Grill scaled to lane, write plan, optional `--jira` publish |
-| `build-it` | implement-it, implement, implement-spec | One phase, or `auto` over the frontier with worktrees |
-| `audit-it` | audit-it, code-review gate | Fresh-context fan-out, findings, verdict, loop cap |
-| `ship-it` | verify-it + commit-it | Finalize docs, confirm assumptions, commit, squash, push/PR on approval |
+| `log-it` | issue-it, from-jira intake | Capture to `docs/issues/`; also receives out-of-scope discoveries (`propose_work`) |
+| `scope-it` | plan-it, from-jira, to-spec, to-tickets | Grill scaled to lane, write plan, optional `--jira` publish |
+| `build-it` | implement-it, implement, implement-spec | One phase, or the whole frontier with parallel worktrees; never commits |
+| `prove-it` | audit-it, code-review gate | Fresh-context fan-out, findings, verdict, loop cap |
+| `ship-it` | verify-it + commit-it | Finalize docs, confirm assumptions, one commit only on the user's yes, push/PR on request |
 
 ### Discipline (model-invoked, trigger-rich descriptions)
 
-Kept from mattpocock / the fork, largely unchanged: `grilling`,
-`domain-modeling`, `codebase-design`, `tdd`, `diagnosing-bugs`, `code-review`,
-`research`, `prototype`, `handoff`, `writing-for-agents`.
+Rewritten in this repo's own words from mattpocock / the fork's ideas, and
+fitted to do-it's conventions (state block, resolved project docs, it-core,
+seams agreed in scope-it): `grill-it`, `name-it`, `design-it`, `test-it`,
+`debug-it`, `review-it`, `look-it-up`, `sketch-it`, `pass-it`, `skill-it`,
+`deepen-it`. None carries more than a few lines of boilerplate in common with
+its source.
 
 New or reshaped:
 
-- `core`: the always-on posture (section 6). Also loaded as `AGENTS.md`.
-- `doubt`: adversarial fresh-context check of a claim before acting on it
+- `setup-it` (typed): one-time per-repo onboarding; detects, proposes
+  `.do-it/config.env`, a starter `checks.json` and an `AGENTS.md` section,
+  writes only what the user accepts.
+- `merge-it`: resolves merge, rebase and cherry-pick conflicts by intent;
+  build-it's parallel merges call it.
+- `retro-it` (typed): turns repeated mistakes and prove-it's guardrail
+  candidates into checks, lint config, standards or issues.
+
+- `it-core`: the always-on posture (section 6). Also loaded as `AGENTS.md`.
+- `doubt-it`: adversarial fresh-context check of a claim before acting on it
   (addyosmani doubt-driven-development), used by audit and by build on risky
   steps.
-- `tracker`: the issue-tracker seam (local, GitHub, Jira) over a small Node
+- `track-it`: the issue-tracker seam (local, GitHub, Jira) over a small Node
   CLI, with layered dotenv config. The only skill that knows any tracker;
   others call it (ADR-0003).
-- `compliance`: mechanical checks (hooks) and judgement rules (audit), one
+- `guard-it`: mechanical checks (hooks) and judgement rules (audit), one
   rule set (ADR-0004).
 
 ### Dropped
 
 `ask-matt` (replaced by `do-it`), `to-spec`/`to-tickets` as a parallel path,
-`implement-spec` (folded into `build-it auto`), `resolving-merge-conflicts`
-(removed upstream), in-progress `review` (duplicates `code-review`),
-`write-a-skill` (superseded by `writing-for-agents`), the
-`improve-codebase-architecture` sub-files duplicated from `codebase-design`.
-`wayfinder`, `triage`, `retro`, `teach`, `wizard` stay optional in an `extras/`
-bucket.
+`implement-spec` (folded into `build-it`), `resolving-merge-conflicts`
+(replaced by `merge-it`), in-progress `review` (duplicates `code-review`),
+`write-a-skill` (superseded by `skill-it`), the
+`improve-codebase-architecture` sub-files duplicated from `design-it`.
+`wayfinder`, `triage`, `teach` and `wizard` are not carried over.
 
 ## 6. Core posture (always on)
 
@@ -154,7 +180,7 @@ Merged from ponytail and karpathy, one source file:
   every place the change must reach: callers, tests, fixtures, config, exports.
 - **Surgical.** Every changed line traces to the request. Remove only orphans
   your change created; mention other dead code, don't touch it. Out-of-scope
-  findings go to `issue-it`.
+  findings go to `log-it`.
 - **Verifiable.** Turn the task into a check (bug -> failing test first).
   Non-trivial logic leaves a test.
 - **Shortcuts are recorded.** `shortcut: <limit>, <when to upgrade>`.
@@ -168,12 +194,12 @@ Merged from ponytail and karpathy, one source file:
 ### build-it
 
 - Inputs: state block, phase file (M) or plan (S), repo standards.
-- Per phase: `tdd` at agreed seams; after 3 failed fix rounds call
-  `diagnosing-bugs`. No commits: the change stays in the working tree
+- Per phase: `test-it` at agreed seams; after 3 failed fix rounds call
+  `debug-it`. No commits: the change stays in the working tree
   (ADR-0002).
 - Frontier from the state block; parallel phases run on scratch branches in
   worktrees and land with `git merge --squash` + `git reset`, so the user's
-  branch only ever sees an uncommitted change. Subagents inherit `core` via
+  branch only ever sees an uncommitted change. Subagents inherit `it-core` via
   the SubagentStart hook on Claude Code.
 - Stop conditions: ambiguity that fails assume-or-ask, a failure after
   diagnosis, a merge break on the integration branch (revert the phase merge,
@@ -181,10 +207,10 @@ Merged from ponytail and karpathy, one source file:
 - Output: per-phase report in the state block (`done|blocked|failed`,
   verification command and commit).
 
-### audit-it
+### prove-it
 
 - Fresh-context subagents in parallel, merged in the main context: Spec and
-  Standards (`code-review`), Compliance (`.compliance-rules/`, secrets),
+  Standards (`review-it`), Compliance (`.compliance-rules/`, secrets),
   Architecture (deletion test, seams). Lane S runs Spec+Standards only.
 - Finding contract (fork + ponytail): concrete case or no finding; recorded
   decisions and `shortcut:` markers are not findings; numbered Must / Should /
@@ -201,9 +227,9 @@ One step, one or two commits:
 
 1. Gate: audit PASS at current HEAD (lane XS: self-review footer instead).
 2. Show the assumptions list; user confirms, edits or rejects (rejects go to
-   `issue-it`).
+   `log-it`).
 3. Accept linked ADRs, merge GLOSSARY, write the changelog entry, offer
-   untriggered `shortcut:` markers to `issue-it`.
+   untriggered `shortcut:` markers to `log-it`.
 4. Jira: one combined prompt for all keys (comment + resolve), not per key.
 5. Delete the planning dir after the user answers, before any commit.
 6. One question: commit now (code and docs in one commit) or leave it for
@@ -263,11 +289,40 @@ do-it/
 4. **Tracker:** a configurable seam, local by default, GitHub and Jira by
    config; user defaults with per-project overrides (ADR-0003).
 
-## 11. Not built yet
+## 11. Exploring existing and new projects
 
-- Routing evals (positive and negative prompts per skill).
-- Extras: `wayfinder`, `triage`, `retro`, `doc-it`, `wizard`.
+- **Scout before sizing.** `do-it` reads the code the request points at
+  (`do-it/SCOUT.md`): new vs existing (mapped or unmapped), what already
+  exists, reach, risk, overlapping work items. Never asks; names what it
+  found in the lane line.
+- **New projects** plan with `scope-it/GREENFIELD.md`: purpose, stack (via
+  `look-it-up`), shape, quality bar, ADRs for foundation choices, and a walking
+  skeleton phase that blocks the rest.
+- **Exploration skills**, routed from `do-it` when the request is to
+  understand rather than change (`do-it/EXPLORE.md`):
+  - `map-it`: facts only, `docs/reference/` or chat (replaces `doc-it` phase
+    1 and `zoom-out`).
+  - `sweep-it`: pre-existing problems, ranked, concrete cases, files what the
+    user picks (replaces `doc-it` phase 2 and the old `audit-it repo` mode;
+    adds ponytail-audit's lenses).
+  - `deepen-it`: upstream mattpocock `improve-codebase-architecture`, plus a
+    hand-off to `do-it` or `log-it`.
+  - `look-it-up`: mattpocock `research`, unchanged.
+- **Project docs resolve per repo.** Glossary (`GLOSSARY.md` or
+  `CONTEXT.md`), changelog, ADR and reference directories are detected or
+  configured once (`resolveDocs` in the shared config) and injected into every
+  session; skills keep naming the defaults.
+
+## 12. Not built yet
+
 - OpenCode 2 plugin API (the plugin targets the OpenCode 1 hooks).
+- A CI workflow running `npm test` and `npm run check` (routing evals
+  included) on every push.
+
+Built since the first cut: routing evals (`scripts/eval-routing.mjs`,
+`evals/routing.json`, part of `npm run check`), the session-start code map
+(`hooks/lib/codemap.mjs`, `DO_IT_MAP`), step-boundary guidance
+(`do-it/BOUNDARIES.md`), rollback notes for risk-area work at ship.
 
 ## Sources reviewed
 

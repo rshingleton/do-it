@@ -2,7 +2,7 @@
 
 Mechanical rules are enforced by the do-it hooks as you edit (secrets,
 `.compliance-rules/checks.json`, the configured lint command). Judgement-call
-standards are enforced by `audit-it`. This file is what the builder does.
+standards are enforced by `prove-it`. This file is what the builder does.
 
 ## 1. Discover (once per session)
 
@@ -10,7 +10,7 @@ standards are enforced by `audit-it`. This file is what the builder does.
 |--------|---------|
 | `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md` | Process and conventions |
 | `CODING_STANDARDS.md`, `STANDARDS.md`, `STYLE.md` | Explicit style rules |
-| `.compliance-rules/*.md` | Org rules audit-it will check |
+| `.compliance-rules/*.md` | Org rules prove-it will check |
 | `GLOSSARY.md`, `docs/adr/` near the change | Vocabulary and constraints |
 | Lint and format configs, `package.json` scripts, `Makefile`, CI workflow | The test, lint, format and type-check commands |
 
@@ -18,7 +18,7 @@ Note the commands; run them rather than checking by eye.
 
 ## 2. While coding
 
-Follow the `core` posture. In addition:
+Follow the `it-core` posture. In addition:
 
 - The phase file (or the S plan) and its linked ADRs are the contract. No
   drive-by refactors outside the phase's scope.

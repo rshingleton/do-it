@@ -40,7 +40,7 @@ test('tracker CLI runs through a symlink and prints JSON', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-cli-'));
   fs.mkdirSync(path.join(dir, '.git'));
   const link = path.join(dir, 'tracker-link');
-  fs.symlinkSync(path.join(ROOT, 'skills/tracker'), link);
+  fs.symlinkSync(path.join(ROOT, 'skills/track-it'), link);
   const out = execFileSync('node', [path.join(link, 'scripts/tracker.mjs'), 'create', '--title', 'Hello', '--body', 'b'], {
     cwd: dir,
     encoding: 'utf8',

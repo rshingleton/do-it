@@ -4,14 +4,14 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { parseEnv, loadConfig, redact } from '../skills/tracker/scripts/config.mjs';
-import { parseRef, slugify } from '../skills/tracker/scripts/refs.mjs';
-import { markdownToWiki } from '../skills/tracker/scripts/wiki.mjs';
-import { localTracker } from '../skills/tracker/scripts/adapters/local.mjs';
-import { githubTracker } from '../skills/tracker/scripts/adapters/github.mjs';
-import { jiraTracker } from '../skills/tracker/scripts/adapters/jira.mjs';
-import { run } from '../skills/tracker/scripts/tracker.mjs';
-import { DEFAULTS } from '../skills/tracker/scripts/config.mjs';
+import { parseEnv, loadConfig, redact } from '../skills/track-it/scripts/config.mjs';
+import { parseRef, slugify } from '../skills/track-it/scripts/refs.mjs';
+import { markdownToWiki } from '../skills/track-it/scripts/wiki.mjs';
+import { localTracker } from '../skills/track-it/scripts/adapters/local.mjs';
+import { githubTracker } from '../skills/track-it/scripts/adapters/github.mjs';
+import { jiraTracker } from '../skills/track-it/scripts/adapters/jira.mjs';
+import { run } from '../skills/track-it/scripts/tracker.mjs';
+import { DEFAULTS, resolveDocs } from '../skills/track-it/scripts/config.mjs';
 
 function tmpRepo() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-'));
@@ -41,6 +41,24 @@ test('loadConfig layers user < project < local < env and warns on committed secr
   assert.equal(cfg.values.PATH, undefined);
   assert.equal(cfg.warnings.length, 1);
   assert.equal(redact(cfg.values).JIRA_API_TOKEN, '***');
+});
+
+test('resolveDocs: config wins, then first existing candidate, then default', () => {
+  const root = tmpRepo();
+  let docs = resolveDocs(root, DEFAULTS);
+  assert.deepEqual(docs.glossary, { path: 'GLOSSARY.md', exists: false, source: 'default' });
+  assert.deepEqual(docs.changelog, { path: null, exists: false, source: 'default' });
+
+  fs.writeFileSync(path.join(root, 'CONTEXT.md'), '# terms');
+  fs.mkdirSync(path.join(root, 'docs/decisions'), { recursive: true });
+  fs.mkdirSync(path.join(root, '.changeset'));
+  docs = resolveDocs(root, DEFAULTS);
+  assert.deepEqual(docs.glossary, { path: 'CONTEXT.md', exists: true, source: 'detected' });
+  assert.equal(docs.adrDir.path, 'docs/decisions');
+  assert.equal(docs.changelog.path, '.changeset');
+
+  docs = resolveDocs(root, { ...DEFAULTS, DO_IT_GLOSSARY: 'docs/terms.md' });
+  assert.deepEqual(docs.glossary, { path: 'docs/terms.md', exists: false, source: 'config' });
 });
 
 test('parseRef routes by shape', () => {
@@ -83,7 +101,12 @@ test('github tracker builds gh calls and retries create without labels', () => {
     return '';
   };
   const t = githubTracker({ ...DEFAULTS, DO_IT_GITHUB_REPO: 'o/r' }, { run: runner });
-  assert.deepEqual(t.create({ title: 'T', type: 'bug', body: 'B' }), { ref: '#12', number: 12, url: 'https://github.com/o/r/issues/12' });
+  assert.deepEqual(t.create({ title: 'T', type: 'bug', body: 'B' }), {
+    ref: 'o/r#12',
+    number: 12,
+    url: 'https://github.com/o/r/issues/12',
+    labelsDropped: ['bug'],
+  });
   assert.equal(calls.length, 2);
   assert.equal(t.get('#12').status, 'OPEN');
   t.close('#12', 'done');

@@ -14,7 +14,8 @@
 import { sessionContext } from '../../hooks/lib/context.mjs';
 import { setup, beforeEdit, afterEdit, beforeShell } from '../../hooks/lib/guard.mjs';
 
-const EDIT_TOOLS = new Set(['write', 'edit', 'patch', 'multiedit']);
+// OpenCode 1.x registers its patch tool as apply_patch (arg patchText).
+const EDIT_TOOLS = new Set(['write', 'edit', 'patch', 'apply_patch', 'multiedit']);
 
 function context(cwd) {
   const ctx = setup(cwd);

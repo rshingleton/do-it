@@ -57,11 +57,10 @@ export async function handle(event, input) {
       const notes = [];
       const pre = beforeEdit(ctx, input.tool_input);
       if (pre.action === 'warn') notes.push(pre.message);
+      // The tool already ran, so findings go back as context next to its
+      // result (the documented PostToolUse channel), lint failures first.
       const lint = afterEdit(ctx, input.tool_input);
-      if (lint.action === 'feedback') {
-        return { exit: 0, stdout: { decision: 'block', reason: [lint.message, ...notes].join('\n\n') } };
-      }
-      if (lint.action === 'warn') notes.push(lint.message);
+      if (lint.action !== 'allow') notes.unshift(lint.message);
       if (!notes.length) return { exit: 0 };
       return { exit: 0, stdout: { hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: notes.join('\n\n') } } };
     }

@@ -14,12 +14,13 @@ changes the context. Touch no other ADR. Create none here.
 
 Merge terms the plan or the code introduced, in the existing format. New file
 only if the plan introduced domain terms and the repo has none; call the Skill
-tool with "domain-modeling" for the format.
+tool with "name-it" for the format.
 
 ## Changelog
 
-Find the repo's changelog (`CHANGELOG.md`, `docs/changelog*`, a changesets
-dir). Add one entry in its existing style: what shipped, in user-facing terms.
+Use the repo's resolved changelog (project docs in session context; a
+`.changeset/` directory means write a changeset file). Add one entry in its
+existing style: what shipped, in user-facing terms.
 With no linked ADR, add the audit's non-blocking notes and the plan's key
 decisions as sub-bullets. No changelog in the repo: skip, do not create one.
 
@@ -33,11 +34,12 @@ git diff -U0 <base_ref> | grep -E '^(\+\+\+ |@@ |\+.*shortcut:)'
 
 plus any in untracked files. A marker without an upgrade trigger is
 `no-trigger`. Offer the `no-trigger` ones, numbered, in the ship question;
-file each one the user picks with `issue-it` (`type: defer`,
+file each one the user picks with `log-it` (`type: defer`,
 `source: ship-it`, the `file:line` and limit).
 
-## Before deleting the plan
+## What the plan knows
 
-Check the plan for decisions or context that neither an ADR nor the changelog
-entry holds. Move them into the changelog entry (or the ADR's execution notes)
-first. Keep it to a few lines; the code and the commit say the rest.
+The plan is deleted at commit time, so while writing these docs, check it for
+decisions or context that neither an ADR nor the changelog entry holds. Put
+them in the changelog entry (or the ADR's execution notes) now. Keep it to a
+few lines; the code and the commit say the rest.

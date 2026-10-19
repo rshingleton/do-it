@@ -4,7 +4,7 @@ status: accepted
 
 # One tracker seam, layered dotenv config
 
-Every tracker operation (create, get, comment, start, close, publish) goes through the `tracker` skill, backed by local files by default and by GitHub (`gh`) or Jira (REST v2) when configured. Configuration is dotenv files layered user, project, project-local, then environment, so a team commits its tracker choice and each developer keeps tokens out of the repo.
+Every tracker operation (create, get, comment, start, close, publish) goes through the `track-it` skill, backed by local files by default and by GitHub (`gh`) or Jira (REST v2) when configured. Configuration is dotenv files layered user, project, project-local, then environment, so a team commits its tracker choice and each developer keeps tokens out of the repo.
 
 ## Considered options
 

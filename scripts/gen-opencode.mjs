@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Generate .opencode/command/<name>.md for every user-invoked skill, so
-// /do-it, /plan-it and the rest work as slash commands in OpenCode. The
+// /do-it, /scope-it and the rest work as slash commands in OpenCode. The
 // skill stays the single source; the command only points at it.
 //
 // Usage: gen-opencode.mjs [--check]   (--check exits 1 when files are stale)
@@ -28,7 +28,7 @@ export function commandFor(skill) {
 }
 
 // Model-invoked skills that also deserve a slash command.
-const ALSO_COMMANDS = new Set(['issue-it', 'compliance']);
+const ALSO_COMMANDS = new Set(['log-it', 'guard-it', 'map-it', 'sweep-it', 'look-it-up', 'merge-it']);
 
 export function expected() {
   return Object.fromEntries(

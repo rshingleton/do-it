@@ -12,6 +12,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { ROOT } from './lib/skills.mjs';
 
 const [host, ...flags] = process.argv.slice(2);
@@ -29,16 +30,23 @@ function readJson(file) {
   }
 }
 
-function writeJson(file, data) {
+// Write only when something changed. The backup is taken once, so it keeps
+// the file as it was before do-it first touched it, however often this runs.
+function writeJson(file, before, data) {
+  if (JSON.stringify(before) === JSON.stringify(data)) {
+    console.log(`unchanged ${file}`);
+    return;
+  }
   const out = `${JSON.stringify(data, null, 2)}\n`;
   if (dryRun) {
     console.log(`--- ${file} (dry run)\n${out}`);
     return;
   }
-  if (fs.existsSync(file)) fs.copyFileSync(file, `${file}.bak-do-it`);
+  const backup = `${file}.bak-do-it`;
+  if (fs.existsSync(file) && !fs.existsSync(backup)) fs.copyFileSync(file, backup);
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, out);
-  console.log(`updated ${file} (backup: ${file}.bak-do-it)`);
+  console.log(`updated ${file}${fs.existsSync(backup) ? ` (original kept in ${backup})` : ''}`);
 }
 
 // hooks/hooks.json with ${CLAUDE_PLUGIN_ROOT} resolved to this checkout.
@@ -97,17 +105,28 @@ export function mergeOpencode(config, root, { strip = false, major = 1 } = {}) {
 function main() {
   if (host === 'claude') {
     const file = path.join(HOME, '.claude', 'settings.json');
-    writeJson(file, mergeClaude(readJson(file), ROOT, { strip: remove }));
+    const before = readJson(file);
+    writeJson(file, before, mergeClaude(before, ROOT, { strip: remove }));
   } else if (host === 'opencode') {
     const file = path.join(process.env.XDG_CONFIG_HOME || path.join(HOME, '.config'), 'opencode', 'opencode.json');
-    writeJson(file, mergeOpencode(readJson(file), ROOT, { strip: remove, major: opencodeMajor() }));
+    const before = readJson(file);
+    writeJson(file, before, mergeOpencode(before, ROOT, { strip: remove, major: opencodeMajor() }));
   } else {
     console.error('usage: install-hooks.mjs claude|opencode [--remove] [--dry-run]');
     process.exit(2);
   }
 }
 
-if (process.argv[1] && fs.realpathSync(process.argv[1]) === fs.realpathSync(new URL(import.meta.url).pathname)) {
+// fileURLToPath, not URL.pathname: the latter keeps %20 for spaces in the path.
+function isMain() {
+  try {
+    return Boolean(process.argv[1]) && fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+
+if (isMain()) {
   try {
     main();
   } catch (e) {

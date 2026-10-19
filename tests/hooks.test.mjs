@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 import { BUILTIN, scan, loadChecks, addedText } from '../hooks/lib/checks.mjs';
 import { beforeEdit, afterEdit, beforeShell } from '../hooks/lib/guard.mjs';
-import { DEFAULTS } from '../skills/tracker/scripts/config.mjs';
+import { DEFAULTS } from '../skills/track-it/scripts/config.mjs';
 import { sessionContext } from '../hooks/lib/context.mjs';
 import { mergeClaude, mergeOpencode } from '../scripts/install-hooks.mjs';
 
@@ -110,6 +110,11 @@ test('session context carries the core posture and repo pointers', () => {
   assert.match(text, /`\.compliance-rules\/security\.md`/);
   assert.match(text, /eslint \{file\}/);
   assert.doesNotMatch(text, /^---/);
+  assert.match(text, /- Glossary: `GLOSSARY\.md` \(not created yet/);
+  assert.match(text, /- Changelog: none; skip/);
+
+  fs.writeFileSync(path.join(root, 'CONTEXT.md'), '# terms');
+  assert.match(sessionContext(root, DEFAULTS), /- Glossary: `CONTEXT\.md`\n/);
 });
 
 function hook(event, input, env = {}) {
@@ -138,14 +143,6 @@ test('claude hook protocol: exit 2 blocks, JSON context on start, fail open on j
 
   const junk = spawnSync('node', [path.join(ROOT, 'hooks', 'claude.mjs'), 'pre-tool'], { input: 'not json', encoding: 'utf8' });
   assert.equal(junk.status, 0);
-});
-
-test('claude post-tool returns lint failures as a block decision', () => {
-  const root = repo();
-  const r = hook('post-tool', { cwd: root, tool_name: 'Edit', tool_input: { file_path: 'a.js', new_string: 'x' } }, { DO_IT_LINT_CMD: 'echo bad; exit 1' });
-  const out = JSON.parse(r.stdout);
-  assert.equal(out.decision, 'block');
-  assert.match(out.reason, /bad/);
 });
 
 test('install-hooks merges idempotently and removes only its own entries', () => {
