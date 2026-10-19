@@ -1,0 +1,9 @@
+{
+  "name": "do-it",
+  "version": "0.1.0",
+  "description": "A size-scaled issue, plan, build, audit, ship workflow with always-on coding standards and compliance hooks.",
+  "author": { "name": "rshingleton" },
+  "license": "MIT",
+  "skills": "./skills",
+  "hooks": "./hooks/hooks.json"
+}

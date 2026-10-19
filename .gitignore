@@ -1,0 +1,4 @@
+node_modules/
+.do-it/local.env
+*.bak-do-it
+.DS_Store

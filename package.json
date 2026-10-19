@@ -1,0 +1,14 @@
+{
+  "name": "do-it-skills",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A size-scaled issue, plan, build, audit, ship workflow for Claude Code and OpenCode.",
+  "license": "MIT",
+  "type": "module",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "check": "node scripts/check.mjs && node scripts/gen-opencode.mjs --check",
+    "gen": "node scripts/gen-opencode.mjs"
+  }
+}

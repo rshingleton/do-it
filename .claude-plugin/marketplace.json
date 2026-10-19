@@ -1,0 +1,11 @@
+{
+  "name": "do-it",
+  "owner": { "name": "rshingleton" },
+  "plugins": [
+    {
+      "name": "do-it",
+      "source": "./",
+      "description": "A size-scaled issue, plan, build, audit, ship workflow with always-on coding standards and compliance hooks."
+    }
+  ]
+}
