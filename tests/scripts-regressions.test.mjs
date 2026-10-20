@@ -68,6 +68,28 @@ test('uninstall removes every link into this checkout, including renamed skills'
   assert.ok(fs.lstatSync(foreign, { throwIfNoEntry: false }), 'foreign link must stay');
 });
 
+test('install.sh run from a pipe clones the repo, installs from the clone, and pulls on a re-run', () => {
+  const home = tmp('do-it-home-');
+  const clone = path.join(home, 'share/do-it');
+  const env = { ...process.env, HOME: home, XDG_CONFIG_HOME: path.join(home, '.config'), DO_IT_REPO: ROOT, DO_IT_HOME: clone };
+  const piped = (...args) =>
+    spawnSync('bash', ['-s', '--', ...args], { cwd: home, input: fs.readFileSync(path.join(ROOT, 'scripts/install.sh')), encoding: 'utf8', env });
+
+  const dry = piped('--dry-run');
+  assert.equal(dry.status, 0, dry.stderr);
+  assert.match(dry.stdout, /would clone/);
+  assert.equal(fs.existsSync(clone), false, 'a dry run clones nothing');
+
+  const first = piped('--no-hooks');
+  assert.equal(first.status, 0, first.stderr);
+  assert.ok(fs.existsSync(path.join(clone, '.git')));
+  assert.equal(fs.readlinkSync(path.join(home, '.claude/skills/do-it')), path.join(clone, 'skills/do-it'));
+
+  const again = piped('--no-hooks');
+  assert.equal(again.status, 0, again.stderr);
+  assert.match(again.stdout, /updating .*share\/do-it/);
+});
+
 function scan(dir, ...args) {
   return spawnSync('node', [path.join(ROOT, 'skills/guard-it/scripts/scan.mjs'), ...args], { cwd: dir, encoding: 'utf8' });
 }

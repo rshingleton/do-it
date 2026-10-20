@@ -2,6 +2,11 @@
 # Install do-it from this checkout by symlinks, for Claude Code and OpenCode.
 #
 #   scripts/install.sh [--no-hooks] [--force] [--dry-run] [--uninstall]
+#   bash <(curl -fsSL https://raw.githubusercontent.com/rshingleton/do-it/main/scripts/install.sh)
+#
+# Run from a pipe (no checkout around it), it clones DO_IT_REPO into
+# DO_IT_HOME (default ~/.local/share/do-it), or pulls that clone, then runs
+# the clone's copy with the same options.
 #
 # Skills:   skills/<name>    -> ~/.claude/skills/<name> and ~/.agents/skills/<name>
 # Commands: .opencode/command/<name>.md -> ~/.config/opencode/command/<name>.md
@@ -13,7 +18,10 @@
 # carries skills and hooks itself.
 set -euo pipefail
 
-root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Piped (`bash <(curl ...)`, `curl | bash`), the source is a pipe or unset.
+src="${BASH_SOURCE[0]:-}"
+root=""
+[ -f "$src" ] && root="$(cd "$(dirname "$src")/.." && pwd)"
 hooks=1 force=0 dry=0 uninstall=0
 for arg in "$@"; do
   case "$arg" in
@@ -21,10 +29,33 @@ for arg in "$@"; do
     --force) force=1 ;;
     --dry-run) dry=1 ;;
     --uninstall) uninstall=1 ;;
-    -h | --help) sed -n '2,15p' "$0"; exit 0 ;;
+    -h | --help)
+      if [ -f "$src" ]; then sed -n '2,19p' "$src"; else echo "usage: install.sh [--no-hooks] [--force] [--dry-run] [--uninstall]"; fi
+      exit 0 ;;
     *) echo "unknown option: $arg" >&2; exit 2 ;;
   esac
 done
+
+# No checkout here: we were piped in. Fetch or refresh the clone and hand over.
+if [ ! -d "$root/skills" ] || [ ! -f "$root/scripts/install-hooks.mjs" ]; then
+  repo="${DO_IT_REPO:-https://github.com/rshingleton/do-it.git}"
+  home="${DO_IT_HOME:-$HOME/.local/share/do-it}"
+  command -v git >/dev/null || { echo "do-it needs git on PATH" >&2; exit 1; }
+  if [ -d "$home/.git" ]; then
+    if [ "$dry" = 0 ] && [ "$uninstall" = 0 ]; then
+      echo "updating $home"
+      git -C "$home" pull --ff-only --quiet
+    fi
+  elif [ "$dry" = 1 ] || [ "$uninstall" = 1 ]; then
+    echo "would clone $repo into $home; nothing installed from there yet"
+    exit 0
+  else
+    echo "cloning $repo into $home"
+    mkdir -p "$(dirname "$home")"
+    git clone --quiet "$repo" "$home"
+  fi
+  exec bash "$home/scripts/install.sh" "$@"
+fi
 
 config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
 skill_dirs=("$HOME/.claude/skills" "$HOME/.agents/skills")

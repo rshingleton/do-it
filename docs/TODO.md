@@ -44,6 +44,8 @@ Nice-to-haves and things to circle back to. Managed by todo-it; edit freely.
   - References: https://github.com/BerriAI/self-improving-agent, https://github.com/microsoft/Trace, https://github.com/XMUDeepLIT/Awesome-Self-Evolving-Agents, https://github.com/selfimproving-agent/awesome-Self-Improving-Agents
   - Related: T29 (retro-it mines transcripts for corrections), T22 (red-flag tables from observed failures), T23 (behaviour evals), T10 (routing eval variants).
 - [ ] T49 Concurrent uncommitted work items: each fingerprint hashes the whole change since its base, so fixing one item invalidates every other item's audit. Scope the fingerprint (and the auditors' diff) to the item's own paths, e.g. a `paths:` field filled as build-it touches files `idea` (do-it run 2026-10-19: three items, one base, no commits)
+- [ ] T50 scope-it §5 (Approve) should list the "create `<area>/CONTEXT.md` with `/map-it <area>`" step that §2 proposes, so the approval turn shows it `debt` (skills/scope-it/SKILL.md:40; per-area-contexts audit round 4)
+- [ ] T51 ship-it DOCS.md still lets ship-it create a context file for new terms; the per-area-contexts decision names only name-it, `/map-it <area>` and an accepted plan step as creators, so propose creation in the ship question instead `debt` (skills/ship-it/DOCS.md:23; per-area-contexts audit round 4)
 
 ## Done
 

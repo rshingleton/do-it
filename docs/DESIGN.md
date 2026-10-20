@@ -259,7 +259,9 @@ do-it/
 ```
 
 - Install: `scripts/install.sh` for both hosts (OpenCode reads
-  `~/.agents/skills`); the Claude plugin is the alternative for Claude Code.
+  `~/.agents/skills`), from a clone or piped from curl (it clones or pulls
+  `~/.local/share/do-it`, then runs the clone's copy); the Claude plugin is
+  the alternative for Claude Code.
 - Org-specific material (Jira, `.compliance-rules/`) is configuration, not
   code: the repo works with neither.
 

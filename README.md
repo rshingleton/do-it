@@ -105,7 +105,18 @@ installed beside this one.
 
 Requires Node 18+. Pick one.
 
-**Symlinks (Claude Code and OpenCode):**
+**One-liner (Claude Code and OpenCode):**
+
+```bash
+bash <(curl -fsSL 'https://raw.githubusercontent.com/rshingleton/do-it/main/scripts/install.sh')
+```
+
+It clones the repo into `~/.local/share/do-it` (or pulls it when the clone is
+there), then installs from the clone; re-run it to update. Options pass
+through: append `--no-hooks`, `--dry-run` or `--uninstall`. `DO_IT_REPO`
+points it at a mirror, `DO_IT_HOME` at another clone directory.
+
+**From a clone:**
 
 ```bash
 git clone https://github.com/rshingleton/do-it.git ~/.local/share/do-it
@@ -132,8 +143,8 @@ you pass `--force`. Hooks register in `~/.claude/settings.json` and
 The plugin carries skills and hooks. Use it or the symlinks for Claude Code,
 not both. Using OpenCode too? Use the symlink install; it covers both hosts.
 
-**Update:** `git pull` in the clone (symlinks pick it up), or
-`/plugin marketplace update do-it` for the plugin.
+**Update:** re-run the one-liner, `git pull` in the clone (symlinks pick it
+up), or `/plugin marketplace update do-it` for the plugin.
 
 ## Hooks
 
