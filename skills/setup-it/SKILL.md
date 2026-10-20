@@ -14,21 +14,27 @@ and writes nothing that is already right.
 
 Read, without writing anything:
 
-- **Project state:** new or existing, per the do-it scout
-  ([SCOUT.md](../do-it/SCOUT.md)). Existing and no `docs/reference/`: note
+- **Project state:** new or existing, per the project-state table in
+  [SCOUT.md](../do-it/SCOUT.md) §1. Existing and no `docs/reference/`: note
   it for §4.
 - **Commands:** test, lint, format, type-check, from `package.json` scripts,
   `Makefile`, `pyproject.toml`, `build.gradle`/`pom.xml`, `Cargo.toml`, the CI
-  workflow. Pick a per-file lint command if the linter takes paths (for
-  `DO_IT_LINT_CMD`, with `{file}`).
+  workflow, and test scripts (`*.test.sh`, `test/`, `tests/`). Record `none`
+  for a kind that does not exist. Pick a per-file lint command if the linter
+  takes paths (for `DO_IT_LINT_CMD`, with `{file}`). They are recorded once,
+  in the `AGENTS.md` `Commands:` line ([PROPOSAL.md](PROPOSAL.md) §4), which
+  build-it and map-it read instead of rediscovering.
 - **Current config:** `node <track-it dir>/scripts/tracker.mjs config` (the
   `track-it` skill's directory is `../track-it/`). It shows existing
-  `.do-it/` values, the detected glossary, changelog, ADR and reference
-  paths, and warnings.
-- **Tracker hints:** a GitHub remote (`git remote -v`), Jira keys in recent
-  commit subjects, an existing `docs/issues/`.
-- **Agent docs:** `AGENTS.md`, `CLAUDE.md`, and whether either already has a
-  do-it section.
+  `.do-it/` values, the detected context, context map, changelog, ADR and
+  reference paths, and warnings.
+- **Tracker hints:** whether `origin` (not forks or upstreams) is GitHub,
+  Jira keys in recent commit subjects, `JIRA_*` names in `.env.example`, an
+  existing `docs/issues/`. `--tracker` overrides all of them.
+- **Agent docs:** `AGENTS.md`, `CLAUDE.md`, whether either already has a
+  do-it section, the repo's own writing rules (the appended text follows
+  them), and any other workflow already defined there that uses
+  `docs/issues/` or `docs/planning/` (flag the overlap in the proposal).
 - **Compliance:** `.compliance-rules/` and any `checks.json`.
 
 ## 2. Propose (one turn, every item with a default)

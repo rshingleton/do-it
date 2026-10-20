@@ -40,7 +40,9 @@ The finding contract in [REPORT.md](../prove-it/REPORT.md) applies: a concrete
 case or no finding; recorded decisions (ADRs, `shortcut:` markers that name
 their limit) are not findings; before calling code unused, grep the whole
 tree including tests, config and string references. Prefer fixes that delete
-code. At most 20 findings; say how many smaller ones were left out.
+code. At most 20 findings; say how many smaller ones were left out. Validate
+every Must per [VALIDATE.md](../prove-it/VALIDATE.md) before reporting it;
+rejected ones go under Not confirmed with the reason.
 
 ## 4. Report
 
@@ -51,9 +53,11 @@ and the verdict in chat either way.
 
 ## 5. File what matters
 
-Ask once which numbered findings to file. For each one picked, call the Skill
-tool with "log-it" (`source: sweep-it`, the finding's case and fix in the
-body). Never file the whole report unasked.
+Ask once which numbered findings to file, and where. Must and Should go to
+an issue: call the Skill tool with "log-it" (`source: sweep-it`, the
+finding's case and fix in the body). Nice findings default to the to-do list:
+call the Skill tool with "todo-it" (tag `nice-to-have`, the finding's
+location as source). Never file the whole report unasked.
 
 > Swept <scope>: <N> findings (<M> Must). Filed: <refs or none>.
 > **Next:** `/do-it <ref>` for a filed issue, or

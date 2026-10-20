@@ -23,7 +23,7 @@
       ],
       "negative": [
         { "prompt": "build a quick throwaway prototype of the new dashboard UI", "owner": "sketch-it" },
-        { "prompt": "update the glossary with the new domain term", "owner": "name-it" }
+        { "prompt": "write the new domain term into CONTEXT.md", "owner": "name-it" }
       ]
     },
     "doubt-it": {
@@ -72,13 +72,25 @@
     "log-it": {
       "positive": [
         "log a bug: the export button does nothing on Safari",
-        "file this for later, we need rate limiting on the search API",
+        "file an issue: we need rate limiting on the search API",
         "here is an email from a customer, capture it as an issue",
-        "add a todo to the tracker to clean up the old CSV importer"
+        "open a ticket to replace the old CSV importer"
       ],
       "negative": [
         { "prompt": "what tracker config is in effect for this repo", "owner": "track-it" },
-        { "prompt": "debug why the export button throws on Safari", "owner": "debug-it" }
+        { "prompt": "debug why the export button throws on Safari", "owner": "debug-it" },
+        { "prompt": "remember to tidy the README badges at some point", "owner": "todo-it" }
+      ]
+    },
+    "todo-it": {
+      "positive": [
+        "add these suggestions to the todo list so we can circle back later",
+        "note this as a nice to have: dark mode for the settings page",
+        "park this idea for later, not now",
+        "what is on our todo list"
+      ],
+      "negative": [
+        { "prompt": "log a bug: login fails with a 500 on Safari", "owner": "log-it" }
       ]
     },
     "look-it-up": {
@@ -107,7 +119,7 @@
     "name-it": {
       "positive": [
         "we keep calling the same thing an order and a purchase, sort out the terminology",
-        "add the new term to GLOSSARY.md",
+        "add this term to the auth area's CONTEXT.md",
         "record an ADR for the decision to use event sourcing",
         "sharpen the domain model for shipments and returns"
       ],

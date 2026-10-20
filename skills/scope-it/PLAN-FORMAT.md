@@ -1,25 +1,43 @@
 # Plan format
 
-The state block is defined in [STATE.md](../do-it/STATE.md). Describe
+The state block is defined in [STATE.md](../do-it/STATE.md) and written by
+`work.mjs new` and `work.mjs set`; never type it by hand. Describe
 behaviour and interfaces, not procedures: name the types, functions, commands
 or config shapes that change and what they must do. File paths are starting
 points, not the contract.
 
 ## Lane S: `docs/planning/<id>.md`
 
+After `work.mjs new login-rate-limit --lane s --title "..."`, `set sources`
+and `set assumptions`, the file is the block plus this body:
+
 ```markdown
 ---
 id: login-rate-limit
 title: Rate-limit the login endpoint
 lane: s
-status: planned
-tracker: { kind: local, ref: docs/issues/login-rate-limit.md }
+status: draft
+tracker: null
 sources: [docs/issues/login-rate-limit.md]
+roadmap: null
+todo: []
 base_ref: null
-approvals: { plan: 2026-10-19 }
+approvals:
+  plan: null
+verified: null
 assumptions:
   - "5 attempts per minute per IP (reversible: config)"
-audit: { verdict: null, round: 0, fingerprint: null }
+fix: []
+audit:
+  verdict: null
+  round: 0
+  must: []
+  fingerprint: null
+  at: null
+ship:
+  prepared: null
+  fingerprint: null
+blocker: null
 ---
 
 # Rate-limit the login endpoint
@@ -44,7 +62,9 @@ One paragraph: the behaviour that will be true when this ships.
 
 ## Lane M: `docs/planning/<id>/`
 
-`README.md` holds the state block (with `phases:`), then:
+`README.md` holds the state block, with `phases:` set by
+`work.mjs set <id> phases '[{"n":1,"title":"Limiter module"},{"n":2,"title":"Login wiring","blocked_by":[1]}]'`,
+then:
 
 ```markdown
 # <title>

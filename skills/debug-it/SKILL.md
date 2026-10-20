@@ -10,7 +10,7 @@ signal that turns red on this bug and green when it is gone, then letting
 that signal decide between explanations. Skip a stage only when you can say
 why it does not apply.
 
-Read the glossary and the ADRs for the area first, so the modules and words
+Read the area's context (it-core) and its ADRs first, so the modules and words
 you reason with are the project's own.
 
 ## Keep secrets out of the evidence

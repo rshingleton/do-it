@@ -1,7 +1,8 @@
 # Durable docs
 
 The plan is temporary. What survives it: ADRs (why), the changelog (what
-shipped), `GLOSSARY.md` (words), and issues for what was left undone.
+shipped), the area's `CONTEXT.md` and the context map (words and where
+things live), and issues for what was left undone.
 
 ## ADRs
 
@@ -10,11 +11,19 @@ status `Proposed` → `Accepted`, then add an `## Execution notes` section with
 the audit's Should and Nice findings and anything the build learned that
 changes the context. Touch no other ADR. Create none here.
 
-## GLOSSARY.md
+## Area context and the map
 
-Merge terms the plan or the code introduced, in the existing format. New file
-only if the plan introduced domain terms and the repo has none; call the Skill
-tool with "name-it" for the format.
+The area is the one the plan worked in (it-core). In its `CONTEXT.md`:
+
+- **Terms:** merge the terms the plan or the code introduced, in the existing
+  format.
+- **Key files:** add, move or drop rows for files the build created, moved or
+  deleted. Leave the other sections to `map-it`.
+
+In `CONTEXT-MAP.md`, update the area's row when its Location or Scope moved.
+No context file for the area and the plan introduced domain terms: create it,
+and its map row, as name-it's
+[CONTEXT-FORMAT.md](../name-it/CONTEXT-FORMAT.md) says.
 
 ## Changelog
 
@@ -33,9 +42,10 @@ git diff -U0 <base_ref> | grep -E '^(\+\+\+ |@@ |\+.*shortcut:)'
 ```
 
 plus any in untracked files. A marker without an upgrade trigger is
-`no-trigger`. Offer the `no-trigger` ones, numbered, in the ship question;
-file each one the user picks with `log-it` (`type: defer`,
-`source: ship-it`, the `file:line` and limit).
+`no-trigger`. Offer the `no-trigger` ones, numbered, in the ship question.
+Each one the user picks goes to the to-do list by default (call the Skill
+tool with "todo-it", tag `debt`, the `file:line` and limit as source), or to
+an issue with `log-it` (`type: defer`) when the user wants it planned.
 
 ## What the plan knows
 

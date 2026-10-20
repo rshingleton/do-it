@@ -9,6 +9,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 import { parseFrontmatter } from '../scripts/lib/skills.mjs';
+import { fingerprint as fp } from '../skills/do-it/scripts/changeset.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const KEY = ['AKIA', 'ABCDEFGHIJKLMNOP'].join('');
@@ -67,6 +68,35 @@ test('uninstall removes every link into this checkout, including renamed skills'
   assert.ok(fs.lstatSync(foreign, { throwIfNoEntry: false }), 'foreign link must stay');
 });
 
+test('install.sh run from a pipe clones the repo, installs from the clone, and pulls on a re-run', () => {
+  // The source is on a branch, as GitHub's default branch is; cloning ROOT
+  // itself fails in CI, where a pull request checks out a detached merge commit.
+  const source = copyRepo(tmp('do-it-src-'));
+  const git = (...a) => execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', ...a], { cwd: source });
+  git('init', '-q', '-b', 'main');
+  git('add', '-A');
+  git('commit', '-q', '-m', 'source');
+  const home = tmp('do-it-home-');
+  const clone = path.join(home, 'share/do-it');
+  const env = { ...process.env, HOME: home, XDG_CONFIG_HOME: path.join(home, '.config'), DO_IT_REPO: source, DO_IT_HOME: clone };
+  const piped = (...args) =>
+    spawnSync('bash', ['-s', '--', ...args], { cwd: home, input: fs.readFileSync(path.join(ROOT, 'scripts/install.sh')), encoding: 'utf8', env });
+
+  const dry = piped('--dry-run');
+  assert.equal(dry.status, 0, dry.stderr);
+  assert.match(dry.stdout, /would clone/);
+  assert.equal(fs.existsSync(clone), false, 'a dry run clones nothing');
+
+  const first = piped('--no-hooks');
+  assert.equal(first.status, 0, first.stderr);
+  assert.ok(fs.existsSync(path.join(clone, '.git')));
+  assert.equal(fs.readlinkSync(path.join(home, '.claude/skills/do-it')), path.join(clone, 'skills/do-it'));
+
+  const again = piped('--no-hooks');
+  assert.equal(again.status, 0, again.stderr);
+  assert.match(again.stdout, /updating .*share\/do-it/);
+});
+
 function scan(dir, ...args) {
   return spawnSync('node', [path.join(ROOT, 'skills/guard-it/scripts/scan.mjs'), ...args], { cwd: dir, encoding: 'utf8' });
 }
@@ -91,11 +121,9 @@ test('scan.mjs rejects an unknown --since ref instead of reporting clean', () =>
   assert.match(r.stdout + r.stderr, /unknown ref/);
 });
 
-function fingerprint(cwd, base = 'HEAD') {
-  return spawnSync('bash', [path.join(ROOT, 'skills/do-it/scripts/fingerprint.sh'), base], { cwd, encoding: 'utf8' });
-}
+const fingerprint = (cwd, base = 'HEAD') => fp(cwd, base, { exclude: ['docs/planning'] });
 
-test('fingerprint.sh is the same from any directory and handles odd entries', () => {
+test('fingerprint is the same from any directory and handles odd entries', () => {
   const { dir, commit } = gitRepo();
   fs.mkdirSync(path.join(dir, 'sub'));
   fs.writeFileSync(path.join(dir, 'sub/.keep'), '');
@@ -103,25 +131,40 @@ test('fingerprint.sh is the same from any directory and handles odd entries', ()
   commit();
   fs.writeFileSync(path.join(dir, 'a'), 'x');
   const root = fingerprint(dir);
-  const sub = fingerprint(path.join(dir, 'sub'));
-  assert.equal(root.status, 0, root.stderr);
-  assert.equal(sub.stdout, root.stdout);
+  assert.equal(fingerprint(path.join(dir, 'sub')), root);
 
   fs.symlinkSync('/etc', path.join(dir, 'linkdir'));
   const withLink = fingerprint(dir);
-  assert.equal(withLink.status, 0, withLink.stderr);
-  assert.equal(fingerprint(dir).stdout, withLink.stdout);
+  assert.notEqual(withLink, root);
+  assert.equal(fingerprint(dir), withLink);
+
+  fs.mkdirSync(path.join(dir, 'nested'));
+  execFileSync('git', ['init', '-q'], { cwd: path.join(dir, 'nested') });
+  fs.writeFileSync(path.join(dir, 'nested/f'), 'n');
+  const withNested = fingerprint(dir);
+  fs.writeFileSync(path.join(dir, 'nested/f'), 'changed');
+  assert.equal(fingerprint(dir), withNested, 'a nested repo hashes by name only');
 });
 
-test('fingerprint.sh works before the first commit and fails on a bad base', () => {
+test('fingerprint works before the first commit and fails on a bad base', () => {
   const { dir } = gitRepo();
   fs.writeFileSync(path.join(dir, 'a'), 'x');
-  const r = fingerprint(dir);
-  assert.equal(r.status, 0, r.stderr);
-  assert.notEqual(r.stdout.trim(), 'e69de29bb2d1d6434b8b29ae775ad8c2e48c5391');
+  assert.notEqual(fingerprint(dir), 'e69de29bb2d1d6434b8b29ae775ad8c2e48c5391');
   const { dir: d2, commit } = gitRepo();
   commit();
-  assert.notEqual(fingerprint(d2, 'nosuchref').status, 0);
+  assert.throws(() => fingerprint(d2, 'nosuchref'), /unknown base ref: nosuchref/);
+});
+
+test('fingerprint hashes binary changes and is a git blob id', () => {
+  const { dir, git, commit } = gitRepo();
+  fs.writeFileSync(path.join(dir, 'b.bin'), Buffer.from([0, 1, 2, 255]));
+  git('add', '-A');
+  commit();
+  assert.equal(fingerprint(dir), 'e69de29bb2d1d6434b8b29ae775ad8c2e48c5391', 'no change hashes as the empty blob');
+  fs.writeFileSync(path.join(dir, 'b.bin'), Buffer.from([0, 9, 2, 255]));
+  const diff = execFileSync('git', ['diff', '--binary', 'HEAD'], { cwd: dir });
+  const expected = execFileSync('git', ['hash-object', '--stdin'], { cwd: dir, input: diff, encoding: 'utf8' }).trim();
+  assert.equal(fingerprint(dir), expected);
 });
 
 test('parseFrontmatter handles CRLF, folded blocks with blank lines, quotes', () => {
@@ -157,4 +200,14 @@ test('check.mjs: em-dash allowed in inline code and ~~~ fences; Skill-tool calls
   assert.equal(ok.status, 0, ok.stdout);
   const bad = checkWith({ 'skills/zz-it/SKILL.md': SKILL('Then use the `Skill` tool on "ship-it".') });
   assert.equal(bad.status, 1, bad.stdout);
+});
+
+test('importing gen-opencode.mjs does not run it (bug 10)', () => {
+  const url = new URL('../scripts/gen-opencode.mjs', import.meta.url).href;
+  const r = spawnSync('node', ['--input-type=module', '-e', `const m = await import(${JSON.stringify(url)}); console.log(typeof m.expected)`], {
+    cwd: ROOT,
+    encoding: 'utf8',
+  });
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.stdout.trim(), 'function');
 });

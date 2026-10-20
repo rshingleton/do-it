@@ -50,10 +50,9 @@ End the turn. Write only the items the user picks.
 
 ## 4. Apply
 
-- Checks: add the rule, then run `node <guard-it dir>/scripts/scan.mjs` (the
-  `guard-it` skill's directory is `../guard-it/`) or the linter on the
-  offending case to prove it fires, and on the current tree to show it does
-  not flood.
+- Checks: write and prove the rule as [guard-it](../guard-it/SKILL.md)'s "Add
+  a mechanical rule" says (format, fires on the case, does not flood), or
+  add it to the repo's own lint config and run the linter the same two ways.
 - Standards: append the line in the doc's existing format.
 - Issues: call the Skill tool with "log-it" (`source: retro-it`).
 

@@ -19,7 +19,7 @@ Send it and carry straight on; the user reads while the designs are drawn.
 
 Start at least three subagents together. Each gets the same technical brief
 (file paths, how the pieces are coupled, the dependency kinds, what must sit
-behind the seam, the `design-it` terms and the project's glossary terms) and
+behind the seam, the `design-it` terms and the Terms in the area's `CONTEXT.md`) and
 one different pull:
 
 | Designer | Pull |

@@ -9,13 +9,14 @@ Red, then green, one thin slice at a time. The aim is not coverage: it is a
 small set of tests that pin down what the code promises and keep passing
 while its insides change.
 
-Name tests and fixtures in the project's own domain words (the glossary in
-session context), and stay inside the decisions its ADRs record.
+Name tests and fixtures in the project's own domain words (the Terms in the
+area's `CONTEXT.md`, per it-core), and stay inside the decisions its ADRs record.
 
 ## Where the tests sit
 
-A seam is the public surface a test drives: an exported function, a command,
-an HTTP route, a module's interface. Tests go there and nowhere deeper.
+Tests go through a module's interface at a seam, in the sense
+[design-it](../design-it/SKILL.md) defines (the place where an interface sits
+and behaviour can be swapped), and nowhere deeper.
 
 - **Seams already agreed** (`build-it` passes the plan's `## Seams`): test at
   exactly those. Do not ask the user to confirm them again.

@@ -1,0 +1,30 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test (${{ matrix.os }}, node ${{ matrix.node }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # macOS covers bash 3.2, which install.sh must support.
+        os: [ubuntu-latest, macos-latest]
+        node: [18, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Tests
+        run: npm test
+      - name: Checks (frontmatter, links, skill calls, OpenCode commands, routing eval)
+        run: npm run check
+      - name: Install dry run
+        run: bash scripts/install.sh --dry-run --no-hooks

@@ -25,8 +25,8 @@ blocking edges, assumptions, risk); a new project adds the greenfield agenda.
 Facts are yours to find, decisions are the user's to make (the
 assume-or-ask rule in `it-core`):
 
-- Before each round, look up anything the code, ADRs, the glossary, the
-  issue or `docs/reference/` can answer. Never ask the user what a search
+- Before each round, look up anything the code, ADRs, the area's context
+  (it-core), the issue or `docs/reference/` can answer. Never ask the user what a search
   would tell you.
 - A slow lookup (a large repo, an external doc) can run in a read-only
   subagent while you ask the questions that do not depend on it.

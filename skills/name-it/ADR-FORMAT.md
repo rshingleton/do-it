@@ -7,7 +7,13 @@ Short is the norm: most fit in one paragraph.
 
 The ADR directory is the one resolved for this repo (`docs/adr/` by
 default). Files are `NNNN-kebab-title.md`, numbered one past the highest
-existing number. Create the directory with the first ADR, not before.
+existing number in that directory. Create the directory with the first ADR,
+not before.
+
+In a repo with a context map, an area may keep its own ADRs in
+`<area>/docs/adr/`. Read them, beside the root ones, for work in that area.
+Write a decision there only when the area already has that directory and the
+decision is the area's alone; otherwise write it in the root directory.
 
 ## Shape
 

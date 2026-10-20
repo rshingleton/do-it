@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { fingerprint } from '../skills/do-it/scripts/changeset.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -23,7 +24,7 @@ test('fingerprint changes with tracked and untracked edits, ignores planning', (
   const git = (...a) => execFileSync('git', a, { cwd: dir, encoding: 'utf8' });
   git('init', '-q');
   git('-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '--allow-empty', '-m', 'base');
-  const fp = () => execFileSync('bash', [path.join(ROOT, 'skills/do-it/scripts/fingerprint.sh'), 'HEAD'], { cwd: dir, encoding: 'utf8' }).trim();
+  const fp = () => fingerprint(dir, 'HEAD', { exclude: ['docs/planning'] });
 
   const empty = fp();
   fs.mkdirSync(path.join(dir, 'docs/planning'), { recursive: true });

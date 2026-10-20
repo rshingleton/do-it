@@ -33,7 +33,7 @@ test('absolute doc and issue paths are used as given', () => {
   const root = tmpRepo();
   const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-abs-'));
   fs.writeFileSync(path.join(outside, 'gloss.md'), '# g');
-  assert.equal(resolveDocs(root, { ...DEFAULTS, DO_IT_GLOSSARY: path.join(outside, 'gloss.md') }).glossary.exists, true);
+  assert.equal(resolveDocs(root, { ...DEFAULTS, DO_IT_CONTEXT: path.join(outside, 'gloss.md') }).context.exists, true);
 
   const t = localTracker({ ...DEFAULTS, DO_IT_ISSUES_DIR: outside }, { root });
   t.create({ title: 'Abs' });

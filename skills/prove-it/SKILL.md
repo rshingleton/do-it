@@ -36,7 +36,7 @@ the build transcript.
 
 | Reviewer | Lane S | Lane M | Brief |
 |----------|--------|--------|-------|
-| Spec and Standards | yes | yes | Call the Skill tool with "review-it", fixed point `base_ref`, spec = the plan and its `sources:`, standards = repo docs plus [REVIEW-STANDARDS.md](REVIEW-STANDARDS.md) |
+| Spec and Standards | yes | yes | Call the Skill tool with "review-it", fixed point `base_ref`, spec = the plan and its `sources:`; review-it brings the repo's standards and its own baselines |
 | Compliance | yes | yes | Call the Skill tool with "guard-it" on the change |
 | Architecture | no | yes | [ARCHITECTURE.md](ARCHITECTURE.md) on every touched module |
 
@@ -46,25 +46,26 @@ Lane XS is not audited here; `ship-it` does its self-review.
 
 Write findings per the contract in [REPORT.md](REPORT.md): concrete case or no
 finding, recorded decisions are not findings, numbered Must / Should / Nice.
+Then validate every Must except failed mechanical checks per
+[VALIDATE.md](VALIDATE.md): a fresh subagent confirms or rejects each one from
+the code alone; rejected ones move to **Not confirmed** and stop blocking.
 
-- Any **Must**: `FAIL`.
+- Any confirmed **Must**: `FAIL`.
 - Otherwise `PASS`.
 
 Lane S: findings go in chat and a short `## Audit` section appended to the
 plan file. Lane M: `docs/planning/<id>/audit-report.md`.
 
-Update the state block. `round` counts consecutive failed audits: one more
-than the last value on `FAIL`, back to 0 on `PASS`. `must` lists the Must
-numbers `build-it` has to fix.
+Record the verdict with the work-item script ([STATE.md](../do-it/STATE.md)):
 
-```yaml
-audit: { verdict: FAIL, round: 2, must: [1, 3], fingerprint: <fingerprint.sh output>, at: 2026-10-19 }
-status: building      # PASS sets status: shipping, round: 0, must: []
-```
+- `PASS`: `work.mjs event <id> audit-pass`. It hashes the change since
+  `base_ref` and records it as `audit.fingerprint`, sets `round` back to 0
+  and `status: shipping`.
+- `FAIL`: `work.mjs event <id> audit-fail <must numbers>`, e.g.
+  `audit-fail 1 3`. It adds one to `round` (consecutive failed audits) and
+  sets `status: building`.
 
-The fingerprint comes from `scripts/fingerprint.sh` in the do-it skill
-directory (`../do-it/` from this file), with `base_ref` as its argument. It
-runs from the repo root on its own; a non-zero exit is `blocked`.
+A refused event (the script exits 1) is `blocked`.
 
 ## 5. Route
 
@@ -72,9 +73,11 @@ runs from the repo root on its own; a non-zero exit is `blocked`.
 - `FAIL`, round 1 or 2: return `failed` with the Must numbers. `do-it` sends
   them to `build-it`, which fixes only those (its fix mode) and hands back
   for a full re-audit (every check, every time).
-- `FAIL`, round 3: return `blocked`. Show the Musts and ask the user whether
-  to fix (round continues), accept with a recorded decision (add it to the
-  plan's decisions, re-audit), or re-plan.
+- `FAIL`, round 3 or later (the script sets `status: blocked`): return `blocked`.
+  Show the Musts and ask the user whether to fix (`unblock`; the round
+  count continues), accept with a recorded decision (add it to the plan's
+  `## Decisions`, creating the section in a lane S plan, then `unblock` and
+  `build-done` to re-audit), or re-plan (`replan`, then scope-it).
 
 Should and Nice findings never block. `ship-it` carries them into the
 changelog or ADR notes. Mechanical rules that keep failing are listed as

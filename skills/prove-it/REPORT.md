@@ -10,7 +10,9 @@
   flagged, unless the change contradicts it; then cite the decision.
 - **Groups.** **Must** blocks: a failed mechanical check, a missing or wrong
   requirement, scope creep, a HIGH (or unrated) compliance rule, egregious
-  accretion against the plan. **Should** and **Nice** do not block.
+  accretion against the plan. **Should** and **Nice** do not block. A Must
+  counts only once validated ([VALIDATE.md](VALIDATE.md)); rejected ones are
+  listed under **Not confirmed** with the validator's reason.
 - **One numbering** across groups, Must first, so the user can say "fix 2
   and 5".
 - **Four parts**, one or two sentences each: what it is, the problem, the
@@ -44,6 +46,9 @@ Change: <base_ref>..working tree, <N> files. Date: <ISO date>.
 
 ### Should
 2. ...
+
+## Not confirmed
+- <claim>: rejected by validation, <reason>. Overrule by saying so.
 
 ## Guardrail candidates
 - <mechanical rule>: <checks.json pattern or lint rule that would catch it>

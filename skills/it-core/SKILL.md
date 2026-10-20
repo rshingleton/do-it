@@ -16,8 +16,8 @@ Hooks inject this file into every session and subagent. Project standards and
     simplest option, record it as an assumption (the work item's
     `assumptions:` list, else the closing message), continue.
   - Irreversible, ambiguous intent, scope, money, credentials, data loss: stop
-    and ask. Look the answer up first in ADRs, `GLOSSARY.md`, the issue and the
-    code; ask only what none of them answer.
+    and ask. Look the answer up first in ADRs, the area's context, the issue
+    and the code; ask only what none of them answer.
 
 ## Reuse before writing
 
@@ -71,12 +71,15 @@ code, comments or `.env` files.
 
 ## Project docs
 
-Skills name the default paths: `GLOSSARY.md`, `CHANGELOG.md`, `docs/adr/`,
-`docs/reference/`. Repos differ (`CONTEXT.md`, `docs/decisions/`, a
-changesets directory). Use this repo's resolved paths, listed under "project
-docs" in session context, or from
-`node <track-it skill dir>/scripts/tracker.mjs config` when hooks are off.
-Never create a second glossary or changelog beside an existing one.
+Skills name the defaults (`CONTEXT-MAP.md`, `CONTEXT.md`, `CHANGELOG.md`,
+`docs/adr/`, `docs/reference/`); use this repo's resolved paths, listed under
+"project docs" in session context (or `tracker.mjs config` in the track-it
+skill when hooks are off). Never create a second context file or changelog.
+
+**The area's context:** for work in a component, read the context map, then
+the area's `CONTEXT.md` and `docs/adr/` (no map: the root `CONTEXT.md`), per
+name-it's [CONTEXT-FORMAT.md](../name-it/CONTEXT-FORMAT.md). GLOSSARY files
+are a last fallback; reading never creates a context file.
 
 ## Git
 

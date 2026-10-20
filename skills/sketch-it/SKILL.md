@@ -54,7 +54,7 @@ The answer outlives the sketch; the sketch does not.
    - Inside a do-it work item: add it to the plan's `## Decisions` (it is an
      approved decision for `scope-it`).
    - A domain term or a hard-to-reverse choice came out of it: call the Skill
-     tool with "name-it" for the glossary entry or an ADR.
+     tool with "name-it" for the term in the area's `CONTEXT.md` or an ADR.
    - Neither: put the verdict in the closing message.
 2. Keep what proved itself, rewritten properly: a pure logic module can move
    into the real code with tests; a winning layout is rebuilt in the real

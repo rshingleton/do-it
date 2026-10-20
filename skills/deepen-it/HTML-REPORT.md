@@ -84,5 +84,5 @@ change, in a hot spot).
 
 Use the `design-it` vocabulary exactly: module, interface, implementation,
 depth, deep, shallow, seam, adapter, leverage, locality. Domain nouns come
-from the glossary. Gains are stated as one of those properties, so "easier
+from the Terms in the area's `CONTEXT.md`. Gains are stated as one of those properties, so "easier
 to maintain" becomes "locality: the rule changes in one place".
