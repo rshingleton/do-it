@@ -69,9 +69,16 @@ test('uninstall removes every link into this checkout, including renamed skills'
 });
 
 test('install.sh run from a pipe clones the repo, installs from the clone, and pulls on a re-run', () => {
+  // The source is on a branch, as GitHub's default branch is; cloning ROOT
+  // itself fails in CI, where a pull request checks out a detached merge commit.
+  const source = copyRepo(tmp('do-it-src-'));
+  const git = (...a) => execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', ...a], { cwd: source });
+  git('init', '-q', '-b', 'main');
+  git('add', '-A');
+  git('commit', '-q', '-m', 'source');
   const home = tmp('do-it-home-');
   const clone = path.join(home, 'share/do-it');
-  const env = { ...process.env, HOME: home, XDG_CONFIG_HOME: path.join(home, '.config'), DO_IT_REPO: ROOT, DO_IT_HOME: clone };
+  const env = { ...process.env, HOME: home, XDG_CONFIG_HOME: path.join(home, '.config'), DO_IT_REPO: source, DO_IT_HOME: clone };
   const piped = (...args) =>
     spawnSync('bash', ['-s', '--', ...args], { cwd: home, input: fs.readFileSync(path.join(ROOT, 'scripts/install.sh')), encoding: 'utf8', env });
 
