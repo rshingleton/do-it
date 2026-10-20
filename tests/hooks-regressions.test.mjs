@@ -260,3 +260,29 @@ test('diff -u timestamps and git quoting do not hide a header path (audit 4)', (
     assert.match(beforeEdit(ctx, { patch }).reason, /env-file in \.env/, header);
   }
 });
+
+test('every built-in pattern stays fast on a long line of its own prefixes', () => {
+  // Each unit repeats a pattern's start, the shape that makes a pattern
+  // restart inside one run and rescan it.
+  const units = ['y', 'a:', 'a://', 'a://b:', '1a://', '-sk', 'sk-', 'sk-ant-a-', '-eyJ', 'eyJaaaaaaaaaaaa.', 'xoxb-', 'ghp_', 'github_pat_', 'AIza', 'AKIA', 'password=', "password='", '-----BEGIN A', 'TODO insert '];
+  for (const unit of units) {
+    const start = Date.now();
+    scan(unit.repeat(Math.ceil(1e6 / unit.length)), BUILTIN, 'big.min.js');
+    assert.ok(Date.now() - start < 5000, `${JSON.stringify(unit)} took ${Date.now() - start} ms`);
+  }
+});
+
+test('anchored patterns still match where the old ones did', () => {
+  const ids = (t) => scan(t, BUILTIN, 'a.js').map((f) => f.id);
+  // credential-in-url, mid-line, after another colon, and after a scheme
+  // run that starts with a flag letter, a digit, + or .
+  for (const prefix of ['db = "postgres://admin', 'jdbc:postgresql://admin', '-dpostgres://admin', '1mysql://root', '+mongodb+srv://u', '.redis://u']) {
+    assert.deepEqual(ids([prefix, 'hunter22@db'].join(':')), ['credential-in-url'], prefix);
+  }
+  const key = ['sk', 'proj', 'Ab1'.repeat(12)].join('-');
+  const jwt = ['eyJ' + 'a'.repeat(12), 'eyJ' + 'b'.repeat(12), 'c'.repeat(12)].join('.');
+  for (const before of ['', ' ', '"', '=', ':']) {
+    assert.deepEqual(ids(`${before}${key}`), ['openai-anthropic-key'], `key after ${JSON.stringify(before)}`);
+    assert.deepEqual(ids(`${before}${jwt}`), ['jwt'], `jwt after ${JSON.stringify(before)}`);
+  }
+});

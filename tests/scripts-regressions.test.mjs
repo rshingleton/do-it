@@ -113,6 +113,26 @@ test('scan.mjs finds secrets in files with quoted or non-ASCII names', () => {
   assert.equal(scan(dir).status, 1);
 });
 
+test('scan.mjs reports the real line of a tracked change', () => {
+  const { dir, git, commit } = gitRepo();
+  fs.writeFileSync(path.join(dir, 'a.js'), 'one\ntwo\n');
+  git('add', '-A');
+  commit();
+  fs.appendFileSync(path.join(dir, 'a.js'), `k = "${KEY}"\n`);
+  const r = scan(dir);
+  assert.equal(r.status, 1, r.stdout);
+  assert.match(r.stdout, /in a\.js:3:/);
+});
+
+test('scan.mjs finds a staged file before the first commit', () => {
+  const { dir, git } = gitRepo();
+  fs.writeFileSync(path.join(dir, 'a.js'), `k = "${KEY}"\n`);
+  git('add', 'a.js');
+  const r = scan(dir);
+  assert.equal(r.status, 1, r.stdout);
+  assert.match(r.stdout, /in a\.js:1:/);
+});
+
 test('scan.mjs rejects an unknown --since ref instead of reporting clean', () => {
   const { dir, commit } = gitRepo();
   commit();

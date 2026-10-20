@@ -37,9 +37,6 @@ Next id: T71
 - [ ] T38 Trim internal-caller clauses from model-invoked descriptions (grill-it, review-it, guard-it, look-it-up) to cut per-turn tokens `nice-to-have` (overlap audit)
 - [ ] T39 Decide: fold doubt-it into it-core, and drop prove-it --since (review-it plus guard-it cover it) `question` (overlap audit)
   - Sweep 2026-10-19 (finding 18): prove-it/VALIDATE.md is doubt-it rebuilt, and no skill calls doubt-it.
-- [ ] T41 One change-set module (diff since base, added lines with real line numbers, untracked files, no-commit fallback) shared by guard.mjs, scan.mjs and the work-item fingerprint `idea` (deepen-it 2026-10-19, candidate 3)
-  - Sweep 2026-10-19 (finding 12): changeset.mjs now exists but only work.mjs imports it; guard.mjs and scan.mjs still spawn one git diff per file, and scan.mjs reports line 0 for tracked files.
-  - The work-item-script plan builds a small changeset helper first; this generalizes it and fixes the wrong line numbers in both JS copies.
 - [ ] T43 Explore: make it-core non-invocable (hooks inject it; its description costs ~35 words a turn for nothing) `question` (deepen-it 2026-10-19, candidate 5; see T38, T39)
 - [ ] T44 Explore: move shared config and doc resolution from skills/track-it/scripts into a top-level lib/ `question` (deepen-it 2026-10-19, candidate 6; do with T41)
 - [ ] T45 Explore: merge log-it with todo-it, and map-it with sweep-it, as single skills with modes `question` (deepen-it 2026-10-19, candidate 7; not recommended now)
