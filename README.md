@@ -188,7 +188,9 @@ API (`experimental.chat.system.transform`, `tool.execute.before/after`).
 
 Layered dotenv files: `~/.config/do-it/config.env` (yours, may hold secrets)
 → `<repo>/.do-it/config.env` (committed, no secrets) → `<repo>/.do-it/local.env`
-(gitignored) → environment. The tracker defaults to local files under
+(gitignored) → environment. A lint command or Jira URL set in the repo's
+files applies only after you trust those values (`tracker.mjs trust`), so a
+cloned repo cannot run commands or redirect your token. The tracker defaults to local files under
 `docs/issues/`; GitHub uses `gh`, Jira uses REST v2 with a token. Full key
 list: [skills/track-it/CONFIG.md](skills/track-it/CONFIG.md).
 

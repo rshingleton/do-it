@@ -69,9 +69,34 @@ export function loadChecks(root, complianceDir = '.compliance-rules') {
     if (e.code !== 'ENOENT') error = `${file}: ${e.message}`;
     custom = [];
   }
-  const disabled = new Set(custom.filter((c) => c.disabled).map((c) => c.id));
-  const rules = [...BUILTIN.filter((r) => !disabled.has(r.id)), ...custom.filter((c) => !c.disabled)];
+  // A bad entry costs only itself: the built-ins and every valid rule still load.
+  const valid = [];
+  const skipped = [];
+  custom.forEach((c, i) => {
+    const why = invalid(c);
+    if (why) skipped.push(`entry ${i + 1}${c && typeof c === 'object' && c.id ? ` (${c.id})` : ''}: ${why}`);
+    else if (why === null) valid.push(typeof c.files === 'string' ? { ...c, files: [c.files] } : c);
+  });
+  if (skipped.length) error = [error, `${file}: skipped ${skipped.join('; ')}`].filter(Boolean).join('\n');
+  const disabled = new Set(valid.filter((c) => c.disabled).map((c) => c.id));
+  const rules = [...BUILTIN.filter((r) => !disabled.has(r.id)), ...valid.filter((c) => !c.disabled)];
   return { rules, error };
+}
+
+// Why a checks.json entry cannot be used, null when it can, '' when it is a
+// harmless no-op (disabled with no id).
+function invalid(c) {
+  if (!c || typeof c !== 'object' || Array.isArray(c)) return 'not an object';
+  if (c.disabled) return c.id ? null : '';
+  if (typeof c.id !== 'string' || !c.id) return 'no id';
+  if (typeof c.pattern !== 'string' && typeof c.filePattern !== 'string') return 'no pattern or filePattern';
+  if (c.files !== undefined && typeof c.files !== 'string' && !(Array.isArray(c.files) && c.files.every((f) => typeof f === 'string'))) {
+    return 'files must be a list of extensions';
+  }
+  if (c.severity !== undefined && !(typeof c.severity === 'string' && /^(HIGH|MEDIUM|LOW)$/i.test(c.severity))) {
+    return 'severity must be HIGH, MEDIUM or LOW';
+  }
+  return null;
 }
 
 function applies(rule, file) {

@@ -3,7 +3,7 @@
 Nice-to-haves and things to circle back to. Managed by todo-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T52
+Next id: T67
 
 ## Open
 
@@ -36,7 +36,9 @@ Next id: T52
 - [ ] T32 Path-scoped standards files that load only when matching files are edited `idea` (research: Kiro steering)
 - [ ] T38 Trim internal-caller clauses from model-invoked descriptions (grill-it, review-it, guard-it, look-it-up) to cut per-turn tokens `nice-to-have` (overlap audit)
 - [ ] T39 Decide: fold doubt-it into it-core, and drop prove-it --since (review-it plus guard-it cover it) `question` (overlap audit)
+  - Sweep 2026-10-19 (finding 18): prove-it/VALIDATE.md is doubt-it rebuilt, and no skill calls doubt-it.
 - [ ] T41 One change-set module (diff since base, added lines with real line numbers, untracked files, no-commit fallback) shared by guard.mjs, scan.mjs and the work-item fingerprint `idea` (deepen-it 2026-10-19, candidate 3)
+  - Sweep 2026-10-19 (finding 12): changeset.mjs now exists but only work.mjs imports it; guard.mjs and scan.mjs still spawn one git diff per file, and scan.mjs reports line 0 for tracked files.
   - The work-item-script plan builds a small changeset helper first; this generalizes it and fixes the wrong line numbers in both JS copies.
 - [ ] T42 Event-level host decision layer: decide(event, tool, input, session) so the Claude and OpenCode adapters only translate; unlocks T9, T25, T26, T27 `idea` (deepen-it 2026-10-19, candidate 4)
 - [ ] T43 Explore: make it-core non-invocable (hooks inject it; its description costs ~35 words a turn for nothing) `question` (deepen-it 2026-10-19, candidate 5; see T38, T39)
@@ -49,3 +51,19 @@ Next id: T52
 - [ ] T49 Concurrent uncommitted work items: each fingerprint hashes the whole change since its base, so fixing one item invalidates every other item's audit. Scope the fingerprint (and the auditors' diff) to the item's own paths, e.g. a `paths:` field filled as build-it touches files `idea` (do-it run 2026-10-19: three items, one base, no commits)
 - [ ] T50 scope-it §5 (Approve) should list the "create `<area>/CONTEXT.md` with `/map-it <area>`" step that §2 proposes, so the approval turn shows it `debt` (skills/scope-it/SKILL.md:40; per-area-contexts audit round 4)
 - [ ] T51 ship-it DOCS.md still lets ship-it create a context file for new terms; the per-area-contexts decision names only name-it, `/map-it <area>` and an accepted plan step as creators, so propose creation in the ship question instead `debt` (skills/ship-it/DOCS.md:23; per-area-contexts audit round 4)
+- [ ] T52 The local tracker accepts any .md path as an issue ref and drops nested or list frontmatter on rewrite, so a wrong ref can wipe a plan's phases and audit block; refuse refs outside the issues dir and refuse to write when lines were skipped `debt` (docs/reference-audit/2026-10-19-repo.md, finding 4)
+- [ ] T53 Plan and issue writes are not atomic, and verify-phase writes back the item it loaded before running the checks, overwriting other sessions' events; write via temp file and rename, re-read before the transition `debt` (docs/reference-audit/2026-10-19-repo.md, finding 5)
+- [ ] T54 GitHub Enterprise issue URLs lose their host in refs.mjs, so gh acts on github.com; keep the host and pass -R host/owner/repo `debt` (docs/reference-audit/2026-10-19-repo.md, finding 6)
+- [ ] T55 build-it PARALLEL.md has implementers record phases with the ungated `event phase-done`; point it at verify-phase and make phase-done reachable only from there `debt` (docs/reference-audit/2026-10-19-repo.md, finding 7)
+- [ ] T56 docs/DESIGN.md still describes the commit-per-phase model ADR 0002 reversed (done status, per-phase commit, commit-it/verify-it); replace those sections with links to STATE.md, LANES.md and the ADRs `debt` (docs/reference-audit/2026-10-19-repo.md, finding 8)
+- [ ] T57 LANES.md says lane S gets prove-it Spec and Standards only, prove-it runs Compliance in lane S too; LANES names only the step, prove-it owns the matrix `debt` (docs/reference-audit/2026-10-19-repo.md, finding 10)
+- [ ] T58 One frontmatter module (split/join keeping CRLF, flat read/write) under state.mjs, the local tracker, scripts/lib/skills.mjs and context.mjs, which each parse it their own way `debt` (docs/reference-audit/2026-10-19-repo.md, finding 11)
+- [ ] T59 The deletion test and pass-through checks are written out in design-it, prove-it ARCHITECTURE.md, sweep-it LENSES.md and review-it SMELLS.md; keep them in design-it and link, so one lane M audit does not raise the same finding twice `debt` (docs/reference-audit/2026-10-19-repo.md, finding 18)
+- [ ] T60 Drop the plan parser's flow-map and multi-line paths (about 120 lines in state.mjs) now that no plan uses the older format `debt` (docs/reference-audit/2026-10-19-repo.md, architecture notes)
+- [ ] T61 Skills tell subagents to start subagents (prove-it to review-it, roadmap-it to look-it-up); one rule in SKILL-MECHANICS.md that only the main context fans out, and inline runs when already in a subagent `debt` (docs/reference-audit/2026-10-19-repo.md, finding 15)
+- [ ] T62 The lifecycle stops at a local commit: no skill owns push or PR (body, protected-branch check), changelog version headings, or carrying out ship-it's rollback note `idea` (docs/reference-audit/2026-10-19-repo.md, finding 20; T24 covers PR feedback)
+- [ ] T63 Guardrail candidates are deleted with the audit report at work.mjs close before /retro-it can read them; offer retro-it at the ship question, before close `debt` (docs/reference-audit/2026-10-19-repo.md, finding 9)
+- [ ] T64 Review the to-do list for additive ideas versus simplification: most open items add features, while removing duplication would save roughly 150 to 250 lines `question` (docs/reference-audit/2026-10-19-repo.md)
+- [ ] T65 The commit scan reads only the first `git commit` in a chain (`git commit a.js && git commit b.js`) and does not recognise `VAR=x git commit`, `env`/`sudo` prefixes, a commit after a newline, `then` or `{`, or `git -c key='a b' commit`; find every commit in the command
+  - Also: a relative `cd` after one that does not persist (`cd B && (cd C) && cd sub`) resolves from the wrong step; the hook scans each step of the cd chain, not every combination. `debt` (hook-trust-hardening audit round 2, finding 2)
+- [ ] T66 A redirect before the paths (`git commit -m x 2>&1 a.js`) ends the commit's arguments, so later paths are not scanned `nice-to-have` (hook-trust-hardening audit round 2, finding 6)
