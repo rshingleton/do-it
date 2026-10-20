@@ -3,7 +3,7 @@
 Nice-to-haves and things to circle back to. Managed by todo-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T67
+Next id: T68
 
 ## Open
 
@@ -52,9 +52,7 @@ Next id: T67
 - [ ] T50 scope-it §5 (Approve) should list the "create `<area>/CONTEXT.md` with `/map-it <area>`" step that §2 proposes, so the approval turn shows it `debt` (skills/scope-it/SKILL.md:40; per-area-contexts audit round 4)
 - [ ] T51 ship-it DOCS.md still lets ship-it create a context file for new terms; the per-area-contexts decision names only name-it, `/map-it <area>` and an accepted plan step as creators, so propose creation in the ship question instead `debt` (skills/ship-it/DOCS.md:23; per-area-contexts audit round 4)
 - [ ] T52 The local tracker accepts any .md path as an issue ref and drops nested or list frontmatter on rewrite, so a wrong ref can wipe a plan's phases and audit block; refuse refs outside the issues dir and refuse to write when lines were skipped `debt` (docs/reference-audit/2026-10-19-repo.md, finding 4)
-- [ ] T53 Plan and issue writes are not atomic, and verify-phase writes back the item it loaded before running the checks, overwriting other sessions' events; write via temp file and rename, re-read before the transition `debt` (docs/reference-audit/2026-10-19-repo.md, finding 5)
 - [ ] T54 GitHub Enterprise issue URLs lose their host in refs.mjs, so gh acts on github.com; keep the host and pass -R host/owner/repo `debt` (docs/reference-audit/2026-10-19-repo.md, finding 6)
-- [ ] T55 build-it PARALLEL.md has implementers record phases with the ungated `event phase-done`; point it at verify-phase and make phase-done reachable only from there `debt` (docs/reference-audit/2026-10-19-repo.md, finding 7)
 - [ ] T56 docs/DESIGN.md still describes the commit-per-phase model ADR 0002 reversed (done status, per-phase commit, commit-it/verify-it); replace those sections with links to STATE.md, LANES.md and the ADRs `debt` (docs/reference-audit/2026-10-19-repo.md, finding 8)
 - [ ] T57 LANES.md says lane S gets prove-it Spec and Standards only, prove-it runs Compliance in lane S too; LANES names only the step, prove-it owns the matrix `debt` (docs/reference-audit/2026-10-19-repo.md, finding 10)
 - [ ] T58 One frontmatter module (split/join keeping CRLF, flat read/write) under state.mjs, the local tracker, scripts/lib/skills.mjs and context.mjs, which each parse it their own way `debt` (docs/reference-audit/2026-10-19-repo.md, finding 11)
@@ -67,3 +65,4 @@ Next id: T67
 - [ ] T65 The commit scan reads only the first `git commit` in a chain (`git commit a.js && git commit b.js`) and does not recognise `VAR=x git commit`, `env`/`sudo` prefixes, a commit after a newline, `then` or `{`, or `git -c key='a b' commit`; find every commit in the command
   - Also: a relative `cd` after one that does not persist (`cd B && (cd C) && cd sub`) resolves from the wrong step; the hook scans each step of the cd chain, not every combination. `debt` (hook-trust-hardening audit round 2, finding 2)
 - [ ] T66 A redirect before the paths (`git commit -m x 2>&1 a.js`) ends the commit's arguments, so later paths are not scanned `nice-to-have` (hook-trust-hardening audit round 2, finding 6)
+- [ ] T67 build-done in fix mode records no verification, so a fix round can reach audit with failing checks; require a passing verify-phase since the fix started `debt` (skills/do-it/scripts/state.mjs build-done; work-item-module audit round 2)
