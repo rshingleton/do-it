@@ -504,7 +504,19 @@ test('commit guard still blocks beside a type change or an unmerged path', () =>
   fs.writeFileSync(path.join(root, 'z.js'), `const t = "${FAKE_SLACK}";\n`);
   git(root, 'add', 'l', 'z.js');
   assert.match(beforeShell(ctxFor(root), 'git commit -m x').reason, /slack-token in z\.js:1:/);
-  spawnSync('git', ['merge', '-q', 'other'], { cwd: root });
+  // Merge with the staged changes set aside, then stage them again beside
+  // the conflict.
+  git(root, 'stash', '-q');
+  try {
+    git(root, 'merge', '-q', 'other');
+  } catch {
+    // The conflict is the point: m.txt is now unmerged.
+  }
+  assert.match(execFileSync('git', ['ls-files', '-u'], { cwd: root, encoding: 'utf8' }), /m\.txt/, 'the merge left m.txt unmerged');
+  fs.rmSync(path.join(root, 'l'));
+  fs.writeFileSync(path.join(root, 'l'), 'now a file\n');
+  fs.writeFileSync(path.join(root, 'z.js'), `const t = "${FAKE_SLACK}";\n`);
+  git(root, 'add', 'l', 'z.js');
   assert.match(beforeShell(ctxFor(root), 'git commit -am x').reason, /slack-token in z\.js:1:/);
 });
 

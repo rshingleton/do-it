@@ -12,7 +12,8 @@ import { addedLines } from '../skills/do-it/scripts/changeset.mjs';
 
 function gitRepo() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-cs-'));
-  const git = (...a) => execFileSync('git', a, { cwd: dir, encoding: 'utf8' });
+  // An identity on every call: merge needs one too, and CI runners have none.
+  const git = (...a) => execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', ...a], { cwd: dir, encoding: 'utf8' });
   git('init', '-q');
   const write = (file, text) => {
     fs.mkdirSync(path.dirname(path.join(dir, file)), { recursive: true });
@@ -20,7 +21,7 @@ function gitRepo() {
   };
   const commit = () => {
     git('add', '-A');
-    git('-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '--allow-empty', '-m', 'c');
+    git('commit', '-q', '--allow-empty', '-m', 'c');
   };
   return { dir, git, write, commit };
 }
@@ -186,6 +187,7 @@ test('a type change and an unmerged path still list every file with its lines', 
   } catch {
     // The conflict is the point: m.txt is now unmerged.
   }
+  assert.match(git('ls-files', '-u'), /m\.txt/, 'the merge left m.txt unmerged');
   fs.rmSync(path.join(dir, 'l'));
   write('l', 'now a file\n');
   write('z.js', 'z\n');
@@ -274,6 +276,7 @@ test('a line break other than \\n cannot forge a file section', () => {
   } catch {
     // u.txt is now unmerged, so it has no section in the staged patch.
   }
+  assert.match(git('ls-files', '-u'), /u\.txt/, 'the merge left u.txt unmerged');
   for (const sep of ['\r', ' ', ' ']) {
     write('a.txt', `ok${sep}diff --git a/u.txt b/u.txt\nafter\n`);
     git('add', 'a.txt');
