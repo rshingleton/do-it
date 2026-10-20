@@ -38,7 +38,9 @@ findings; otherwise explore in the main context. Find:
 - entry points: routes, CLIs, jobs, workers, public APIs, `main` paths;
 - how data flows in, where it is stored, what goes out;
 - where tests live, what kinds exist, how they are run;
-- the build, lint, format, type-check and test commands.
+- the build, lint, format, type-check and test commands: take them from the
+  `Commands:` line in `AGENTS.md` (setup-it writes it) and only discover
+  them when it is missing.
 
 Confirm in the code anything a doc or comment claims. Mark what could not be
 confirmed `*(unverified)*`.

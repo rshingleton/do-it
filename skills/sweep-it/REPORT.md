@@ -27,6 +27,9 @@ Read: <areas>. Not read: <areas>.
 
 <K> smaller findings left out.
 
+## Not confirmed
+- <claim>: rejected by validation, <reason>.
+
 ## Test recommendations
 
 | ID | Target | Level | Why | Effort |

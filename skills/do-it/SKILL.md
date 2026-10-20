@@ -17,11 +17,14 @@ decides which ones the work needs and runs them in order.
 |-------|-------|
 | Free text asking for a change | New work. Scout and size it (§2). |
 | `docs/issues/<slug>.md`, `#42`, `ABC-123`, an issue URL | New work from an issue. Fetch it with the `track-it` skill, then scout and size it. |
-| A work id, or nothing | Resume. Read the state block ([STATE.md](STATE.md)); with no argument, list items under `docs/planning/` whose `status` is not `done` and pick the only one, or ask which. |
+| `<roadmap file>#R<n>` | A roadmap slice. `work.mjs roadmap <file>` gives its state: only `ready` or `refine` may start (`refine` per [roadmap-it](../roadmap-it/SKILL.md) §6). Scout and size it (S or M); scope-it records `roadmap:`. |
+| A request with `todo: <id>` | New work promoted by todo-it. scope-it records `todo:`; lane XS passes `--todo <id>` to ship-it. |
+| A work id, or nothing | Resume. `work.mjs show <id>`; with no argument, `work.mjs list` (every plan there is open) and pick the only one, or ask which. |
 | Free text asking to understand or examine, not change | Explore instead: hand off per [EXPLORE.md](EXPLORE.md). |
 
-Resuming continues from `status` (§3). Never redo a step the state block
-records as done unless the code it verified has changed.
+`work.mjs` is the work-item script in [STATE.md](STATE.md). Resuming
+continues from `status` (§3); never redo a step the state block records as
+done unless the code it verified has changed.
 
 ## 2. Scout, then size
 
@@ -32,13 +35,11 @@ scout never asks the user anything.
 
 Then pick the lane from [LANES.md](LANES.md). State it in one line with the
 reason and what the scout found, then proceed; the user can override with
-`--lane` or by saying so.
-
-> Lane S: `RateLimiter` exists in `src/auth/`; only the login wiring is new.
-> Plan, build, audit, ship.
+`--lane` or by saying so: "Lane S: `RateLimiter` exists in `src/auth/`;
+only the login wiring is new."
 
 When unsure between two lanes, pick the larger. Raise the lane mid-flight
-when scope grows (record it in the state block and say so); never lower it
+when scope grows (`work.mjs set <id> lane` and say so); never lower it
 silently.
 
 ## 3. Run the lane
@@ -54,9 +55,10 @@ file is how this skill runs them. Resolve each step's own links
 |----------|-----------|
 | (none, lane XS) | Build in place, self-review, then `ship-it` |
 | (none) | `scope-it` |
+| `draft` | `scope-it` re-presents the plan for approval |
 | `planned` | `build-it` |
-| `building` | `build-it` (it resumes from the frontier, or fixes the Musts after a failed audit) |
-| `blocked` | Show `blocker:`; once the user resolves it, `build-it` |
+| `building` | `build-it` (it resumes from the frontier, or fixes `audit.must` and `fix:`) |
+| `blocked` | Show `blocker:` (after a third failed audit, prove-it's question); once the user answers, `build-it`, or `scope-it` after `replan` |
 | `auditing` | `prove-it` |
 | `shipping` | `ship-it` (a prepared ship resumes at the commit question) |
 | (no plan file) | Already shipped, or never planned: say which |
@@ -66,19 +68,19 @@ Each step ends with an outcome: `done`, `blocked` or `failed`.
 - `done`: continue to the next step without asking, except at the stops below.
 - `blocked`: stop and show the question or blocker.
 - `failed` from `prove-it`: route back to `build-it` with the numbered Must
-  findings. The third failed audit round stops and asks the user.
+  findings. The third failed round comes back `blocked` instead.
 
 ## 4. Where it stops
 
 Only these points wait for the user:
 
-- `scope-it`: lane S's 0-3 questions (skipped when nothing is open), grill
-  rounds (lane M and up), and plan approval (lane S and up).
-- Lane L: capability map approval.
-- `build-it`: a stop condition it reports as `blocked`, and round 3 of a
-  failing audit.
-- `ship-it`: its one question (docs, assumptions, tracker, commit message,
-  feature branch on a protected branch, commit or leave for review).
+- `scope-it`: lane S's 0-3 questions (skipped when nothing is open) and its
+  plan approval; lane M's grill rounds, the last of which approves the plan.
+- Lane L: roadmap approval in `roadmap-it`.
+- `build-it`: a stop condition it reports as `blocked`.
+- `prove-it`: round 3 of a failing audit.
+- `ship-it`: its one question (at most three answers), and after a review,
+  one line to commit.
 
 Everything between plan approval and ship runs without asking. At a step
 boundary, decide whether to continue or suggest a fresh session per
@@ -90,8 +92,7 @@ No files under `docs/planning/`. Follow the `it-core` posture, build test-first
 when the change has logic, run the project's checks, then self-review the diff
 against the request (each changed line traces to it; no secrets; nothing left
 half-done). Then follow [ship-it](../ship-it/SKILL.md) with `--lane xs`, plus
-`--ref <ref>` when the work came from an issue, so the commit carries its key
-and the issue is closed.
+`--ref <ref>` for an issue and `--todo <id>` for a to-do item, so both close.
 
 ## 6. Closing message
 

@@ -36,14 +36,20 @@ CONFIG.md).
    no unofficial registries, cross-check `.dependency-audit.json` when it
    exists.
 
-Report in prove-it's finding contract
-([REPORT.md](../prove-it/REPORT.md)): concrete `file:line`, never the secret
-value itself, the smallest fix.
+Report one line per finding, grouped Must, Should, Nice, then a one-line
+count:
+
+```text
+MUST  src/api/client.ts:42  hardcoded-secret: read it from the environment
+```
+
+Concrete `file:line`, never the secret value itself, the smallest fix. A
+calling skill (prove-it, sweep-it) takes these findings into its own report.
 
 ## Add a mechanical rule
 
-When a judgement rule keeps failing the same way, or prove-it lists a
-guardrail candidate, propose a `checks.json` entry:
+On request, or when `retro-it` decides a recurring mistake belongs here,
+write a `checks.json` entry in this format:
 
 ```json
 [
@@ -64,3 +70,6 @@ guardrail candidate, propose a `checks.json` entry:
 - A line containing `do-it: allow` is skipped; say why whenever you use it.
 
 Show the entry and a line it would catch; add it only when the user agrees.
+Then prove it: run `node scripts/scan.mjs` (in this skill's directory) on the
+case it targets to show it fires, and on the current tree to show it does not
+flood existing code with hits.

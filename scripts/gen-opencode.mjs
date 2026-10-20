@@ -7,6 +7,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { ROOT, listSkills, userInvoked } from './lib/skills.mjs';
 
 const OUT = path.join(ROOT, '.opencode', 'command');
@@ -28,7 +29,7 @@ export function commandFor(skill) {
 }
 
 // Model-invoked skills that also deserve a slash command.
-const ALSO_COMMANDS = new Set(['log-it', 'guard-it', 'map-it', 'sweep-it', 'look-it-up', 'merge-it']);
+const ALSO_COMMANDS = new Set(['log-it', 'guard-it', 'map-it', 'sweep-it', 'look-it-up', 'merge-it', 'todo-it']);
 
 export function expected() {
   return Object.fromEntries(
@@ -65,4 +66,12 @@ function main() {
   console.log(`Wrote ${stale.length}, removed ${extra.length}, ${Object.keys(want).length} total.`);
 }
 
-main();
+function isMain() {
+  try {
+    return Boolean(process.argv[1]) && fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+
+if (isMain()) main();

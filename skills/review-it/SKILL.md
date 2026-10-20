@@ -46,7 +46,8 @@ Collect every file in the repo that says how code should be written:
 `CODING_STANDARDS.md`, `CONTRIBUTING.md`, `AGENTS.md`, style guides,
 `.compliance-rules/coding-standards*.md`, anything the caller adds. On top
 of those, the Standards reviewer always carries the smell baseline in
-[SMELLS.md](SMELLS.md), under two rules: a documented repo rule beats the
+[SMELLS.md](SMELLS.md) and the fit and hygiene baseline in
+[BASELINE.md](BASELINE.md), under two rules: a documented repo rule beats a
 baseline wherever they disagree, and a smell is always a judgement call,
 never a hard violation. Neither reviewer reports what a linter or formatter
 already enforces.
@@ -65,7 +66,8 @@ conversation.
 > Quote the spec line for each. Under 400 words.
 
 **Standards reviewer** gets the list of standards files and the full text of
-[SMELLS.md](SMELLS.md) (it cannot open files you only mention) and this brief:
+[SMELLS.md](SMELLS.md) and [BASELINE.md](BASELINE.md) (it cannot open files
+you only mention) and this brief:
 
 > Find (a) breaches of a documented rule, citing the file and the rule, and
 > (b) baseline smells, named and with the hunk quoted. Mark which are hard

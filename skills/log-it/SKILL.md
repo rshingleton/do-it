@@ -1,12 +1,13 @@
 ---
 name: log-it
-description: Capture a bug, feature request, todo, or deferral as an issue in the configured tracker (local docs/issues/ by default, or GitHub or Jira) without planning it. Use when the user reports a bug, asks to log, file, note or remember something for later or for the backlog, pastes an email or ticket text, or when another step finds out-of-scope work.
+description: File a bug, feature request or deferral as an issue with acceptance criteria in the configured tracker (local docs/issues/ by default, or GitHub or Jira) without planning it. Use when the user reports a bug, asks to file or open an issue or ticket, pastes an email or ticket text, or when another step finds out-of-scope work that needs its own plan.
 ---
 
 # log-it
 
 Intake only. Records work before anyone plans it. Planning starts with
-`/do-it <ref>` or `scope-it`.
+`/do-it <ref>` or `scope-it`. A one-line nice-to-have or circle-back item
+with no done-criteria belongs on the to-do list instead (`todo-it`).
 
 ## 1. Context
 
@@ -23,7 +24,6 @@ only for gaps that change what "done" means:
 |------|-----------|
 | bug | steps to reproduce, expected vs actual, error output |
 | feature | the user need, the behaviour, edge cases |
-| todo | the trigger, what done looks like |
 | defer | why deferred, what unblocks it |
 
 Skip probing when the request is already specific, when the text was pasted

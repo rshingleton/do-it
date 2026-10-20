@@ -91,4 +91,13 @@ async function main() {
 }
 
 // Compare real paths: Node resolves symlinks for import.meta.url but not argv[1].
-if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) main();
+// argv[1] may not be a file at all (node -e ... arg), which is not "main".
+function isMain() {
+  try {
+    return Boolean(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+
+if (isMain()) main();

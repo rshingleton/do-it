@@ -51,11 +51,12 @@ git merge --no-ff "do-it/<id>--phase-N" -m "<id> phase-N (scratch)"
 Run the project's checks there. On a conflict, call the Skill tool with
 "merge-it", passing the plan path so it resolves by the plan's intent.
 On a failed check, `git merge --abort` or `git reset --hard HEAD~1` in the
-scratch worktree only, mark the phase `blocked`, and keep going with phases
+scratch worktree only, `work.mjs event <id> block "<why>" --phase <n>`, and keep going with phases
 that do not depend on it.
 
-Update the state block on the user's branch after each merge, then recompute
-the frontier and start implementers for newly ready phases.
+Record the phase on the user's checkout after each merge with
+`work.mjs event <id> phase-done <n> "<commands that passed in int>"`, then
+recompute the frontier and start implementers for newly ready phases.
 
 ## 4. Land and clean up
 

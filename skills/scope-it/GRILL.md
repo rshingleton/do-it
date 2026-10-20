@@ -3,7 +3,8 @@
 Add these branches to the `grill-it` design tree:
 
 - **One plan or several.** Merge overlapping issues; split work that ships
-  independently. A split may mean lane L and a capability map.
+  independently. A split into several shippable efforts means lane L: a
+  roadmap (roadmap-it) instead of one plan.
 - **Vertical slices.** Each phase is a narrow path through every layer it
   touches, verifiable on its own, and fits one fresh context window.
   Prefactoring goes first, in its own phase if it is more than trivial.
@@ -17,5 +18,8 @@ Add these branches to the `grill-it` design tree:
 - **Assumptions.** Reversible defaults the build may take without asking.
 - **Deferred decisions and risk.**
 
-Stop grilling when the user confirms shared understanding. Put the phase
-breakdown in that final confirmation so one answer approves both.
+When the open branches are down to confirmations, write the plan and run its
+checks (scope-it §3) before asking again. That last round is the plan
+approval: the phases with `Blocked by`, the assumptions and any builder
+questions, in one turn. The user's yes approves both; there is no separate
+approval stop.

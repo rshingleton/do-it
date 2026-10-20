@@ -12,9 +12,12 @@ standards are enforced by `prove-it`. This file is what the builder does.
 | `CODING_STANDARDS.md`, `STANDARDS.md`, `STYLE.md` | Explicit style rules |
 | `.compliance-rules/*.md` | Org rules prove-it will check |
 | `GLOSSARY.md`, `docs/adr/` near the change | Vocabulary and constraints |
-| Lint and format configs, `package.json` scripts, `Makefile`, CI workflow | The test, lint, format and type-check commands |
+| The `Commands:` line in `AGENTS.md` (written by setup-it), and `DO_IT_LINT_CMD` | The test, lint, format and type-check commands |
 
-Note the commands; run them rather than checking by eye.
+Read the commands from there first. Only when they are missing, find them in
+lint and format configs, `package.json` scripts, the `Makefile` or the CI
+workflow, and mention `/setup-it` once in the closing message. Run them
+rather than checking by eye.
 
 ## 2. While coding
 

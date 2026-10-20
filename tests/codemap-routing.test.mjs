@@ -60,6 +60,63 @@ test('code map stays within budget', () => {
   assert.match(map, /…$/);
 });
 
+const listing = (files) => ({ run: () => ({ status: 0, stdout: files.join('\0') }) });
+
+test('code map lists monorepo packages by name (T5)', () => {
+  const map = mapFromGit('/', listing([
+    'packages/api/src/a.ts',
+    'packages/api/src/b.ts',
+    'packages/web/src/c.ts',
+    'apps/admin/index.ts',
+    'lib/util.ts',
+  ]));
+  const lines = map.split('\n').filter((l) => l.startsWith('- '));
+  assert.equal(lines[0], '- `lib/` (1)');
+  assert.ok(lines.includes('- `packages/api/` (2): `src/` 2'), map);
+  assert.ok(lines.includes('- `packages/web/` (1): `src/` 1'), map);
+  assert.ok(lines.includes('- `apps/admin/` (1)'), map);
+  assert.ok(!lines.some((l) => l.startsWith('- `packages/` ')), map);
+});
+
+test('code map caps a container at 12 packages and keeps the tests line', () => {
+  const files = ['lib/util.ts', 'tests/a.test.ts'];
+  for (let i = 0; i < 40; i++) files.push(`packages/p${String(i).padStart(2, '0')}/src/index.ts`);
+  const map = mapFromGit('/', listing(files));
+  assert.ok(map.length <= MAP_BUDGET, String(map.length));
+  assert.equal(map.split('\n').filter((l) => l.startsWith('- `packages/p')).length, 12);
+  assert.match(map, /More packages: `packages\/` \+28/);
+  assert.match(map, /Tests: `tests\/` 1/);
+});
+
+test('code map keeps the summary lines when several containers fill the budget', () => {
+  const files = ['lib/u.ts', 'tests/a.test.ts', 'packages/README.md'];
+  for (const c of ['packages', 'apps', 'services']) {
+    for (let i = 0; i < 20; i++) files.push(`${c}/p${i}/src/index.ts`, `${c}/p${i}/components/x.ts`);
+  }
+  const map = mapFromGit('/', listing(files));
+  assert.ok(map.length <= MAP_BUDGET, String(map.length));
+  assert.match(map, /More packages: `apps\/` \+8, `packages\/` \+8, `services\/` \+8/);
+  assert.match(map, /Tests: `tests\/` 1$/);
+  assert.match(map, /\n…\n/, 'the directory lines are what gets clipped');
+  assert.doesNotMatch(map, /- `packages\/` \(/, 'a file directly in a container is not an entry');
+});
+
+test('code map never exceeds its budget, however long the tests tail', () => {
+  const many = [];
+  for (let i = 0; i < 400; i++) many.push(`src/m${i}/tests/t.js`);
+  for (const budget of [1500, 200, 60, 1]) {
+    const map = mapFromGit('/', { ...listing(many), budget });
+    assert.ok(map.length <= budget, `${map.length} > ${budget}`);
+  }
+  const map = mapFromGit('/', listing(many));
+  assert.match(map, /Tests: .*\+394 more$/, 'tests are capped like children, so the line survives');
+});
+
+test('code map without containers is unchanged by them', () => {
+  const map = mapFromGit('/', listing(['src/a.ts', 'src/b/c.ts', 'lib/x.ts']));
+  assert.equal(map.split('\n').filter((l) => l.startsWith('- ')).join('\n'), '- `lib/` (1)\n- `src/` (2): `b/` 1');
+});
+
 test('code map fails open and can be switched off', () => {
   assert.equal(mapFromGit('/', { run: () => ({ status: 128, stdout: '' }) }), '');
   assert.equal(mapFromGit('/', { run: () => { throw new Error('boom'); } }), '');

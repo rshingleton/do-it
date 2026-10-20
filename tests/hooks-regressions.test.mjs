@@ -117,3 +117,22 @@ test('claude post-tool reports lint failures as additionalContext', () => {
   assert.equal(out.hookSpecificOutput.hookEventName, 'PostToolUse');
   assert.match(out.hookSpecificOutput.additionalContext, /lint failed[\s\S]*bad/);
 });
+
+test('claude.mjs can be imported when argv[1] is not a file (bug 10)', () => {
+  const url = new URL('../hooks/claude.mjs', import.meta.url).href;
+  const r = spawnSync('node', ['--input-type=module', '-e', `await import(${JSON.stringify(url)}); console.log('imported')`, 'no-such-file'], {
+    encoding: 'utf8',
+    input: '',
+  });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /imported/);
+});
+
+test('the it-core header is stripped from a CRLF file (bug 10)', async () => {
+  const { coreText } = await import('../hooks/lib/context.mjs');
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-crlf-')), 'SKILL.md');
+  fs.writeFileSync(file, '---\r\nname: it-core\r\ndescription: x\r\n---\r\n# Posture\r\nbody\r\n');
+  const text = coreText(file);
+  assert.doesNotMatch(text, /name: it-core/);
+  assert.match(text, /^# Posture/);
+});

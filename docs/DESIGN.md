@@ -64,7 +64,7 @@ never lowered silently.
 | XS | 1-2 files, < ~30 lines, no public API, auth, data, schema or config | build -> self-review -> commit | none |
 | S | one coherent change, one session | grill (0-3 Qs) -> plan (single file) -> build -> audit (1 reviewer) -> ship | `docs/planning/<id>.md` |
 | M | several phases or seams, may span sessions | grill -> phased plan -> build auto -> audit (fan-out) -> ship | `docs/planning/<id>/` |
-| L | bundled or epic-sized | capability map -> one M plan per module | map + several M dirs |
+| L | bundled or epic-sized | roadmap (roadmap-it) -> one S/M item per slice | `docs/roadmap/<slug>.md` (kept) + one plan per slice |
 
 The XS signal mirrors addyosmani's `/ship` skip rule. Anything touching auth,
 payments, data migrations, CI or secrets is at least S regardless of size.

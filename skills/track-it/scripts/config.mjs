@@ -29,6 +29,9 @@ export const DEFAULTS = {
   DO_IT_CHANGELOG: '',
   DO_IT_ADR_DIR: '',
   DO_IT_REFERENCE_DIR: '',
+  DO_IT_TODO_FILE: '',
+  DO_IT_ROADMAP_DIR: '',
+  DO_IT_RESEARCH_DIR: '',
   DO_IT_GITHUB_REPO: '',
   DO_IT_GITHUB_START_LABEL: '',
   JIRA_BASE_URL: '',
@@ -137,6 +140,21 @@ export const DOC_CANDIDATES = {
     key: 'DO_IT_REFERENCE_DIR',
     candidates: ['docs/reference'],
     fallback: 'docs/reference',
+  },
+  todo: {
+    key: 'DO_IT_TODO_FILE',
+    candidates: ['docs/TODO.md', 'TODO.md', 'docs/todo.md'],
+    fallback: 'docs/TODO.md',
+  },
+  roadmapDir: {
+    key: 'DO_IT_ROADMAP_DIR',
+    candidates: ['docs/roadmap', 'docs/roadmaps'],
+    fallback: 'docs/roadmap',
+  },
+  researchDir: {
+    key: 'DO_IT_RESEARCH_DIR',
+    candidates: ['docs/research'],
+    fallback: 'docs/research',
   },
 };
 

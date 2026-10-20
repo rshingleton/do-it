@@ -25,6 +25,9 @@ const DOC_LABELS = {
   changelog: 'Changelog',
   adrDir: 'ADRs',
   referenceDir: 'Reference docs',
+  todo: 'To-do list',
+  roadmapDir: 'Roadmaps',
+  researchDir: 'Research notes',
 };
 
 // One line per project doc, so skills that name the defaults (GLOSSARY.md,
@@ -39,7 +42,7 @@ export function docsLines(docs) {
 
 export function coreText(file = CORE_FILE) {
   try {
-    return fs.readFileSync(file, 'utf8').replace(/^---\n[\s\S]*?\n---\n/, '').trim();
+    return fs.readFileSync(file, 'utf8').replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, '').trim();
   } catch {
     return '';
   }

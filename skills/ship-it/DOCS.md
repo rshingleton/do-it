@@ -33,9 +33,10 @@ git diff -U0 <base_ref> | grep -E '^(\+\+\+ |@@ |\+.*shortcut:)'
 ```
 
 plus any in untracked files. A marker without an upgrade trigger is
-`no-trigger`. Offer the `no-trigger` ones, numbered, in the ship question;
-file each one the user picks with `log-it` (`type: defer`,
-`source: ship-it`, the `file:line` and limit).
+`no-trigger`. Offer the `no-trigger` ones, numbered, in the ship question.
+Each one the user picks goes to the to-do list by default (call the Skill
+tool with "todo-it", tag `debt`, the `file:line` and limit as source), or to
+an issue with `log-it` (`type: defer`) when the user wants it planned.
 
 ## What the plan knows
 

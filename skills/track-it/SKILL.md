@@ -34,8 +34,9 @@ block the same way.
 | `publish --spec F` | Parent + one child per phase | nothing | parent issue with a task list | Epic (or `JIRA_DEFAULT_EPIC`) + Tasks |
 
 `publish` takes JSON: `{"title", "body", "phases": [{"n", "title", "body"}],
-"parent"?}`. Write it to a temp file or pipe it with `--spec -`. Record the
-returned `parent` and `phases` under `tracker:` in the state block.
+"parent"?}`. Write it to a temp file or pipe it with `--spec -`. The caller
+records the returned `parent` and `phases` under `tracker:` in the state
+block, through the work-item script ([STATE.md](../do-it/STATE.md)).
 
 A ref routes by its shape, whatever the default tracker is:
 `docs/issues/x.md` is local; `owner/repo#42`, `#42`, `gh-42` or an issue URL

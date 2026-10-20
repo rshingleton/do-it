@@ -39,6 +39,9 @@ every session.
 | `DO_IT_CHANGELOG` | `CHANGELOG.md`, `docs/CHANGELOG.md`, `docs/changelog.md`, `CHANGES.md`, `HISTORY.md`, `.changeset/` | none (ship-it skips the entry) |
 | `DO_IT_ADR_DIR` | `docs/adr`, `docs/decisions`, `docs/architecture/decisions`, `doc/adr`, `adr` | `docs/adr` |
 | `DO_IT_REFERENCE_DIR` | `docs/reference` | `docs/reference` |
+| `DO_IT_TODO_FILE` | `docs/TODO.md`, `TODO.md`, `docs/todo.md` | `docs/TODO.md` (todo-it) |
+| `DO_IT_ROADMAP_DIR` | `docs/roadmap`, `docs/roadmaps` | `docs/roadmap` (roadmap-it) |
+| `DO_IT_RESEARCH_DIR` | `docs/research` | `docs/research` (look-it-up) |
 
 ### Hooks
 

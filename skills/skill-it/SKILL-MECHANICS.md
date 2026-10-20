@@ -13,8 +13,9 @@ What changes when the document is a skill. The writing guidance in
 | Who can start it | the agent on its own, another skill, or the user | only the user, by typing it |
 | Context cost | its description, every turn | none |
 
-Choose automatic only when the agent or another skill must reach the skill
-without the user. A step the user drives (the do-it flow steps, deepen-it,
+Never summarize the process in a description: an agent that reads a summary
+may follow it instead of the skill. Choose automatic only when the agent or
+another skill must reach the skill without the user. A step the user drives (the do-it flow steps, deepen-it,
 pass-it) is typed.
 
 A skill calls an automatic skill as Call the Skill tool with "<name>", with
