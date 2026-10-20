@@ -38,26 +38,35 @@ Reply with the new ids and their lines, nothing else.
 - `list [tag]`: open items, oldest first, with ids and age.
 - `review`: walk the open items oldest first and suggest, for each, one of:
   keep, drop (no longer relevant), done (already true in the code; cite
-  where), or promote. Flag items older than 60 days as stale first. Apply
+  where), or promote. Flag items older than 60 days as stale first. A file
+  still holding Done or Dropped sections: offer to remove them first. Apply
   only what the user picks.
 
 ## Close
 
-- `done <id> [how]`: move it to Done with the date and how (a commit, a work
-  id, "already true").
-- `drop <id> [why]`: move it to Dropped with the date and one-line reason.
+The list holds open items only. Closing removes the line and its notes; the
+record lives where the work does, and git history keeps the line.
+
+- `done <id> [how]`: remove it. Shipped through ship-it: its changelog entry
+  and commit already carry it. Done another way with a change worth noting
+  and the repo has a resolved changelog: add one entry in its style unless
+  one covers it. "Already true" needs no record.
+- `drop <id> [why]`: remove it.
+
+Reply with each closed id, its line and the how or why, so the commit
+message can say it.
 
 ## Promote
 
 | The item is | Promote to | Then |
 |-------------|------------|------|
-| A bug or a change worth planning | Call the Skill tool with "log-it", passing the line and note | Mark it `promoted -> <ref>` |
+| A bug or a change worth planning | Call the Skill tool with "log-it", passing the line and note | Remove it; reply `promoted -> <ref>` |
 | Small and ready to build now | Read [do-it](../do-it/SKILL.md) and follow it with the line as the request and `todo: <id>` | Append `-> <work id>` to the open item |
-| Extra-large or still foggy | Read [roadmap-it](../roadmap-it/SKILL.md) and follow it to chart a new roadmap | Mark it `promoted -> <roadmap file>` |
-| Part of an existing roadmap | Add it to that roadmap's Fog (a new slice only if the user names the milestone) | Mark it `promoted -> <roadmap file>` |
+| Extra-large or still foggy | Read [roadmap-it](../roadmap-it/SKILL.md) and follow it to chart a new roadmap | Remove it; reply `promoted -> <roadmap file>` |
+| Part of an existing roadmap | Add it to that roadmap's Fog (a new slice only if the user names the milestone) | Remove it; reply `promoted -> <roadmap file>` |
 
-An item promoted to an issue or a roadmap moves to Done; the new artifact
-carries it. An item promoted to a build stays Open, marked `-> <work id>`,
+An item promoted to an issue or a roadmap leaves the list; the new artifact
+carries it. An item promoted to a build stays open, marked `-> <work id>`,
 and the work item records `todo: <id>`; ship-it closes it when the work
 ships, so a rejected plan leaves nothing lost.
 

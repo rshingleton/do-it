@@ -1,6 +1,9 @@
 # To-do
 
 Nice-to-haves and things to circle back to. Managed by todo-it; edit freely.
+Closed items are removed: the changelog, the commit or git history keeps them.
+
+Next id: T52
 
 ## Open
 
@@ -46,21 +49,3 @@ Nice-to-haves and things to circle back to. Managed by todo-it; edit freely.
 - [ ] T49 Concurrent uncommitted work items: each fingerprint hashes the whole change since its base, so fixing one item invalidates every other item's audit. Scope the fingerprint (and the auditors' diff) to the item's own paths, e.g. a `paths:` field filled as build-it touches files `idea` (do-it run 2026-10-19: three items, one base, no commits)
 - [ ] T50 scope-it §5 (Approve) should list the "create `<area>/CONTEXT.md` with `/map-it <area>`" step that §2 proposes, so the approval turn shows it `debt` (skills/scope-it/SKILL.md:40; per-area-contexts audit round 4)
 - [ ] T51 ship-it DOCS.md still lets ship-it create a context file for new terms; the per-area-contexts decision names only name-it, `/map-it <area>` and an accepted plan step as creators, so propose creation in the ship question instead `debt` (skills/ship-it/DOCS.md:23; per-area-contexts audit round 4)
-
-## Done
-
-- [x] T48 Code map for a real large monorepo reads CONTEXT-MAP.md first and lists top-level manifest dirs as packages (done 2026-10-19: work per-area-contexts)
-- [x] T5 Treat packages/, apps/ and services/ as containers in the code map so monorepos show their packages (done 2026-10-19: work codemap-containers)
-- [x] T8 Port fingerprint.sh to Node so the flow's main path has no bash dependency (Windows) (done 2026-10-19: work work-item-script)
-- [x] T21 A verify-phase script that runs the checks and writes a phase's verified: only on exit 0 (done 2026-10-19: work work-item-script)
-- [x] T37 Test/lint commands are discovered in setup-it, map-it and build-it; read setup-it's config first (done 2026-10-19: AGENTS.md Commands line from setup-it, read first by build-it and map-it)
-- [x] T36 test-it defines "seam" differently from design-it; link to design-it's definition (done 2026-10-19: test-it links design-it)
-- [x] T33 skill-it/SKILL-MECHANICS and AGENTS.md restate the same rules (done 2026-10-19: AGENTS.md links SKILL-MECHANICS, keeps repo specifics)
-- [x] T12 scope-it analyze step (done 2026-10-19: scope-it/CHECKS.md analyze pass)
-- [x] T11 scope-it builder check (done 2026-10-19: scope-it/CHECKS.md builder check)
-- [x] T15 prove-it and sweep-it: a fresh validator subagent confirms each Must before it counts; drop unconfirmed ones (done 2026-10-19: prove-it/VALIDATE.md, Not confirmed section in both reports)
-- [x] T34 prove-it/REVIEW-STANDARDS repeats guard-it, it-core and REPORT.md; fold what is left into review-it and delete it (done 2026-10-19: review-it/BASELINE.md, REVIEW-STANDARDS.md removed)
-- [x] T35 retro-it and guard-it both describe turning a candidate into a checks.json rule (done 2026-10-19: guard-it owns format and fire/flood check, retro-it links)
-- [x] T40 Make look-it-up's output folder configurable (done 2026-10-19: DO_IT_RESEARCH_DIR)
-
-## Dropped
