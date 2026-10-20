@@ -25,7 +25,8 @@ block the same way.
 
 | Command | Does | Local | GitHub (`gh`) | Jira (REST v2) |
 |---------|------|-------|---------------|----------------|
-| `config` | Effective config, secrets redacted, with the file each value came from | | | |
+| `config` | Effective config, secrets redacted, with the file each value came from, and `untrusted` keys | | | |
+| `trust` | Pins the repo's current `DO_IT_LINT_CMD` / `JIRA_BASE_URL` values for this user ([CONFIG.md](CONFIG.md#trust)). Run it only when the user says to, after showing them the values | | | |
 | `create --title T --type bug\|feature\|todo\|defer --body-file F` | New issue | `docs/issues/<slug>.md` | `gh issue create` | Task (Bug for `bug`) |
 | `get <ref>` | Title, status, body, comments | reads the file | `gh issue view` | issue + comments |
 | `comment <ref> --body-file F` | Add a comment | appends to `## Log` | `gh issue comment` | comment (wiki markup) |
@@ -49,7 +50,8 @@ the issue is still created and the result lists `labelsDropped`.
 ## Configuration
 
 See [CONFIG.md](CONFIG.md). Run `tracker.mjs config` before the first remote
-call in a session; act on its `warnings` (a secret in a committed file).
+call in a session; act on its `warnings` (a secret in a committed file) and its `untrusted`
+repo values (show them to the user and offer `trust`).
 
 ## Rules
 

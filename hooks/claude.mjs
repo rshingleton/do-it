@@ -10,10 +10,17 @@
 
 import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { sessionContext } from './lib/context.mjs';
-import { setup, beforeEdit, afterEdit, beforeShell } from './lib/guard.mjs';
+import { decide } from './lib/decide.mjs';
 
-const EDIT_TOOLS = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit']);
+// Claude Code's tool names, as the kinds decide() checks.
+const KINDS = { Write: 'edit', Edit: 'edit', MultiEdit: 'edit', NotebookEdit: 'edit', Bash: 'shell' };
+
+const EVENTS = {
+  'session-start': ['session', 'SessionStart'],
+  'subagent-start': ['session', 'SubagentStart'],
+  'pre-tool': ['before'],
+  'post-tool': ['after', 'PostToolUse'],
+};
 
 function readStdin() {
   return new Promise((resolve) => {
@@ -31,42 +38,21 @@ function emit(obj) {
   process.stdout.write(JSON.stringify(obj));
 }
 
+// A block exits 2 with the reason on stderr; context goes back as
+// hookSpecificOutput (after a tool, next to its result: the documented
+// PostToolUse channel); a notice goes to stderr and the tool runs.
 export async function handle(event, input) {
-  const ctx = setup(input.cwd || process.cwd());
-  if (!ctx.enabled) return { exit: 0 };
-
-  switch (event) {
-    case 'session-start':
-    case 'subagent-start': {
-      const hookEventName = event === 'session-start' ? 'SessionStart' : 'SubagentStart';
-      let text = sessionContext(ctx.root, ctx.cfg);
-      if (ctx.error) text += `\n\ndo-it: ${ctx.error}`;
-      return { exit: 0, stdout: { hookSpecificOutput: { hookEventName, additionalContext: text } } };
-    }
-    case 'pre-tool': {
-      const tool = input.tool_name;
-      const r = EDIT_TOOLS.has(tool)
-        ? beforeEdit(ctx, input.tool_input)
-        : tool === 'Bash'
-          ? beforeShell(ctx, input.tool_input?.command)
-          : { action: 'allow' };
-      return r.action === 'block' ? { exit: 2, stderr: r.reason } : { exit: 0 };
-    }
-    case 'post-tool': {
-      if (!EDIT_TOOLS.has(input.tool_name)) return { exit: 0 };
-      const notes = [];
-      const pre = beforeEdit(ctx, input.tool_input);
-      if (pre.action === 'warn') notes.push(pre.message);
-      // The tool already ran, so findings go back as context next to its
-      // result (the documented PostToolUse channel), lint failures first.
-      const lint = afterEdit(ctx, input.tool_input);
-      if (lint.action !== 'allow') notes.unshift(lint.message);
-      if (!notes.length) return { exit: 0 };
-      return { exit: 0, stdout: { hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: notes.join('\n\n') } } };
-    }
-    default:
-      return { exit: 0 };
-  }
+  const [name, hookEventName] = EVENTS[event] ?? [];
+  if (!name) return { exit: 0 };
+  const r = decide(name, {
+    kind: KINDS[input.tool_name] ?? null,
+    args: input.tool_input || {},
+    cwd: input.cwd || process.cwd(),
+  });
+  if (r.block) return { exit: 2, stderr: r.block };
+  const out = { exit: 0, stderr: r.notice };
+  if (r.context && hookEventName) out.stdout = { hookSpecificOutput: { hookEventName, additionalContext: r.context } };
+  return out;
 }
 
 async function main() {

@@ -19,6 +19,10 @@ DO_IT_LINT_CMD=npx eslint --max-warnings=0 {file}
   user sets privately (`JIRA_API_TOKEN`, plus `JIRA_EMAIL` on Cloud).
 - `DO_IT_LINT_CMD`: only when the linter accepts a file path and runs in a
   few seconds; otherwise leave it out and say why.
+- `DO_IT_LINT_CMD` and `JIRA_BASE_URL` here apply only once each developer
+  trusts them (the track-it skill's CONFIG.md, Trust). Say so in the
+  proposal; after writing, offer `tracker.mjs trust` and run it only on the
+  user's yes.
 - Doc paths (`DO_IT_CONTEXT`, `DO_IT_CHANGELOG`, `DO_IT_ADR_DIR`,
   `DO_IT_REFERENCE_DIR`): only when detection picked the wrong file.
 - `DO_IT_CONTEXT_MAP`: only when the repo's map exists at a path other than

@@ -6,7 +6,7 @@ import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-import { BUILTIN, scan, loadChecks, addedText } from '../hooks/lib/checks.mjs';
+import { BUILTIN, scan, loadChecks, editParts } from '../hooks/lib/checks.mjs';
 import { beforeEdit, afterEdit, beforeShell } from '../hooks/lib/guard.mjs';
 import { DEFAULTS } from '../skills/track-it/scripts/config.mjs';
 import { sessionContext } from '../hooks/lib/context.mjs';
@@ -64,10 +64,37 @@ test('a broken checks.json is reported, built-ins still apply', () => {
   assert.equal(rules.length, BUILTIN.length);
 });
 
-test('addedText reads Claude Code and OpenCode edit shapes', () => {
-  assert.equal(addedText({ content: 'a' }), 'a');
-  assert.equal(addedText({ old_string: 'x', new_string: 'b' }), 'b');
-  assert.equal(addedText({ edits: [{ new_string: 'c' }, { newString: 'd' }] }), 'c\nd');
+test('editParts reads Claude Code and OpenCode edit shapes', () => {
+  assert.deepEqual(editParts({ file_path: 'a.js', content: 'a' }), [{ file: 'a.js', added: 'a' }]);
+  assert.deepEqual(editParts({ filePath: 'a.js', oldString: 'x', newString: 'b' }), [{ file: 'a.js', added: 'b' }]);
+  assert.deepEqual(editParts({ file_path: 'a.js', edits: [{ new_string: 'c' }, { newString: 'd' }] }), [{ file: 'a.js', added: 'c\nd' }]);
+  assert.deepEqual(editParts({ notebook_path: 'n.ipynb', new_source: 'e' }), [{ file: 'n.ipynb', added: 'e' }]);
+  assert.deepEqual(editParts({}), []);
+});
+
+test('editParts splits a patch by the file each added line lands in', () => {
+  const applyPatch = [
+    '*** Begin Patch',
+    '*** Add File: a.js',
+    '+one',
+    '*** Update File: old.js',
+    '*** Move to: new.js',
+    '@@',
+    '-gone',
+    '+two',
+    '*** Delete File: dead.js',
+    '*** Update File: a.js',
+    '+three',
+    '*** End Patch',
+  ].join('\n');
+  assert.deepEqual(editParts({ patchText: applyPatch }), [
+    { file: 'a.js', added: 'one\nthree' },
+    { file: 'old.js', added: '', gone: true },
+    { file: 'new.js', added: 'two' },
+  ]);
+  const unified = ['--- a/x.js', '+++ b/x.js', '@@ -1 +1 @@', '-a', '+b', '--- a/y.js', '+++ /dev/null', '@@ -1 +0,0 @@', '-c'].join('\n');
+  assert.deepEqual(editParts({ patch: unified }), [{ file: 'x.js', added: 'b' }]);
+  assert.deepEqual(editParts({ patch: '+loose' }), [{ file: '', added: 'loose' }]);
 });
 
 test('beforeEdit blocks HIGH, warns on MEDIUM, allows clean', () => {

@@ -5,19 +5,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import {
-  allowedEvents,
-  emptyBlock,
-  needsUser,
-  normalize,
-  parseBlock,
-  readItem,
-  writeItem,
-  roadmapSlices,
-  splitPlan,
-  transition,
-  writeBlock,
-} from '../skills/do-it/scripts/state.mjs';
+import { allowedEvents, emptyBlock, needsUser, normalize, transition } from '../skills/do-it/scripts/state.mjs';
+import { parseBlock, readItem, writeItem, writeBlock } from '../skills/do-it/scripts/block.mjs';
+import { roadmapSlices } from '../skills/do-it/scripts/roadmap.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const WORK = path.join(ROOT, 'skills/do-it/scripts/work.mjs');
@@ -126,7 +116,7 @@ test('transitions: lane S walks draft to shipping through a failed audit', () =>
   s = walk(s, [['approve'], ['start', { head: 'abc' }]]);
   assert.equal(s.status, 'building');
   assert.equal(s.approvals.plan, '2026-10-19');
-  assert.throws(() => transition(s, 'build-done'), /phase-done first/);
+  assert.throws(() => transition(s, 'build-done'), /verify-phase first/);
   s = walk(s, [['phase-done', { verified: 'npm test: pass' }], ['build-done'], ['audit-fail', { must: ['M1 missing test'] }]]);
   assert.equal(s.status, 'building');
   assert.equal(s.audit.round, 1);
@@ -249,6 +239,8 @@ function work(dir, ...args) {
   return { status: r.status, out: JSON.parse(r.stdout) };
 }
 
+// CLI smoke tests: arguments, JSON output and exit codes. The rules behind
+// each command are tested through workItems in items.test.mjs.
 test('work.mjs: new, set, event, show, list and close on a repo', () => {
   const dir = tempRepo();
   let r = work(dir, 'new', 'feat-x', '--lane', 'm', '--title', 'Feature X');
@@ -271,14 +263,20 @@ test('work.mjs: new, set, event, show, list and close on a repo', () => {
   r = work(dir, 'event', 'feat-x', 'start');
   assert.equal(r.out.base_ref, '4b825dc642cb6eb9a060e54bf8d69288fbee4904', 'no commits yet: the empty tree');
   r = work(dir, 'event', 'feat-x', 'phase-done', '1', 'npm', 'test:', 'pass');
-  assert.equal(r.out.phases[0].verified, 'npm test: pass');
+  assert.equal(r.status, 1, 'a phase is not recorded on say-so');
+  assert.match(r.out.error, /recorded by verify-phase/);
+  assert.equal(r.out.phases, undefined);
+  assert.equal(work(dir, 'show', 'feat-x').out.allowed.includes('phase-done'), false, 'nothing offers what is refused');
+  r = work(dir, 'verify-phase', 'feat-x', '1', '--', 'node -e "process.exit(0)"');
+  assert.equal(r.out.phases[0].verified, 'node -e "process.exit(0)": pass');
   for (const e of [['build-done'], ['audit-pass', 'fp1']]) work(dir, 'event', 'feat-x', ...e);
 
   r = work(dir, 'list');
   assert.deepEqual(r.out.map((i) => [i.id, i.status]), [['feat-x', 'shipping']]);
-  const text = fs.readFileSync(path.join(dir, 'docs/planning/feat-x/README.md'), 'utf8');
-  assert.match(splitPlan(text).body, /# Feature X/);
-  assert.equal(readItem(path.join(dir, 'docs/planning/feat-x/README.md')).state.audit.fingerprint, 'fp1');
+  const item = readItem(path.join(dir, 'docs/planning/feat-x/README.md'));
+  assert.match(item.body, /# Feature X/);
+  assert.equal(item.state.audit.fingerprint, 'fp1');
+  assert.ok(work(dir, 'show', 'feat-x').out.allowed.includes('close'), 'shipping offers close');
 
   r = work(dir, 'close', 'feat-x');
   assert.deepEqual(r.out.todo, ['T7']);
@@ -322,7 +320,7 @@ test('work.mjs: review-diff shows edits made after ship prepared, without touchi
   work(dir, 'new', 'rev', '--lane', 's', '--title', 'Rev');
   for (const e of ['approve', 'start']) work(dir, 'event', 'rev', e);
   fs.writeFileSync(path.join(dir, 'a.js'), 'two\n');
-  work(dir, 'event', 'rev', 'phase-done', 'ok');
+  work(dir, 'verify-phase', 'rev', '--', 'node -e "process.exit(0)"');
   for (const e of ['build-done', 'audit-pass', 'ship-prepared']) work(dir, 'event', 'rev', e);
   assert.deepEqual(work(dir, 'review-diff', 'rev').out.files, []);
 
@@ -369,18 +367,30 @@ test('audit round 1 regressions: replan, parens, empty lane M, comments, CRLF', 
   assert.doesNotMatch(fs.readFileSync(file, 'utf8'), /[^\r]\n/);
 });
 
-test('work.mjs: set phases keeps recorded progress and refuses to set it (Should 3)', () => {
-  const dir = tempRepo();
-  work(dir, 'new', 'ph', '--lane', 'm', '--title', 'Ph');
-  work(dir, 'set', 'ph', 'phases', '[{"n":1,"title":"One"}]');
-  work(dir, 'event', 'ph', 'approve');
-  work(dir, 'event', 'ph', 'start');
-  work(dir, 'event', 'ph', 'phase-done', '1', 'npm test: pass');
-  const r = work(dir, 'set', 'ph', 'phases', '[{"n":1,"title":"One"},{"n":2,"title":"Two","blocked_by":[1]}]');
-  assert.deepEqual(r.out.phases.map((x) => [x.n, x.status, x.verified]), [[1, 'done', 'npm test: pass'], [2, 'ready', null]]);
-  const forged = work(dir, 'set', 'ph', 'phases', '[{"n":2,"title":"Two","status":"done"}]');
-  assert.equal(forged.status, 1);
-  assert.match(forged.out.error, /recorded by events/);
+test('a failed plan write leaves the old plan whole and no temp file (T53)', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-atomic-'));
+  const file = path.join(dir, 'a.md');
+  const before = `---\n${writeBlock(emptyBlock({ id: 'a', title: 'A', lane: 's' }))}---\n\n# A\n`;
+  fs.writeFileSync(file, before);
+  const item = readItem(file);
+  item.state.title = 'Changed';
+  assert.throws(
+    () => writeItem(item, { renameSync: () => { throw new Error('ENOSPC'); } }),
+    /ENOSPC/,
+  );
+  assert.equal(fs.readFileSync(file, 'utf8'), before);
+  assert.deepEqual(fs.readdirSync(dir), ['a.md']);
+  writeItem(item);
+  assert.equal(readItem(file).state.title, 'Changed');
+  assert.deepEqual(fs.readdirSync(dir), ['a.md']);
+
+  // A full disk fails the temp write itself, part-way: no partial file left.
+  const partial = (f, data) => {
+    fs.writeFileSync(f, data.slice(0, 5));
+    throw new Error('ENOSPC');
+  };
+  assert.throws(() => writeItem(item, { writeFileSync: partial }), /ENOSPC/);
+  assert.deepEqual(fs.readdirSync(dir), ['a.md']);
 });
 
 test('fingerprint accepts the empty-tree base once commits exist (Should 5)', () => {
@@ -411,24 +421,30 @@ test('work.mjs: verify-phase keeps separate arguments intact (audit round 2)', (
   assert.equal(r.status, 0, JSON.stringify(r.out));
 });
 
+test('work.mjs: verify-phase --in runs the checks in another directory and records here (T55)', () => {
+  const dir = tempRepo();
+  const int = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-int-'));
+  fs.writeFileSync(path.join(int, 'marker'), '');
+  work(dir, 'new', 'par', '--lane', 'm', '--title', 'Par');
+  work(dir, 'set', 'par', 'phases', '[{"n":1,"title":"One"}]');
+  for (const e of ['approve', 'start']) work(dir, 'event', 'par', e);
+  const check = 'node -e "require(\'fs\').accessSync(\'marker\')"';
+  assert.equal(work(dir, 'verify-phase', 'par', '1', '--', check).status, 1, 'no marker in the checkout');
+  assert.equal(work(dir, 'show', 'par').out.phases[0].status, 'ready');
+  let r = work(dir, 'verify-phase', 'par', '1', '--in', path.join(int, 'missing'), '--', check);
+  assert.match(r.out.error, /--in .*does not exist/);
+  r = work(dir, 'verify-phase', 'par', '1', '--in', int, '--', check);
+  assert.equal(r.status, 0, JSON.stringify(r.out));
+  assert.equal(r.out.phases[0].status, 'done');
+  assert.equal(r.out.path, 'docs/planning/par/README.md', 'recorded in the checkout, not in --in');
+});
+
 test('work.mjs: review-diff without a snapshot degrades instead of failing', () => {
   const dir = tempRepo();
   work(dir, 'new', 'old', '--lane', 's', '--title', 'Old');
   const r = work(dir, 'review-diff', 'old');
   assert.equal(r.status, 0);
   assert.equal(r.out.files, null);
-});
-
-test('work.mjs: raising lane S to M moves the plan into a directory; lowering is refused', () => {
-  const dir = tempRepo();
-  work(dir, 'new', 'grow', '--lane', 's', '--title', 'Grow');
-  let r = work(dir, 'set', 'grow', 'lane', 'm');
-  assert.equal(r.status, 0, JSON.stringify(r.out));
-  assert.equal(r.out.path, 'docs/planning/grow/README.md');
-  assert.equal(fs.existsSync(path.join(dir, 'docs/planning/grow.md')), false);
-  assert.equal('verified' in r.out, false);
-  r = work(dir, 'set', 'grow', 'lane', 's');
-  assert.match(r.out.error, /never lowered/);
 });
 
 test('work.mjs: roadmap reads the file relative to the current directory', () => {

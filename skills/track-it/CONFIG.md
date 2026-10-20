@@ -14,6 +14,26 @@ read in this order; later wins:
 `tracker.mjs config` prints the result and which file set each value. It
 warns when a token-like key sits in the committed project file.
 
+## Trust
+
+Two keys decide what runs and where your token goes: `DO_IT_LINT_CMD` (a
+shell command the hooks run after every edit) and `JIRA_BASE_URL` (the host
+that receives `JIRA_API_TOKEN`). Set in a repo's `.do-it/config.env` or
+`.do-it/local.env`, they apply only after you trust those exact values on
+your machine:
+
+```bash
+node skills/track-it/scripts/tracker.mjs config   # "untrusted": the keys ignored, with the values
+node skills/track-it/scripts/tracker.mjs trust    # pins the current values
+```
+
+Until then the value from your user config, the environment or the default
+applies, and the session notice says which keys were ignored. Trust is a
+hash of the values in `~/.config/do-it/trusted`, so every clone and worktree
+with the same values shares it, and a changed value (a pull, a teammate's
+edit) needs trusting again. To revoke, delete the line. The reasons are in
+the repo's ADR 0006 (repo files are untrusted for commands).
+
 ## Keys
 
 ### General
@@ -93,6 +113,9 @@ JIRA_PROJECT_KEY=CDS
 JIRA_EPIC_LINK_FIELD=customfield_10008
 DO_IT_LINT_CMD=npx eslint --max-warnings=0 {file}
 ```
+
+Each developer runs `tracker.mjs trust` once for the URL and lint command
+(see Trust).
 
 Your token, once for every repo (`~/.config/do-it/config.env`):
 

@@ -3,6 +3,7 @@
 // Every command prints JSON on stdout; failures print {"error": ...} and exit 1.
 //
 //   tracker.mjs config
+//   tracker.mjs trust      pin the repo's DO_IT_LINT_CMD / JIRA_BASE_URL values (only on the user's say-so)
 //   tracker.mjs create --title T [--type bug|feature|todo|defer] [--body B | --body-file F]
 //                      [--source S] [--external-id X] [--label L]... [--tracker local|github|jira]
 //   tracker.mjs get <ref>
@@ -17,7 +18,7 @@
 
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { loadConfig, redact, resolveDocs, maskUrlCredentials } from './config.mjs';
+import { loadConfig, redact, resolveDocs, maskUrlCredentials, trust } from './config.mjs';
 import { parseRef } from './refs.mjs';
 import { localTracker } from './adapters/local.mjs';
 import { githubTracker } from './adapters/github.mjs';
@@ -82,7 +83,11 @@ export async function run(argv, { config = loadConfig(), deps = {} } = {}) {
         values: redact(config.values),
         sources: config.sources,
         warnings: config.warnings,
+        // The ignored values, so the user can review them before trusting.
+        untrusted: Object.fromEntries((config.untrusted ?? []).map((k) => [k, maskUrlCredentials(config.trust.values[k])])),
       };
+    case 'trust':
+      return { trusted: Object.fromEntries(Object.entries(trust(config)).map(([k, v]) => [k, maskUrlCredentials(v)])) };
     case 'create': {
       if (!opts.title) throw new Error('create needs --title');
       const t = trackerFor(opts.tracker || config.values.DO_IT_TRACKER, config, deps);

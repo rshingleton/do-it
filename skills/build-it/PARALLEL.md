@@ -48,15 +48,20 @@ For each finished phase, in `$root/int`:
 git merge --no-ff "do-it/<id>--phase-N" -m "<id> phase-N (scratch)"
 ```
 
-Run the project's checks there. On a conflict, call the Skill tool with
-"merge-it", passing the plan path so it resolves by the plan's intent.
-On a failed check, `git merge --abort` or `git reset --hard HEAD~1` in the
-scratch worktree only, `work.mjs event <id> block "<why>" --phase <n>`, and keep going with phases
-that do not depend on it.
+On a conflict, call the Skill tool with "merge-it", passing the plan path so
+it resolves by the plan's intent.
 
-Record the phase on the user's checkout after each merge with
-`work.mjs event <id> phase-done <n> "<commands that passed in int>"`, then
-recompute the frontier and start implementers for newly ready phases.
+Then, from the user's checkout, run the project's checks in `int` through
+the gate, which records the phase only when they exit 0:
+
+```bash
+work.mjs verify-phase <id> <n> --in "$root/int" -- "<checks>"
+```
+
+On a failed check, `git reset --hard HEAD~1` in the scratch worktree only,
+`work.mjs event <id> block "<why>" --phase <n>`, and keep going with phases
+that do not depend on it. Otherwise recompute the frontier and start
+implementers for newly ready phases.
 
 ## 4. Land and clean up
 
