@@ -46,19 +46,43 @@ test('loadConfig layers user < project < local < env and warns on committed secr
 test('resolveDocs: config wins, then first existing candidate, then default', () => {
   const root = tmpRepo();
   let docs = resolveDocs(root, DEFAULTS);
-  assert.deepEqual(docs.glossary, { path: 'GLOSSARY.md', exists: false, source: 'default' });
+  assert.deepEqual(docs.context, { path: 'CONTEXT.md', exists: false, source: 'default' });
+  assert.deepEqual(docs.contextMap, { path: 'CONTEXT-MAP.md', exists: false, source: 'default' });
   assert.deepEqual(docs.changelog, { path: null, exists: false, source: 'default' });
 
-  fs.writeFileSync(path.join(root, 'CONTEXT.md'), '# terms');
+  fs.writeFileSync(path.join(root, 'GLOSSARY.md'), '# terms');
+  fs.writeFileSync(path.join(root, 'GLOSSARY-MAP.md'), '# map');
   fs.mkdirSync(path.join(root, 'docs/decisions'), { recursive: true });
   fs.mkdirSync(path.join(root, '.changeset'));
   docs = resolveDocs(root, DEFAULTS);
-  assert.deepEqual(docs.glossary, { path: 'CONTEXT.md', exists: true, source: 'detected' });
+  assert.deepEqual(docs.context, { path: 'GLOSSARY.md', exists: true, source: 'detected' });
+  assert.deepEqual(docs.contextMap, { path: 'GLOSSARY-MAP.md', exists: true, source: 'detected' });
   assert.equal(docs.adrDir.path, 'docs/decisions');
   assert.equal(docs.changelog.path, '.changeset');
 
-  docs = resolveDocs(root, { ...DEFAULTS, DO_IT_GLOSSARY: 'docs/terms.md' });
-  assert.deepEqual(docs.glossary, { path: 'docs/terms.md', exists: false, source: 'config' });
+  fs.mkdirSync(path.join(root, 'docs'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'docs', 'CONTEXT.md'), '# area');
+  fs.writeFileSync(path.join(root, 'docs', 'CONTEXT-MAP.md'), '# map');
+  docs = resolveDocs(root, DEFAULTS);
+  assert.deepEqual(docs.context, { path: 'docs/CONTEXT.md', exists: true, source: 'detected' });
+  assert.deepEqual(docs.contextMap, { path: 'docs/CONTEXT-MAP.md', exists: true, source: 'detected' });
+
+  fs.writeFileSync(path.join(root, 'CONTEXT.md'), '# area');
+  fs.writeFileSync(path.join(root, 'CONTEXT-MAP.md'), '# map');
+  docs = resolveDocs(root, DEFAULTS);
+  assert.deepEqual(docs.context, { path: 'CONTEXT.md', exists: true, source: 'detected' });
+  assert.deepEqual(docs.contextMap, { path: 'CONTEXT-MAP.md', exists: true, source: 'detected' });
+
+  docs = resolveDocs(root, { ...DEFAULTS, DO_IT_CONTEXT: 'docs/terms.md', DO_IT_CONTEXT_MAP: 'docs/areas.md' });
+  assert.deepEqual(docs.context, { path: 'docs/terms.md', exists: false, source: 'config' });
+  assert.deepEqual(docs.contextMap, { path: 'docs/areas.md', exists: false, source: 'config' });
+});
+
+test('resolveDocs: DO_IT_GLOSSARY still names the context when DO_IT_CONTEXT is unset', () => {
+  const root = tmpRepo();
+  fs.writeFileSync(path.join(root, 'CONTEXT.md'), '# area');
+  assert.equal(resolveDocs(root, { ...DEFAULTS, DO_IT_GLOSSARY: 'docs/old.md' }).context.path, 'docs/old.md');
+  assert.equal(resolveDocs(root, { ...DEFAULTS, DO_IT_GLOSSARY: 'docs/old.md', DO_IT_CONTEXT: 'docs/new.md' }).context.path, 'docs/new.md');
 });
 
 test('parseRef routes by shape', () => {

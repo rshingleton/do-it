@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 
-import { codeMap, mapFromGit, mapFromReference, MAP_BUDGET } from '../hooks/lib/codemap.mjs';
+import { codeMap, mapFromContextMap, mapFromGit, mapFromReference, MAP_BUDGET } from '../hooks/lib/codemap.mjs';
 import { sessionContext } from '../hooks/lib/context.mjs';
 import { DEFAULTS } from '../skills/track-it/scripts/config.mjs';
 import { buildModel, evaluate, stem, tokenize } from '../scripts/lib/routing.mjs';
@@ -123,6 +123,76 @@ test('code map fails open and can be switched off', () => {
   const dir = repoWith(['src/a.ts']);
   assert.match(sessionContext(dir, DEFAULTS), /## Code map[\s\S]*`src\/`/);
   assert.doesNotMatch(sessionContext(dir, { ...DEFAULTS, DO_IT_MAP: 'off' }), /## Code map/);
+});
+
+function contextMap(rows) {
+  return [
+    '# Context map',
+    '',
+    'Each area has its own CONTEXT.md.',
+    '',
+    '## Services',
+    '',
+    '| Context | Location | Scope |',
+    '|---------|----------|-------|',
+    ...rows.map(([name, loc, scope]) => `| ${name} | \`${loc}\` | ${scope} |`),
+    '',
+    'Read the area context before exploring it.',
+  ].join('\n');
+}
+
+test('code map leads with the context map, ahead of the module map', () => {
+  const dir = repoWith(['src/a.ts']);
+  fs.mkdirSync(path.join(dir, 'docs/reference'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'docs/reference/module-map.md'), '| Module | Path |\n|---|---|\n| Orders | `src/orders/` |\n');
+  fs.writeFileSync(path.join(dir, 'CONTEXT-MAP.md'), contextMap([
+    ['Root', './CONTEXT.md', 'Shared infrastructure'],
+    ['Checkout', 'services/checkout/CONTEXT.md', 'Takes and pays for orders'],
+  ]));
+  const map = codeMap(dir, DEFAULTS);
+  assert.match(map, /^From `CONTEXT-MAP\.md`/);
+  assert.match(map, /## Services/);
+  assert.match(map, /\| Checkout \| `services\/checkout\/CONTEXT\.md` \| Takes and pays for orders \|/);
+  assert.doesNotMatch(map, /Orders|Read the area context/, 'only headings and table rows, not the module map');
+
+  fs.rmSync(path.join(dir, 'CONTEXT-MAP.md'));
+  assert.match(codeMap(dir, DEFAULTS), /module-map\.md/, 'without a map the module map is next');
+});
+
+test('context map over budget drops to two columns before it drops rows', () => {
+  const dir = repoWith(['src/a.ts']);
+  const rows = [];
+  for (let i = 0; i < 15; i++) rows.push([`area-${i}`, `area-${i}/CONTEXT.md`, 'A scope description long enough to push the table over budget']);
+  fs.writeFileSync(path.join(dir, 'CONTEXT-MAP.md'), contextMap(rows));
+  const map = mapFromContextMap(dir, DEFAULTS);
+  assert.ok(map.length <= MAP_BUDGET, String(map.length));
+  assert.match(map, /\| Context \| Location \|\n/);
+  assert.match(map, /\| area-14 \| `area-14\/CONTEXT\.md` \|/, 'every row survives');
+  assert.doesNotMatch(map, /scope description/);
+
+  for (let i = 15; i < 60; i++) rows.push([`area-${i}`, `area-${i}/CONTEXT.md`, 'x']);
+  fs.writeFileSync(path.join(dir, 'CONTEXT-MAP.md'), contextMap(rows));
+  const clipped = mapFromContextMap(dir, DEFAULTS);
+  assert.ok(clipped.length <= MAP_BUDGET, String(clipped.length));
+  assert.match(clipped, /\| area-0 \| `area-0\/CONTEXT\.md` \|/);
+  assert.match(clipped, /…$/);
+});
+
+test('an unreadable context map yields the next source', () => {
+  const dir = repoWith(['src/a.ts']);
+  fs.mkdirSync(path.join(dir, 'CONTEXT-MAP.md'));
+  assert.equal(mapFromContextMap(dir, DEFAULTS), '');
+  assert.match(codeMap(dir, DEFAULTS), /git ls-files/);
+});
+
+test('git map lists top-level dirs with their own manifest as packages and skips temp dirs (T48)', () => {
+  const files = ['amp-queue/cpanfile', 'amp-queue/lib/Q.pm', 'temp/scratch.pl', 'tmp/x.txt'];
+  for (let i = 0; i < 5; i++) files.push(`deprecated/old${i}.pl`);
+  const map = mapFromGit('/', listing(files));
+  const lines = map.split('\n').filter((l) => l.startsWith('- '));
+  assert.equal(lines[0], '- `amp-queue/` (2): `lib/` 1', map);
+  assert.equal(lines[1], '- `deprecated/` (5)', map);
+  assert.doesNotMatch(map, /temp\/|tmp\//);
 });
 
 test('routing: stemming joins word forms, tokenizer drops stopwords', () => {

@@ -13,7 +13,7 @@ checks; lane M does all of them.
 | Coverage, forward | A done-when line, a source's acceptance item or a roadmap `Covers` id has no step or phase that delivers it |
 | Coverage, back | A step or phase serves nothing in done-when, the sources or `Covers` (scope creep; move it to Non-goals or justify it) |
 | Verifiable | A step has no `→ verify:` check, or the check is not observable ("works", "looks right") |
-| Names | A term differs from the glossary, or the same thing is named two ways across phases |
+| Names | A term differs from the area's `CONTEXT.md`, or the same thing is named two ways across phases |
 | Blocks | `blocked_by` has a cycle, or a block only restates order |
 | Rules | The plan contradicts it-core, an accepted ADR, or a guard-it rule (secrets, env files, `.compliance-rules/`) |
 

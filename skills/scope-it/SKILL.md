@@ -32,10 +32,13 @@ Read-only for code. Produces the plan and its state block
 A new project (no source yet; see the do-it scout) adds the agenda in
 [GREENFIELD.md](GREENFIELD.md) at either lane.
 
-Find facts yourself (read code, ADRs, `GLOSSARY.md`, `docs/reference/`); ask
-only for decisions. A fact about a library, API or standard the code does not
+Find facts yourself (code, ADRs, the area's context per it-core,
+`docs/reference/`); ask only for decisions. A fact about a library, API or standard the code does not
 settle: call the Skill tool with "look-it-up" rather than guess. For seams and
 interfaces, call the Skill tool with "design-it" and use its vocabulary.
+
+No `CONTEXT.md` for the plan's area: never write one while scouting; propose
+"create `<area>/CONTEXT.md` with `/map-it <area>`" as a step at approval (§5).
 
 ## 3. Write the plan
 

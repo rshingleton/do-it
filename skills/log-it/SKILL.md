@@ -12,7 +12,7 @@ with no done-criteria belongs on the to-do list instead (`todo-it`).
 ## 1. Context
 
 Read only what sharpens the issue: the file or error the user named, nearby
-code, `GLOSSARY.md`, relevant ADRs. Note module names and domain terms; they
+code, the area's context (it-core), relevant ADRs. Note module names and domain terms; they
 go in the body.
 
 ## 2. Probe

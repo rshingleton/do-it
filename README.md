@@ -20,7 +20,7 @@ compliance hooks.
 | Plan | `/scope-it` | Grill scaled to the lane, seams, `step → verify:` steps, ADR only when warranted |
 | Build | `/build-it` | Test-first at the agreed seams; parallel phases when ready; **never commits** |
 | Audit | `/prove-it` | Fresh-context reviewers (spec, standards, compliance, architecture); numbered verdict; failures loop back to build, at most 3 rounds |
-| Ship | `/ship-it` | Confirms assumptions, finalizes ADRs, glossary and changelog, updates the tracker, then asks: commit now or leave it for review |
+| Ship | `/ship-it` | Confirms assumptions, finalizes ADRs, area contexts and changelog, updates the tracker, then asks: commit now or leave it for review |
 
 | Lane | When | Steps |
 |------|------|-------|
@@ -54,7 +54,7 @@ skeleton first.
 
 | Skill | Does |
 |-------|------|
-| `/map-it [area] [--chat]` | Maps the repo or an area as `docs/reference/` (facts only), or in chat |
+| `/map-it [area] [--chat]` | Maps the repo or an area as `docs/reference/` (facts only), or in chat; for an area, also writes its `CONTEXT.md` and `CONTEXT-MAP.md` row, and reports drift between the map and the files on disk |
 | `/sweep-it [path \| --hot]` | Audits existing code for bugs, risks, test gaps, debt, drift and dead weight; files the findings you pick |
 | `/deepen-it [area]` | Finds deepening opportunities, shows them as an HTML report, grills the one you pick, hands it to `/do-it` or `log-it` |
 | `/look-it-up` | Answers library, API and standards questions from primary sources |
@@ -88,7 +88,7 @@ of starting a build.
 | `guard-it` | Compliance: mechanical checks and judgement rules |
 | `doubt-it` | Fresh-context check of a claim before a risky step |
 | `grill-it` | Interview to shared understanding, one decision at a time |
-| `name-it` | Domain model: glossary and ADRs |
+| `name-it` | Domain model: context files, the context map and ADRs |
 | `design-it` | Deep-module vocabulary: module, interface, seam, depth |
 | `test-it` | Test-first at agreed seams |
 | `debug-it` | Diagnosis loop for hard bugs and regressions |
@@ -150,12 +150,24 @@ Mechanical rules (a regex decides) live in `checks.json` and run on every
 edit; judgement rules (`.compliance-rules/*.md`) are checked by `prove-it`.
 See [skills/guard-it/SKILL.md](skills/guard-it/SKILL.md).
 
-The code map costs one `git ls-files` call (tracked and untracked files) at
-every session and subagent start (every turn under OpenCode), capped at 1.5
-seconds and 1500 characters; on timeout the map is left out and nothing else changes.
-Monorepo `packages/`, `apps/` and `services/` show up to 12 packages
-each by name (shared ones first, then the largest). In a large repo, run `/map-it` once: a module map in the
-reference directory is read instead of calling git. Or set `DO_IT_MAP=off`.
+The code map is capped at 1500 characters and takes the first source that
+exists:
+
+1. The context map (`CONTEXT-MAP.md`): its headings and table rows, so a
+   monorepo shows its areas and where each one's `CONTEXT.md` lives. Over
+   budget it keeps the Context and Location columns before it drops rows.
+2. The module map (`module-map.md` in the reference directory, written by
+   `/map-it`): its first rows.
+3. One `git ls-files` call (tracked and untracked files), capped at 1.5
+   seconds; on timeout the map is left out and nothing else changes.
+   Monorepo `packages/`, `apps/` and `services/` show up to 12 packages each
+   by name, and a top-level directory with its own manifest (`package.json`,
+   `cpanfile`, `go.mod`, `pyproject.toml`, `Cargo.toml`) counts as a package.
+   Packages come after shared code and before plain directories; `temp/`,
+   `tmp/` and build output are skipped.
+
+It runs at every session and subagent start (every turn under OpenCode).
+`DO_IT_MAP=off` turns it off.
 
 OpenCode has no subagent-start hook; its plugin injects the posture into
 every turn's system prompt instead. The plugin targets the OpenCode 1 plugin
@@ -173,12 +185,13 @@ list: [skills/track-it/CONFIG.md](skills/track-it/CONFIG.md).
 node skills/track-it/scripts/tracker.mjs config   # effective config, secrets redacted
 ```
 
-Project docs are detected per repo: the glossary (`GLOSSARY.md` or
-`CONTEXT.md`), the changelog (`CHANGELOG.md`, `docs/changelog.md`, a
+Project docs are detected per repo: the context map (`CONTEXT-MAP.md`) and
+context (`CONTEXT.md`; `GLOSSARY.md` and `GLOSSARY-MAP.md` as a fallback),
+the changelog (`CHANGELOG.md`, `docs/changelog.md`, a
 `.changeset/` directory, ...), ADRs (`docs/adr/`, `docs/decisions/`, ...),
 the reference map, the to-do list (`docs/TODO.md`, `TODO.md`), roadmaps
 (`docs/roadmap/`) and research notes (`docs/research/`). Override with
-`DO_IT_GLOSSARY`, `DO_IT_CHANGELOG`, `DO_IT_ADR_DIR`, `DO_IT_REFERENCE_DIR`,
+`DO_IT_CONTEXT`, `DO_IT_CONTEXT_MAP`, `DO_IT_CHANGELOG`, `DO_IT_ADR_DIR`, `DO_IT_REFERENCE_DIR`,
 `DO_IT_TODO_FILE`, `DO_IT_ROADMAP_DIR`, `DO_IT_RESEARCH_DIR`. The hooks tell
 every session which files are in use.
 

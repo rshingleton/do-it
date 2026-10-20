@@ -110,11 +110,15 @@ test('session context carries the core posture and repo pointers', () => {
   assert.match(text, /`\.compliance-rules\/security\.md`/);
   assert.match(text, /eslint \{file\}/);
   assert.doesNotMatch(text, /^---/);
-  assert.match(text, /- Glossary: `GLOSSARY\.md` \(not created yet/);
+  assert.match(text, /- Context: `CONTEXT\.md` \(not created yet/);
+  assert.match(text, /- Context map: `CONTEXT-MAP\.md` \(not created yet; created with the first area context below the root\)/);
   assert.match(text, /- Changelog: none; skip/);
 
   fs.writeFileSync(path.join(root, 'CONTEXT.md'), '# terms');
-  assert.match(sessionContext(root, DEFAULTS), /- Glossary: `CONTEXT\.md`\n/);
+  fs.writeFileSync(path.join(root, 'CONTEXT-MAP.md'), '# map');
+  const withMap = sessionContext(root, DEFAULTS);
+  assert.match(withMap, /- Context: `CONTEXT\.md`\n/);
+  assert.match(withMap, /- Context map: `CONTEXT-MAP\.md`\n/);
 });
 
 function hook(event, input, env = {}) {

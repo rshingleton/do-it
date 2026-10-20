@@ -93,5 +93,6 @@ return `done`.
 
 - No commits, no pushes, no stashes on the user's branch. Parallel scratch
   branches are the only commits, and they never reach the user's branch.
-- No edits to ADR status, `GLOSSARY.md` or the changelog; `ship-it` owns them.
+- No edits to ADR status, a `CONTEXT.md`, the context map or the changelog;
+  `ship-it` owns them.
 - Do not change the plan's scope. Raise it with the user instead.

@@ -21,7 +21,8 @@ const STANDARD_FILES = [
 ];
 
 const DOC_LABELS = {
-  glossary: 'Glossary',
+  context: 'Context',
+  contextMap: 'Context map',
   changelog: 'Changelog',
   adrDir: 'ADRs',
   referenceDir: 'Reference docs',
@@ -30,13 +31,20 @@ const DOC_LABELS = {
   researchDir: 'Research notes',
 };
 
-// One line per project doc, so skills that name the defaults (GLOSSARY.md,
+// Why a missing doc does not exist yet; the default is "create it only when a
+// step writes to it".
+const MISSING = {
+  contextMap: 'created with the first area context below the root',
+};
+
+// One line per project doc, so skills that name the defaults (CONTEXT.md,
 // CHANGELOG.md, docs/adr/, docs/reference/) land on this repo's real files.
 export function docsLines(docs) {
   return Object.entries(DOC_LABELS).map(([name, label]) => {
     const d = docs[name];
     if (!d.path) return `- ${label}: none; skip steps that write one, do not create it.`;
-    return d.exists ? `- ${label}: \`${d.path}\`` : `- ${label}: \`${d.path}\` (not created yet; create it only when a step writes to it)`;
+    const why = MISSING[name] || 'create it only when a step writes to it';
+    return d.exists ? `- ${label}: \`${d.path}\`` : `- ${label}: \`${d.path}\` (not created yet; ${why})`;
   });
 }
 

@@ -1,6 +1,6 @@
 ---
 name: ship-it
-description: Close a do-it work item after its audit passes: confirm assumptions, finalize ADRs, glossary and changelog, update the tracker, and prepare one commit, which is made only when the user says so.
+description: Close a do-it work item after its audit passes: confirm assumptions, finalize ADRs, area contexts and changelog, update the tracker, and prepare one commit, which is made only when the user says so.
 disable-model-invocation: true
 argument-hint: "<work id> | --lane xs [--ref <tracker ref>] [--todo <id>]"
 model: sonnet
@@ -39,8 +39,8 @@ a refused command (exit 1) is `blocked`.
 One turn; write nothing yet. **Show** (information, no answer needed):
 
 - `git status --short`: everything that will be in the change.
-- The docs this will write, per [DOCS.md](DOCS.md): ADRs to accept,
-  glossary terms, the changelog entry (lane XS: changelog only, and only
+- The docs this will write, per [DOCS.md](DOCS.md): ADRs to accept, the
+  area's `CONTEXT.md` and map row, the changelog entry (lane XS: changelog only, and only
   when the repo keeps one).
 - Tracker, to-do and roadmap updates: one `close` per ref (state block refs,
   the slice's `Ref` cell, or `--ref`) with a comment drawn from the

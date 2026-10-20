@@ -35,7 +35,7 @@ holds under the expected load, tested, fast, lean.
 
    One row per marker: limit, upgrade trigger, or `no-trigger`.
 6. **Drift.** Code that contradicts an accepted ADR, `docs/reference/`, the
-   README, or the glossary; config documented but unused, or used but not
+   README, or an area's `CONTEXT.md`; config documented but unused, or used but not
    documented.
 7. **Lean.** Dead code, unused options and config, a dependency doing what a
    few lines or the platform does, an interface with one implementation, a

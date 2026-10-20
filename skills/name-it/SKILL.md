@@ -1,32 +1,33 @@
 ---
 name: name-it
-description: Keep the project's domain language and its decision records honest while design work happens, by challenging vague or conflicting terms, writing settled terms into the glossary, and recording ADRs only for decisions that warrant one. Use when the domain model or its terminology and naming is being shaped, discussed or disputed, when editing the glossary (GLOSSARY.md, CONTEXT.md or a configured path), or when recording or editing an ADR.
+description: Keep the project's domain language and its decision records honest while design work happens, by challenging vague or conflicting terms, writing settled terms into the area's CONTEXT.md, and recording ADRs only for decisions that warrant one. Use when the domain model or its terminology and naming is being shaped, discussed or disputed, when editing a CONTEXT.md or CONTEXT-MAP.md, or when recording or editing an ADR.
 ---
 
 # name-it
 
 The active side of the domain model: shaping words and decisions while they
-are being made. Reading the glossary for vocabulary is not this skill; every
-skill does that. This one changes the model.
+are being made. Reading the area's context for vocabulary is not this skill;
+every skill does that. This one changes the model.
 
 ## Where the files live
 
-Repos differ, so never assume `GLOSSARY.md` and `docs/adr/`. Use the
+Repos differ, so never assume `CONTEXT.md` and `docs/adr/`. Use the
 project-doc paths resolved for this repo (listed in session context by the
-do-it hooks, or by `tracker.mjs config` under `docs`): the glossary may be
-`CONTEXT.md` or `docs/GLOSSARY.md`, the ADR directory `docs/decisions/`.
+do-it hooks, or by `tracker.mjs config` under `docs`).
 
-- One context (most repos): one glossary file, one ADR directory.
-- Several contexts: a `GLOSSARY-MAP.md` at the root points to each context's
-  glossary and its own ADRs ([GLOSSARY-FORMAT.md](GLOSSARY-FORMAT.md)).
-- Create a file only when there is something to put in it. Never start a
-  second glossary beside an existing one.
+- One area: a root `CONTEXT.md` and one ADR directory.
+- Several areas: a `CONTEXT-MAP.md` at the root lists each area's
+  `CONTEXT.md`. Work in the area the topic belongs to; if that is unclear,
+  ask.
+- The shape of both, how to find the area for a path, and when a file or the
+  map is created: [CONTEXT-FORMAT.md](CONTEXT-FORMAT.md). A file is created
+  only when a term has to go in it, with its map row.
 
 ## While the design is moving
 
-- **Hold terms to the glossary.** A word used against its glossary meaning
-  is raised at once: "the glossary says a Shipment is one parcel; this
-  treats it as a whole order. Which do you mean?"
+- **Hold terms to the context.** A word used against its recorded meaning
+  is raised at once: "Fulfilment's context says a Shipment is one parcel;
+  this treats it as a whole order. Which do you mean?"
 - **Replace vague words.** Overloaded words ("account", "item", "process")
   get a precise candidate term and the question of which concept is meant.
 - **Probe with scenarios.** Invent concrete edge cases that force the
@@ -37,12 +38,14 @@ do-it hooks, or by `tracker.mjs config` under `docs`): the glossary may be
 
 ## Writing terms down
 
-Write a term into the glossary the moment it settles, in the format in
-[GLOSSARY-FORMAT.md](GLOSSARY-FORMAT.md). One term at a time, as it happens;
-nothing is batched for later.
+Write a term into the Terms section of the area's `CONTEXT.md` the moment it
+settles, in the format in [CONTEXT-FORMAT.md](CONTEXT-FORMAT.md). One term at
+a time, as it happens; nothing is batched for later. A term shared by every
+area goes in the root context.
 
-The glossary holds meaning only: no implementation detail, no specs, no
-notes. A term earns a place only if it is particular to this domain.
+Terms hold meaning only: no implementation detail, no specs, no notes. A term
+earns a place only if it is particular to this domain. The other sections of
+the file belong to `map-it`; leave them as they are.
 
 ## Decisions
 
@@ -53,5 +56,6 @@ Write an ADR only when the decision is all three of:
 3. **a real trade-off**, with genuine alternatives that lost for a reason.
 
 Missing any one: no ADR; the decision lives in the plan or the changelog.
-Format, numbering and status in [ADR-FORMAT.md](ADR-FORMAT.md). An ADR written
-during planning starts `Proposed`; `ship-it` accepts it when the work ships.
+Format, numbering, status and which directory (root or area) in
+[ADR-FORMAT.md](ADR-FORMAT.md). An ADR written during planning starts
+`proposed`; `ship-it` accepts it when the work ships.

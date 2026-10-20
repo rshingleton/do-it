@@ -1,7 +1,7 @@
 # do-it: design
 
 A standalone skills repo for Claude Code and OpenCode. It keeps the Doc Cycle's
-durable record (plans, ADRs, glossary, changelog, Jira) and drops the fixed
+durable record (plans, ADRs, area contexts, changelog, Jira) and drops the fixed
 six-hop chain in favour of a flow that scales with the size of the work.
 
 Status: accepted; first cut built. Decisions are recorded in `docs/adr/`.
@@ -228,7 +228,7 @@ One step, one or two commits:
 1. Gate: audit PASS at current HEAD (lane XS: self-review footer instead).
 2. Show the assumptions list; user confirms, edits or rejects (rejects go to
    `log-it`).
-3. Accept linked ADRs, merge GLOSSARY, write the changelog entry, offer
+3. Accept linked ADRs, merge terms into the area's CONTEXT.md, write the changelog entry, offer
    untriggered `shortcut:` markers to `log-it`.
 4. Jira: one combined prompt for all keys (comment + resolve), not per key.
 5. Delete the planning dir after the user answers, before any commit.
@@ -276,7 +276,7 @@ do-it/
   in the description.
 - Routing evals in CI: each positive prompt ranks its skill first; fail on
   description pairs that are too similar (addyosmani tier 2).
-- No em-dashes; repo GLOSSARY vocabulary; no AI attribution in anything that
+- No em-dashes; the area's CONTEXT.md vocabulary; no AI attribution in anything that
   ships.
 
 ## 10. Decisions
@@ -301,17 +301,24 @@ do-it/
 - **Exploration skills**, routed from `do-it` when the request is to
   understand rather than change (`do-it/EXPLORE.md`):
   - `map-it`: facts only, `docs/reference/` or chat (replaces `doc-it` phase
-    1 and `zoom-out`).
+    1 and `zoom-out`); `/map-it <area>` also writes the area's `CONTEXT.md`
+    (all but Terms) and its map row, and every run reports map drift.
   - `sweep-it`: pre-existing problems, ranked, concrete cases, files what the
     user picks (replaces `doc-it` phase 2 and the old `audit-it repo` mode;
     adds ponytail-audit's lenses).
   - `deepen-it`: upstream mattpocock `improve-codebase-architecture`, plus a
     hand-off to `do-it` or `log-it`.
   - `look-it-up`: mattpocock `research`, unchanged.
-- **Project docs resolve per repo.** Glossary (`GLOSSARY.md` or
-  `CONTEXT.md`), changelog, ADR and reference directories are detected or
+- **Project docs resolve per repo.** Context map (`CONTEXT-MAP.md`), context
+  (`CONTEXT.md`), changelog, ADR and reference directories are detected or
   configured once (`resolveDocs` in the shared config) and injected into every
   session; skills keep naming the defaults.
+- **One context per area, listed in a root map.** Every step reads the map,
+  then the area's `CONTEXT.md` (identity, terms, relationships, key files,
+  design notes). name-it writes Terms, map-it the rest; files and map rows
+  are created lazily, never by a read-only step. GLOSSARY files are read
+  only as a fallback (ADR 0005). The session code map leads with the map's
+  tables, so a monorepo shows its areas first.
 
 ## 12. Not built yet
 
@@ -321,7 +328,8 @@ do-it/
 
 Built since the first cut: routing evals (`scripts/eval-routing.mjs`,
 `evals/routing.json`, part of `npm run check`), the session-start code map
-(`hooks/lib/codemap.mjs`, `DO_IT_MAP`), step-boundary guidance
+(`hooks/lib/codemap.mjs`, `DO_IT_MAP`; context map, then module map, then
+git), step-boundary guidance
 (`do-it/BOUNDARIES.md`), rollback notes for risk-area work at ship.
 
 ## Sources reviewed

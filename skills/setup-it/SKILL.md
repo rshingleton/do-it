@@ -26,8 +26,8 @@ Read, without writing anything:
   build-it and map-it read instead of rediscovering.
 - **Current config:** `node <track-it dir>/scripts/tracker.mjs config` (the
   `track-it` skill's directory is `../track-it/`). It shows existing
-  `.do-it/` values, the detected glossary, changelog, ADR and reference
-  paths, and warnings.
+  `.do-it/` values, the detected context, context map, changelog, ADR and
+  reference paths, and warnings.
 - **Tracker hints:** whether `origin` (not forks or upstreams) is GitHub,
   Jira keys in recent commit subjects, `JIRA_*` names in `.env.example`, an
   existing `docs/issues/`. `--tracker` overrides all of them.

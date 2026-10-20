@@ -25,6 +25,8 @@ export const DEFAULTS = {
   DO_IT_LINT_CMD: '',
   DO_IT_HOOK_TIMEOUT: '20',
   DO_IT_MAP: 'on',
+  DO_IT_CONTEXT: '',
+  DO_IT_CONTEXT_MAP: '',
   DO_IT_GLOSSARY: '',
   DO_IT_CHANGELOG: '',
   DO_IT_ADR_DIR: '',
@@ -117,14 +119,21 @@ export function loadConfig({ cwd = process.cwd(), env = process.env } = {}) {
   return { root, values, sources, warnings };
 }
 
-// Project docs: skills name the defaults (GLOSSARY.md, CHANGELOG.md, docs/adr/,
-// docs/reference/); repos differ. A configured path wins, then the first
-// candidate that exists, then the default (marked missing).
+// Project docs: skills name the defaults (CONTEXT.md, CHANGELOG.md, docs/adr/,
+// docs/reference/); repos differ. A configured path wins (`alias` is an older
+// key read when the main one is unset), then the first candidate that exists,
+// then the default (marked missing). GLOSSARY files come last (ADR 0005).
 export const DOC_CANDIDATES = {
-  glossary: {
-    key: 'DO_IT_GLOSSARY',
-    candidates: ['GLOSSARY.md', 'CONTEXT.md', 'docs/GLOSSARY.md', 'docs/CONTEXT.md', 'docs/glossary.md'],
-    fallback: 'GLOSSARY.md',
+  context: {
+    key: 'DO_IT_CONTEXT',
+    alias: 'DO_IT_GLOSSARY',
+    candidates: ['CONTEXT.md', 'docs/CONTEXT.md', 'GLOSSARY.md', 'docs/GLOSSARY.md', 'docs/glossary.md'],
+    fallback: 'CONTEXT.md',
+  },
+  contextMap: {
+    key: 'DO_IT_CONTEXT_MAP',
+    candidates: ['CONTEXT-MAP.md', 'docs/CONTEXT-MAP.md', 'GLOSSARY-MAP.md'],
+    fallback: 'CONTEXT-MAP.md',
   },
   changelog: {
     key: 'DO_IT_CHANGELOG',
@@ -160,8 +169,8 @@ export const DOC_CANDIDATES = {
 
 export function resolveDocs(root, values = DEFAULTS) {
   const out = {};
-  for (const [name, { key, candidates, fallback }] of Object.entries(DOC_CANDIDATES)) {
-    const configured = values[key];
+  for (const [name, { key, alias, candidates, fallback }] of Object.entries(DOC_CANDIDATES)) {
+    const configured = values[key] || (alias && values[alias]);
     if (configured) {
       out[name] = { path: configured, exists: fs.existsSync(path.resolve(root, configured)), source: 'config' };
       continue;

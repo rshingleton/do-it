@@ -13,7 +13,7 @@ tense; a path for every module named.
 | `overview.md` | yes | What the system is for, its major parts, how it is deployed (if inferable) |
 | `module-map.md` | yes | One row per module: path, responsibility, depends on, depended on by |
 | `entry-points.md` | yes | Routes, CLIs, jobs, workers, public APIs, with paths |
-| `domains.md` | yes | Domain areas → code locations, `GLOSSARY.md` links, **Glossary gaps** |
+| `domains.md` | yes | Domain areas → code locations, a link to each area's `CONTEXT.md`, **Term gaps** |
 | `test-landscape.md` | yes | Test kinds, where they live, how to run them, what each covers (facts only) |
 | `data-flow.md` | when non-trivial | Persistence, queues, cross-service calls |
 | `external-systems.md` | when present | Third-party services and the config that points at them (names, never values) |
@@ -29,5 +29,6 @@ tense; a path for every module named.
 
 ## Area refresh
 
-`/map-it <area>` updates only the rows and sections for that area, and the
-index date with the area named: `2026-10-19 (src/auth/ refreshed)`.
+`/map-it <area>` updates only the rows and sections for that area, the
+area's `CONTEXT.md` and map row, and the index date with the area named:
+`2026-10-19 (src/auth/ refreshed)`.

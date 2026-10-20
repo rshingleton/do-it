@@ -30,12 +30,14 @@ warns when a token-like key sits in the committed project file.
 ### Project docs
 
 Empty means auto-detect: the first candidate that exists, else the default.
+`DO_IT_GLOSSARY` is read as `DO_IT_CONTEXT` when that is unset.
 `tracker.mjs config` shows the result under `docs`, and the hooks put it in
 every session.
 
 | Key | Candidates, in order | Default when none exist |
 |-----|----------------------|-------------------------|
-| `DO_IT_GLOSSARY` | `GLOSSARY.md`, `CONTEXT.md`, `docs/GLOSSARY.md`, `docs/CONTEXT.md`, `docs/glossary.md` | `GLOSSARY.md` |
+| `DO_IT_CONTEXT` | `CONTEXT.md`, `docs/CONTEXT.md`, then `GLOSSARY.md`, `docs/GLOSSARY.md`, `docs/glossary.md` | `CONTEXT.md` |
+| `DO_IT_CONTEXT_MAP` | `CONTEXT-MAP.md`, `docs/CONTEXT-MAP.md`, then `GLOSSARY-MAP.md` | `CONTEXT-MAP.md` |
 | `DO_IT_CHANGELOG` | `CHANGELOG.md`, `docs/CHANGELOG.md`, `docs/changelog.md`, `CHANGES.md`, `HISTORY.md`, `.changeset/` | none (ship-it skips the entry) |
 | `DO_IT_ADR_DIR` | `docs/adr`, `docs/decisions`, `docs/architecture/decisions`, `doc/adr`, `adr` | `docs/adr` |
 | `DO_IT_REFERENCE_DIR` | `docs/reference` | `docs/reference` |
@@ -51,7 +53,7 @@ every session.
 | `DO_IT_COMPLIANCE_DIR` | `.compliance-rules` | Rule files; `checks.json` holds the machine checks |
 | `DO_IT_LINT_CMD` | (none) | Run after each edit; `{file}` is replaced by the edited path, e.g. `npx eslint {file}` |
 | `DO_IT_HOOK_TIMEOUT` | `20` | Seconds before the lint command is abandoned |
-| `DO_IT_MAP` | `on` | `off` drops the code map from session context. The map is the reference dir's `module-map.md` when it exists, else a directory summary from `git ls-files`; about 1500 characters |
+| `DO_IT_MAP` | `on` | `off` drops the code map from session context. The map is the context map's tables (`CONTEXT-MAP.md`) when it exists, else the reference dir's `module-map.md`, else a directory summary from `git ls-files`; about 1500 characters |
 
 ### GitHub
 

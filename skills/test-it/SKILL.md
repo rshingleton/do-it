@@ -9,8 +9,8 @@ Red, then green, one thin slice at a time. The aim is not coverage: it is a
 small set of tests that pin down what the code promises and keep passing
 while its insides change.
 
-Name tests and fixtures in the project's own domain words (the glossary in
-session context), and stay inside the decisions its ADRs record.
+Name tests and fixtures in the project's own domain words (the Terms in the
+area's `CONTEXT.md`, per it-core), and stay inside the decisions its ADRs record.
 
 ## Where the tests sit
 

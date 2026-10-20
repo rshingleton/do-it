@@ -25,8 +25,8 @@ once; proceed with the defaults either way.
 Find, in this order, and stop once the lane is clear:
 
 1. **What already exists.** The modules, functions, commands or config the
-   request names or implies (search for the domain terms, `GLOSSARY.md`
-   words, route or command names). Existing code that already does most of the
+   request names or implies (search for the domain terms, the Terms in
+   the area's `CONTEXT.md`, route or command names). Existing code that already does most of the
    job shrinks the lane.
 2. **Reach.** Callers and dependants of what will change; how many modules
    and layers the change crosses; whether it adds a new seam or public

@@ -14,7 +14,7 @@ Read-only for code until the user picks a candidate and chooses to build it.
 
 Call the Skill tool with "design-it" first and speak only its vocabulary:
 module, interface, implementation, depth, seam, adapter, leverage, locality.
-Domain names come from the project's glossary; accepted ADRs are settled
+Domain names come from the area's context (it-core); accepted ADRs are settled
 unless the friction is strong enough to argue for reopening one.
 
 ## 1. Choose where to look
@@ -70,7 +70,7 @@ and which change. When two plausible interfaces compete, call the Skill tool
 with "design-it" and use its design-it-twice comparison.
 
 Keep the domain model current as it settles: call the Skill tool with
-"name-it" when the deepened module needs a name the glossary lacks, a term
+"name-it" when the deepened module needs a name the area's Terms lack, a term
 gets sharper, or the user rejects the candidate for a reason the next review
 should not have to rediscover (offer an ADR then, and only then).
 
@@ -84,4 +84,4 @@ Ask once how to carry the settled candidate:
   `do-it` is user-invoked, so it is followed by path.
 - **Later:** call the Skill tool with "log-it" (`source: deepen-it`), with the
   files, the friction, the settled shape and the strength in the body.
-- **Neither:** stop; glossary and ADR changes already made stand.
+- **Neither:** stop; context and ADR changes already made stand.

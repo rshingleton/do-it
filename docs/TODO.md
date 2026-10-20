@@ -44,14 +44,10 @@ Nice-to-haves and things to circle back to. Managed by todo-it; edit freely.
   - References: https://github.com/BerriAI/self-improving-agent, https://github.com/microsoft/Trace, https://github.com/XMUDeepLIT/Awesome-Self-Evolving-Agents, https://github.com/selfimproving-agent/awesome-Self-Improving-Agents
   - Related: T29 (retro-it mines transcripts for corrections), T22 (red-flag tables from observed failures), T23 (behaviour evals), T10 (routing eval variants).
 - [ ] T49 Concurrent uncommitted work items: each fingerprint hashes the whole change since its base, so fixing one item invalidates every other item's audit. Scope the fingerprint (and the auditors' diff) to the item's own paths, e.g. a `paths:` field filled as build-it touches files `idea` (do-it run 2026-10-19: three items, one base, no commits)
-- [ ] T48 Code map for a real large monorepo (/prod/dash/amp): inject an outline, not the module map's first rows, and read CONTEXT-MAP.md `idea` (review of amp 2026-10-19, after codemap-containers) -> per-area-contexts
-  - amp: 4,403 files, `git ls-files` 0.14 s, so cost is not the issue at this size.
-  - amp has docs/reference/module-map.md (766 rows), so the hook reads it instead of git, and the 1500 characters hold its first 9 rows: all Dash DB connection modules. The sub-apps (amp-api, amp-ui, amp-queue, amp-websocket, amp-syslog-server) never appear.
-  - Better sources, in order: root CONTEXT-MAP.md (amp's names every sub-app and library context with its path); the module map's `##`/`###` headings as an outline; then rows.
-  - Git fallback: amp's packages are top-level `amp-*` dirs, not packages/apps/services, so the container rule does not fire; amp-queue and smaller sub-apps fall below `temp/` and `deprecated/` and get clipped. Options: treat a top-level dir with its own manifest (cpanfile, package.json, go.mod, pyproject.toml) as a package; skip temp/, tmp/.
 
 ## Done
 
+- [x] T48 Code map for a real large monorepo reads CONTEXT-MAP.md first and lists top-level manifest dirs as packages (done 2026-10-19: work per-area-contexts)
 - [x] T5 Treat packages/, apps/ and services/ as containers in the code map so monorepos show their packages (done 2026-10-19: work codemap-containers)
 - [x] T8 Port fingerprint.sh to Node so the flow's main path has no bash dependency (Windows) (done 2026-10-19: work work-item-script)
 - [x] T21 A verify-phase script that runs the checks and writes a phase's verified: only on exit 0 (done 2026-10-19: work work-item-script)
