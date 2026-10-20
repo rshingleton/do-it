@@ -136,3 +136,127 @@ test('the it-core header is stripped from a CRLF file (bug 10)', async () => {
   assert.doesNotMatch(text, /name: it-core/);
   assert.match(text, /^# Posture/);
 });
+
+// An apply_patch touching a.js then b.py, with `added` on b.py's side only.
+const twoFilePatch = (added) =>
+  ['*** Begin Patch', '*** Update File: a.js', '@@', '-old', '+const a = 1', '*** Add File: b.py', `+${added}`, '*** End Patch'].join('\n');
+
+test('a secret in the second file of a patch blocks and names that file', () => {
+  const r = beforeEdit(ctxFor(repo().dir), { patchText: twoFilePatch(`k = "${KEY}"`) });
+  assert.equal(r.action, 'block');
+  assert.match(r.reason, /aws-access-key in b\.py:1/);
+});
+
+test('a rule scoped to one extension sees only its own file in a patch', () => {
+  const { dir } = repo();
+  fs.mkdirSync(path.join(dir, '.compliance-rules'));
+  fs.writeFileSync(
+    path.join(dir, '.compliance-rules', 'checks.json'),
+    JSON.stringify([{ id: 'no-print', severity: 'MEDIUM', pattern: 'print\\(', files: ['.js'] }]),
+  );
+  assert.equal(beforeEdit(ctxFor(dir), { patchText: twoFilePatch('print(1)') }).action, 'allow');
+});
+
+test('an added line that looks like a diff header is still scanned (audit 1)', () => {
+  const ctx = ctxFor(repo().dir);
+  const patch = (header) => ['*** Begin Patch', '*** Add File: notes.md', header, `+k = "${KEY}"`, '*** End Patch'].join('\n');
+  assert.equal(beforeEdit(ctx, { patchText: patch('+++ /dev/null') }).action, 'block');
+  assert.match(beforeEdit(ctx, { patchText: patch('+++ b/other.md') }).reason, /in notes\.md:2/);
+});
+
+test('a moved env file is still caught by its old path (audit 1)', () => {
+  const patch = ['*** Begin Patch', '*** Update File: .env', '*** Move to: config.txt', '@@', '-A=1', '+A=2', '*** End Patch'].join('\n');
+  assert.match(beforeEdit(ctxFor(repo().dir), { patchText: patch }).reason, /env-file in \.env/);
+});
+
+test('lint results for several files come back in edit order (audit 1)', () => {
+  const { dir } = repo();
+  const spawn = (cmd) => (cmd.includes('a.js') ? { signal: 'SIGTERM' } : { status: 1, stdout: 'bad' });
+  const r = afterEdit(ctxFor(dir, { DO_IT_LINT_CMD: 'lint {file}' }), { patchText: twoFilePatch('x = 1') }, { spawn });
+  assert.equal(r.action, 'feedback');
+  assert.match(r.message, /^do-it lint timed out[^\n]*a\.js'\n\ndo-it lint failed for b\.py/);
+});
+
+test('every file in a patch is linted', () => {
+  const { dir } = repo();
+  const ctx = ctxFor(dir, { DO_IT_LINT_CMD: 'case {file} in *.py) echo bad {file}; exit 1;; esac' });
+  const r = afterEdit(ctx, { patchText: twoFilePatch('x = 1') });
+  assert.equal(r.action, 'feedback');
+  assert.match(r.message, /lint failed for b\.py/);
+  assert.doesNotMatch(r.message, /a\.js/);
+});
+
+test('no added line is dropped from the scan, whatever the patch does with its path (audit 2)', () => {
+  const ctx = ctxFor(repo().dir);
+  const secret = `+k = "${KEY}"`;
+  const applyPatch = (...lines) => ['*** Begin Patch', ...lines, '*** End Patch'].join('\n');
+  const blocked = [
+    applyPatch('*** Update File: a.txt', '*** Move to: a.txt', '@@', secret),
+    applyPatch('*** Update File: a.txt', '*** Move to: b.txt', '*** Add File: a.txt', secret),
+    applyPatch('*** Update File: a.txt', '*** Move to: b.txt', '*** Update File: c.txt', '*** Move to: a.txt', secret),
+    applyPatch('*** Delete File: old.txt', secret),
+  ];
+  for (const patchText of blocked) assert.equal(beforeEdit(ctx, { patchText }).action, 'block', patchText);
+  const unified = (...lines) => ['--- a/x.js', '+++ b/x.js', '@@ -1 +1,3 @@', ...lines].join('\n');
+  assert.equal(beforeEdit(ctx, { patch: unified('+++ /dev/null', secret) }).action, 'block');
+  assert.equal(beforeEdit(ctx, { patch: ['--- a/y.js', '+++ /dev/null', '@@', secret].join('\n') }).action, 'block');
+});
+
+test('a unified header in an apply_patch body still gets path rules (audit 2)', () => {
+  const patch = ['*** Begin Patch', '--- a/x', '+++ b/.env', '@@', '-a', '+A=1'].join('\n');
+  assert.match(beforeEdit(ctxFor(repo().dir), { patch }).reason, /env-file in \.env/);
+});
+
+test('a unified file header needs no --- line before it (audit 3)', () => {
+  assert.match(beforeEdit(ctxFor(repo().dir), { patch: '+++ b/.env\n@@ -0,0 +1 @@\n+x' }).reason, /env-file in \.env/);
+});
+
+test('header-looking lines inside a hunk are content, not a new file (audit 3)', () => {
+  const { dir } = repo();
+  fs.mkdirSync(path.join(dir, '.compliance-rules'));
+  fs.writeFileSync(
+    path.join(dir, '.compliance-rules', 'checks.json'),
+    JSON.stringify([{ id: 'no-evil', severity: 'HIGH', pattern: 'EVIL', files: ['.py'] }]),
+  );
+  const ctx = ctxFor(dir);
+  const unified = ['--- a/x.py', '+++ b/x.py', '@@ -1,2 +1,3 @@', '--- c', '+++ c', '+EVIL'].join('\n');
+  assert.match(beforeEdit(ctx, { patch: unified }).reason, /no-evil in x\.py/);
+  // `+++ AKIA...` is an added line `++ AKIA...`, scanned like any other.
+  const hidden = ['--- a/x.py', '+++ b/x.py', '@@ -1 +1 @@', '--- c', `+++ ${KEY}`].join('\n');
+  assert.equal(beforeEdit(ctx, { patch: hidden }).action, 'block');
+  const prefixed = ['junk', '*** Begin Patch', '*** Update File: x.py', '@@', '--- c', '+++ c', '+EVIL', '*** End Patch'].join('\n');
+  assert.match(beforeEdit(ctx, { patchText: prefixed }).reason, /no-evil in x\.py/);
+});
+
+test('a file that is gone after the edit is not linted (audit 3)', () => {
+  const linted = [];
+  const spawn = (cmd) => (linted.push(cmd), { status: 0 });
+  const patch = ['*** Begin Patch', '*** Update File: old.js', '*** Move to: new.js', '*** Delete File: dead.js', '*** End Patch'].join('\n');
+  afterEdit(ctxFor(repo().dir, { DO_IT_LINT_CMD: 'lint {file}' }), { patchText: patch }, { spawn });
+  assert.equal(linted.length, 1);
+  assert.match(linted[0], /new\.js'$/);
+});
+
+test('a header pair inside a hunk still names its file (audit 4)', () => {
+  const { dir } = repo();
+  fs.mkdirSync(path.join(dir, '.compliance-rules'));
+  fs.writeFileSync(
+    path.join(dir, '.compliance-rules', 'checks.json'),
+    JSON.stringify([{ id: 'no-evil', severity: 'HIGH', pattern: 'EVIL', files: ['.js'] }]),
+  );
+  const ctx = ctxFor(dir);
+  const bare = ['--- a/a.txt', '+++ b/a.txt', '@@', '+x', '--- a/.env', '+++ b/.env', '@@', '+FOO=bar'].join('\n');
+  assert.match(beforeEdit(ctx, { patch: bare }).reason, /env-file in \.env/);
+  const overCount = ['--- a/a.txt', '+++ b/a.txt', '@@ -1,3 +1,3 @@', ' ctx', '--- a/.env', '+++ b/.env', '+FOO=bar'].join('\n');
+  assert.match(beforeEdit(ctx, { patch: overCount }).reason, /env-file in \.env/);
+  const steered = ['--- a/n.txt', '+++ b/n.txt', '@@', '+a', '--- a/x.js', '+++ b/x.js', '@@', '+EVIL'].join('\n');
+  assert.match(beforeEdit(ctx, { patch: steered }).reason, /no-evil in x\.js/);
+});
+
+test('diff -u timestamps and git quoting do not hide a header path (audit 4)', () => {
+  const ctx = ctxFor(repo().dir);
+  for (const header of ['+++ .env\t2024-01-01 00:00:00', '+++ "b/.env"']) {
+    const patch = ['--- a/x', header, '@@ -0,0 +1 @@', '+A=1'].join('\n');
+    assert.match(beforeEdit(ctx, { patch }).reason, /env-file in \.env/, header);
+  }
+});

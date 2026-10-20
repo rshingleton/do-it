@@ -3,7 +3,7 @@
 Nice-to-haves and things to circle back to. Managed by todo-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T68
+Next id: T71
 
 ## Open
 
@@ -40,7 +40,6 @@ Next id: T68
 - [ ] T41 One change-set module (diff since base, added lines with real line numbers, untracked files, no-commit fallback) shared by guard.mjs, scan.mjs and the work-item fingerprint `idea` (deepen-it 2026-10-19, candidate 3)
   - Sweep 2026-10-19 (finding 12): changeset.mjs now exists but only work.mjs imports it; guard.mjs and scan.mjs still spawn one git diff per file, and scan.mjs reports line 0 for tracked files.
   - The work-item-script plan builds a small changeset helper first; this generalizes it and fixes the wrong line numbers in both JS copies.
-- [ ] T42 Event-level host decision layer: decide(event, tool, input, session) so the Claude and OpenCode adapters only translate; unlocks T9, T25, T26, T27 `idea` (deepen-it 2026-10-19, candidate 4)
 - [ ] T43 Explore: make it-core non-invocable (hooks inject it; its description costs ~35 words a turn for nothing) `question` (deepen-it 2026-10-19, candidate 5; see T38, T39)
 - [ ] T44 Explore: move shared config and doc resolution from skills/track-it/scripts into a top-level lib/ `question` (deepen-it 2026-10-19, candidate 6; do with T41)
 - [ ] T45 Explore: merge log-it with todo-it, and map-it with sweep-it, as single skills with modes `question` (deepen-it 2026-10-19, candidate 7; not recommended now)
@@ -66,3 +65,6 @@ Next id: T68
   - Also: a relative `cd` after one that does not persist (`cd B && (cd C) && cd sub`) resolves from the wrong step; the hook scans each step of the cd chain, not every combination. `debt` (hook-trust-hardening audit round 2, finding 2)
 - [ ] T66 A redirect before the paths (`git commit -m x 2>&1 a.js`) ends the commit's arguments, so later paths are not scanned `nice-to-have` (hook-trust-hardening audit round 2, finding 6)
 - [ ] T67 build-done in fix mode records no verification, so a fix round can reach audit with failing checks; require a passing verify-phase since the fix started `debt` (skills/do-it/scripts/state.mjs build-done; work-item-module audit round 2)
+- [ ] T68 Move the shell lexer (`commandWords`, `parseGitCommit`) from hooks/lib/guard.mjs to its own hooks/lib/shell.mjs with direct tests; do with T65 and T66 `idea` (deepen-it 2026-10-19, candidate 4)
+- [ ] T69 In an apply_patch, a unified `---`/`+++ <path>` pair names <path> for path rules only; also scan the added lines after it under <path>, as unifiedFiles does, so an embedded unified section cannot steer a `files`-scoped rule or `exceptFilePattern` `debt` (hooks/lib/checks.mjs applyPatchFiles; host-decision-layer audit round 5, #30)
+- [ ] T70 Added lines after a delete (`*** Delete File:`, `+++ /dev/null`) are scanned under the deleted path, so an `exceptFilePattern` on that path exempts them; scan them under '' as well `debt` (hooks/lib/checks.mjs; host-decision-layer audit round 5, #31)

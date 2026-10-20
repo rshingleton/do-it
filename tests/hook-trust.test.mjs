@@ -75,13 +75,13 @@ test('OpenCode plugin allows an edit when the rules file is malformed, still blo
   assert.match(out.system.join('\n'), /do-it: .*checks\.json/);
 });
 
-test('OpenCode plugin fails open when the guard itself throws', async () => {
+test('OpenCode plugin fails open when decide itself throws', async () => {
   const root = repo();
   const boom = () => {
     throw new Error('boom');
   };
   const { default: plugin } = await import('../.opencode/plugins/do-it.mjs');
-  const hooks = await plugin({ directory: root }, { setup: boom });
+  const hooks = await plugin({ directory: root }, { decide: boom });
   const errors = [];
   const write = process.stderr.write;
   process.stderr.write = (s) => (errors.push(String(s)), true);
@@ -95,6 +95,55 @@ test('OpenCode plugin fails open when the guard itself throws', async () => {
     process.stderr.write = write;
   }
   assert.match(errors.join(''), /failed open: boom/);
+});
+
+test('OpenCode plugin only translates: tool kinds in, throw, append and stderr out', async () => {
+  const root = repo();
+  const calls = [];
+  const answers = { session: { context: 'ctx' }, before: { block: 'no' }, after: { context: 'lint', notice: 'warned' } };
+  const decide = (event, input) => (calls.push([event, input.kind, input.cwd]), answers[event]);
+  const { default: plugin } = await import('../.opencode/plugins/do-it.mjs');
+  const hooks = await plugin({ directory: root }, { decide });
+  const errors = [];
+  const write = process.stderr.write;
+  process.stderr.write = (s) => (errors.push(String(s)), true);
+  try {
+    const sys = { system: [] };
+    await hooks['experimental.chat.system.transform']({}, sys);
+    assert.deepEqual(sys.system, ['ctx']);
+    await assert.rejects(hooks['tool.execute.before']({ tool: 'apply_patch' }, { args: {} }), /^Error: no$/);
+    await assert.rejects(hooks['tool.execute.before']({ tool: 'Bash' }, { args: {} }), /no/);
+    await assert.rejects(hooks['tool.execute.before']({ tool: 'read' }, { args: {} }), /no/);
+    const out = { output: 'done' };
+    await hooks['tool.execute.after']({ tool: 'edit', args: {} }, out);
+    assert.equal(out.output, 'done\n\nlint');
+  } finally {
+    process.stderr.write = write;
+  }
+  assert.deepEqual(calls, [
+    ['session', undefined, root],
+    ['before', 'edit', root],
+    ['before', 'shell', root],
+    ['before', null, root],
+    ['after', 'edit', root],
+  ]);
+  assert.match(errors.join(''), /warned/);
+});
+
+test('OpenCode plugin puts lint failures before compliance notes', async () => {
+  const root = repo();
+  const env = process.env.DO_IT_LINT_CMD;
+  process.env.DO_IT_LINT_CMD = 'echo lint says no; exit 1';
+  try {
+    const { default: plugin } = await import('../.opencode/plugins/do-it.mjs');
+    const hooks = await plugin({ directory: root });
+    const out = { output: 'done' };
+    await hooks['tool.execute.after']({ tool: 'write', args: { filePath: 'a.js', content: ['// TODO: insert', 'API key here'].join(' ') } }, out); // do-it: allow (fixture)
+    assert.match(out.output, /^done\n\ndo-it lint failed[\s\S]*\n\ndo-it compliance notes:/);
+  } finally {
+    if (env === undefined) delete process.env.DO_IT_LINT_CMD;
+    else process.env.DO_IT_LINT_CMD = env;
+  }
 });
 
 test('claude session-start still injects context and names skipped rules', () => {

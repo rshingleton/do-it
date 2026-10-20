@@ -142,38 +142,131 @@ export function format(findings, file) {
     .join('\n');
 }
 
-// The text an edit tool is about to add, from Claude Code or OpenCode tool
-// input. Patches contribute only their added lines: removing a secret is fine.
-export function addedText(input = {}) {
-  const parts = [];
-  for (const key of ['content', 'new_string', 'newString', 'new_source']) {
-    if (typeof input[key] === 'string') parts.push(input[key]);
+// Each file an edit touches, with the text added to it, in edit order:
+// [{ file, added, gone? }], from Claude Code or OpenCode tool input. Patches
+// contribute only their added lines (removing a secret is fine), each under
+// the file it lands in. No added line is ever dropped: lines before any file
+// header land under file '', lines after a delete under the deleted path.
+// `gone: true` marks a file that does not exist once the edit is done (a
+// move's old path, a deleted file given added lines, a path named only for
+// its path rules): it is scanned, path rules included, but there is nothing
+// to lint. A deleted file with no added lines has no part.
+export function editParts(input = {}) {
+  const parts = new Map();
+  const exists = new Set();
+  const add = (file, line) => {
+    if (!parts.has(file)) parts.set(file, []);
+    if (line !== undefined) parts.get(file).push(line);
+  };
+  const files = { add, exists };
+
+  const [file = '', ...others] = [input.file_path, input.filePath, input.notebook_path, input.path].filter((f) => typeof f === 'string' && f);
+  const text = ['content', 'new_string', 'newString', 'new_source'].map((k) => input[k]);
+  for (const e of input.edits || []) text.push(e.new_string, e.newString);
+  const added = text.filter((t) => typeof t === 'string');
+  if (file || added.length) add(file);
+  for (const t of added) add(file, t);
+  for (const f of [file, ...others]) {
+    if (!f) continue;
+    add(f);
+    exists.add(f);
   }
+
   for (const key of ['patch', 'patchText']) {
     if (typeof input[key] !== 'string') continue;
-    for (const line of input[key].split(/\r?\n/)) {
-      if (line.startsWith('+') && !line.startsWith('+++')) parts.push(line.slice(1));
+    const lines = input[key].split(/\r?\n/);
+    if (lines.some((l) => /^\*\*\* Begin Patch/.test(l))) applyPatchFiles(lines, files);
+    else unifiedFiles(lines, files);
+  }
+  return [...parts].map(([f, lines]) => (f && !exists.has(f) ? { file: f, added: lines.join('\n'), gone: true } : { file: f, added: lines.join('\n') }));
+}
+
+// apply_patch (OpenCode): `*** Add File:`, `*** Update File:`, `*** Delete
+// File:` and `*** Move to:` name the files; every `+` line is added text for
+// the current one, including one that reads `+++ x`. A `--- ` / `+++ <path>`
+// pair also names <path> for its path rules, since a lenient tool may apply
+// a unified section embedded in the patch.
+function applyPatchFiles(lines, { add, exists }) {
+  let current = '';
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const block = line.match(/^\*\*\* (Add File|Update File|Delete File|Move to): (.+)$/);
+    const named = headerPath(lines[i - 1], '---') !== null && headerPath(line, '+++');
+    if (block) {
+      if (block[1] === 'Move to') exists.delete(current);
+      current = block[2].trim();
+      if (block[1] === 'Delete File') {
+        exists.delete(current);
+        continue;
+      }
+      exists.add(current);
+      add(current);
+    } else if (line.startsWith('+')) {
+      if (named && named !== '/dev/null') add(named);
+      add(current, line.slice(1));
     }
   }
-  for (const e of input.edits || []) {
-    if (typeof e.new_string === 'string') parts.push(e.new_string);
-    if (typeof e.newString === 'string') parts.push(e.newString);
-  }
-  return parts.join('\n');
 }
 
-// Every path an edit touches: the single-file fields, plus each file a patch
-// adds, updates or moves to.
-export function editedFiles(input = {}) {
-  const files = [input.file_path, input.filePath, input.notebook_path, input.path].filter((f) => typeof f === 'string' && f);
-  for (const key of ['patch', 'patchText']) {
-    if (typeof input[key] !== 'string') continue;
-    for (const m of input[key].matchAll(/^\*\*\* (?:Add File|Update File|Move to): (.+)$/gm)) files.push(m[1].trim());
-    for (const m of input[key].matchAll(/^\+\+\+ (?:b\/)?(.+)$/gm)) if (m[1] !== '/dev/null') files.push(m[1].trim());
+// Unified diff: between hunks, `--- <old>` and `+++ <new>` name the file
+// (`+++ /dev/null` deletes <old>); `@@ -a,b +c,d @@` opens a hunk of b old
+// and d new lines, and inside it every line is content, however it looks.
+// A hunk whose counts cannot be read runs to the end, so its lines are still
+// scanned. A `--- ` / `+++ <path>` pair inside a hunk is content too, but a
+// lenient tool (a bare `@@`, a wrong count) may split files on it: it also
+// names <path>, and the added lines after it are scanned under both files.
+function unifiedFiles(lines, { add, exists }) {
+  let current = '';
+  let also = null;
+  let from = null;
+  let oldLeft = 0;
+  let newLeft = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const c = line[0];
+    if ((oldLeft > 0 || newLeft > 0) && (c === '+' || c === '-' || c === ' ' || c === '\\' || line === '')) {
+      const named = headerPath(lines[i - 1], '---') !== null && headerPath(line, '+++');
+      if (named && named !== '/dev/null') {
+        also = named;
+        add(also);
+      } else if (c === '+' && also) {
+        add(also, line.slice(1));
+      }
+      if (c === '+') add(current, line.slice(1));
+      if (c === '+' || c === ' ' || line === '') newLeft--;
+      if (c === '-' || c === ' ' || line === '') oldLeft--;
+      continue;
+    }
+    // A malformed hunk ends at the first line it cannot hold.
+    oldLeft = newLeft = 0;
+    const hunk = line.match(/^@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@/);
+    const old = headerPath(line, '---');
+    const to = headerPath(line, '+++');
+    if (line.startsWith('@@')) {
+      oldLeft = hunk ? Number(hunk[1] ?? 1) : Infinity;
+      newLeft = hunk ? Number(hunk[2] ?? 1) : Infinity;
+    } else if (old !== null) {
+      from = old;
+    } else if (to === '/dev/null') {
+      current = from && from !== '/dev/null' ? from : '';
+      also = null;
+      exists.delete(current);
+    } else if (to !== null) {
+      current = to;
+      also = null;
+      exists.add(current);
+      add(current);
+    } else if (line.startsWith('+')) {
+      add(current, line.slice(1));
+    }
   }
-  return [...new Set(files)];
 }
 
-export function editedFile(input = {}) {
-  return editedFiles(input)[0] || '';
+// The path a `--- ` or `+++ ` header line names, or null when `line` is not
+// one: without the a/ or b/ prefix, git's quotes or diff -u's tab timestamp.
+function headerPath(line, marker) {
+  if (typeof line !== 'string' || !line.startsWith(`${marker} `)) return null;
+  let p = line.slice(4).replace(/\t.*$/, '').trim();
+  if (/^".*"$/.test(p)) p = p.slice(1, -1);
+  return p === '/dev/null' ? p : p.replace(/^[ab]\//, '');
 }

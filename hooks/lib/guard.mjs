@@ -4,11 +4,11 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { loadConfig, isOn } from '../../skills/track-it/scripts/config.mjs';
-import { loadChecks, scan, format, addedText, editedFile, editedFiles } from './checks.mjs';
+import { loadChecks, scan, format, editParts } from './checks.mjs';
 import { EMPTY_TREE } from '../../skills/do-it/scripts/changeset.mjs';
 
-export function setup(cwd) {
-  const config = loadConfig({ cwd });
+export function setup(cwd, env = process.env) {
+  const config = loadConfig({ cwd, env });
   const cfg = config.values;
   const enabled = isOn(cfg.DO_IT_HOOKS);
   const checks = enabled ? loadChecks(config.root, cfg.DO_IT_COMPLIANCE_DIR) : { rules: [], error: null };
@@ -24,46 +24,58 @@ function split(findings) {
   };
 }
 
-// Before a file edit: block HIGH findings in the text being added, and any
-// path rule (env files) on every file the edit touches.
+// Before a file edit: block HIGH findings in the text being added to each
+// file, scanned under that file's own path, and any path rule (env files) on
+// every file the edit touches.
 export function beforeEdit(ctx, input) {
   if (!ctx.enabled) return { action: 'allow' };
-  const files = editedFiles(input).map((f) => path.relative(ctx.root, path.resolve(ctx.root, f)));
-  const rel = files[0] || '';
-  const findings = scan(addedText(input), ctx.rules, rel);
-  for (const other of files.slice(1)) findings.push(...scan('', ctx.rules, other));
+  const findings = [];
+  for (const { file, added } of editParts(input)) {
+    const rel = file && path.relative(ctx.root, path.resolve(ctx.root, file));
+    for (const f of scan(added, ctx.rules, rel)) findings.push({ ...f, file: rel });
+  }
+  const list = (fs) => fs.map((f) => format([f], f.file)).join('\n');
   const { block, warn } = split(findings);
   if (block.length) {
     return {
       action: 'block',
-      reason: `do-it compliance blocked this edit:\n${format(block, rel)}\nRemove the secret or file. If this is a false positive, add "do-it: allow" on that line and say why in your reply.`,
+      reason: `do-it compliance blocked this edit:\n${list(block)}\nRemove the secret or file. If this is a false positive, add "do-it: allow" on that line and say why in your reply.`,
     };
   }
-  if (warn.length) return { action: 'warn', message: `do-it compliance notes:\n${format(warn, rel)}` };
+  if (warn.length) return { action: 'warn', message: `do-it compliance notes:\n${list(warn)}` };
   return { action: 'allow' };
 }
 
-// After a file edit: run the configured per-file lint command.
+// After a file edit: run the configured per-file lint command on every file
+// the edit leaves behind, in edit order.
+// shortcut: each file gets its own timeout and there is no total cap, so a
+// large patch can stall the hook; add a total budget when that bites.
 export function afterEdit(ctx, input, { spawn = spawnSync } = {}) {
   if (!ctx.enabled || !ctx.cfg.DO_IT_LINT_CMD) return { action: 'allow' };
-  const file = editedFile(input);
-  if (!file) return { action: 'allow' };
-  const abs = path.resolve(ctx.root, file);
-  // Single quotes: the shell expands $ and backticks inside double quotes,
-  // and paths like app/routes/$id.tsx are common.
-  const cmd = ctx.cfg.DO_IT_LINT_CMD.replaceAll('{file}', `'${abs.replaceAll("'", `'\\''`)}'`);
-  const res = spawn(cmd, {
-    cwd: ctx.root,
-    shell: true,
-    encoding: 'utf8',
-    timeout: Number(ctx.cfg.DO_IT_HOOK_TIMEOUT || 20) * 1000,
-  });
-  if (res.error?.code === 'ETIMEDOUT' || res.signal) {
-    return { action: 'warn', message: `do-it lint timed out after ${ctx.cfg.DO_IT_HOOK_TIMEOUT}s: ${cmd}` };
+  const messages = [];
+  let failed = false;
+  for (const { file, gone } of editParts(input)) {
+    if (!file || gone) continue;
+    const abs = path.resolve(ctx.root, file);
+    // Single quotes: the shell expands $ and backticks inside double quotes,
+    // and paths like app/routes/$id.tsx are common.
+    const cmd = ctx.cfg.DO_IT_LINT_CMD.replaceAll('{file}', `'${abs.replaceAll("'", `'\\''`)}'`);
+    const res = spawn(cmd, {
+      cwd: ctx.root,
+      shell: true,
+      encoding: 'utf8',
+      timeout: Number(ctx.cfg.DO_IT_HOOK_TIMEOUT || 20) * 1000,
+    });
+    if (res.error?.code === 'ETIMEDOUT' || res.signal) {
+      messages.push(`do-it lint timed out after ${ctx.cfg.DO_IT_HOOK_TIMEOUT}s: ${cmd}`);
+    } else if (res.status !== 0) {
+      const out = `${res.stdout || ''}${res.stderr || ''}`.trim().slice(-3000);
+      messages.push(`do-it lint failed for ${path.relative(ctx.root, abs)} (\`${ctx.cfg.DO_IT_LINT_CMD}\`):\n${out}`);
+      failed = true;
+    }
   }
-  if (res.status === 0) return { action: 'allow' };
-  const out = `${res.stdout || ''}${res.stderr || ''}`.trim().slice(-3000);
-  return { action: 'feedback', message: `do-it lint failed for ${path.relative(ctx.root, abs)} (\`${ctx.cfg.DO_IT_LINT_CMD}\`):\n${out}` };
+  if (!messages.length) return { action: 'allow' };
+  return { action: failed ? 'feedback' : 'warn', message: messages.join('\n\n') };
 }
 
 // `git` at the start of a command (or after ; & | && ( ), any global options
