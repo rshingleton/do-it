@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -441,5 +442,126 @@ test('every step of a cd chain is scanned, and cd after { then do is seen', () =
     `builtin cd ${b} && git commit -m x`,
   ]) {
     assert.equal(beforeShell(ctx, cmd).action, 'block', cmd);
+  }
+});
+
+test('commit guard reports the real line and reads what git would record', () => {
+  const root = repo();
+  fs.writeFileSync(path.join(root, 'a.js'), '1\n2\n3\n4\n');
+  fs.writeFileSync(path.join(root, 'old.js'), `const t = "${FAKE_SLACK}"; // do-it: allow\n`);
+  git(root, 'add', '.');
+  git(root, 'commit', '-qm', 'init');
+  const ctx = ctxFor(root);
+
+  fs.appendFileSync(path.join(root, 'a.js'), `const t = "${FAKE_SLACK}";\n`);
+  git(root, 'add', 'a.js');
+  assert.match(beforeShell(ctx, 'git commit -m x').reason, /slack-token in a\.js:5:/);
+  git(root, 'reset', '-q');
+
+  // An added line that starts with ++ is not mistaken for a +++ header.
+  fs.writeFileSync(path.join(root, 'p.js'), `++ "${FAKE_SLACK}"\n`);
+  git(root, 'add', 'p.js');
+  assert.equal(beforeShell(ctx, 'git commit -m x').action, 'block');
+  git(root, 'reset', '-q');
+  fs.rmSync(path.join(root, 'p.js'));
+
+  // A textconv driver from the repo's config cannot replace the scanned text.
+  fs.writeFileSync(path.join(root, '.gitattributes'), '*.js diff=hide\n');
+  git(root, 'config', 'diff.hide.textconv', 'sh -c "echo hidden"');
+  fs.appendFileSync(path.join(root, 'a.js'), `const u = "${FAKE_SLACK}";\n`);
+  git(root, 'add', 'a.js');
+  assert.equal(beforeShell(ctx, 'git commit -m x').action, 'block');
+  git(root, 'reset', '-q', '--hard');
+  fs.rmSync(path.join(root, '.gitattributes'));
+});
+
+test('commit guard scans a renamed file whole', () => {
+  const root = repo();
+  fs.writeFileSync(path.join(root, 'old.js'), `const t = "${FAKE_SLACK}";\n`);
+  git(root, 'add', '.');
+  git(root, '-c', 'core.hooksPath=/dev/null', 'commit', '-qm', 'init');
+  git(root, 'mv', 'old.js', 'new.js');
+  const r = beforeShell(ctxFor(root), 'git commit -m mv');
+  assert.equal(r.action, 'block');
+  assert.match(r.reason, /slack-token in new\.js:1:/);
+});
+
+test('commit guard still blocks beside a type change or an unmerged path', () => {
+  const root = repo();
+  fs.writeFileSync(path.join(root, 'f'), 'f\n');
+  fs.symlinkSync('f', path.join(root, 'l'));
+  fs.writeFileSync(path.join(root, 'm.txt'), 'base\n');
+  git(root, 'add', '.');
+  git(root, 'commit', '-qm', 'init');
+  git(root, 'checkout', '-q', '-b', 'other');
+  fs.writeFileSync(path.join(root, 'm.txt'), 'other\n');
+  git(root, 'commit', '-qam', 'other');
+  git(root, 'checkout', '-q', '-');
+  fs.writeFileSync(path.join(root, 'm.txt'), 'mine\n');
+  git(root, 'commit', '-qam', 'mine');
+  fs.rmSync(path.join(root, 'l'));
+  fs.writeFileSync(path.join(root, 'l'), 'now a file\n');
+  fs.writeFileSync(path.join(root, 'z.js'), `const t = "${FAKE_SLACK}";\n`);
+  git(root, 'add', 'l', 'z.js');
+  assert.match(beforeShell(ctxFor(root), 'git commit -m x').reason, /slack-token in z\.js:1:/);
+  // Merge with the staged changes set aside, then stage them again beside
+  // the conflict.
+  git(root, 'stash', '-q');
+  try {
+    git(root, 'merge', '-q', 'other');
+  } catch {
+    // The conflict is the point: m.txt is now unmerged.
+  }
+  assert.match(execFileSync('git', ['ls-files', '-u'], { cwd: root, encoding: 'utf8' }), /m\.txt/, 'the merge left m.txt unmerged');
+  fs.rmSync(path.join(root, 'l'));
+  fs.writeFileSync(path.join(root, 'l'), 'now a file\n');
+  fs.writeFileSync(path.join(root, 'z.js'), `const t = "${FAKE_SLACK}";\n`);
+  git(root, 'add', 'l', 'z.js');
+  assert.match(beforeShell(ctxFor(root), 'git commit -am x').reason, /slack-token in z\.js:1:/);
+});
+
+test('commit guard still blocks beside a staged file too large to read', () => {
+  const root = repo();
+  git(root, 'commit', '-q', '--allow-empty', '-m', 'init');
+  fs.writeFileSync(path.join(root, 'huge.bin'), crypto.randomBytes(40 * 1024 * 1024));
+  fs.writeFileSync(path.join(root, 'z.js'), `const t = "${FAKE_SLACK}";\n`);
+  git(root, 'add', '.');
+  const start = Date.now();
+  assert.match(beforeShell(ctxFor(root), 'git commit -am x').reason, /slack-token in z\.js:1:/);
+  assert.ok(Date.now() - start < 5000, `took ${Date.now() - start} ms`);
+});
+
+test('commit guard stays fast beside modified binaries in a cd chain', () => {
+  const root = repo();
+  fs.mkdirSync(path.join(root, 'sub'));
+  const binary = () => '\0' + Array.from({ length: 250000 }, () => (Math.random() < 0.5 ? 'a' : 'b')).join('\n');
+  for (const n of [1, 2, 3, 4]) fs.writeFileSync(path.join(root, `b${n}.bin`), binary());
+  fs.writeFileSync(path.join(root, 'sub/.keep'), '');
+  git(root, 'add', '.');
+  git(root, 'commit', '-qm', 'init');
+  for (const n of [1, 2, 3, 4]) fs.writeFileSync(path.join(root, `b${n}.bin`), binary());
+  fs.writeFileSync(path.join(root, 'z.js'), `const t = "${FAKE_SLACK}";\n`);
+  git(root, 'add', '.');
+  const start = Date.now();
+  assert.match(beforeShell(ctxFor(root), 'cd sub && git commit -am x').reason, /slack-token in z\.js:1:/);
+  assert.ok(Date.now() - start < 3000, `took ${Date.now() - start} ms`);
+});
+
+test('commit guard still blocks beside a tracked file it cannot read', () => {
+  const root = repo();
+  fs.mkdirSync(path.join(root, 'locked'));
+  fs.writeFileSync(path.join(root, 'locked/z.txt'), 'z\n');
+  git(root, 'add', '.');
+  git(root, 'commit', '-qm', 'init');
+  fs.writeFileSync(path.join(root, 'locked/z.txt'), 'z\nmore\n');
+  fs.chmodSync(path.join(root, 'locked/z.txt'), 0o000);
+  fs.writeFileSync(path.join(root, 'a.js'), `const t = "${FAKE_SLACK}";\n`);
+  git(root, 'add', 'a.js');
+  try {
+    for (const cmd of ['git commit -a -m x', 'cd "$(git rev-parse --show-toplevel)" && git commit -m x']) {
+      assert.match(beforeShell(ctxFor(root), cmd).reason ?? '', /slack-token in a\.js:1:/, cmd);
+    }
+  } finally {
+    fs.chmodSync(path.join(root, 'locked/z.txt'), 0o644);
   }
 });

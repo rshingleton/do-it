@@ -4,7 +4,6 @@
 //
 // Usage: scan.mjs [--since <ref>]
 
-import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 const HERE = path.dirname(fs.realpathSync(fileURLToPath(import.meta.url)));
 const { loadConfig } = await import(path.join(HERE, '../../track-it/scripts/config.mjs'));
 const { loadChecks, scan, format } = await import(path.join(HERE, '../../../hooks/lib/checks.mjs'));
+const { addedLines } = await import(path.join(HERE, '../../do-it/scripts/changeset.mjs'));
 
 const args = process.argv.slice(2);
 const at = args.indexOf('--since');
@@ -22,46 +22,25 @@ if (at >= 0 && !args[at + 1]) {
 const since = at >= 0 ? args[at + 1] : 'HEAD';
 
 const config = loadConfig();
-const root = config.root;
-// quotePath=false and -z keep non-ASCII and quoted file names intact.
-const git = (a) => execFileSync('git', ['-c', 'core.quotePath=false', ...a], { cwd: root, encoding: 'utf8' });
-const verifies = (ref) => {
-  try {
-    git(['rev-parse', '--verify', '--quiet', `${ref}^{commit}`]);
-    return true;
-  } catch {
-    return false;
-  }
-};
-const { rules, error } = loadChecks(root, config.values.DO_IT_COMPLIANCE_DIR);
+const { rules, error } = loadChecks(config.root, config.values.DO_IT_COMPLIANCE_DIR);
 if (error) console.log(`warning: ${error}`);
 
-// A repo with no commits has no HEAD to diff against: every file is untracked.
-// Any other ref that does not resolve is a mistake, not "nothing changed".
-const hasBase = verifies(since);
-if (!hasBase && verifies('HEAD')) {
-  console.error(`unknown ref: ${since}`);
+// A repo with no commits diffs against the empty tree. Any other ref that
+// does not resolve is a mistake, not "nothing changed".
+let files;
+try {
+  files = addedLines(config.root, { against: since, untracked: true });
+} catch (e) {
+  console.error(/^unknown base ref/.test(e.message) ? `unknown ref: ${since}` : e.message);
   process.exit(2);
 }
 
 const findings = [];
-const tracked = hasBase ? git(['diff', '--name-only', '-z', '--diff-filter=ACMR', since]).split('\0').filter(Boolean) : [];
-for (const file of tracked) {
-  const added = git(['diff', '-U0', since, '--', file])
-    .split('\n')
-    .filter((l) => l.startsWith('+') && !l.startsWith('+++'))
-    .map((l) => l.slice(1))
-    .join('\n');
-  for (const f of scan(added, rules, file)) findings.push({ ...f, file, line: 0 });
-}
-for (const file of git(['ls-files', '-z', '--others', '--exclude-standard']).split('\0').filter(Boolean)) {
-  let text = '';
-  try {
-    text = fs.readFileSync(path.join(root, file), 'utf8');
-  } catch {
-    continue;
+for (const { file, lines } of files) {
+  for (const f of scan(lines.map((l) => l.text).join('\n'), rules, file)) {
+    // scan() numbers the added lines; map back to the line in the file.
+    findings.push({ ...f, file, line: f.line && lines[f.line - 1].n });
   }
-  for (const f of scan(text, rules, file)) findings.push({ ...f, file });
 }
 
 if (!findings.length) {

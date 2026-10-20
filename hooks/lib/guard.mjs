@@ -1,11 +1,11 @@
 // Host-neutral hook decisions. The Claude Code entry points and the OpenCode
 // plugin translate these results into their own protocols.
 
-import { execFileSync, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { loadConfig, isOn } from '../../skills/track-it/scripts/config.mjs';
 import { loadChecks, scan, format, editParts } from './checks.mjs';
-import { EMPTY_TREE } from '../../skills/do-it/scripts/changeset.mjs';
+import { addedLines } from '../../skills/do-it/scripts/changeset.mjs';
 
 export function setup(cwd, env = process.env) {
   const config = loadConfig({ cwd, env });
@@ -257,25 +257,18 @@ export function parseGitCommit(command) {
 // A word the shell would expand before git sees it.
 const UNEXPANDED = /[$`]|^~/;
 
-// The files each range would record ({ cwd, ranges: [[rev, files]] }), or
-// null when the listing cannot be trusted (git failed, or named paths matched
-// nothing).
-function listChanges(git, cwd, all, paths) {
-  // Before the first commit there is no HEAD; diff against the empty tree.
-  const head = (git(['rev-parse', '--verify', '--quiet', 'HEAD'], cwd) ?? '').trim() || EMPTY_TREE;
-  const ranges = [['--cached']];
-  if (all) ranges.push([head]);
-  else if (paths.length) ranges.push([head, '--', ...paths]);
-  const out = [];
-  for (const [rev, ...spec] of ranges) {
-    // -z and quotePath=false keep non-ASCII and quoted names intact.
-    const listed = git(['-c', 'core.quotePath=false', 'diff', rev, '--name-only', '-z', '--diff-filter=ACMR', ...spec], cwd);
-    if (listed === null) return null;
-    const files = listed.split('\0').filter(Boolean);
-    if (spec.length && !files.length) return null;
-    out.push([rev, files]);
+// The files a commit would record, each with its added lines, or null when
+// the listing cannot be trusted (git failed, or named paths matched nothing).
+function listChanges(cwd, all, paths) {
+  try {
+    const staged = addedLines(cwd, { against: 'staged' });
+    if (all) return staged.concat(addedLines(cwd));
+    if (!paths.length) return staged;
+    const named = addedLines(cwd, { paths });
+    return named.length ? staged.concat(named) : null;
+  } catch {
+    return null;
   }
-  return { cwd, ranges: out };
 }
 
 // Before a shell command: a git commit gets the change it will record
@@ -283,7 +276,7 @@ function listChanges(git, cwd, all, paths) {
 // paths it names, or for every tracked change with commit -a. When the
 // command cannot be resolved for sure, every tracked change is scanned from
 // the repo root: errors over-scan, never under-scan.
-export function beforeShell(ctx, command, { git = defaultGit } = {}) {
+export function beforeShell(ctx, command) {
   const commit = ctx.enabled ? parseGitCommit(command) : null;
   if (!commit) return { action: 'allow' };
   // The command's paths are relative to the shell's directory (after any cd
@@ -303,22 +296,14 @@ export function beforeShell(ctx, command, { git = defaultGit } = {}) {
   const seen = new Set();
   for (const shell of shells) {
     const cwd = commit.dir ? path.resolve(shell, commit.dir) : shell;
-    const changes = (!unsure && listChanges(git, cwd, commit.all, commit.paths)) ||
-      listChanges(git, ctx.root, true, []) || { cwd, ranges: [] };
-    for (const [rev, files] of changes.ranges) {
-      for (const file of files) {
-        // Listed names are relative to the repo top, whatever cwd is.
-        const added = (git(['-c', 'core.quotePath=false', 'diff', rev, '-U0', '--', `:(top,literal)${file}`], changes.cwd) ?? '')
-          .split('\n')
-          .filter((l) => l.startsWith('+') && !l.startsWith('+++'))
-          .map((l) => l.slice(1))
-          .join('\n');
-        for (const f of scan(added, ctx.rules, file)) {
-          const key = `${file}:${f.id}`;
-          if (f.severity !== 'HIGH' || seen.has(key)) continue;
-          seen.add(key);
-          findings.push({ ...f, file });
-        }
+    const files = (!unsure && listChanges(cwd, commit.all, commit.paths)) || listChanges(ctx.root, true, []) || [];
+    for (const { file, lines } of files) {
+      for (const f of scan(lines.map((l) => l.text).join('\n'), ctx.rules, file)) {
+        const key = `${file}:${f.id}`;
+        if (f.severity !== 'HIGH' || seen.has(key)) continue;
+        seen.add(key);
+        // scan() numbers the added lines; map back to the line in the file.
+        findings.push({ ...f, file, line: f.line && lines[f.line - 1].n });
       }
     }
   }
@@ -327,13 +312,4 @@ export function beforeShell(ctx, command, { git = defaultGit } = {}) {
     action: 'block',
     reason: `do-it compliance blocked the commit:\n${findings.map((f) => format([f], f.file)).join('\n')}\nUnstage or fix these first.`,
   };
-}
-
-// Output, or null when git exits non-zero.
-function defaultGit(args, cwd) {
-  try {
-    return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
-  } catch {
-    return null;
-  }
 }

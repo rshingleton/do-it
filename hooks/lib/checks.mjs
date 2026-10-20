@@ -29,16 +29,21 @@ export const BUILTIN = [
     id: 'openai-anthropic-key',
     severity: 'HIGH',
     // Real keys are long random runs with digits and capitals; sk-some-long-identifier is not.
-    pattern: '\\bsk-(?:ant-[a-z0-9]+-|proj-)?(?=[A-Za-z0-9_-]{32,})(?=[A-Za-z0-9_-]*[0-9])(?=[A-Za-z0-9_-]*[A-Z])[A-Za-z0-9_-]+',
+    // Starting only where a run of key characters starts keeps -sk-sk-... linear.
+    pattern: '(?<![A-Za-z0-9_-])sk-(?:ant-[a-z0-9]+-|proj-)?(?=[A-Za-z0-9_-]{32,})(?=[A-Za-z0-9_-]*[0-9])(?=[A-Za-z0-9_-]*[A-Z])[A-Za-z0-9_-]+',
     message: 'API secret key.',
   },
   { id: 'google-api-key', severity: 'HIGH', pattern: '\\bAIza[0-9A-Za-z_-]{35}\\b', message: 'Google API key.' },
-  { id: 'jwt', severity: 'HIGH', pattern: '\\beyJ[A-Za-z0-9_-]{10,}\\.eyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}', message: 'JSON Web Token.' },
+  // Starts only where a run of token characters starts, so -eyJ-eyJ-... stays linear.
+  { id: 'jwt', severity: 'HIGH', pattern: '(?<![A-Za-z0-9_-])eyJ[A-Za-z0-9_-]{10,}\\.eyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}', message: 'JSON Web Token.' },
   {
     id: 'credential-in-url',
     severity: 'HIGH',
     // The password part excludes $ < { % so interpolated ${DB_PASS} is not a hit.
-    pattern: '[a-z][a-z0-9+.-]*://[^/\\s:@]+:[^/\\s:@$<{%]{3,}@',
+    // The lookbehind starts only where a run of scheme characters starts, so
+    // a long line is not re-scanned from every position; the run may lead
+    // with digits, + . or - before the scheme's first letter.
+    pattern: '(?<![a-z0-9+.-])[0-9+.-]*[a-z][a-z0-9+.-]*://[^/\\s:@]+:[^/\\s:@$<{%]{3,}@',
     flags: 'i',
     message: 'Plaintext credentials in a connection string.',
   },
