@@ -18,13 +18,16 @@ a refused command (exit 1) is `blocked`.
 
 - **Lane XS:** no state block. Run the project's checks; show the diff
   summary. `--ref` and `--todo` name the issue and to-do item it came from.
-  Nothing uncommitted: the user committed it; go to §3 step 4's closes.
+  Nothing uncommitted: the user committed it before this run; do §3 step 2's
+  closes, leave those edits uncommitted and say so, then close the remote
+  tracker (§3 step 4).
 - **Otherwise** `work.mjs show <id>` and require `status: shipping` and
   `audit.verdict: PASS`. First run: `work.mjs fingerprint <id>` must equal
   `audit.fingerprint`, else the code moved after the audit:
   `work.mjs event <id> reaudit`, stop, **Next:** `/prove-it <id>`.
 - **Resumed after review** (`ship.prepared` set), no §2 question:
-  - nothing uncommitted outside the plan: the user committed; §3 step 4's closes;
+  - nothing uncommitted outside the plan: the user committed; close the remote
+    tracker and the plan (§3 step 4);
   - fingerprint equals `ship.fingerprint`: ask one line, "Commit now with
     this message?" (show it), then §3 step 4;
   - it differs: the review edited files. Show `work.mjs review-diff <id>`
@@ -65,27 +68,34 @@ to the last alone keeps the defaults:
 1. **A rejected assumption that changes code:** `work.mjs event <id>
    reject-assumption <n> "<instead>"`; stop. **Next:** `/do-it <id>`. One
    that changes nothing: `work.mjs set` the assumptions.
-2. **Docs:** write what §2 showed per [DOCS.md](DOCS.md), updating an earlier
-   run's; park or file the markers; `event <id> ship-prepared` (not lane XS).
-   Lane XS with no id: "file one" calls `log-it`; the ref given or filed is
-   the commit id and joins `--ref` from here on.
-3. **Leave it for review:** stop; the plan stays (`status: shipping`), the
-   tracker stays open. Repeat the commit message and the command that
-   finishes, `/ship-it <id>` (lane XS: `--lane xs` with its `--ref` and
-   `--todo`), which commits, or closes once the user has committed.
-4. **Commit now** (or a resumed run after the user committed):
+2. **Docs and closes, before any commit:** write what §2 showed per
+   [DOCS.md](DOCS.md), updating an earlier run's; park or file the markers.
+   Then close everything that lives in the repo, so one commit holds it all
+   (the user's own commit after a review included):
    - the refs to close: `todo`, `roadmap` and `tracker` from
      `work.mjs show <id>`; lane XS: `--todo` and `--ref`;
    - each roadmap slice: Status `shipped <date> <work id>` and a dated line in
      its Changes; each to-do id: call the Skill tool with "log-it" to mark
-     it done with the work id (lane XS: the commit); both ship in this commit;
-   - a local-tracker ref: `tracker.mjs close <ref>` now, which deletes the
-     issue file; stage the deletion so no closed issue file is left behind;
+     it done with the work id (lane XS: the commit);
+   - a local-tracker ref: `tracker.mjs close <ref>`, which deletes the issue
+     file; a ref whose file is already gone was closed by an earlier run;
+   - `event <id> ship-prepared` (not lane XS).
+   Lane XS with no id: "file one" calls `log-it`; the ref given or filed is
+   the commit id and joins `--ref` from here on.
+3. **Leave it for review:** stop; the plan stays (`status: shipping`), the
+   remote tracker stays open. Repeat the commit message and the command that
+   finishes, `/ship-it <id>` (lane XS: `--lane xs` with its `--ref` and
+   `--todo`), which commits, or finishes once the user has committed.
+4. **Commit now** (or a resumed run after the user committed). Step 2 has
+   already run, so the working tree holds the whole change:
    - create the feature branch if §2 named one; stage by path (never
-     `git add -A`); commit with the approved message. Already committed by
-     the user: leave these edits uncommitted and say so;
+     `git add -A`), including the issue, to-do and roadmap edits from step 2;
+     commit with the approved message. Already committed by the user: nothing
+     is left to stage;
    - only after the commit succeeds: `work.mjs close <id>` (lane XS: none),
-     then the remote tracker closes; a tracker failure never undoes the commit.
+     then the remote tracker (GitHub, Jira) closes with a comment drawn from
+     the changelog; it cannot be part of the commit, and a tracker failure
+     never undoes the commit.
 
 ## 4. Close
 
