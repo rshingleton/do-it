@@ -32,7 +32,7 @@ block the same way.
 | `get <ref>` | Title, status, body, comments | reads the file | `gh issue view` | issue + comments |
 | `comment <ref> --body-file F` | Add a comment | appends to `## Log` | `gh issue comment` | comment (wiki markup) |
 | `start <ref>` | Work began | `status: in-progress` | adds `DO_IT_GITHUB_START_LABEL` if set | assigns `JIRA_ASSIGNEE` if unassigned, transition `JIRA_START_TRANSITION` |
-| `close <ref> --body-file F` | Work shipped | `status: closed` | `gh issue close` | comment, transition `JIRA_DONE_TRANSITION` |
+| `close <ref> --body-file F` | Work shipped | deletes the file; git history keeps it | `gh issue close` | comment, transition `JIRA_DONE_TRANSITION` |
 | `publish --spec F` | Parent + one child per phase | nothing | parent issue with a task list | Epic (or `JIRA_DEFAULT_EPIC`) + Tasks, all with the spec's `components` |
 
 `publish` takes JSON: `{"title", "body", "phases": [{"n", "title", "body"}],

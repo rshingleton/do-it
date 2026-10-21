@@ -198,7 +198,7 @@ registers `session` and `tool` hooks, which OpenCode 2 runs (verified on
 2.1.2). Register the plugin as a directory on OpenCode 2 (`plugins`:
 `.opencode/plugins`, which holds an `index.js`); a plugin file path is
 skipped there. `scripts/install-hooks.mjs` picks the form from
-`opencode --version`. The OpenCode 2 `execute` code tool is not guarded yet.
+`opencode --version`. The OpenCode 2 `execute` code tool cannot write or run a command by itself on 2.1.2, and a nested tool call reaches the same guards.
 
 OpenCode notes for repos that use do-it:
 

@@ -21,4 +21,6 @@ Other `skills/do-it/scripts/work.mjs` commands (`list`, `event`, `set`, `verify-
 
 ## Notes
 
+Unblocks when `per-step-usage-record-on-do-it-work-items` lands, so the effect of a brief form can be measured before more are added.
+
 Related: docs/issues/per-step-usage-record-on-do-it-work-items.md, docs/DESIGN.md "Terse internal voice".

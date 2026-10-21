@@ -7,8 +7,7 @@ source: user
 
 ## Context
 
-The terse-voice work (`docs/planning/apply-caveman-terse-contracts-to-internal-agent-communicatio/`,
-audit report beside it) shipped with its token effect unproven.
+The terse-voice work (PR #8, 35df34e) shipped with its token effect unproven.
 `docs/research/caveman-baseline.md` has one run per side on three short
 briefs: totals moved 4% to 20% down, but the movers track how many turns
 each agent took, so the result is inconclusive.

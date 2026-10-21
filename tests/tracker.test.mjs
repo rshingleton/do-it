@@ -108,11 +108,10 @@ test('local tracker: create, start, comment, close round trip', () => {
   assert.equal(t.create({ title: 'Orders 504' }).ref, 'docs/issues/orders-504-2.md');
   t.start(ref);
   t.comment(ref, 'note one');
-  t.close(ref, 'shipped');
-  const got = t.get(ref);
-  assert.equal(got.status, 'closed');
-  assert.equal(got.type, 'bug');
-  assert.match(got.body, /## Log\n\n- \d{4}-\d\d-\d\d: started\n- .*note one\n- .*closed: shipped/);
+  assert.match(t.get(ref).body, /## Log\n\n- \d{4}-\d\d-\d\d: started\n- .*note one/);
+  assert.deepEqual(t.close(ref, 'shipped'), { ref, status: 'closed', removed: true });
+  assert.equal(fs.existsSync(path.join(root, ref)), false);
+  assert.throws(() => t.close(ref));
 });
 
 test('github tracker builds gh calls and retries create without labels', () => {
@@ -365,7 +364,7 @@ test('jira create: a null component in a spec is refused like a missing one', as
   await assert.rejects(jiraTracker(JIRA, { fetch }).create({ title: 'T', components: [null], epic: 'CDS-5' }), /needs a component/);
 });
 
-test('CLI: list shows open local issues, --status all adds closed, a remote tracker adds a note', async () => {
+test('CLI: list shows open local issues, a closed one is gone, a remote tracker adds a note', async () => {
   const root = tmpRepo();
   const config = { root, values: { ...DEFAULTS }, sources: {}, warnings: [] };
   await run(['create', '--title', 'Export fails on Safari', '--type', 'bug'], { config });
@@ -379,8 +378,8 @@ test('CLI: list shows open local issues, --status all adds closed, a remote trac
   assert.equal(open.note, undefined);
 
   const all = await run(['list', '--status', 'all'], { config });
-  assert.deepEqual(all.issues.map((i) => i.status).sort(), ['closed', 'open']);
-  assert.deepEqual((await run(['list', '--status', 'closed'], { config })).issues.map((i) => i.status), ['closed']);
+  assert.deepEqual(all.issues.map((i) => i.status), ['open']);
+  assert.deepEqual((await run(['list', '--status', 'closed'], { config })).issues, []);
   await assert.rejects(run(['list', '--status', 'done'], { config }), /open, closed or all/);
 
   const remote = await run(['list'], { config: { ...config, values: { ...DEFAULTS, DO_IT_TRACKER: 'github' } } });

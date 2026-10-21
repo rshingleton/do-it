@@ -24,6 +24,7 @@ issues through `tracker.mjs list`; GitHub and Jira issues are not listed.
 ## Execution notes
 
 - `list --status` takes open, closed or all; `in-progress` counts as open.
+  A local `close` deletes the issue file, so `closed` only matches old files.
   Files in the issues directory with no title are skipped.
 - Routing eval after the merge: 95.5% (threshold 90%). `log-it` now ranks
   first for 8 of 10 positives, and its longer description pulls one

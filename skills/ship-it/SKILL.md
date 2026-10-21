@@ -79,11 +79,13 @@ to the last alone keeps the defaults:
    - each roadmap slice: Status `shipped <date> <work id>` and a dated line in
      its Changes; each to-do id: call the Skill tool with "log-it" to mark
      it done with the work id (lane XS: the commit); both ship in this commit;
+   - a local-tracker ref: `tracker.mjs close <ref>` now, which deletes the
+     issue file; stage the deletion so no closed issue file is left behind;
    - create the feature branch if §2 named one; stage by path (never
      `git add -A`); commit with the approved message. Already committed by
      the user: leave these edits uncommitted and say so;
    - only after the commit succeeds: `work.mjs close <id>` (lane XS: none),
-     then the tracker closes; a tracker failure never undoes the commit.
+     then the remote tracker closes; a tracker failure never undoes the commit.
 
 ## 4. Close
 

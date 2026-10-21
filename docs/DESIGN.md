@@ -376,9 +376,10 @@ do-it/
 
 ## 12. Not built yet
 
-- OpenCode 2: the `execute` code tool is not covered by the write and shell guards (`docs/issues/execute-tool-in-opencode-2-bypasses-the-write-and-shell-guards.md`), and `permission.hook("evaluate")` is not used (it gets scanner-split shell pieces, not the whole command).
-- A CI workflow running `npm test` and `npm run check` (routing evals
-  included) on every push.
+- OpenCode 2: `permission.hook("evaluate")` is not used (it gets
+  scanner-split shell pieces, not the whole command). The `execute` code tool
+  needs no guard on 2.1.2: it has no write or shell tool, and a nested tool
+  call fires `execute.before` again (`docs/research/opencode-v2-integration.md`).
 
 Built since the first cut: routing evals (`scripts/eval-routing.mjs`,
 `evals/routing.json`, part of `npm run check`), the session-start code map

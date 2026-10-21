@@ -110,11 +110,13 @@ export function localTracker(cfg, { root }) {
       return update(ref, (meta, body) => ({ meta: { ...meta, status: 'in-progress' }, body: appendLog(body, 'started') }));
     },
 
-    close(ref, text) {
-      return update(ref, (meta, body) => ({
-        meta: { ...meta, status: 'closed' },
-        body: appendLog(body, text ? `closed: ${text}` : 'closed'),
-      }));
+    // A closed issue is deleted: the commit and git history keep it, so no
+    // closed file stays behind.
+    close(ref) {
+      const file = abs(ref);
+      readIssue(file);
+      fs.unlinkSync(file);
+      return { ref: rel(file), status: 'closed', removed: true };
     },
 
     // Plans already live in docs/planning/ beside local issues; nothing to publish.
