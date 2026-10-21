@@ -33,6 +33,21 @@ until someone reconstructs it by hand.
 
 ## Notes
 
+- OpenCode: no usage or cost hook is documented in v1 or v2 plugin docs
+  (`docs/research/opencode-v2-integration.md`), but the v1 `event` hook does
+  carry them (next note). v2 holds session and message `cost` and `tokens` in
+  its server API (not in plugin hooks), with child sessions linked by
+  `parentID`; a host-neutral record is `{agent, model, tokens: {input, output,
+  reasoning, cache.read, cache.write}, cost_usd}`. OpenCode work is tracked
+  as step 6 of that issue.
+- Verified 2026-10-21 on OpenCode 1.18.35 (`docs/research/opencode-v2-integration.md`):
+  a plugin's v1 `event` hook receives `message.updated` for each assistant
+  message with `agent`, `modelID`, `providerID`, `cost` and `tokens` (`total`,
+  `input`, `output`, `reasoning`, `cache.read`, `cache.write`); subagent
+  messages carry their own `sessionID`. So OpenCode can feed the record once
+  `work.mjs` has a usage field; no OpenCode code is written before that
+  exists. The v2 docs build is unverified.
+
 - Retro handoff item 5; items 1 to 4, 6 and 7 were built on
   `do-it/retro-items`.
 - Check what usage fields the SubagentStop and Stop hook inputs carry

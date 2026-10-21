@@ -210,7 +210,7 @@ test('install-hooks merges idempotently and removes only its own entries', () =>
 
 test('OpenCode plugin injects context and throws on HIGH edits', async () => {
   const root = repo();
-  const { default: plugin } = await import('../.opencode/plugins/do-it.mjs');
+  const { DoItPlugin: plugin } = await import('../.opencode/plugins/do-it.mjs');
   const hooks = await plugin({ directory: root });
   const out = { system: [] };
   await hooks['experimental.chat.system.transform']({}, out);
