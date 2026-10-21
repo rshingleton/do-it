@@ -8,7 +8,7 @@ in the file, then write the line.
 ```markdown
 # To-do
 
-Nice-to-haves and things to circle back to. Managed by todo-it; edit freely.
+Nice-to-haves and things to circle back to. Managed by log-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
 Next id: T9

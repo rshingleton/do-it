@@ -29,7 +29,7 @@ export function commandFor(skill) {
 }
 
 // Model-invoked skills that also deserve a slash command.
-const ALSO_COMMANDS = new Set(['log-it', 'guard-it', 'map-it', 'sweep-it', 'look-it-up', 'merge-it', 'todo-it']);
+const ALSO_COMMANDS = new Set(['log-it', 'guard-it', 'map-it', 'sweep-it', 'look-it-up', 'merge-it']);
 
 export function expected() {
   return Object.fromEntries(

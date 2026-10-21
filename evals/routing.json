@@ -74,23 +74,17 @@
         "log a bug: the export button does nothing on Safari",
         "file an issue: we need rate limiting on the search API",
         "here is an email from a customer, capture it as an issue",
-        "open a ticket to replace the old CSV importer"
-      ],
-      "negative": [
-        { "prompt": "what tracker config is in effect for this repo", "owner": "track-it" },
-        { "prompt": "debug why the export button throws on Safari", "owner": "debug-it" },
-        { "prompt": "remember to tidy the README badges at some point", "owner": "todo-it" }
-      ]
-    },
-    "todo-it": {
-      "positive": [
+        "open a ticket to replace the old CSV importer",
         "add these suggestions to the todo list so we can circle back later",
         "note this as a nice to have: dark mode for the settings page",
         "park this idea for later, not now",
-        "what is on our todo list"
+        "remember to tidy the README badges at some point",
+        "what is on our todo list",
+        "mark T5 done on the todo list"
       ],
       "negative": [
-        { "prompt": "log a bug: login fails with a 500 on Safari", "owner": "log-it" }
+        { "prompt": "what tracker config is in effect for this repo", "owner": "track-it" },
+        { "prompt": "debug why the export button throws on Safari", "owner": "debug-it" }
       ]
     },
     "look-it-up": {

@@ -8,6 +8,8 @@
 //                      [--source S] [--external-id X] [--label L]... [--tracker local|github|jira]
 //                      Jira: [--project KEY] [--component C|none]... [--epic KEY|none | --parent KEY]
 //                      (defaults JIRA_PROJECT_KEY, JIRA_COMPONENTS, JIRA_DEFAULT_EPIC; one of each is required)
+//   tracker.mjs list [--status open|closed|all]
+//       Local issues only; with another tracker it adds a note, the tracker holds those.
 //   tracker.mjs get <ref>
 //   tracker.mjs comment <ref> (--body B | --body-file F)
 //   tracker.mjs start <ref>
@@ -106,6 +108,11 @@ export async function run(argv, { config = loadConfig(), deps = {} } = {}) {
         epic: opts.epic,
         parent: opts.parent,
       });
+    }
+    case 'list': {
+      const issues = localTracker(config.values, { root: config.root }).list({ status: opts.status });
+      const kind = config.values.DO_IT_TRACKER;
+      return kind === 'local' ? { issues } : { issues, note: `${kind} issues live in the tracker; only local issues are listed` };
     }
     case 'get':
     case 'start':
