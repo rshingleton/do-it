@@ -1,7 +1,7 @@
 ---
 title: OpenCode v2 integration gaps
 type: feature
-status: open
+status: closed
 source: look-it-up
 ---
 
@@ -85,3 +85,7 @@ Work in this order; each step is one plan phase.
 - Orgs can disable plugins through v2 `policies`; fail open already covers it.
 - A command with `subagent: true` that runs a do-it skill which launches its
   own agents breaks at the default subagent depth of 1.
+
+## Log
+
+- 2026-10-21: closed

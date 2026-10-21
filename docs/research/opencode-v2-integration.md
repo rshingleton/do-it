@@ -113,3 +113,22 @@ Decisions: keep the symlinks and add no `skills` array (both builds already
 read them); add no `instructions` entry (the plugin already injects the core
 posture each turn, so a file entry would pay for it twice; when the plugin
 does not load, the repo's own AGENTS.md still applies).
+
+## Re-check on OpenCode 1.19.3 (2026-10-21)
+
+The installed `opencode` is now 1.19.3 (the earlier tables are 1.18.35 and the
+dev snapshot). Scratch config for load checks, the real config for model runs
+(`minimax-m3.1-flash-free`, plugin from the checkout):
+
+| Item | Result |
+|------|--------|
+| Plugin block | A `write` with a fake AWS key was refused with the do-it compliance message; the model quoted it and stopped, no file written. |
+| Agent `permissions:` list | Still ignored (allow-all). |
+| Agent `permission:` map | Applied: generated `it-scout` resolves to `*` deny plus allow for read, grep, glob, list, bash; edit and write fall to deny. |
+| Agent `tools: Read, Grep` | Still makes the config invalid. |
+| Generated agents, `skills`, `commands/` and `command/`, `instructions` | Load, no error. |
+| `it-scout` write attempt (live, via the task tool) | The write and edit tools were not available to it. It then created the file with `printf > file` in bash, since `bash` is allowed. Same reach as the Claude Code agent (`tools: Read, Grep, Glob, Bash`); narrowing bash is not part of this change. |
+| `/do-it` lane XS (live, `--command do-it`) | Loaded the skill, read SCOUT, STATE, LANES and BOUNDARIES, stated lane XS, built test-first (red then green), wrote no planning file, made no commit. |
+
+Log noise seen: `duplicate skill name do-it` (the same skill linked under
+`~/.claude/skills` and `~/.agents/skills`) is a WARN with no effect.
