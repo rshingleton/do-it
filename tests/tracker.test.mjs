@@ -364,3 +364,26 @@ test('jira create: a null component in a spec is refused like a missing one', as
   const fetch = fakeFetch({ 'GET /project/CDS': PROJECT, 'POST /issue': { key: 'CDS-9' } });
   await assert.rejects(jiraTracker(JIRA, { fetch }).create({ title: 'T', components: [null], epic: 'CDS-5' }), /needs a component/);
 });
+
+test('CLI: list shows open local issues, --status all adds closed, a remote tracker adds a note', async () => {
+  const root = tmpRepo();
+  const config = { root, values: { ...DEFAULTS }, sources: {}, warnings: [] };
+  await run(['create', '--title', 'Export fails on Safari', '--type', 'bug'], { config });
+  await run(['create', '--title', 'Replace CSV importer', '--type', 'feature'], { config });
+  await run(['close', 'docs/issues/replace-csv-importer.md'], { config });
+
+  const open = await run(['list'], { config });
+  assert.deepEqual(open.issues, [
+    { ref: 'docs/issues/export-fails-on-safari.md', title: 'Export fails on Safari', type: 'bug', status: 'open' },
+  ]);
+  assert.equal(open.note, undefined);
+
+  const all = await run(['list', '--status', 'all'], { config });
+  assert.deepEqual(all.issues.map((i) => i.status).sort(), ['closed', 'open']);
+  assert.deepEqual((await run(['list', '--status', 'closed'], { config })).issues.map((i) => i.status), ['closed']);
+  await assert.rejects(run(['list', '--status', 'done'], { config }), /open, closed or all/);
+
+  const remote = await run(['list'], { config: { ...config, values: { ...DEFAULTS, DO_IT_TRACKER: 'github' } } });
+  assert.equal(remote.issues.length, 1);
+  assert.match(remote.note, /github issues live in the tracker/);
+});

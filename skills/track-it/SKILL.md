@@ -28,6 +28,7 @@ block the same way.
 | `config` | Effective config, secrets redacted, with the file each value came from, and `untrusted` keys | | | |
 | `trust` | Pins the repo's current `DO_IT_LINT_CMD` / `JIRA_BASE_URL` values for this user ([CONFIG.md](CONFIG.md#trust)). Run it only when the user says to, after showing them the values | | | |
 | `create --title T --type bug\|feature\|todo\|defer --body-file F` | New issue | `docs/issues/<slug>.md` | `gh issue create` | Task (Bug for `bug`); also `--project`, `--component` (repeatable) and `--epic` or `--parent` (a sub-task), each refused when unset and not `none` |
+| `list [--status open\|closed\|all]` | Issues, open by default | reads `docs/issues/` | local only, plus a note | local only, plus a note |
 | `get <ref>` | Title, status, body, comments | reads the file | `gh issue view` | issue + comments |
 | `comment <ref> --body-file F` | Add a comment | appends to `## Log` | `gh issue comment` | comment (wiki markup) |
 | `start <ref>` | Work began | `status: in-progress` | adds `DO_IT_GITHUB_START_LABEL` if set | assigns `JIRA_ASSIGNEE` if unassigned, transition `JIRA_START_TRANSITION` |

@@ -1,6 +1,6 @@
 # To-do
 
-Nice-to-haves and things to circle back to. Managed by todo-it; edit freely.
+Nice-to-haves and things to circle back to. Managed by log-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
 Next id: T72
@@ -39,7 +39,7 @@ Next id: T72
   - Sweep 2026-10-19 (finding 18): prove-it/VALIDATE.md is doubt-it rebuilt, and no skill calls doubt-it.
 - [ ] T43 Explore: make it-core non-invocable (hooks inject it; its description costs ~35 words a turn for nothing) `question` (deepen-it 2026-10-19, candidate 5; see T38, T39)
 - [ ] T44 Explore: move shared config and doc resolution from skills/track-it/scripts into a top-level lib/ `question` (deepen-it 2026-10-19, candidate 6; do with T41)
-- [ ] T45 Explore: merge log-it with todo-it, and map-it with sweep-it, as single skills with modes `question` (deepen-it 2026-10-19, candidate 7; not recommended now)
+- [ ] T45 Explore: merge map-it with sweep-it as a single skill with modes `question` (deepen-it 2026-10-19, candidate 7; not recommended now; the log-it and todo-it half shipped as single-intake)
 - [ ] T46 Code map in large repos: cache the map keyed by HEAD and index mtime so subagent starts reuse it, and fall back to tracked files only (no untracked walk) when the 1.5 s timeout hits `idea` (hooks/lib/codemap.mjs; codemap-containers review)
 - [ ] T47 Explore self-improving mechanisms for the skill base: review the references, then decide what fits (e.g. extend retro-it, feed audit findings and user corrections back into skills, checks and evals) `question` (user 2026-10-19; after the current plans)
   - References: https://github.com/BerriAI/self-improving-agent, https://github.com/microsoft/Trace, https://github.com/XMUDeepLIT/Awesome-Self-Evolving-Agents, https://github.com/selfimproving-agent/awesome-Self-Improving-Agents

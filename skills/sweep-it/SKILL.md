@@ -55,10 +55,10 @@ and the verdict in chat either way.
 ## 5. File what matters
 
 Ask once which numbered findings to file, and where. Must and Should go to
-an issue: call the Skill tool with "log-it" (`source: sweep-it`, the
+an issue: call the Skill tool with "log-it" (`kind: issue`, `source: sweep-it`, the
 finding's case and fix in the body). Nice findings default to the to-do list:
-call the Skill tool with "todo-it" (tag `nice-to-have`, the finding's
-location as source). Never file the whole report unasked.
+call the Skill tool with "log-it" (`kind: todo`, tag `nice-to-have`, the
+finding's location as source). Never file the whole report unasked.
 
 > Swept <scope>: <N> findings (<M> Must). Filed: <refs or none>.
 > **Next:** `/do-it <ref>` for a filed issue, or

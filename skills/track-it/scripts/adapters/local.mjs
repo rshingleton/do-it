@@ -82,6 +82,21 @@ export function localTracker(cfg, { root }) {
       return { ref: rel(file), path: rel(file) };
     },
 
+    // Issues under the issues dir: "open" (the default, so in-progress too),
+    // "closed" or "all".
+    list({ status = 'open' } = {}) {
+      if (!['open', 'closed', 'all'].includes(status)) throw new Error(`list --status takes open, closed or all, not "${status}"`);
+      if (!fs.existsSync(dir)) return [];
+      return fs
+        .readdirSync(dir)
+        .filter((f) => f.endsWith('.md'))
+        .sort()
+        .map((f) => ({ file: path.join(dir, f), meta: readIssue(path.join(dir, f)).meta }))
+        .filter(({ meta }) => meta.title)
+        .filter(({ meta }) => status === 'all' || ((meta.status ?? 'open') === 'closed') === (status === 'closed'))
+        .map(({ file, meta }) => ({ ref: rel(file), title: meta.title, type: meta.type, status: meta.status ?? 'open' }));
+    },
+
     get(ref) {
       const { meta, body } = readIssue(abs(ref));
       return { ref, title: meta.title, status: meta.status, type: meta.type, meta, body };

@@ -24,7 +24,7 @@ Prefer build slices. An enabler with no slice depending on it is not a slice.
 - **Verify is observable.** Name the check: a request, a screen, a metric, a
   command. "Works" is not a check.
 - **Covers is honest.** Each slice names the requirements (`G` ids) it moves
-  forward; a slice that covers none is a nice-to-have for `todo-it`.
+  forward; a slice that covers none is a nice-to-have for `log-it` (`kind: todo`).
 - **Blocked by is real.** A slice is blocked by another only if it cannot
   start without it; say what it needs from it. False blocks kill parallel
   work.

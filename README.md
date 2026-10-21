@@ -16,7 +16,7 @@ compliance hooks.
 | Step | Skill | Does |
 |------|-------|------|
 | Entry | `/do-it` | Sizes the work, picks a lane, runs only the steps that lane needs; resumes any work item |
-| Intake | `/log-it` | Files a bug, feature, todo or deferral in the configured tracker |
+| Intake | `/log-it` | One entry for the backlog: sorts each item into an issue (configured tracker) or a one-line to-do (`docs/TODO.md`); also lists, reviews, closes and promotes both |
 | Plan | `/scope-it` | Grill scaled to the lane, seams, `step → verify:` steps, ADR only when warranted |
 | Build | `/build-it` | Test-first at the agreed seams; parallel phases when ready; **never commits** |
 | Audit | `/prove-it` | Fresh-context reviewers (spec, standards, compliance, architecture); numbered verdict; failures loop back to build, at most 3 rounds |
@@ -67,10 +67,9 @@ of starting a build.
 | Skill | Does |
 |-------|------|
 | `/roadmap-it` | Charts an extra-large effort as a durable roadmap: destination with numbered requirements, milestones of S/M slices (covers, blocked by, verify, risk), open decisions, fog, out of scope. `next` shows where every slice stands and starts the next one; `replan` re-plans without touching shipped slices |
-| `/todo-it` | A one-line-per-item to-do list (`docs/TODO.md` by default) for nice-to-haves and things to circle back to; add several at once, review, close, or promote to an issue, a build or a roadmap |
 
-`/log-it` is for issues worth planning, with acceptance criteria;
-`/todo-it` is for everything lighter.
+`/log-it` sorts what it is given: issues worth planning, with acceptance
+criteria, and lighter one-line to-dos.
 
 ## Setting up and improving
 

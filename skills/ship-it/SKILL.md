@@ -77,8 +77,8 @@ to the last alone keeps the defaults:
    - the refs to close: `todo`, `roadmap` and `tracker` from
      `work.mjs show <id>`; lane XS: `--todo` and `--ref`;
    - each roadmap slice: Status `shipped <date> <work id>` and a dated line in
-     its Changes; each to-do id: call the Skill tool with "todo-it" to mark it
-     done with the work id (lane XS: the commit); both ship in this commit;
+     its Changes; each to-do id: call the Skill tool with "log-it" to mark
+     it done with the work id (lane XS: the commit); both ship in this commit;
    - create the feature branch if §2 named one; stage by path (never
      `git add -A`); commit with the approved message. Already committed by
      the user: leave these edits uncommitted and say so;
