@@ -1,7 +1,7 @@
 ---
 title: Commit scan reads only the first git commit in a chain and misses prefixed forms
 type: bug
-status: open
+status: closed
 source: user
 ---
 
@@ -23,3 +23,7 @@ The scan reads only the first `git commit` in a chain (`git commit a.js && git c
 ## Notes
 
 Promoted from a to-do by the backlog audit, 2026-10-21.
+
+## Log
+
+- 2026-10-21: closed
