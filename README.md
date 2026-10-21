@@ -219,7 +219,7 @@ every session which files are in use.
 
 ```bash
 npm test         # node --test, no dependencies
-npm run check    # frontmatter, line budget, skill calls, links, OpenCode command drift
+npm run check    # frontmatter, line budget, skill calls, agent files and tools, links, OpenCode command drift
 npm run gen      # regenerate .opencode/command/ from the skills
 npm run eval     # routing eval: does each prompt in evals/routing.json reach the right skill
 ```
