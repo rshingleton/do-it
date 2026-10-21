@@ -253,6 +253,41 @@ test('a header pair inside a hunk still names its file (audit 4)', () => {
   assert.match(beforeEdit(ctx, { patch: steered }).reason, /no-evil in x\.js/);
 });
 
+test('an embedded unified section cannot exempt a line from a scoped rule (audit 5)', () => {
+  const { dir } = repo();
+  fs.mkdirSync(path.join(dir, '.compliance-rules'));
+  fs.writeFileSync(
+    path.join(dir, '.compliance-rules', 'checks.json'),
+    JSON.stringify([{ id: 'no-evil', severity: 'HIGH', pattern: 'EVIL', files: ['.py'], exceptFilePattern: '\\.txt$' }]),
+  );
+  const ctx = ctxFor(dir);
+  const patch = (...lines) => ['*** Begin Patch', '*** Update File: a.txt', '@@', ...lines, '*** End Patch'].join('\n');
+  assert.match(beforeEdit(ctx, { patchText: patch('--- a/x.py', '+++ b/x.py', '+EVIL') }).reason, /no-evil in x\.py/);
+  // The scope ends at the next block, so a later file is not scanned as x.py.
+  const later = ['*** Begin Patch', '*** Update File: a.txt', '--- a/x.py', '+++ b/x.py', '*** Update File: b.txt', '@@', '+EVIL', '*** End Patch'].join('\n');
+  assert.equal(beforeEdit(ctx, { patchText: later }).action, 'allow');
+});
+
+test('lines added after a delete are also scanned past the deleted path (audit 5)', () => {
+  const { dir } = repo();
+  fs.mkdirSync(path.join(dir, '.compliance-rules'));
+  fs.writeFileSync(
+    path.join(dir, '.compliance-rules', 'checks.json'),
+    JSON.stringify([{ id: 'no-evil', severity: 'HIGH', pattern: 'EVIL', exceptFilePattern: '\\.txt$' }]),
+  );
+  const ctx = ctxFor(dir);
+  const forms = {
+    'apply_patch delete': { patchText: ['*** Begin Patch', '*** Delete File: old.txt', '+EVIL', '*** End Patch'].join('\n') },
+    'unified delete': { patch: ['--- a/old.txt', '+++ /dev/null', '@@ -1 +0,0 @@', '+EVIL'].join('\n') },
+    'unified delete, no old path': { patch: ['+++ /dev/null', '@@', '+EVIL'].join('\n') },
+  };
+  for (const [name, input] of Object.entries(forms)) {
+    const r = beforeEdit(ctx, input);
+    assert.equal(r.action, 'block', name);
+    assert.equal(r.reason.match(/^- \[HIGH\] no-evil/gm).length, 1, name);
+  }
+});
+
 test('diff -u timestamps and git quoting do not hide a header path (audit 4)', () => {
   const ctx = ctxFor(repo().dir);
   for (const header of ['+++ .env\t2024-01-01 00:00:00', '+++ "b/.env"']) {
