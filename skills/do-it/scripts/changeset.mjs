@@ -55,21 +55,31 @@ export function changeset(cwd, base, { exclude = [] } = {}) {
 const SCAN_GIT = ['-c', 'core.quotePath=false', '-c', 'diff.relative=false', 'diff'];
 const SCAN_FLAGS = ['--no-renames', '--diff-filter=d', '--no-ext-diff', '--no-textconv', '--no-color', '--submodule=short', '-U0', '--inter-hunk-context=0'];
 // shortcut: a file whose diff is over FILE_CAP, takes over FILE_TIME or fails
-// gets path rules only (its content is not scanned), and so does one git
-// treats as binary with no textconv driver; scan such files in chunks or in
-// the background if they ever need content rules.
+// gets path rules only (its content is not scanned), and so does a binary
+// once BINARY_BUDGET is spent: a file git treats as binary is read as text,
+// and a 2 MB one takes about 1.6 s, so one hook may spend only the budget on
+// them before the 15 s hook timeout lets the commit through; scan such files
+// in chunks or in the background if they ever need content rules beyond it.
 const FILE_CAP = 1024 * 1024;
 const FILE_TIME = 2000;
+// How long one hook may spend reading files git treats as binary.
+export const BINARY_BUDGET = 6000;
 
 // What a change adds, file by file: [{ file, lines: [{ n, text }] }], `file`
 // relative to the top level, `n` the line in the new version. `against` is
 // 'staged' (the index against HEAD) or a base ref; `paths` are pathspecs
 // relative to `cwd` that narrow it. Every file but a deleted one is listed,
 // with no lines when it adds none (a mode change, a binary, or a file past
-// the limits above), so path rules still see it. `untracked` adds every
-// untracked file in the repo, regular files read whole. Throws when the
-// listing fails or the base is unknown.
-export function addedLines(cwd, { against = 'HEAD', paths = [], untracked = false } = {}) {
+// the limits above), so path rules still see it. A file git treats as binary
+// is read as text while `budget` ({ deadline }, ms since epoch; default
+// BINARY_BUDGET from now) lasts, and a file with a textconv driver is read
+// raw and through the driver. `untracked` adds every
+// untracked file in the repo, regular files read whole; an array of pathspecs
+// (relative to `cwd`) adds only the untracked files they match, and with
+// `ignored` those the repo ignores too (what `git add -f` stages). Throws when
+// the listing fails or the base is unknown.
+export function addedLines(cwd, { against = 'HEAD', paths = [], untracked = false, ignored = false, budget = null } = {}) {
+  const deadline = (budget ?? { deadline: Date.now() + BINARY_BUDGET }).deadline;
   const topRes = git(cwd, ['rev-parse', '--show-toplevel']);
   if (topRes.status !== 0) throw new Error(`not a git repository: ${cwd}`);
   const top = topRes.stdout.trim();
@@ -92,15 +102,17 @@ export function addedLines(cwd, { against = 'HEAD', paths = [], untracked = fals
   // output holds only its own hunks and no section header is ever parsed.
   const names = diff(['--name-only', '-z'], paths).split('\0').filter(Boolean);
   // One file's failure costs only that file's content, never the listing.
-  const own = (file, flags) => {
+  // stderr is ignored: a driver's noise must not fill the buffer and cost the
+  // content, and a failed diff has nothing to say that is used.
+  const own = (file, flags, timeout = FILE_TIME) => {
     try {
-      return diff([], [`:(top,literal)${file}`], { maxBuffer: FILE_CAP, timeout: FILE_TIME }, flags);
+      return diff([], [`:(top,literal)${file}`], { maxBuffer: FILE_CAP, timeout, stdio: ['ignore', 'pipe', 'ignore'] }, flags);
     } catch {
       return null;
     }
   };
   // The files whose diff driver has a textconv command, looked up once, when
-  // the first binary turns up. A failed lookup counts every file as driven:
+  // the first file is read. A failed lookup counts every file as driven:
   // a second diff costs time, a missed driver costs content.
   let driven;
   const hasTextconv = (file) => {
@@ -123,16 +135,28 @@ export function addedLines(cwd, { against = 'HEAD', paths = [], untracked = fals
     return driven.has(file);
   };
   const files = names.map((file) => {
+    // textconv stays off here so it cannot hide a text file's lines.
     let out = own(file, SCAN_FLAGS);
-    // textconv stays off so it cannot hide a text file's lines; a binary has
-    // no lines without it, so read a binary through its driver if it has one.
-    if (out && !/^@@ /m.test(out) && /^Binary files /m.test(out) && hasTextconv(file)) {
-      out = own(file, SCAN_FLAGS.filter((f) => f !== '--no-textconv')) ?? out;
+    // A binary has no lines until it is read as text, within the budget.
+    const left = deadline - Date.now();
+    if (out && !/^@@ /m.test(out) && /^Binary files /m.test(out) && left > 0) {
+      out = own(file, [...SCAN_FLAGS, '--text'], Math.min(FILE_TIME, left)) ?? out;
     }
-    return { file, lines: hunkLines(out ?? '') };
+    const lines = hunkLines(out ?? '');
+    // A driver may also reveal what the raw view does not: read both.
+    if (hasTextconv(file)) {
+      const seen = new Set(lines.map((l) => `${l.n}\0${l.text}`));
+      for (const l of hunkLines(own(file, SCAN_FLAGS.filter((f) => f !== '--no-textconv')) ?? '')) {
+        if (!seen.has(`${l.n}\0${l.text}`)) lines.push(l);
+      }
+    }
+    return { file, lines };
   });
   if (untracked) {
-    const others = git(top, ['-c', 'core.quotePath=false', 'ls-files', '-z', '--others', '--exclude-standard', '--', '.']);
+    const only = Array.isArray(untracked);
+    const others = only
+      ? git(cwd, ['-c', 'core.quotePath=false', 'ls-files', '-z', '--full-name', '--others', ...(ignored ? [] : ['--exclude-standard']), '--', ...untracked])
+      : git(top, ['-c', 'core.quotePath=false', 'ls-files', '-z', '--others', '--exclude-standard', '--', '.']);
     if (others.status !== 0) throw new Error(`git ls-files failed: ${others.stderr}`);
     for (const file of others.stdout.split('\0').filter(Boolean)) {
       let text = '';

@@ -52,5 +52,4 @@ Next id: T72
 - [ ] T60 Drop the plan parser's flow-map and multi-line paths (in skills/do-it/scripts/block.mjs) now that no plan uses the older format `debt` (docs/reference-audit/2026-10-19-repo.md, architecture notes)
 - [ ] T62 The lifecycle stops at a local commit: no skill owns push or PR (body, protected-branch check), changelog version headings, or carrying out ship-it's rollback note `idea` (docs/reference-audit/2026-10-19-repo.md, finding 20; T24 covers PR feedback)
 - [ ] T64 Review the to-do list for additive ideas versus simplification: most open items add features, while removing duplication would save roughly 150 to 250 lines `question` (docs/reference-audit/2026-10-19-repo.md)
-- [ ] T68 Move the shell lexer (`commandWords`, `parseGitCommit`) from hooks/lib/guard.mjs to its own hooks/lib/shell.mjs with direct tests; do with the commit-scan issues (docs/issues/commit-scan-*.md) `idea` (deepen-it 2026-10-19, candidate 4)
 - [ ] T71 The commit hook warns (never blocks) when a `git commit -m` message does not start with `<id>: ` as it-core Git says `idea` (hooks/lib/guard.mjs beforeShell; jira-fields-commit-ids, 2026-10-20)

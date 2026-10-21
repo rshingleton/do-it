@@ -200,6 +200,74 @@ test('git commit <path> scans the unstaged working-tree version of that path', (
   assert.equal(beforeShell(ctx, 'git commit -m x').action, 'allow');
 });
 
+test('a file an earlier git add in the same command stages is scanned', () => {
+  const root = repo();
+  fs.writeFileSync(path.join(root, 'a.js'), 'ok\n');
+  git(root, 'add', '.');
+  git(root, 'commit', '-qm', 'init');
+  const ctx = ctxFor(root);
+  // A tracked file edited and added in the same command.
+  fs.writeFileSync(path.join(root, 'a.js'), `const t = "${FAKE_SLACK}";\n`);
+  assert.equal(beforeShell(ctx, 'git add a.js && git commit -m x').action, 'block');
+  assert.equal(beforeShell(ctx, 'git commit -m a && git stage a.js && git commit -m b').action, 'block');
+  assert.equal(beforeShell(ctx, 'git add -u && git commit -m x').action, 'block');
+  // A new untracked file named by the add.
+  git(root, 'checkout', '-q', 'a.js');
+  fs.writeFileSync(path.join(root, 'new.js'), `const t = "${FAKE_SLACK}";\n`);
+  const r = beforeShell(ctx, 'git add new.js && git commit -m x');
+  assert.equal(r.action, 'block');
+  assert.match(r.reason, /slack-token in new\.js/);
+  assert.equal(beforeShell(ctx, 'git add -A && git commit -m x').action, 'block');
+  assert.equal(beforeShell(ctx, 'git add . && git commit -m x').action, 'block');
+  // Another path, or no add at all, is not blocked by new.js.
+  fs.writeFileSync(path.join(root, 'ok.js'), 'fine\n');
+  assert.equal(beforeShell(ctx, 'git add ok.js && git commit -m x').action, 'allow');
+  assert.equal(beforeShell(ctx, 'git commit -m x').action, 'allow');
+  // An add in a subshell keeps its last path whole.
+  fs.mkdirSync(path.join(root, 'sub'));
+  fs.writeFileSync(path.join(root, 'sub/n.js'), `const t = "${FAKE_SLACK}";\n`);
+  assert.equal(beforeShell(ctx, '(cd sub && git add n.js); git commit -m x').action, 'block');
+  fs.rmSync(path.join(root, 'sub'), { recursive: true });
+  // git add -f stages an ignored file; a plain add of a directory does not.
+  fs.writeFileSync(path.join(root, '.gitignore'), 'ignored/\n');
+  fs.mkdirSync(path.join(root, 'ignored'));
+  fs.writeFileSync(path.join(root, 'ignored/k.js'), `const t = "${FAKE_SLACK}";\n`);
+  fs.rmSync(path.join(root, 'new.js'));
+  assert.equal(beforeShell(ctx, 'git add -f ignored/k.js && git commit -m x').action, 'block');
+  assert.equal(beforeShell(ctx, 'git add --force ignored && git commit -m x').action, 'block');
+  assert.equal(beforeShell(ctx, 'git add ignored/k.js && git commit -m x').action, 'allow');
+  // git rm adds no lines and does not widen the scan.
+  assert.equal(beforeShell(ctx, 'git rm -q a.js && git commit -m x').action, 'allow');
+});
+
+test('a commit with no earlier index-changing command makes the same git calls as before', () => {
+  const root = repo();
+  fs.writeFileSync(path.join(root, 'a.js'), 'ok\n');
+  git(root, 'add', '.');
+  git(root, 'commit', '-qm', 'init');
+  fs.writeFileSync(path.join(root, 'a.js'), 'ok2\n');
+  const bin = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-shim-'));
+  const log = path.join(bin, 'log');
+  const real = execFileSync('which', ['git'], { encoding: 'utf8' }).trim();
+  fs.writeFileSync(path.join(bin, 'git'), `#!/bin/sh\necho x >> '${log}'\nexec '${real}' "$@"\n`, { mode: 0o755 });
+  const calls = (cmd) => {
+    fs.rmSync(log, { force: true });
+    const old = process.env.PATH;
+    process.env.PATH = `${bin}${path.delimiter}${old}`;
+    try {
+      beforeShell(ctxFor(root), cmd);
+    } finally {
+      process.env.PATH = old;
+    }
+    return fs.readFileSync(log, 'utf8').split('\n').filter(Boolean).length;
+  };
+  // Counts measured on the guard before index-changing commands were read,
+  // plus the one lookup for textconv drivers when a listing has files.
+  assert.equal(calls('git commit -m x'), 2);
+  assert.equal(calls('git commit -am x'), 7);
+  assert.equal(calls('git commit -m x a.js'), 7);
+});
+
 test('commit -a before the first commit is scanned', () => {
   const root = repo();
   fs.writeFileSync(path.join(root, 'a.js'), `const t = "${FAKE_SLACK}";\n`);
@@ -546,7 +614,47 @@ test('commit guard stays fast beside modified binaries in a cd chain', () => {
   git(root, 'add', '.');
   const start = Date.now();
   assert.match(beforeShell(ctxFor(root), 'cd sub && git commit -am x').reason, /slack-token in z\.js:1:/);
-  assert.ok(Date.now() - start < 3000, `took ${Date.now() - start} ms`);
+  // Binaries are read as text under a shared budget, well inside the 15 s hook timeout.
+  assert.ok(Date.now() - start < 10000, `took ${Date.now() - start} ms`);
+});
+
+test('commit guard blocks a staged secret in files git treats as binary', () => {
+  const line = `const t = "${FAKE_SLACK}";\n`;
+  const cases = {
+    'a -diff attribute': (root) => {
+      fs.writeFileSync(path.join(root, '.gitattributes'), '*.js -diff\n');
+      fs.writeFileSync(path.join(root, 's.js'), line);
+    },
+    'a binary attribute': (root) => {
+      fs.writeFileSync(path.join(root, '.gitattributes'), '*.js binary\n');
+      fs.writeFileSync(path.join(root, 's.js'), line);
+    },
+    'a NUL byte': (root) => fs.writeFileSync(path.join(root, 's.js'), `\0\n${line}`),
+    'core.bigFileThreshold': (root) => {
+      git(root, 'config', 'core.bigFileThreshold', '10');
+      fs.writeFileSync(path.join(root, 's.js'), line);
+    },
+  };
+  for (const [name, make] of Object.entries(cases)) {
+    const root = repo();
+    make(root);
+    git(root, 'add', '.');
+    const r = beforeShell(ctxFor(root), 'git commit -m x');
+    assert.equal(r.action, 'block', name);
+    assert.match(r.reason, /slack-token in s\.js/, name);
+  }
+});
+
+test('commit guard blocks a secret a textconv driver reveals, and ignores a noisy driver', () => {
+  const root = repo();
+  fs.writeFileSync(path.join(root, '.gitattributes'), '*.b64 diff=b64\n');
+  git(root, 'config', 'diff.b64.textconv', 'base64 -d <');
+  fs.writeFileSync(path.join(root, 's.b64'), Buffer.from(`const t = "${FAKE_SLACK}";\n`).toString('base64') + '\n');
+  git(root, 'add', '.');
+  assert.match(beforeShell(ctxFor(root), 'git commit -m x').reason ?? '', /slack-token in s\.b64/);
+  // A driver writing 2 MB to stderr first does not change what is read.
+  git(root, 'config', 'diff.b64.textconv', 'sh -c \'head -c 2000000 /dev/zero >&2; base64 -d < "$0"\'');
+  assert.match(beforeShell(ctxFor(root), 'git commit -m x').reason ?? '', /slack-token in s\.b64/);
 });
 
 test('commit guard still blocks beside a tracked file it cannot read', () => {
