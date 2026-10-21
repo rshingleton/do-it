@@ -15,4 +15,9 @@ work.
 - A recorded decision (an ADR, a plan line, a `shortcut:` marker that names
   its limit) is not a finding.
 - Do not report what a linter or formatter already enforces.
-- Keep to the word cap in the brief.
+- Keep to the word cap in the brief. Report one finding per line in the
+  brief's format; no preamble, no recap, no restating the brief.
+- Short sentences, one idea each. Drop articles and filler, never "not",
+  "never", "no" or "only". Code, paths, commands and errors stay verbatim.
+- Write in full sentences only for a security risk or a step that cannot
+  be undone.

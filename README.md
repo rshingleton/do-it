@@ -219,7 +219,7 @@ every session which files are in use.
 
 ```bash
 npm test         # node --test, no dependencies
-npm run check    # frontmatter, line budget, skill calls, links, OpenCode command drift
+npm run check    # frontmatter, line budget, skill calls, agent files and tools, links, OpenCode command drift
 npm run gen      # regenerate .opencode/command/ from the skills
 npm run eval     # routing eval: does each prompt in evals/routing.json reach the right skill
 ```
@@ -245,5 +245,7 @@ These skills are this repo's own rewrites of ideas from
 (improve-codebase-architecture), and `retro-it` (retro). Ideas adapted
 from [addyosmani/agent-skills](https://github.com/addyosmani/agent-skills),
 [denyszorinets/ballet](https://github.com/denyszorinets/ballet),
-[dietrichgebert/ponytail](https://github.com/dietrichgebert/ponytail) and
+[dietrichgebert/ponytail](https://github.com/dietrichgebert/ponytail),
+[juliusbrussee/caveman](https://github.com/juliusbrussee/caveman) (terse
+subagent reports) and
 [multica-ai/andrej-karpathy-skills](https://github.com/multica-ai/andrej-karpathy-skills).

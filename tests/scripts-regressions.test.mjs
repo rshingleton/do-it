@@ -232,19 +232,15 @@ test('check.mjs: a paragraph that starts a subagent must name its model tier', (
 
 const AGENT = (name, extra = 'model: sonnet\ntools: Read, Grep, Glob, Bash') => `---\nname: ${name}\ndescription: Test agent.\n${extra}\n---\n\nBrief.\n`;
 
-test('check.mjs validates agent files: name, model, and read-only tools', () => {
+test('check.mjs validates agent files: name, model; tools may be a list', () => {
   const ok = checkWith({ 'agents/it-reviewer.md': AGENT('it-reviewer') });
   assert.equal(ok.status, 0, ok.stdout);
   const renamed = checkWith({ 'agents/it-reviewer.md': AGENT('it-other') });
   assert.match(renamed.stdout, /agents\/it-reviewer\.md: name "it-other" does not match/);
   const noModel = checkWith({ 'agents/it-reviewer.md': AGENT('it-reviewer', 'tools: Read') });
   assert.match(noModel.stdout, /agents\/it-reviewer\.md: missing model/);
-  const writes = checkWith({ 'agents/it-reviewer.md': AGENT('it-reviewer', 'model: sonnet\ntools: Read, Edit') });
-  assert.match(writes.stdout, /agents\/it-reviewer\.md: read-only agent lists Edit/);
-  const noTools = checkWith({ 'agents/it-scout.md': AGENT('it-scout', 'model: haiku') });
-  assert.match(noTools.stdout, /agents\/it-scout\.md: read-only agent needs a tools list/);
-  const list = checkWith({ 'agents/it-reviewer.md': AGENT('it-reviewer', 'model: sonnet\ntools:\n  - Read\n  - Edit') });
-  assert.match(list.stdout, /read-only agent lists Edit/);
+  const list = checkWith({ 'agents/it-reviewer.md': AGENT('it-reviewer', 'model: sonnet\ntools:\n  - Read\n  - Grep') });
+  assert.equal(list.status, 0, list.stdout);
   const planner = checkWith({ 'agents/it-planner.md': AGENT('it-planner', 'model: opus\ntools: Read, Write') });
   assert.equal(planner.status, 0, planner.stdout);
 });
@@ -282,4 +278,12 @@ test('importing gen-opencode.mjs does not run it (bug 10)', () => {
   });
   assert.equal(r.status, 0, r.stderr);
   assert.equal(r.stdout.trim(), 'function');
+});
+
+test('check.mjs: a sentence cannot send an it-agent to the Skill tool its tools: list lacks', () => {
+  const bad = checkWith({ 'skills/zz-it/SKILL.md': SKILL('Tell `it-reviewer` (mid-tier model) to call the Skill tool with "review-it".') });
+  assert.equal(bad.status, 1, bad.stdout);
+  assert.match(bad.stdout, /sends `it-reviewer` to the Skill tool/);
+  const apart = checkWith({ 'skills/zz-it/SKILL.md': SKILL('Start `it-reviewer` (mid-tier model) on the diff. Then call the Skill tool with "review-it".') });
+  assert.equal(apart.status, 0, apart.stdout);
 });

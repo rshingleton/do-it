@@ -16,7 +16,7 @@ from anywhere in the repo.
 | Command | Does |
 |---------|------|
 | `work.mjs new <id> --lane s\|m --title "<title>"` | Creates the plan file with the full empty block, `status: draft` |
-| `work.mjs set <id> <key> <json>` | Sets a field with no event: `title`, `lane`, `tracker`, `sources`, `roadmap`, `todo`, `blocked_by`, `phases`, `assumptions`. `phases` takes `n`, `title`, `blocked_by`; a phase's `status` and `verified` are kept across a re-plan and only events change them |
+| `work.mjs set <id> <key> <json>` | Sets a field with no event: `title`, `lane`, `tracker`, `sources`, `roadmap`, `todo`, `blocked_by`, `phases`, `assumptions`. An empty or null value is refused (`[]` clears a list). `phases` takes `n`, `title`, `blocked_by`; a phase's `status` and `verified` are kept across a re-plan and only events change them |
 | `work.mjs event <id> <event> [args]` | Moves the item (table below) |
 | `work.mjs show <id>` / `work.mjs list` | One item, with `allowed` (the next moves: the events `event` takes, plus `close` from shipping) and `needs_user`; or every open item |
 | `work.mjs fingerprint <id>` | Hash of the change since `base_ref`, planning files excluded |

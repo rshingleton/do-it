@@ -40,6 +40,11 @@ test('items: set takes only the settable keys; status changes go through fire', 
   assert.deepEqual(items.set('x', 'todo', 'T7').state.todo, ['T7']);
   assert.throws(() => items.set('x', 'status', 'shipping'), /go through event/);
   assert.throws(() => items.set('x', 'title'), /needs a value/);
+  items.set('x', 'assumptions', ['a', 'b']);
+  assert.throws(() => items.set('x', 'assumptions', ''), /pass \[\] to clear/);
+  assert.throws(() => items.set('x', 'assumptions', null), /pass \[\] to clear/);
+  assert.deepEqual(items.get('x').state.assumptions, ['a', 'b']);
+  assert.deepEqual(items.set('x', 'assumptions', []).state.assumptions, []);
   assert.throws(() => items.fire('x', 'start', { head: 'a' }), /allowed: approve/);
   assert.equal(items.fire('x', 'approve', DATE).state.status, 'planned');
 });

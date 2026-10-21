@@ -214,7 +214,8 @@ Merged from ponytail and karpathy, one source file:
   Architecture (deletion test, seams). Lane S runs Spec+Standards only.
 - Finding contract (fork + ponytail): concrete case or no finding; recorded
   decisions and `shortcut:` markers are not findings; numbered Must / Should /
-  Nice, each with What / Problem / Fix / If skipped; ends with `Verdict:` and
+  Nice, one line each (`Must|Should|Nice | file:line | claim | case`, with a
+  word cap, after caveman's terse reports); ends with `Verdict:` and
   `Not checked:`.
 - Writes `audit` in the state block; the full report goes in
   `audit-report.md` only for lane M.
@@ -242,6 +243,7 @@ One step, one or two commits:
 do-it/
   AGENTS.md, CLAUDE.md        # conventions for working on this repo
   skills/<name>/SKILL.md      # flat, so ../other-skill links survive symlinks
+  agents/<role>.md            # it-scout, it-reviewer, it-builder, it-planner, it-skeptic: pinned model and tools
   hooks/
     claude.mjs                # Claude Code entry: session/subagent start, pre/post tool
     lib/                      # host-neutral checks, context, guard decisions
@@ -253,7 +255,7 @@ do-it/
     install.sh                # symlinks + hook registration (hooks on by default)
     install-hooks.mjs         # idempotent settings merge, with backups
     gen-opencode.mjs          # skills -> OpenCode commands (--check for drift)
-    check.mjs                 # frontmatter, line budget, skill calls, links, em-dashes
+    check.mjs                 # frontmatter, line budget, skill calls, links, em-dashes, agent files and tools
   tests/                      # node --test, no dependencies
   docs/DESIGN.md, docs/adr/
 ```

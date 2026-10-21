@@ -86,6 +86,17 @@ export function listAgents() {
     });
 }
 
+export const WRITE_TOOLS = ['Write', 'Edit', 'MultiEdit', 'NotebookEdit'];
+
+// `tools: Read, Grep` or a YAML list, as the tool names; [] when none are listed.
+export const agentTools = (agent) => String(agent.meta.tools ?? '').split(/[\s,\[\]-]+/).filter(Boolean);
+
+// Lists tools and none of them writes.
+export const readsOnly = (agent) => {
+  const tools = agentTools(agent);
+  return tools.length > 0 && !tools.some((t) => WRITE_TOOLS.includes(t));
+};
+
 export function userInvoked(skill) {
   return String(skill.meta['disable-model-invocation']) === 'true';
 }

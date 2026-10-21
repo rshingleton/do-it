@@ -61,6 +61,10 @@ skipped them) starts a general-purpose subagent on that tier instead. A task
 that needs tools an agent withholds, such as web search for `look-it-up`,
 names the tier and not an agent.
 
+Write the delegation as the tool call ("Call the Agent tool with `it-scout`"),
+not "hands off to" or "a subagent checks": a softer line was read and skipped
+in a headless run.
+
 Give a subagent pointers, never the conversation, and a word cap on its
 report: the parent re-reads the report on every later turn.
 `npm run check` fails a paragraph that mentions a subagent and names no tier.

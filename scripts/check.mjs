@@ -4,7 +4,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { ROOT, listSkills, listAgents, userInvoked } from './lib/skills.mjs';
+import { ROOT, agentTools, listSkills, listAgents, userInvoked } from './lib/skills.mjs';
 
 const SKILL_LINE_BUDGET = 100;
 const SKILL_LINE_LIMIT = 150;
@@ -13,11 +13,6 @@ const SKILL_LINE_LIMIT = 150;
 const TIER_EXEMPT = new Set(['skills/skill-it/SKILL-MECHANICS.md', 'skills/it-core/SKILL.md', 'skills/do-it/BOUNDARIES.md']);
 // A paragraph that starts or sends a subagent (not one that only mentions them).
 const SPAWN = /\b(start|send)\b[^.]{0,80}(subagent|background agent)|\b(one|a) (fresh-context |fresh |background |exploring |validator )?subagent/i;
-const TIER = /cheap tier|mid-tier\s+model|session model|`it-(?:scout|reviewer|builder|planner|skeptic)`/i;
-
-// Agents that only read: they must list tools, and none may write.
-const READ_ONLY_AGENTS = new Set(['it-scout', 'it-reviewer', 'it-skeptic']);
-const WRITE_TOOLS = ['Write', 'Edit', 'MultiEdit', 'NotebookEdit'];
 
 const errors = [];
 const warnings = [];
@@ -26,6 +21,7 @@ const rel = (p) => path.relative(ROOT, p);
 const skills = listSkills();
 const agents = listAgents();
 const agentNames = new Set(agents.map((a) => a.name));
+const TIER = new RegExp(`cheap tier|mid-tier\\s+model|session model|\`(?:${[...agentNames].join('|')})\``, 'i');
 const names = new Set(skills.map((s) => s.meta.name));
 const userOnly = new Set(skills.filter(userInvoked).map((s) => s.meta.name));
 
@@ -57,12 +53,6 @@ for (const a of agents) {
   if (a.meta.name !== a.name) errors.push(`${where}: name "${a.meta.name ?? ''}" does not match file "${a.name}"`);
   if (!a.meta.description) errors.push(`${where}: missing description`);
   if (!a.meta.model) errors.push(`${where}: missing model`);
-  if (READ_ONLY_AGENTS.has(a.name)) {
-    // `tools: Read, Grep` or a YAML list; leave only the tool names.
-    const tools = String(a.meta.tools ?? '').split(/[\s,\[\]-]+/).filter(Boolean);
-    if (!tools.length) errors.push(`${where}: read-only agent needs a tools list`);
-    for (const w of WRITE_TOOLS.filter((t) => tools.includes(t))) errors.push(`${where}: read-only agent lists ${w}`);
-  }
 }
 
 const docs = [...markdownFiles(path.join(ROOT, 'skills')), path.join(ROOT, 'README.md'), path.join(ROOT, 'AGENTS.md')].filter((f) =>
@@ -100,6 +90,18 @@ for (const file of docs) {
     for (const para of body.split(/\n\s*\n/)) {
       if (SPAWN.test(para) && !TIER.test(para)) {
         errors.push(`${where}: starts a subagent without naming its model tier ("${para.trim().slice(0, 50)}...")`);
+      }
+    }
+  }
+
+  // A sentence that gives an it-* agent a Skill-tool call it cannot make: the
+  // agent's tools: list is its whole kit (the Skill tool is never on it).
+  for (const sentence of text.replace(/^(```|~~~)[\s\S]*?^\1/gm, '').split(/(?<=[.:!?])\s+/)) {
+    if (!/`?Skill`?\s+tool/i.test(sentence)) continue;
+    for (const m of sentence.matchAll(/`(it-[a-z]+)`/g)) {
+      const agent = agents.find((a) => a.name === m[1]);
+      if (agent && !agentTools(agent).includes('Skill')) {
+        errors.push(`${where}: sends \`${m[1]}\` to the Skill tool, which its tools: list lacks ("${sentence.trim().slice(0, 50)}...")`);
       }
     }
   }
