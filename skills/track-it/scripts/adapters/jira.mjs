@@ -8,6 +8,8 @@ import { parseRef } from '../refs.mjs';
 
 export function jiraTracker(cfg, { fetch: fetchImpl = globalThis.fetch } = {}) {
   const base = cfg.JIRA_BASE_URL.replace(/\/+$/, '');
+  // A blank config value is unset, like a blank flag.
+  const defaultEpic = String(cfg.JIRA_DEFAULT_EPIC || '').trim();
 
   function need(...keys) {
     const missing = keys.filter((k) => !cfg[k]);
@@ -32,14 +34,35 @@ export function jiraTracker(cfg, { fetch: fetchImpl = globalThis.fetch } = {}) {
     if (/^[a-z][a-z0-9+.-]*:\/\/[^/]*@/i.test(base)) {
       throw new Error('JIRA_BASE_URL must not contain credentials; set JIRA_EMAIL and JIRA_API_TOKEN instead');
     }
-    const res = await fetchImpl(`${base}/rest/api/2${pathname}`, {
-      method,
-      headers: { Authorization: authHeader(), Accept: 'application/json', 'Content-Type': 'application/json' },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
+    const headers = { Authorization: authHeader(), Accept: 'application/json', 'Content-Type': 'application/json' };
+    let res;
+    try {
+      res = await fetchImpl(`${base}/rest/api/2${pathname}`, {
+        method,
+        headers,
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+    } catch (e) {
+      // fetch may quote a malformed header value, token included: name only the cause.
+      throw new Error(`Jira ${method} ${pathname}: request failed (${e.cause?.code || e.name})`);
+    }
     const text = await res.text();
-    if (!res.ok) throw new Error(`Jira ${method} ${pathname}: ${res.status} ${text.slice(0, 300)}`);
-    return text ? JSON.parse(text) : {};
+    if (!res.ok) {
+      // An error page may echo the request's Authorization header back. Mask
+      // the longest secret first, so a token inside the basic value cannot
+      // break that value before it is masked.
+      let shown = text;
+      const secrets = [authHeader().split(' ')[1], cfg.JIRA_API_TOKEN].filter(Boolean).sort((a, b) => b.length - a.length);
+      for (const s of secrets) shown = shown.split(s).join('***');
+      throw new Error(`Jira ${method} ${pathname}: ${res.status} ${shown.slice(0, 300)}`);
+    }
+    if (!text) return {};
+    try {
+      return JSON.parse(text);
+    } catch {
+      // A proxy or sign-in page: say so without quoting it.
+      throw new Error(`Jira ${method} ${pathname}: ${res.status} response is not JSON`);
+    }
   }
 
   function key(ref) {
@@ -59,19 +82,74 @@ export function jiraTracker(cfg, { fetch: fetchImpl = globalThis.fetch } = {}) {
     return { ref: issueKey, status: t.to?.name || name };
   }
 
-  async function create({ title, type, body = '', epic, labels = [], issueType }) {
-    need('JIRA_PROJECT_KEY');
+  // The project's components, fetched once per project; a 404 names the key.
+  const projects = new Map();
+  async function projectComponents(projectKey) {
+    if (!projects.has(projectKey)) {
+      let data;
+      try {
+        data = await api('GET', `/project/${encodeURIComponent(projectKey)}`);
+      } catch (e) {
+        throw new Error(`Jira project ${projectKey} not found or not visible: ${e.message}`);
+      }
+      projects.set(projectKey, (data.components || []).map((c) => c.name));
+    }
+    return projects.get(projectKey);
+  }
+
+  // Flag values, else the config value, as a list; '' is unset.
+  const listOf = (v) => (Array.isArray(v) ? v : String(v || '').split(',')).map((s) => String(s ?? '').trim()).filter(Boolean);
+  // 'none' is a deliberate skip of that field's check.
+  // shortcut: JIRA_COMPONENTS and JIRA_DEFAULT_EPIC are not trust-guarded, so a
+  // repo's own config can set 'none'; guard them (ADR 0006) if a repo ever
+  // must not be able to skip the checks.
+  const isNone = (v) => String(v || '').trim().toLowerCase() === 'none';
+
+  // Every issue settles its project, components and epic or parent before it
+  // is created, unless the caller passes 'none' for one. An epic itself has
+  // no epic.
+  async function create({ title, type, body = '', epic: e, parent: p, components, project, labels = [], issueType }) {
+    // A blank value is unset, like an empty one.
+    const epic = String(e || '').trim();
+    const parent = String(p || '').trim();
+    const projectKey = String(project || '').trim() || cfg.JIRA_PROJECT_KEY;
+    if (!projectKey) need('JIRA_PROJECT_KEY');
+    const isEpic = issueType === cfg.JIRA_EPIC_TYPE;
+    const wanted = listOf(components?.length ? components : cfg.JIRA_COMPONENTS);
+    const skipComponents = wanted.length === 1 && isNone(wanted[0]);
+    if (wanted.some(isNone) && !skipComponents) throw new Error('Jira components: "none" cannot be mixed with component names');
+    if (!wanted.length) {
+      throw new Error('Jira create needs a component: pass --component <name> (repeatable), set JIRA_COMPONENTS, or pass --component none');
+    }
+    if (epic && parent) throw new Error('Jira create takes --epic or --parent, not both');
+    const parentKey = isNone(parent) ? '' : parent;
+    const skipEpic = isNone(parent) || isNone(epic) || (!epic && !parent && isNone(defaultEpic));
+    const epicKey = parentKey || isEpic || skipEpic ? '' : epic || defaultEpic;
+    if (!parentKey && !isEpic && !skipEpic && !epicKey) {
+      throw new Error('Jira create needs an epic or parent: pass --epic <key>, --parent <key>, set JIRA_DEFAULT_EPIC, or pass --epic none');
+    }
+    const available = await projectComponents(projectKey);
+    const named = [];
+    if (!skipComponents) {
+      for (const c of wanted) {
+        const match = available.find((a) => a.toLowerCase() === c.toLowerCase());
+        if (!match) throw new Error(`Jira project ${projectKey}: unknown component "${c}"; available: ${available.join(', ') || 'none'}`);
+        named.push({ name: match });
+      }
+    }
     const fields = {
-      project: { key: cfg.JIRA_PROJECT_KEY },
+      project: { key: projectKey },
       summary: title,
       description: markdownToWiki(body),
-      issuetype: { name: issueType || (type === 'bug' ? 'Bug' : cfg.JIRA_ISSUE_TYPE) },
+      issuetype: { name: issueType || (parentKey ? cfg.JIRA_SUBTASK_TYPE : type === 'bug' ? 'Bug' : cfg.JIRA_ISSUE_TYPE) },
     };
     if (labels.length) fields.labels = labels;
-    if (issueType === cfg.JIRA_EPIC_TYPE && cfg.JIRA_EPIC_NAME_FIELD) fields[cfg.JIRA_EPIC_NAME_FIELD] = title;
-    if (epic) {
-      if (cfg.JIRA_EPIC_LINK_FIELD) fields[cfg.JIRA_EPIC_LINK_FIELD] = epic;
-      else fields.parent = { key: epic };
+    if (named.length) fields.components = named;
+    if (isEpic && cfg.JIRA_EPIC_NAME_FIELD) fields[cfg.JIRA_EPIC_NAME_FIELD] = title;
+    if (parentKey) fields.parent = { key: parentKey };
+    else if (epicKey) {
+      if (cfg.JIRA_EPIC_LINK_FIELD) fields[cfg.JIRA_EPIC_LINK_FIELD] = epicKey;
+      else fields.parent = { key: epicKey };
     }
     const created = await api('POST', '/issue', { fields });
     return { ref: created.key, url: `${base}/browse/${created.key}` };
@@ -119,18 +197,20 @@ export function jiraTracker(cfg, { fetch: fetchImpl = globalThis.fetch } = {}) {
       return transition(k, cfg.JIRA_DONE_TRANSITION);
     },
 
-    async publish({ title, body = '', phases = [], parent }) {
-      let epic = parent || cfg.JIRA_DEFAULT_EPIC;
+    // An epic of 'none' files the phases with no epic, and creates none.
+    async publish({ title, body = '', phases = [], parent, components, project }) {
+      let epic = String(parent || '').trim() || defaultEpic;
       let url;
       if (!epic) {
-        const created = await create({ title, body, issueType: cfg.JIRA_EPIC_TYPE });
+        const created = await create({ title, body, components, project, issueType: cfg.JIRA_EPIC_TYPE });
         epic = created.ref;
         url = created.url;
       }
       const children = {};
       for (const p of phases) {
-        children[p.n] = (await create({ title: `${title}: ${p.title}`, body: p.body || '', epic })).ref;
+        children[p.n] = (await create({ title: `${title}: ${p.title}`, body: p.body || '', components, project, epic })).ref;
       }
+      if (isNone(epic)) return { parent: null, phases: children };
       return { parent: epic, url: url || `${base}/browse/${epic}`, phases: children };
     },
   };

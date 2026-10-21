@@ -47,38 +47,38 @@ One turn; write nothing yet. **Show** (information, no answer needed):
   changelog. **Risk-area work** ([LANES.md](../do-it/LANES.md)): a rollback
   note (revert, a flag, a down migration, data to restore) for the
   changelog and commit body; no safe rollback: say so plainly.
-- The commit message: `<key>: <summary>` (key = the tracker ref, else the
-  work id, else a short slug), a blank line, one bullet per phase or step;
-  on a protected branch (`main`, `master`, `DO_IT_PROTECTED_BRANCHES`), the
-  feature branch to create first.
+- The commit message: `<id>: <summary>` (the commit id, it-core Git), a
+  blank line, one bullet per phase or step; on a protected branch (`main`,
+  `master`, `DO_IT_PROTECTED_BRANCHES`), the feature branch to create first.
 
 **Ask** at most three things, numbered, each left out when empty; an answer
 to the last alone keeps the defaults:
 
-1. `assumptions:`, numbered: reject any? (default: keep all)
+1. `assumptions:`, numbered: reject any? (default: keep all). Lane XS, no id:
+   always asked, no default: the ref to use, or "file one" with `log-it`?
 2. New `shortcut:` markers with no upgrade trigger: file any? (default: none)
-3. **Commit now** or **leave it for review**? Recommend leave it unless the
-   user asked to commit; `DO_IT_COMMIT=never` makes it the only option.
+3. **Commit now** (say "do it") or **leave it for review**? Recommend leave it
+   unless the user asked to commit; `DO_IT_COMMIT=never` makes it the only option.
 
 ## 3. After the answer
 
 1. **A rejected assumption that changes code:** `work.mjs event <id>
    reject-assumption <n> "<instead>"`; stop. **Next:** `/do-it <id>`. One
    that changes nothing: `work.mjs set` the assumptions.
-2. **Docs:** write what §2 showed, per [DOCS.md](DOCS.md), updating what an
-   earlier run wrote rather than adding it again; park or file the markers. Then `work.mjs event <id>
-   ship-prepared` (lane XS: skip).
+2. **Docs:** write what §2 showed per [DOCS.md](DOCS.md), updating an earlier
+   run's; park or file the markers; `event <id> ship-prepared` (not lane XS).
+   Lane XS with no id: "file one" calls `log-it`; the ref given or filed is
+   the commit id and joins `--ref` from here on.
 3. **Leave it for review:** stop; the plan stays (`status: shipping`), the
    tracker stays open. Repeat the commit message and the command that
-   finishes: `/ship-it <id>` (lane XS: `/ship-it --lane xs` with its `--ref`
-   and `--todo`), which commits, or closes once the user has committed.
+   finishes, `/ship-it <id>` (lane XS: `--lane xs` with its `--ref` and
+   `--todo`), which commits, or closes once the user has committed.
 4. **Commit now** (or a resumed run after the user committed):
    - the refs to close: `todo`, `roadmap` and `tracker` from
      `work.mjs show <id>`; lane XS: `--todo` and `--ref`;
-   - each roadmap slice: set its Status to `shipped <date> <work id>` and
-     add a dated line to the roadmap's Changes; each to-do id: call the Skill
-     tool with "todo-it" to mark it done with the work id (lane XS: the
-     commit). Both ship in the same commit;
+   - each roadmap slice: Status `shipped <date> <work id>` and a dated line in
+     its Changes; each to-do id: call the Skill tool with "todo-it" to mark it
+     done with the work id (lane XS: the commit); both ship in this commit;
    - create the feature branch if §2 named one; stage by path (never
      `git add -A`); commit with the approved message. Already committed by
      the user: leave these edits uncommitted and say so;
@@ -94,7 +94,7 @@ line offering `/retro-it <id>` to turn them into checks.
 
 ## Rules
 
-- Never commit, push, amend or squash without an explicit yes in this run;
-  push or open a PR only when the user asks.
+- Never commit, push, amend or squash without an explicit "do it" in this
+  run; push or open a PR only when the user asks.
 - One commit for code and docs together unless the user asks for two; hooks
   still run on it, and a compliance block stops it.

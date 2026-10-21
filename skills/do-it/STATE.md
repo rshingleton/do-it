@@ -59,8 +59,9 @@ The planning directory is `DO_IT_PLANNING_DIR` when configured. Lane L has no
 state block: its roadmap (roadmap-it) is the durable map, and each slice is
 its own S or M item that names the slice in `roadmap:`.
 
-`<id>` is the tracker ref when there is one (`ABC-123`, `gh-42`), else a short
-kebab-case slug.
+`<id>` is the tracker ref when there is one (`ABC-123`, `gh-42`), else a local
+issue's slug (its file name without `.md`), else a short kebab-case slug. It
+is also the commit id (it-core Git).
 
 ## Block
 

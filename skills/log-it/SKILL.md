@@ -29,13 +29,19 @@ only for gaps that change what "done" means:
 Skip probing when the request is already specific, when the text was pasted
 verbatim, or when another step is filing out-of-scope work.
 
+Filing to Jira, settle the project, components and epic or parent even when
+probing is skipped: take them from the request, else ask in this turn with
+the config values (`tracker.mjs config`) as the recommended answers. The user
+saying not to means `none` for that one.
+
 ## 3. Write
 
 Build the body from [TEMPLATE.md](TEMPLATE.md). Pasted email or ticket text
 goes verbatim under Context.
 
 Call the Skill tool with "track-it" and run its `create` operation with the
-title, type, body and source. The tracker decides where it lands:
+title, type, body and source, plus for Jira the project, components and epic
+or parent. The tracker decides where it lands:
 
 - `local` (default): `docs/issues/<slug>.md` with frontmatter `title`, `type`,
   `status: open`, `source`, optional `external_id`.
@@ -46,7 +52,8 @@ title, type, body and source. The tracker decides where it lands:
 `build-it`, `prove-it` and `ship-it` call this skill for work they find out of
 scope (a bug next door, a `shortcut:` with no upgrade trigger, a rejected
 assumption). They pass `source: <step>` and the file and line. No probing;
-write it and return the ref.
+write it with the Jira defaults and return the ref. When Jira refuses for a
+missing project, component or epic, ask the user once.
 
 ## 5. Close
 

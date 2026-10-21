@@ -89,13 +89,15 @@ Auth is whatever `gh auth status` shows.
 | Key | Default | Meaning |
 |-----|---------|---------|
 | `JIRA_BASE_URL` | | e.g. `https://jira.example.org` |
-| `JIRA_PROJECT_KEY` | | Project for new issues |
+| `JIRA_PROJECT_KEY` | | Project for new issues; `create` checks it exists (`--project` overrides) |
+| `JIRA_COMPONENTS` | | Comma-separated components for new issues, checked against the project; `none` files without one. Unset: `create` needs `--component`. Not trust-guarded: a repo's own config can set it (or `JIRA_DEFAULT_EPIC`) to `none` |
 | `JIRA_API_TOKEN` | | Personal access token (Data Center) or API token (Cloud). User or local file only |
 | `JIRA_EMAIL` | | Cloud account email; setting it selects basic auth |
 | `JIRA_AUTH` | auto | `bearer` or `basic`, to override the auto choice |
 | `JIRA_ISSUE_TYPE` | `Task` | Type for `create` (bugs use `Bug`) |
 | `JIRA_EPIC_TYPE` | `Epic` | Parent type for `publish` |
-| `JIRA_DEFAULT_EPIC` | | `publish` puts phases under this epic instead of creating one |
+| `JIRA_DEFAULT_EPIC` | | Epic for new issues, and `publish` puts phases under it instead of creating one; `none` files without one. Unset: `create` needs `--epic` or `--parent` |
+| `JIRA_SUBTASK_TYPE` | `Sub-task` | Type `create --parent` uses |
 | `JIRA_EPIC_LINK_FIELD` | | Data Center epic link field, e.g. `customfield_10008`. Unset: uses `parent` (Cloud) |
 | `JIRA_EPIC_NAME_FIELD` | | Data Center epic name field, when epics require one |
 | `JIRA_ASSIGNEE` | | Username (Data Center) or accountId (Cloud) that `start` assigns when unassigned |
@@ -110,6 +112,8 @@ Team default in the repo (`.do-it/config.env`, committed):
 DO_IT_TRACKER=jira
 JIRA_BASE_URL=https://jira.example.org
 JIRA_PROJECT_KEY=CDS
+JIRA_COMPONENTS=Core
+JIRA_DEFAULT_EPIC=CDS-100
 JIRA_EPIC_LINK_FIELD=customfield_10008
 DO_IT_LINT_CMD=npx eslint --max-warnings=0 {file}
 ```

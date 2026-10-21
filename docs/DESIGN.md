@@ -127,7 +127,7 @@ OpenCode installs have no namespace). Renamed from their sources:
 | `scope-it` | plan-it, from-jira, to-spec, to-tickets | Grill scaled to lane, write plan, optional `--jira` publish |
 | `build-it` | implement-it, implement, implement-spec | One phase, or the whole frontier with parallel worktrees; never commits |
 | `prove-it` | audit-it, code-review gate | Fresh-context fan-out, findings, verdict, loop cap |
-| `ship-it` | verify-it + commit-it | Finalize docs, confirm assumptions, one commit only on the user's yes, push/PR on request |
+| `ship-it` | verify-it + commit-it | Finalize docs, confirm assumptions, one commit only on the user's "do it", push/PR on request |
 
 ### Discipline (model-invoked, trigger-rich descriptions)
 
@@ -284,7 +284,7 @@ do-it/
 ## 10. Decisions
 
 1. **Build step name:** `build-it`.
-2. **Commits:** none until ship; ship commits only on the user's yes
+2. **Commits:** none until ship; ship commits only on the user's "do it"
    (ADR-0002).
 3. **Hooks:** standards and compliance hooks on by default (ADR-0004).
    OpenCode has no subagent hook; its plugin injects into every turn.

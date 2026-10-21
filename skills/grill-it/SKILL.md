@@ -48,7 +48,7 @@ Recommended: <your answer, and the one reason it wins>
 Assuming unless you say otherwise: <reversible defaults you took>
 ```
 
-Phrase each question so a plain "yes" accepts the recommendation. Keep a
+Phrase each question so a plain "do it" accepts the recommendation. Keep a
 round to the decisions that are actually ready; five sharp questions beat
 twelve loose ones.
 

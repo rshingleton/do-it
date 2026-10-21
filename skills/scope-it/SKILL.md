@@ -33,9 +33,9 @@ A new project (no source yet; see the do-it scout) adds the agenda in
 [GREENFIELD.md](GREENFIELD.md) at either lane.
 
 Find facts yourself (code, ADRs, the area's context per it-core,
-`docs/reference/`); ask only for decisions. A fact about a library, API or standard the code does not
-settle: call the Skill tool with "look-it-up" rather than guess. For seams and
-interfaces, call the Skill tool with "design-it" and use its vocabulary.
+`docs/reference/`); ask only for decisions. A library, API or standard fact
+the code does not settle: call the Skill tool with "look-it-up". For seams,
+call the Skill tool with "design-it" and use its vocabulary.
 
 No `CONTEXT.md` for the plan's area: never write one while scouting; propose
 "create `<area>/CONTEXT.md` with `/map-it <area>`" as a step at approval (§5).
@@ -63,18 +63,16 @@ user can answer join the approval turn.
 ## 4. ADR only when warranted
 
 Write an ADR only for a decision that is hard to reverse, surprising without
-context, and the result of a real trade-off. All three, or none: the decision
-lives in the plan instead. Follow [name-it's ADR format](../name-it/ADR-FORMAT.md),
-status `Proposed`, next free number in the repo's ADR directory, linked from
-the plan.
+context, and the result of a real trade-off; otherwise it lives in the plan.
+Follow [name-it's ADR format](../name-it/ADR-FORMAT.md), status `Proposed`,
+next free number in the repo's ADR directory, linked from the plan.
 
 ## 5. Approve
 
 Present the plan in chat: the steps or the numbered phases with `Blocked by`
 and what each delivers, the assumptions, and any builder-check questions for
 the user (each with a recommended answer). The plan stays `status: draft`.
-End the turn. Lane M does this as its last grill round ([GRILL.md](GRILL.md)),
-not as one more stop.
+End the turn; lane M makes this its last grill round ([GRILL.md](GRILL.md)).
 
 On approval, `work.mjs event <id> approve`. Edits the user asks for are made
 and re-presented; approval of the edited plan counts.
@@ -82,7 +80,9 @@ and re-presented; approval of the edited plan counts.
 ## 6. Publish (optional)
 
 With `--publish`, or when the tracker config sets `DO_IT_PUBLISH_PLANS=true`,
-call the Skill tool with "track-it" and run `publish` for the plan. Record
+call the Skill tool with "track-it" and run `publish` for the plan. For Jira,
+settle the spec's `project`, `components` and `parent` epic in the approval
+turn (config values recommended; `none` when the user says not to). Record
 the parent and per-phase refs it returns with `work.mjs set <id> tracker
 '{"kind":"<kind>","ref":"<ref>","phases":{"1":"<ref>"}}'`. Lanes S and XS
 publish nothing by default.
