@@ -151,7 +151,8 @@ export function format(findings, file) {
 // [{ file, added, gone? }], from Claude Code or OpenCode tool input. Patches
 // contribute only their added lines (removing a secret is fine), each under
 // the file it lands in. No added line is ever dropped: lines before any file
-// header land under file '', lines after a delete under the deleted path.
+// header land under file '', lines after a delete under the deleted path and
+// under '' too, where no exceptFilePattern applies.
 // `gone: true` marks a file that does not exist once the edit is done (a
 // move's old path, a deleted file given added lines, a path named only for
 // its path rules): it is scanned, path rules included, but there is nothing
@@ -189,10 +190,14 @@ export function editParts(input = {}) {
 // apply_patch (OpenCode): `*** Add File:`, `*** Update File:`, `*** Delete
 // File:` and `*** Move to:` name the files; every `+` line is added text for
 // the current one, including one that reads `+++ x`. A `--- ` / `+++ <path>`
-// pair also names <path> for its path rules, since a lenient tool may apply
-// a unified section embedded in the patch.
+// pair also names <path>, since a lenient tool may apply a unified section
+// embedded in the patch: the added lines after it are scanned under <path>
+// too, until the next `***` block or embedded pair. The added lines of a
+// deleted file are also scanned under '', which no exception can exempt.
 function applyPatchFiles(lines, { add, exists }) {
   let current = '';
+  let also = null;
+  let deleted = false;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const block = line.match(/^\*\*\* (Add File|Update File|Delete File|Move to): (.+)$/);
@@ -200,15 +205,24 @@ function applyPatchFiles(lines, { add, exists }) {
     if (block) {
       if (block[1] === 'Move to') exists.delete(current);
       current = block[2].trim();
-      if (block[1] === 'Delete File') {
+      also = null;
+      deleted = block[1] === 'Delete File';
+      if (deleted) {
         exists.delete(current);
         continue;
       }
       exists.add(current);
       add(current);
     } else if (line.startsWith('+')) {
-      if (named && named !== '/dev/null') add(named);
-      add(current, line.slice(1));
+      const text = line.slice(1);
+      if (named && named !== '/dev/null') {
+        also = named;
+        add(also);
+      } else if (also) {
+        add(also, text);
+      }
+      add(current, text);
+      if (deleted) add('', text);
     }
   }
 }
@@ -220,12 +234,19 @@ function applyPatchFiles(lines, { add, exists }) {
 // scanned. A `--- ` / `+++ <path>` pair inside a hunk is content too, but a
 // lenient tool (a bare `@@`, a wrong count) may split files on it: it also
 // names <path>, and the added lines after it are scanned under both files.
+// After `+++ /dev/null`, added lines are also scanned under '', as in
+// apply_patch, until the next `+++ <path>`.
 function unifiedFiles(lines, { add, exists }) {
   let current = '';
   let also = null;
   let from = null;
+  let deleted = false;
   let oldLeft = 0;
   let newLeft = 0;
+  const addLine = (text) => {
+    add(current, text);
+    if (deleted && current) add('', text);
+  };
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const c = line[0];
@@ -237,7 +258,7 @@ function unifiedFiles(lines, { add, exists }) {
       } else if (c === '+' && also) {
         add(also, line.slice(1));
       }
-      if (c === '+') add(current, line.slice(1));
+      if (c === '+') addLine(line.slice(1));
       if (c === '+' || c === ' ' || line === '') newLeft--;
       if (c === '-' || c === ' ' || line === '') oldLeft--;
       continue;
@@ -255,14 +276,16 @@ function unifiedFiles(lines, { add, exists }) {
     } else if (to === '/dev/null') {
       current = from && from !== '/dev/null' ? from : '';
       also = null;
+      deleted = true;
       exists.delete(current);
     } else if (to !== null) {
       current = to;
       also = null;
+      deleted = false;
       exists.add(current);
       add(current);
     } else if (line.startsWith('+')) {
-      add(current, line.slice(1));
+      addLine(line.slice(1));
     }
   }
 }
