@@ -10,6 +10,8 @@ not an application.
   `skills/` (`../do-it/STATE.md`), so links survive a symlink install.
 - `agents/`: role agents (scout, reviewer, builder, planner, skeptic), each
   pinning its model and tools; skills name them instead of describing a tier.
+  The voice block in each is copied from `skills/it-core/VOICE.md` by
+  `npm run gen`; edit the source, not the copies.
 - `hooks/`: `claude.mjs` (Claude Code entry), `lib/` (host-neutral checks
   and context), `hooks.json` (plugin hook config).
 - `.opencode/plugins/`: the OpenCode plugin, a thin adapter over `hooks/lib`.

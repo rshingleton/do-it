@@ -7,7 +7,8 @@ top-tier model while the session stays on the mid tier, at roughly twice the
 cost of drafting a small plan in the main context (measured on one request),
 so it is not the default.
 
-Call the Agent tool once with the `it-planner` agent (top tier) and give it:
+Call the Agent tool once with the `it-planner` agent (top tier, reply under
+300 words) and give it:
 
 - the request or issue ref, the lane, the work id, and the planning directory;
 - the scout notes from `do-it` and the user's answers to the 0-3 questions;

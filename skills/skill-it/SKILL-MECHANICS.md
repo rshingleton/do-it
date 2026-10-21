@@ -67,7 +67,14 @@ in a headless run.
 
 Give a subagent pointers, never the conversation, and a word cap on its
 report: the parent re-reads the report on every later turn.
-`npm run check` fails a paragraph that mentions a subagent and names no tier.
+`npm run check` fails a paragraph that starts a subagent and names no tier or
+no word cap.
+
+Only the main context fans out. A skill that itself runs inside a subagent
+does its sub-steps inline and starts no further subagents: the parent could
+not cap, read or pay for a second layer. Every agent carries the voice rules
+of `skills/it-core/VOICE.md` and a `## Report` contract with its cap;
+`npm run gen` keeps the copies current.
 
 ## Names
 

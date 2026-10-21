@@ -226,11 +226,13 @@ test('check.mjs: a paragraph that starts a subagent must name its model tier', (
   const bad = checkWith({ 'skills/zz-it/SKILL.md': SKILL('Start one subagent with the plan.') });
   assert.equal(bad.status, 1, bad.stdout);
   assert.match(bad.stdout, /model tier/);
-  const ok = checkWith({ 'skills/zz-it/SKILL.md': SKILL('Start one subagent on the mid-tier\nmodel with the plan.') });
+  const ok = checkWith({ 'skills/zz-it/SKILL.md': SKILL('Start one subagent on the mid-tier\nmodel with the plan, report under 200 words.') });
   assert.equal(ok.status, 0, ok.stdout);
 });
 
-const AGENT = (name, extra = 'model: sonnet\ntools: Read, Grep, Glob, Bash') => `---\nname: ${name}\ndescription: Test agent.\n${extra}\n---\n\nBrief.\n`;
+import { withVoice } from '../scripts/lib/voice.mjs';
+const VOICE = fs.readFileSync(path.join(ROOT, 'skills/it-core/VOICE.md'), 'utf8');
+const AGENT = (name, extra = 'model: sonnet\ntools: Read, Grep, Glob, Bash') => withVoice(`---\nname: ${name}\ndescription: Test agent.\n${extra}\n---\n\nBrief.\n\n## Report\n\nCap: 100 words.\n`, VOICE);
 
 test('check.mjs validates agent files: name, model; tools may be a list', () => {
   const ok = checkWith({ 'agents/it-reviewer.md': AGENT('it-reviewer') });
@@ -264,7 +266,7 @@ test('check.mjs: a backticked it-agent name must be a shipped agent or a skill',
   const dangling = checkWith({ 'skills/zz-it/SKILL.md': SKILL('Start the `it-nope` agent (mid-tier model).') });
   assert.equal(dangling.status, 1, dangling.stdout);
   assert.match(dangling.stdout, /`it-nope` is neither a skill nor a file in agents\//);
-  const named = checkWith({ 'skills/zz-it/SKILL.md': SKILL('Start one `it-reviewer` agent with the plan.') });
+  const named = checkWith({ 'skills/zz-it/SKILL.md': SKILL('Start one `it-reviewer` agent with the plan, under 200 words.') });
   assert.equal(named.status, 0, named.stdout);
   const skill = checkWith({ 'skills/zz-it/SKILL.md': SKILL('Follow the `it-core` posture.') });
   assert.equal(skill.status, 0, skill.stdout);
@@ -284,6 +286,43 @@ test('check.mjs: a sentence cannot send an it-agent to the Skill tool its tools:
   const bad = checkWith({ 'skills/zz-it/SKILL.md': SKILL('Tell `it-reviewer` (mid-tier model) to call the Skill tool with "review-it".') });
   assert.equal(bad.status, 1, bad.stdout);
   assert.match(bad.stdout, /sends `it-reviewer` to the Skill tool/);
-  const apart = checkWith({ 'skills/zz-it/SKILL.md': SKILL('Start `it-reviewer` (mid-tier model) on the diff. Then call the Skill tool with "review-it".') });
+  const apart = checkWith({ 'skills/zz-it/SKILL.md': SKILL('Start `it-reviewer` (mid-tier model, under 200 words) on the diff. Then call the Skill tool with "review-it".') });
   assert.equal(apart.status, 0, apart.stdout);
+});
+
+test('check.mjs: an agent file needs the voice block and it must match VOICE.md', () => {
+  const bare = `---\nname: it-reviewer\ndescription: Test agent.\nmodel: sonnet\n---\n\nBrief.\n`;
+  const missing = checkWith({ 'agents/it-reviewer.md': bare });
+  assert.equal(missing.status, 1);
+  assert.match(missing.stdout, /agents\/it-reviewer\.md: voice block missing or out of date/);
+  const drifted = checkWith({ 'agents/it-reviewer.md': AGENT('it-reviewer').replace('Voice for internal', 'Edited voice for internal') });
+  assert.match(drifted.stdout, /voice block missing or out of date/);
+});
+
+test('withVoice appends once, then replaces in place', () => {
+  const once = withVoice('body\n', 'V1');
+  assert.equal(withVoice(once, 'V1'), once);
+  const next = withVoice(once, 'V2');
+  assert.match(next, /V2/);
+  assert.doesNotMatch(next, /V1/);
+  assert.equal(next.match(/voice:start/g).length, 1);
+});
+
+test('check.mjs: an agent file needs a Report section with a word cap', () => {
+  const bare = withVoice(`---\nname: it-reviewer\ndescription: Test agent.\nmodel: sonnet\n---\n\nBrief.\n`, VOICE);
+  const r = checkWith({ 'agents/it-reviewer.md': bare });
+  assert.equal(r.status, 1);
+  assert.match(r.stdout, /agents\/it-reviewer\.md: no ## Report section with a word cap/);
+});
+
+test('check.mjs: a paragraph that starts a subagent needs a word cap, here or in the quoted brief after it', () => {
+  const bad = checkWith({ 'skills/zz-it/SKILL.md': SKILL('Start one subagent on the mid-tier model with the plan.') });
+  assert.equal(bad.status, 1);
+  assert.match(bad.stdout, /without a word cap/);
+  const agent = checkWith({ 'skills/zz-it/SKILL.md': SKILL('Start one `it-scout` agent with the question.') });
+  assert.match(agent.stdout, /without a word cap/);
+  const quoted = checkWith({ 'skills/zz-it/SKILL.md': SKILL('Start one `it-scout` agent with this brief:\n\n> Find it. Under 300 words.') });
+  assert.equal(quoted.status, 0, quoted.stdout);
+  const unrelated = checkWith({ 'skills/zz-it/SKILL.md': SKILL('Start one `it-scout` agent with the question.\n\nElsewhere, a summary is capped at 300 words.') });
+  assert.match(unrelated.stdout, /without a word cap/);
 });

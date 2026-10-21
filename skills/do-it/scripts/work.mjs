@@ -2,7 +2,7 @@
 // Work-item CLI: the only writer of a plan's state block. Prints JSON.
 //
 //   work.mjs new <id> --lane s|m --title "<title>"
-//   work.mjs show <id>
+//   work.mjs show <id> [--brief]
 //   work.mjs list
 //   work.mjs event <id> <event> [args] [--phase n] [--fingerprint f] [--date d]
 //   work.mjs set <id> <key> <json>
@@ -26,6 +26,9 @@ import { needsUser } from './state.mjs';
 import { allowedMoves, firableEvents, workItems } from './items.mjs';
 import { roadmapSlices } from './roadmap.mjs';
 
+// Flags that take no value.
+const FLAGS = new Set(['brief']);
+
 function parseArgs(argv) {
   const pos = [];
   const opts = {};
@@ -37,7 +40,7 @@ function parseArgs(argv) {
     }
     if (a.startsWith('--')) {
       const [k, v] = a.slice(2).split(/=(.*)/s);
-      opts[k] = v ?? argv[++i];
+      opts[k] = FLAGS.has(k) ? true : (v ?? argv[++i]);
     } else pos.push(a);
   }
   return { pos, opts };
@@ -56,6 +59,12 @@ function view(ctx, item) {
     allowed: allowedMoves(item.state.status),
     needs_user: needsUser(item.state),
   };
+}
+
+// Status, lane, the next moves and the blocker: what a step reads to resume.
+function brief(item) {
+  const { id, lane, status, blocker } = item.state;
+  return { id, lane, status, allowed: allowedMoves(status), blocker, needs_user: needsUser(item.state) };
 }
 
 function head(root) {
@@ -127,7 +136,7 @@ export async function run(argv, { cwd = process.cwd() } = {}) {
     case 'new':
       return view(ctx, items.create(id, { lane: opts.lane, title: opts.title }));
     case 'show':
-      return view(ctx, items.get(id));
+      return opts.brief ? brief(items.get(id)) : view(ctx, items.get(id));
     case 'list':
       return items.list().map((i) => ({ ...i, path: path.relative(ctx.root, i.path) }));
     case 'event': {

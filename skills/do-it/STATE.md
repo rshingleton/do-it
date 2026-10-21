@@ -18,7 +18,7 @@ from anywhere in the repo.
 | `work.mjs new <id> --lane s\|m --title "<title>"` | Creates the plan file with the full empty block, `status: draft` |
 | `work.mjs set <id> <key> <json>` | Sets a field with no event: `title`, `lane`, `tracker`, `sources`, `roadmap`, `todo`, `blocked_by`, `phases`, `assumptions`. An empty or null value is refused (`[]` clears a list). `phases` takes `n`, `title`, `blocked_by`; a phase's `status` and `verified` are kept across a re-plan and only events change them |
 | `work.mjs event <id> <event> [args]` | Moves the item (table below) |
-| `work.mjs show <id>` / `work.mjs list` | One item, with `allowed` (the next moves: the events `event` takes, plus `close` from shipping) and `needs_user`; or every open item |
+| `work.mjs show <id> [--brief]` / `work.mjs list` | One item (`--brief`: only `id`, `lane`, `status`, `allowed`, `blocker` and `needs_user`, enough to resume), with `allowed` (the next moves: the events `event` takes, plus `close` from shipping) and `needs_user`; or every open item |
 | `work.mjs fingerprint <id>` | Hash of the change since `base_ref`, planning files excluded |
 | `work.mjs review-diff <id>` | Files changed since ship-it prepared the commit (the user's review edits), with a diffstat |
 | `work.mjs verify-phase <id> [n] [--in <dir>] -- "<checks>"` | Runs the checks (in `<dir>` with `--in`, the plan staying this checkout's); records the phase (lane S: the item) as verified only on exit 0. The only way a phase is recorded. Quote a chain (`"npm test && npm run lint"`) so the script runs all of it |

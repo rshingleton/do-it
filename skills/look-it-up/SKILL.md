@@ -22,8 +22,9 @@ answers sites only point toward a primary source; they never settle a claim.
 ## 2. Send it out
 
 Start one background agent on the mid-tier model (`model: sonnet` in Claude
-Code) with the question, the version in use, and the output path. Keep
-working while it reads. Its brief:
+Code) with the question, the version in use, and the output path; the file holds
+the detail, so its reply is `done`, `blocked` or `failed`, the path and one line, under 100 words. Keep working while it reads.
+Its brief:
 
 - trace every claim to a primary source and cite it (URL, section, version);
 - say plainly where sources disagree or are silent;

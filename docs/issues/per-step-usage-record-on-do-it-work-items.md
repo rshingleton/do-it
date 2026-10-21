@@ -37,3 +37,4 @@ until someone reconstructs it by hand.
   `do-it/retro-items`.
 - Check what usage fields the SubagentStop and Stop hook inputs carry
   before designing the record; a transcript read may be needed.
+- First use case: `docs/research/caveman-baseline.md` measured the terse-voice change by hand from transcripts (one run per side, inconclusive); a recorded per-step usage would replace that script and give real work items as the sample.

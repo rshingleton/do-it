@@ -30,7 +30,8 @@ squash cannot collide with the uncommitted plan.
 git worktree add "$root/phase-N" -b "do-it/<id>--phase-N" "do-it/<id>"
 ```
 
-Start one background `it-builder` agent per phase (mid-tier model). Give it
+Start one background `it-builder` agent per phase (mid-tier model; its report
+follows the agent's own contract, under 150 words). Give it
 pointers, not pasted content: the worktree path, and the absolute paths of the
 phase file and the plan README in the user's checkout (read-only; only the
 main session writes the state block). Tell it to:

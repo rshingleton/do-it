@@ -37,10 +37,10 @@ An agent cannot call a skill, so run two of these here and start the third:
   `it-reviewer` agents and brings the repo's standards and its baselines.
 - **Compliance:** call the Skill tool with "guard-it" on the change.
 - **Architecture (lane M only):** start one `it-reviewer` agent (mid-tier
-  model) on [ARCHITECTURE.md](ARCHITECTURE.md) for every touched module.
+  model, `## Report` shape, under 400 words) on [ARCHITECTURE.md](ARCHITECTURE.md) for every touched module.
 
 Give the agent pointers (the diff command, the untracked file list, the plan
-path), never the build transcript, and cap its report at 400 words.
+path), never the build transcript.
 
 Lane XS is not audited here; `ship-it` does its self-review.
 
