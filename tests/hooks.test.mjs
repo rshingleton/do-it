@@ -219,6 +219,22 @@ test('OpenCode plugin injects context and throws on HIGH edits', async () => {
   await hooks['tool.execute.before']({ tool: 'read' }, { args: { filePath: '.env' } });
 });
 
+// OpenCode 2.1.2 `execute` runs code against a catalog of tools. A call the
+// code makes fires `execute.before` again under the parent's call id with the
+// nested tool's own name, so the write and shell guards see it; `execute`
+// itself carries only code text and is not checked.
+test('OpenCode 2 execute: nested tool calls reach the guards, the code text does not', async () => {
+  const root = repo();
+  const { createPlugin } = await import('../.opencode/plugins/do-it.mjs');
+  const hooks = {};
+  const domain = () => ({ hook: (name, fn) => (hooks[name] = fn) });
+  await createPlugin().setup({ session: domain(), tool: domain(), location: { directory: root } });
+  const before = hooks['execute.before'];
+  await before({ tool: 'execute', id: 'call_1', input: { code: `return "${FAKE_AWS}"` } });
+  await before({ tool: 'opencode_worktree_create', id: 'call_1', input: { name: 'x' } });
+  await assert.rejects(before({ tool: 'write', id: 'call_1', input: { path: 'a.js', content: FAKE_AWS } }), /aws-access-key/);
+});
+
 test('every agent with a tools list and no write tool is in the hook read-only set', async () => {
   const { READ_ONLY_AGENTS } = await import('../hooks/claude.mjs');
   const { listAgents, readsOnly } = await import('../scripts/lib/skills.mjs');
