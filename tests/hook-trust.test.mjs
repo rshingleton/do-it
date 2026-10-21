@@ -64,7 +64,7 @@ test('loadChecks skips malformed entries, names them, keeps the rest', () => {
 test('OpenCode plugin allows an edit when the rules file is malformed, still blocks secrets', async () => {
   const root = repo();
   writeChecks(root, MALFORMED);
-  const { default: plugin } = await import('../.opencode/plugins/do-it.mjs');
+  const { DoItPlugin: plugin } = await import('../.opencode/plugins/do-it.mjs');
   const hooks = await plugin({ directory: root });
   await hooks['tool.execute.before']({ tool: 'write' }, { args: { filePath: path.join(root, 'b.ts'), content: 'bar' } });
   await assert.rejects(
@@ -81,7 +81,7 @@ test('OpenCode plugin fails open when decide itself throws', async () => {
   const boom = () => {
     throw new Error('boom');
   };
-  const { default: plugin } = await import('../.opencode/plugins/do-it.mjs');
+  const { DoItPlugin: plugin } = await import('../.opencode/plugins/do-it.mjs');
   const hooks = await plugin({ directory: root }, { decide: boom });
   const errors = [];
   const write = process.stderr.write;
@@ -103,7 +103,7 @@ test('OpenCode plugin only translates: tool kinds in, throw, append and stderr o
   const calls = [];
   const answers = { session: { context: 'ctx' }, before: { block: 'no' }, after: { context: 'lint', notice: 'warned' } };
   const decide = (event, input) => (calls.push([event, input.kind, input.cwd]), answers[event]);
-  const { default: plugin } = await import('../.opencode/plugins/do-it.mjs');
+  const { DoItPlugin: plugin } = await import('../.opencode/plugins/do-it.mjs');
   const hooks = await plugin({ directory: root }, { decide });
   const errors = [];
   const write = process.stderr.write;
@@ -114,6 +114,7 @@ test('OpenCode plugin only translates: tool kinds in, throw, append and stderr o
     assert.deepEqual(sys.system, ['ctx']);
     await assert.rejects(hooks['tool.execute.before']({ tool: 'apply_patch' }, { args: {} }), /^Error: no$/);
     await assert.rejects(hooks['tool.execute.before']({ tool: 'Bash' }, { args: {} }), /no/);
+    await assert.rejects(hooks['tool.execute.before']({ tool: 'shell' }, { args: {} }), /no/);
     await assert.rejects(hooks['tool.execute.before']({ tool: 'read' }, { args: {} }), /no/);
     const out = { output: 'done' };
     await hooks['tool.execute.after']({ tool: 'edit', args: {} }, out);
@@ -124,6 +125,7 @@ test('OpenCode plugin only translates: tool kinds in, throw, append and stderr o
   assert.deepEqual(calls, [
     ['session', undefined, root],
     ['before', 'edit', root],
+    ['before', 'shell', root],
     ['before', 'shell', root],
     ['before', null, root],
     ['after', 'edit', root],
@@ -136,7 +138,7 @@ test('OpenCode plugin puts lint failures before compliance notes', async () => {
   const env = process.env.DO_IT_LINT_CMD;
   process.env.DO_IT_LINT_CMD = 'echo lint says no; exit 1';
   try {
-    const { default: plugin } = await import('../.opencode/plugins/do-it.mjs');
+    const { DoItPlugin: plugin } = await import('../.opencode/plugins/do-it.mjs');
     const hooks = await plugin({ directory: root });
     const out = { output: 'done' };
     await hooks['tool.execute.after']({ tool: 'write', args: { filePath: 'a.js', content: ['// TODO: insert', 'API key here'].join(' ') } }, out); // do-it: allow (fixture)
@@ -691,4 +693,89 @@ test('past four cds the commit also scans the repo root', () => {
   fs.writeFileSync(path.join(root, 'B/sub/f.js'), `const t = "${FAKE_SLACK}";\n`);
   const cmd = 'cd B && (cd C) && cd x && cd y && cd sub && git commit -m x f.js';
   assert.equal(beforeShell(ctxFor(root), cmd).action, 'block');
+});
+
+// The v2 entry: a fake context records the hooks `setup` registers.
+function fakeCtx() {
+  const hooks = {};
+  const domain = () => ({ hook: (name, fn) => (hooks[name] = fn) });
+  return { hooks, ctx: { session: domain(), tool: domain(), location: { directory: '/x' } } };
+}
+
+test('OpenCode plugin default export carries both entry shapes', async () => {
+  const { default: plugin, DoItPlugin } = await import('../.opencode/plugins/do-it.mjs');
+  assert.equal(plugin.id, 'do-it');
+  assert.equal(typeof plugin.setup, 'function');
+  assert.equal(plugin.server, DoItPlugin);
+});
+
+test('OpenCode plugin setup without hook domains registers nothing and leaves v1 live', async () => {
+  const { createPlugin } = await import('../.opencode/plugins/do-it.mjs');
+  const p = createPlugin({ decide: () => ({}) });
+  await p.setup({ options: {}, agent: {} });
+  assert.ok(Object.keys(await p.server({ directory: '/x' })).length > 0);
+});
+
+test('OpenCode plugin setup hooks translate over decide, and v1 then stays empty', async () => {
+  const { createPlugin } = await import('../.opencode/plugins/do-it.mjs');
+  const answers = { session: { context: 'ctx' }, before: { block: 'no' }, after: { context: 'lint' } };
+  const calls = [];
+  const p = createPlugin({ decide: (event, input) => (calls.push([event, input.kind]), answers[event]) });
+  const { hooks, ctx } = fakeCtx();
+  await p.setup(ctx);
+  assert.deepEqual(Object.keys(hooks).sort(), ['context', 'execute.after', 'execute.before']);
+
+  const ev = { system: [] };
+  await hooks.context(ev);
+  assert.deepEqual(ev.system, [{ type: 'text', text: 'ctx' }]);
+  await assert.rejects(hooks['execute.before']({ tool: 'bash', input: { command: 'x' } }), /no/);
+  const done = { status: 'completed', tool: 'edit', input: {}, result: { content: 'ok' } };
+  await hooks['execute.after'](done);
+  assert.equal(done.result.content, 'ok\n\nlint');
+  const parts = { status: 'completed', tool: 'edit', input: {}, result: { content: [{ type: 'text', text: 'ok' }] } };
+  await hooks['execute.after'](parts);
+  assert.deepEqual(parts.result.content, [{ type: 'text', text: 'ok' }, { type: 'text', text: 'lint' }]);
+  const bare = { status: 'completed', tool: 'edit', input: {}, result: { output: { n: 1 } } };
+  await hooks['execute.after'](bare);
+  assert.equal(bare.result.content, 'lint');
+  const failed = { status: 'error', tool: 'edit', input: {}, error: 'e' };
+  await hooks['execute.after'](failed);
+  assert.deepEqual(calls.at(-1), ['after', 'edit']);
+  assert.deepEqual(await p.server({ directory: '/x' }), {});
+});
+
+test('OpenCode plugin setup stands down when the v1 hooks are already live', async () => {
+  const { createPlugin } = await import('../.opencode/plugins/do-it.mjs');
+  const p = createPlugin({ decide: () => ({}) });
+  await p.server({ directory: '/x' });
+  const { hooks, ctx } = fakeCtx();
+  await p.setup(ctx);
+  assert.deepEqual(hooks, {});
+});
+
+test('OpenCode plugin setup hooks fail open and skip an unexpected shape', async () => {
+  const { createPlugin } = await import('../.opencode/plugins/do-it.mjs');
+  const boom = () => {
+    throw new Error('boom');
+  };
+  const p = createPlugin({ decide: boom });
+  const { hooks, ctx } = fakeCtx();
+  await p.setup(ctx);
+  const write = process.stderr.write;
+  process.stderr.write = () => true;
+  try {
+    await hooks['execute.before']({ tool: 'bash', input: {} });
+    await hooks.context({ system: 'not an array' });
+  } finally {
+    process.stderr.write = write;
+  }
+  const q = createPlugin({ decide: () => ({ context: 'c' }) });
+  const h = fakeCtx();
+  await q.setup(h.ctx);
+  const ev = { system: 'str' };
+  await h.hooks.context(ev);
+  assert.equal(ev.system, 'str');
+  const odd = { status: 'completed', tool: 'edit', input: {}, result: { content: 42 } };
+  await h.hooks['execute.after'](odd);
+  assert.equal(odd.result.content, 42);
 });

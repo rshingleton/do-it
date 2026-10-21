@@ -120,7 +120,7 @@ points it at a mirror, `DO_IT_HOME` at another clone directory.
 ```bash
 git clone https://github.com/rshingleton/do-it.git ~/.local/share/do-it
 cd ~/.local/share/do-it
-scripts/install.sh            # skills, OpenCode commands, hooks on
+scripts/install.sh            # skills, OpenCode commands and agents, hooks on
 scripts/install.sh --dry-run  # show what it would do
 scripts/install.sh --no-hooks
 scripts/install.sh --uninstall
@@ -130,6 +130,13 @@ Skills link into `~/.claude/skills` and `~/.agents/skills` (OpenCode reads
 both). The five role agents in `agents/` (`it-scout`, `it-reviewer`,
 `it-builder`, `it-planner`, `it-skeptic`) link into `~/.claude/agents`; each
 pins its own model, so skills that delegate pick the tier by naming the agent.
+For OpenCode, `.opencode/command/` (OpenCode 1) and `.opencode/commands/`
+(OpenCode 2) link into `~/.config/opencode/`, and `.opencode/agents/` links
+into `~/.config/opencode/agents/`: the same five roles, generated from
+`agents/` with a deny-first `permission` map in place of `tools` and no
+`model` (OpenCode has no tiers). Never link `agents/*.md` itself into an
+OpenCode agents directory: its `tools: Read, Grep` form makes OpenCode reject
+the whole config.
 An existing skill of the same name from another repo is skipped unless you
 pass `--force`. Hooks register in `~/.claude/settings.json` and
 `~/.config/opencode/opencode.json`; each file is backed up as `*.bak-do-it`
@@ -184,8 +191,26 @@ It runs at every session and subagent start (every turn under OpenCode).
 `DO_IT_MAP=off` turns it off.
 
 OpenCode has no subagent-start hook; its plugin injects the posture into
-every turn's system prompt instead. The plugin targets the OpenCode 1 plugin
-API (`experimental.chat.system.transform`, `tool.execute.before/after`).
+every turn's system prompt instead. The plugin's default export carries the
+OpenCode 1 hook object (`experimental.chat.system.transform`,
+`tool.execute.before/after`; a throw blocks the tool) and a v2 `setup` that
+registers `session` and `tool` hooks, which OpenCode 2 runs (verified on
+2.1.2). Register the plugin as a directory on OpenCode 2 (`plugins`:
+`.opencode/plugins`, which holds an `index.js`); a plugin file path is
+skipped there. `scripts/install-hooks.mjs` picks the form from
+`opencode --version`. The OpenCode 2 `execute` code tool is not guarded yet.
+
+OpenCode notes for repos that use do-it:
+
+- OpenCode reads `AGENTS.md`, not `CLAUDE.md`. Put the standards in
+  `AGENTS.md` (a `CLAUDE.md` that is only `@AGENTS.md` works for both hosts).
+- OpenCode 2 has no todo tool or LSP by default and allows
+  `external_directory` by default; set it to `ask` or `deny` in
+  `opencode.json` if the guards should not be sidestepped by paths outside the
+  repo.
+- Session usage (tokens, cost) is available to an OpenCode plugin (the `event`
+  hook on 1.x, `ctx.event.subscribe` on 2.x), but do-it records none yet; see
+  `docs/issues/per-step-usage-record-on-do-it-work-items.md`.
 
 ## Configuration
 
@@ -219,7 +244,7 @@ every session which files are in use.
 ```bash
 npm test         # node --test, no dependencies
 npm run check    # frontmatter, line budget, skill calls, agent files and tools, links, OpenCode command drift
-npm run gen      # regenerate .opencode/command/ from the skills
+npm run gen      # regenerate .opencode/command/, commands/ and agents/
 npm run eval     # routing eval: does each prompt in evals/routing.json reach the right skill
 ```
 

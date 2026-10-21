@@ -95,7 +95,7 @@ test('sk- prefixed identifiers are not API keys', () => {
 
 test('OpenCode: apply_patch is guarded, removed lines are not, patched .env is', async () => {
   const { dir } = repo();
-  const { default: plugin } = await import('../.opencode/plugins/do-it.mjs');
+  const { DoItPlugin: plugin } = await import('../.opencode/plugins/do-it.mjs');
   const hooks = await plugin({ directory: dir });
   const before = (tool, args) => hooks['tool.execute.before']({ tool }, { args });
   await assert.rejects(

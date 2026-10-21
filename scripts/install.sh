@@ -10,7 +10,9 @@
 #
 # Skills:   skills/<name>    -> ~/.claude/skills/<name> and ~/.agents/skills/<name>
 # Agents:   agents/<name>.md -> ~/.claude/agents/<name>.md (Claude Code only)
-# Commands: .opencode/command/<name>.md -> ~/.config/opencode/command/<name>.md
+# Commands: .opencode/command/<name>.md  -> ~/.config/opencode/command/<name>.md  (OpenCode 1)
+#           .opencode/commands/<name>.md -> ~/.config/opencode/commands/<name>.md (OpenCode 2)
+# OpenCode agents: .opencode/agents/<name>.md -> ~/.config/opencode/agents/<name>.md
 # Hooks:    on by default; registered in ~/.claude/settings.json and
 #           ~/.config/opencode/opencode.json (backups written alongside).
 #
@@ -61,6 +63,8 @@ fi
 config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
 skill_dirs=("$HOME/.claude/skills" "$HOME/.agents/skills")
 command_dir="$config_home/opencode/command"
+commands_dir="$config_home/opencode/commands"
+oc_agent_dir="$config_home/opencode/agents"
 agent_dir="$HOME/.claude/agents"
 
 run() {
@@ -106,6 +110,8 @@ if [ "$uninstall" = 1 ]; then
   done
   unlink_ours "$agent_dir" "$root/agents"
   unlink_ours "$command_dir" "$root/.opencode/command"
+  unlink_ours "$commands_dir" "$root/.opencode/commands"
+  unlink_ours "$oc_agent_dir" "$root/.opencode/agents"
   if [ "$dry" = 1 ]; then
     node "$root/scripts/install-hooks.mjs" claude --remove --dry-run
     node "$root/scripts/install-hooks.mjs" opencode --remove --dry-run
@@ -133,6 +139,16 @@ done
 run mkdir -p "$command_dir"
 for cmd in "$root"/.opencode/command/*.md; do
   link "$cmd" "$command_dir/$(basename "$cmd")"
+done
+
+run mkdir -p "$commands_dir"
+for cmd in "$root"/.opencode/commands/*.md; do
+  link "$cmd" "$commands_dir/$(basename "$cmd")"
+done
+
+run mkdir -p "$oc_agent_dir"
+for agent in "$root"/.opencode/agents/*.md; do
+  link "$agent" "$oc_agent_dir/$(basename "$agent")"
 done
 
 if [ "$hooks" = 1 ]; then

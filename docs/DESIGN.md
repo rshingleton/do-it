@@ -281,12 +281,14 @@ do-it/
     lib/                      # host-neutral checks, context, guard decisions
     hooks.json                # plugin hook config
   .opencode/plugins/          # OpenCode plugin over hooks/lib
-  .opencode/command/*.md      # generated from skills, never hand-edited
+  .opencode/command/*.md      # generated from skills, never hand-edited (OpenCode 1)
+  .opencode/commands/*.md     # same files for OpenCode 2
+  .opencode/agents/*.md       # generated from agents/: deny-first permission map, no model
   .claude-plugin/             # plugin.json, marketplace.json
   scripts/
     install.sh                # symlinks + hook registration (hooks on by default)
     install-hooks.mjs         # idempotent settings merge, with backups
-    gen-opencode.mjs          # skills -> OpenCode commands (--check for drift)
+    gen-opencode.mjs          # skills -> OpenCode commands, agents -> OpenCode agents (--check for drift)
     check.mjs                 # frontmatter, line budget, skill calls, links, em-dashes, agent files and tools
   tests/                      # node --test, no dependencies
   docs/DESIGN.md, docs/adr/
@@ -296,6 +298,21 @@ do-it/
   `~/.agents/skills`), from a clone or piped from curl (it clones or pulls
   `~/.local/share/do-it`, then runs the clone's copy); the Claude plugin is
   the alternative for Claude Code.
+- OpenCode facts verified on 1.18.35 and the `dev` snapshot
+  (`docs/research/opencode-v2-integration.md`): the plugin hook object blocks
+  by throwing; a `permissions` list in an agent file is ignored (the agent
+  stays allow-all), so agents use the `permission` map; a Claude-style
+  `tools: Read, Grep` makes a 1.x config invalid (2.x reads it); `skills`, `instructions`
+  (frontmatter included), `commands/` and `command/` are all read. No `skills`
+  or `instructions` entry is installed: the symlinks already work, and the
+  plugin injects the posture each turn.
+- OpenCode usage: on 1.x a plugin's `event` hook sees `cost` and `tokens`
+  (input, output, reasoning, cache read/write) with `agent`, `modelID` and
+  `providerID` on each `message.updated` assistant message; on 2.x
+  `ctx.event.subscribe` yields `session.step.ended` and `session.usage.updated`
+  with `cost` and `tokens`, and agent and model come from the `context` hook.
+  Nothing records it until `work.mjs` has a usage field (the per-step usage
+  issue).
 - Org-specific material (Jira, `.compliance-rules/`) is configuration, not
   code: the repo works with neither.
 
@@ -359,7 +376,7 @@ do-it/
 
 ## 12. Not built yet
 
-- OpenCode 2 plugin API (the plugin targets the OpenCode 1 hooks).
+- OpenCode 2: the `execute` code tool is not covered by the write and shell guards (`docs/issues/execute-tool-in-opencode-2-bypasses-the-write-and-shell-guards.md`), and `permission.hook("evaluate")` is not used (it gets scanner-split shell pieces, not the whole command).
 - A CI workflow running `npm test` and `npm run check` (routing evals
   included) on every push.
 

@@ -262,6 +262,25 @@ test('install.sh links agents into ~/.claude/agents and uninstall removes only o
   assert.ok(fs.existsSync(foreign), 'foreign agent must stay');
 });
 
+test('install.sh links OpenCode commands (both dirs) and agents, and uninstall removes only ours', () => {
+  const home = tmp('do-it-home-');
+  const env = { ...process.env, HOME: home, XDG_CONFIG_HOME: path.join(home, '.config') };
+  const run = (...a) => spawnSync('bash', [path.join(ROOT, 'scripts/install.sh'), ...a], { encoding: 'utf8', env });
+  assert.equal(run('--no-hooks').status, 0);
+  const oc = path.join(home, '.config/opencode');
+  const links = [
+    ['command/do-it.md', '.opencode/command/do-it.md'],
+    ['commands/do-it.md', '.opencode/commands/do-it.md'],
+    ['agents/it-scout.md', '.opencode/agents/it-scout.md'],
+  ];
+  for (const [at, to] of links) assert.equal(fs.readlinkSync(path.join(oc, at)), path.join(ROOT, to));
+  const foreign = path.join(oc, 'agents/mine.md');
+  fs.writeFileSync(foreign, 'x');
+  run('--uninstall');
+  for (const [at] of links) assert.equal(fs.lstatSync(path.join(oc, at), { throwIfNoEntry: false }), undefined, at);
+  assert.ok(fs.existsSync(foreign), 'foreign agent must stay');
+});
+
 test('check.mjs: a backticked it-agent name must be a shipped agent or a skill', () => {
   const dangling = checkWith({ 'skills/zz-it/SKILL.md': SKILL('Start the `it-nope` agent (mid-tier model).') });
   assert.equal(dangling.status, 1, dangling.stdout);
