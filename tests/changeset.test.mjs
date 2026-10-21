@@ -143,7 +143,11 @@ test('repo config cannot replace, colour or narrow the diff', () => {
   assert.deepEqual(byFile(addedLines(path.join(dir, 'sub'), { against: 'staged' })), {
     '.gitattributes': [{ n: 1, text: '*.js diff=hide' }],
     'sub/x.js': [{ n: 2, text: 'real' }],
-    'top.js': [{ n: 1, text: 'top' }],
+    // The driver's output is read as well as the file, never instead of it.
+    'top.js': [
+      { n: 1, text: 'top' },
+      { n: 1, text: 'hidden' },
+    ],
   });
 });
 
@@ -168,6 +172,17 @@ test('untracked regular files are read whole; other entries get no lines', () =>
       { n: 2, text: 'two' },
     ],
   });
+});
+
+test('untracked as pathspecs reads only the untracked files they match', () => {
+  const { dir, write, commit } = gitRepo();
+  commit();
+  write('a.js', 'one\n');
+  write('b.js', 'two\n');
+  write('sub/c.js', 'three\n');
+  assert.deepEqual(byFile(addedLines(dir, { untracked: ['b.js'] })), { 'b.js': [{ n: 1, text: 'two' }] });
+  assert.deepEqual(byFile(addedLines(path.join(dir, 'sub'), { untracked: ['c.js'] })), { 'sub/c.js': [{ n: 1, text: 'three' }] });
+  assert.deepEqual(addedLines(dir, { untracked: ['nothing.js'] }), []);
 });
 
 test('a type change and an unmerged path still list every file with its lines', () => {
@@ -216,7 +231,7 @@ test('a submodule bump under diff.submodule=log does not hide other files', () =
   assert.ok('sub' in files);
 });
 
-test('a file git treats as binary is listed with no lines, as before addedLines', () => {
+test('a file git treats as binary is read as text', () => {
   const { dir, git, write, commit } = gitRepo();
   commit();
   write('nul.dat', 'x\0y\nseen\n');
@@ -224,7 +239,10 @@ test('a file git treats as binary is listed with no lines, as before addedLines'
   git('add', '-A');
   assert.deepEqual(byFile(addedLines(dir, { against: 'staged' })), {
     'a.js': [{ n: 1, text: 'a' }],
-    'nul.dat': [],
+    'nul.dat': [
+      { n: 1, text: 'x\0y' },
+      { n: 2, text: 'seen' },
+    ],
   });
 });
 
@@ -337,7 +355,7 @@ test('a file whose diff fails is listed with no lines and the rest are still rea
   }
 });
 
-test('a binary with a textconv driver is read through the driver', () => {
+test('a binary with a textconv driver is read raw and through the driver', () => {
   const { dir, git, write, commit } = gitRepo();
   write('.gitattributes', '*.bin diff=tx\n');
   git('config', 'diff.tx.textconv', "tr -d '\\000' <");
@@ -345,12 +363,13 @@ test('a binary with a textconv driver is read through the driver', () => {
   write('x.bin', 'head\0\nseen\n');
   git('add', '-A');
   assert.deepEqual(byFile(addedLines(dir, { against: 'staged' }))['x.bin'], [
-    { n: 1, text: 'head' },
+    { n: 1, text: 'head\0' },
     { n: 2, text: 'seen' },
+    { n: 1, text: 'head' },
   ]);
 });
 
-test('a binary with no textconv driver costs one diff', () => {
+test('a binary costs two diffs: the listing view, then as text', () => {
   const { dir, git, write, commit } = gitRepo();
   write('.gitattributes', '*.tx diff=tx\n');
   git('config', 'diff.tx.textconv', 'cat');
@@ -372,8 +391,8 @@ test('a binary with no textconv driver costs one diff', () => {
     process.env.PATH = saved;
   }
   const calls = fs.readFileSync(log, 'utf8').split('\n').filter(Boolean).length;
-  // One diff per file, plus the listing and a few lookups.
-  assert.ok(calls <= 20 + 6, `${calls} git calls for 20 binaries`);
+  // Two diffs per file, plus the listing and a few lookups.
+  assert.ok(calls <= 2 * 20 + 6, `${calls} git calls for 20 binaries`);
 });
 
 test('GIT_DIFF_OPTS and diff.suppressBlankEmpty do not lose or shift lines', () => {
