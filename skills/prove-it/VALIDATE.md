@@ -1,13 +1,13 @@
 # Validating Must findings
 
 A reviewer that found a problem is the worst judge of whether it is real. Before
-a **Must** counts, a fresh subagent tries to confirm it from the code alone.
-Should and Nice findings skip this step: they never block.
+a **Must** counts, a fresh `it-reviewer` agent (mid-tier model) tries to
+confirm it from the code alone. Should and Nice findings skip this step: they never block.
 
 ## Who gets what
 
-One validator subagent per batch of up to five Musts, on the mid-tier model
-(`model: sonnet` in Claude Code). For each finding it gets only:
+One validator (an `it-reviewer` agent, mid-tier model) per batch of up to
+five Musts. For each finding it gets only:
 
 - the claim, in one sentence ("`settle()` charges twice when the gateway times
   out");

@@ -2,9 +2,10 @@
 // entry point and the OpenCode plugin map their own events and tool names
 // onto this and translate the result into their own protocols.
 //
-//   decide(event, { kind, args, cwd }, { env })
+//   decide(event, { kind, args, cwd, readOnly }, { env })
 //     event  'session' | 'before' | 'after'
 //     kind   'edit' | 'shell' | null (a tool do-it does not check)
+//     readOnly  session only: the agent cannot edit, so skip the coding posture
 //   returns { block?, context?, notice? }
 //     block    the reason to refuse the tool (only before it runs)
 //     context  text for the model
@@ -15,22 +16,22 @@
 import { sessionContext } from './context.mjs';
 import { setup, beforeEdit, afterEdit, beforeShell } from './guard.mjs';
 
-export function decide(event, { kind = null, args = {}, cwd = process.cwd() } = {}, { env = process.env } = {}) {
+export function decide(event, { kind = null, args = {}, cwd = process.cwd(), readOnly = false } = {}, { env = process.env } = {}) {
   try {
-    return decideOrThrow(event, kind, args || {}, cwd, env);
+    return decideOrThrow(event, kind, args || {}, cwd, env, readOnly);
   } catch (e) {
     return { notice: `do-it hook ${event} failed open: ${e.message}` };
   }
 }
 
-function decideOrThrow(event, kind, args, cwd, env) {
+function decideOrThrow(event, kind, args, cwd, env, readOnly) {
   // Most tool calls are tools do-it does not check: skip loading config.
   if (event !== 'session' && !kind) return {};
   const ctx = setup(cwd, env);
   if (!ctx.enabled) return {};
 
   if (event === 'session') {
-    let text = sessionContext(ctx.root, ctx.cfg);
+    let text = sessionContext(ctx.root, ctx.cfg, { readOnly });
     if (ctx.error) text += `\n\ndo-it: ${ctx.error}`;
     return { context: text };
   }

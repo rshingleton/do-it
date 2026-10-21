@@ -28,8 +28,10 @@ assume-or-ask rule in `it-core`):
 - Before each round, look up anything the code, ADRs, the area's context
   (it-core), the issue or `docs/reference/` can answer. Never ask the user what a search
   would tell you.
-- A slow lookup (a large repo, an external doc) can run in a read-only
-  subagent while you ask the questions that do not depend on it.
+- A slow lookup in a large repo can run in a read-only `it-scout` agent
+  (cheap tier) while you ask the questions that do not depend on it. An
+  external doc needs web tools the agent lacks: call the Skill tool with
+  "look-it-up".
 - Reversible, low-impact choices are not questions: take the obvious default
   and list it as an assumption in the round.
 

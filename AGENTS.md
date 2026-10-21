@@ -8,6 +8,8 @@ not an application.
 - `skills/<name>/SKILL.md`: one directory per skill, flat. Detail goes in
   sibling files one level deep. Skills link to each other only within
   `skills/` (`../do-it/STATE.md`), so links survive a symlink install.
+- `agents/`: role agents (scout, reviewer, builder, planner, skeptic), each
+  pinning its model and tools; skills name them instead of describing a tier.
 - `hooks/`: `claude.mjs` (Claude Code entry), `lib/` (host-neutral checks
   and context), `hooks.json` (plugin hook config).
 - `.opencode/plugins/`: the OpenCode plugin, a thin adapter over `hooks/lib`.

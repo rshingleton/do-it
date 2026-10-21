@@ -71,6 +71,21 @@ export function listSkills() {
     });
 }
 
+export const AGENTS_DIR = path.join(ROOT, 'agents');
+
+// One entry per agents/<name>.md: the role definitions skills hand work to.
+export function listAgents() {
+  if (!fs.existsSync(AGENTS_DIR)) return [];
+  return fs
+    .readdirSync(AGENTS_DIR)
+    .filter((f) => f.endsWith('.md'))
+    .map((f) => {
+      const file = path.join(AGENTS_DIR, f);
+      const text = fs.readFileSync(file, 'utf8');
+      return { name: f.replace(/\.md$/, ''), file, text, ...parseFrontmatter(text) };
+    });
+}
+
 export function userInvoked(skill) {
   return String(skill.meta['disable-model-invocation']) === 'true';
 }

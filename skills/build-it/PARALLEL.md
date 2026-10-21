@@ -30,10 +30,10 @@ squash cannot collide with the uncommitted plan.
 git worktree add "$root/phase-N" -b "do-it/<id>--phase-N" "do-it/<id>"
 ```
 
-Start one background subagent per phase, on the mid-tier model (`model:
-sonnet` in Claude Code). Give it pointers, not pasted content: the worktree
-path, and the absolute paths of the phase file and the plan README in the
-user's checkout (read-only; only the main session writes the state block). Tell it to:
+Start one background `it-builder` agent per phase (mid-tier model). Give it
+pointers, not pasted content: the worktree path, and the absolute paths of the
+phase file and the plan README in the user's checkout (read-only; only the
+main session writes the state block). Tell it to:
 
 1. Build the phase per build-it §3, inside its worktree only.
 2. Commit everything in the worktree as `<id> phase-N (scratch)`.

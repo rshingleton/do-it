@@ -222,6 +222,58 @@ test('check.mjs: em-dash allowed in inline code and ~~~ fences; Skill-tool calls
   assert.equal(bad.status, 1, bad.stdout);
 });
 
+test('check.mjs: a paragraph that starts a subagent must name its model tier', () => {
+  const bad = checkWith({ 'skills/zz-it/SKILL.md': SKILL('Start one subagent with the plan.') });
+  assert.equal(bad.status, 1, bad.stdout);
+  assert.match(bad.stdout, /model tier/);
+  const ok = checkWith({ 'skills/zz-it/SKILL.md': SKILL('Start one subagent on the mid-tier\nmodel with the plan.') });
+  assert.equal(ok.status, 0, ok.stdout);
+});
+
+const AGENT = (name, extra = 'model: sonnet\ntools: Read, Grep, Glob, Bash') => `---\nname: ${name}\ndescription: Test agent.\n${extra}\n---\n\nBrief.\n`;
+
+test('check.mjs validates agent files: name, model, and read-only tools', () => {
+  const ok = checkWith({ 'agents/it-reviewer.md': AGENT('it-reviewer') });
+  assert.equal(ok.status, 0, ok.stdout);
+  const renamed = checkWith({ 'agents/it-reviewer.md': AGENT('it-other') });
+  assert.match(renamed.stdout, /agents\/it-reviewer\.md: name "it-other" does not match/);
+  const noModel = checkWith({ 'agents/it-reviewer.md': AGENT('it-reviewer', 'tools: Read') });
+  assert.match(noModel.stdout, /agents\/it-reviewer\.md: missing model/);
+  const writes = checkWith({ 'agents/it-reviewer.md': AGENT('it-reviewer', 'model: sonnet\ntools: Read, Edit') });
+  assert.match(writes.stdout, /agents\/it-reviewer\.md: read-only agent lists Edit/);
+  const noTools = checkWith({ 'agents/it-scout.md': AGENT('it-scout', 'model: haiku') });
+  assert.match(noTools.stdout, /agents\/it-scout\.md: read-only agent needs a tools list/);
+  const list = checkWith({ 'agents/it-reviewer.md': AGENT('it-reviewer', 'model: sonnet\ntools:\n  - Read\n  - Edit') });
+  assert.match(list.stdout, /read-only agent lists Edit/);
+  const planner = checkWith({ 'agents/it-planner.md': AGENT('it-planner', 'model: opus\ntools: Read, Write') });
+  assert.equal(planner.status, 0, planner.stdout);
+});
+
+test('install.sh links agents into ~/.claude/agents and uninstall removes only ours', () => {
+  const home = tmp('do-it-home-');
+  const env = { ...process.env, HOME: home, XDG_CONFIG_HOME: path.join(home, '.config') };
+  const run = (...a) => spawnSync('bash', [path.join(ROOT, 'scripts/install.sh'), ...a], { encoding: 'utf8', env });
+  assert.equal(run('--no-hooks').status, 0);
+  const link = path.join(home, '.claude/agents/it-scout.md');
+  assert.equal(fs.readlinkSync(link), path.join(ROOT, 'agents/it-scout.md'));
+  assert.equal(fs.existsSync(path.join(home, '.agents/agents')), false, 'agents go to Claude Code only');
+  const foreign = path.join(home, '.claude/agents/mine.md');
+  fs.writeFileSync(foreign, 'x');
+  run('--uninstall');
+  assert.equal(fs.lstatSync(link, { throwIfNoEntry: false }), undefined);
+  assert.ok(fs.existsSync(foreign), 'foreign agent must stay');
+});
+
+test('check.mjs: a backticked it-agent name must be a shipped agent or a skill', () => {
+  const dangling = checkWith({ 'skills/zz-it/SKILL.md': SKILL('Start the `it-nope` agent (mid-tier model).') });
+  assert.equal(dangling.status, 1, dangling.stdout);
+  assert.match(dangling.stdout, /`it-nope` is neither a skill nor a file in agents\//);
+  const named = checkWith({ 'skills/zz-it/SKILL.md': SKILL('Start one `it-reviewer` agent with the plan.') });
+  assert.equal(named.status, 0, named.stdout);
+  const skill = checkWith({ 'skills/zz-it/SKILL.md': SKILL('Follow the `it-core` posture.') });
+  assert.equal(skill.status, 0, skill.stdout);
+});
+
 test('importing gen-opencode.mjs does not run it (bug 10)', () => {
   const url = new URL('../scripts/gen-opencode.mjs', import.meta.url).href;
   const r = spawnSync('node', ['--input-type=module', '-e', `const m = await import(${JSON.stringify(url)}); console.log(typeof m.expected)`], {

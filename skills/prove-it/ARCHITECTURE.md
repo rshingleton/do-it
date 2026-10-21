@@ -1,6 +1,7 @@
 # Architecture reviewer (lane M)
 
-Brief for a fresh-context subagent. Use the `design-it` vocabulary
+Brief for a fresh-context `it-reviewer` agent (mid-tier model). Use the
+`design-it` vocabulary
 (module, interface, depth, seam, adapter, locality).
 
 Scope: every module the change adds or touches.

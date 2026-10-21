@@ -9,13 +9,14 @@
 # the clone's copy with the same options.
 #
 # Skills:   skills/<name>    -> ~/.claude/skills/<name> and ~/.agents/skills/<name>
+# Agents:   agents/<name>.md -> ~/.claude/agents/<name>.md (Claude Code only)
 # Commands: .opencode/command/<name>.md -> ~/.config/opencode/command/<name>.md
 # Hooks:    on by default; registered in ~/.claude/settings.json and
 #           ~/.config/opencode/opencode.json (backups written alongside).
 #
 # An existing link or directory that is not ours is left alone unless --force.
 # Using the Claude Code plugin instead? Skip this script for Claude; the plugin
-# carries skills and hooks itself.
+# carries skills, agents and hooks itself.
 set -euo pipefail
 
 # Piped (`bash <(curl ...)`, `curl | bash`), the source is a pipe or unset.
@@ -30,7 +31,7 @@ for arg in "$@"; do
     --dry-run) dry=1 ;;
     --uninstall) uninstall=1 ;;
     -h | --help)
-      if [ -f "$src" ]; then sed -n '2,19p' "$src"; else echo "usage: install.sh [--no-hooks] [--force] [--dry-run] [--uninstall]"; fi
+      if [ -f "$src" ]; then sed -n '2,20p' "$src"; else echo "usage: install.sh [--no-hooks] [--force] [--dry-run] [--uninstall]"; fi
       exit 0 ;;
     *) echo "unknown option: $arg" >&2; exit 2 ;;
   esac
@@ -60,6 +61,7 @@ fi
 config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
 skill_dirs=("$HOME/.claude/skills" "$HOME/.agents/skills")
 command_dir="$config_home/opencode/command"
+agent_dir="$HOME/.claude/agents"
 
 run() {
   if [ "$dry" = 1 ]; then echo "would: $*"; else "$@"; fi
@@ -102,6 +104,7 @@ if [ "$uninstall" = 1 ]; then
   for dir in "${skill_dirs[@]}"; do
     unlink_ours "$dir" "$root/skills"
   done
+  unlink_ours "$agent_dir" "$root/agents"
   unlink_ours "$command_dir" "$root/.opencode/command"
   if [ "$dry" = 1 ]; then
     node "$root/scripts/install-hooks.mjs" claude --remove --dry-run
@@ -120,6 +123,11 @@ for dir in "${skill_dirs[@]}"; do
   for skill in "$root"/skills/*/; do
     link "${skill%/}" "$dir/$(basename "$skill")"
   done
+done
+
+run mkdir -p "$agent_dir"
+for agent in "$root"/agents/*.md; do
+  link "$agent" "$agent_dir/$(basename "$agent")"
 done
 
 run mkdir -p "$command_dir"

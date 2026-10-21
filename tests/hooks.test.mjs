@@ -169,6 +169,21 @@ test('claude hook protocol: exit 2 blocks, JSON context on start, fail open on j
   const sub = hook('subagent-start', { cwd: root });
   assert.match(JSON.parse(sub.stdout).hookSpecificOutput.additionalContext, /Core posture/);
 
+  const explorer = hook('subagent-start', { cwd: root, agent_type: 'Explore' });
+  const explorerText = JSON.parse(explorer.stdout).hookSpecificOutput.additionalContext;
+  assert.doesNotMatch(explorerText, /Core posture/);
+  assert.match(explorerText, /project docs/);
+  for (const type of ['it-scout', 'it-reviewer', 'it-skeptic', 'do-it:it-reviewer']) {
+    const text = JSON.parse(hook('subagent-start', { cwd: root, agent_type: type }).stdout).hookSpecificOutput.additionalContext;
+    assert.doesNotMatch(text, /Core posture/, type);
+  }
+  for (const type of ['it-builder', 'it-planner', 'do-it:it-builder']) {
+    const text = JSON.parse(hook('subagent-start', { cwd: root, agent_type: type }).stdout).hookSpecificOutput.additionalContext;
+    assert.match(text, /Core posture/, type);
+  }
+  const builder = hook('subagent-start', { cwd: root, agent_type: 'general-purpose' });
+  assert.match(JSON.parse(builder.stdout).hookSpecificOutput.additionalContext, /Core posture/);
+
   const off = hook('pre-tool', { cwd: root, tool_name: 'Write', tool_input: { file_path: '.env', content: '' } }, { DO_IT_HOOKS: 'off' });
   assert.equal(off.status, 0);
 
@@ -202,4 +217,15 @@ test('OpenCode plugin injects context and throws on HIGH edits', async () => {
   assert.match(out.system[0], /Core posture/);
   await assert.rejects(hooks['tool.execute.before']({ tool: 'write' }, { args: { filePath: 'a.js', content: FAKE_AWS } }), /aws-access-key/);
   await hooks['tool.execute.before']({ tool: 'read' }, { args: { filePath: '.env' } });
+});
+
+test('every agent with a tools list and no write tool is in the hook read-only set', async () => {
+  const { READ_ONLY_AGENTS } = await import('../hooks/claude.mjs');
+  const { listAgents } = await import('../scripts/lib/skills.mjs');
+  const write = ['Write', 'Edit', 'MultiEdit', 'NotebookEdit'];
+  for (const a of listAgents()) {
+    const tools = String(a.meta.tools ?? '').split(/[\s,\[\]-]+/).filter(Boolean);
+    const readOnly = tools.length > 0 && !tools.some((t) => write.includes(t));
+    assert.equal(READ_ONLY_AGENTS.has(a.name), readOnly, `${a.name}: hook set and tools list disagree`);
+  }
 });

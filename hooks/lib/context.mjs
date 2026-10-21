@@ -70,9 +70,11 @@ export function standardsPointers(root, complianceDir = '.compliance-rules') {
   return { found, rules };
 }
 
-export function sessionContext(root, cfg) {
+// readOnly: the agent cannot edit (an explorer or reviewer), so the coding
+// posture is left out; it still gets the standards, project docs and code map.
+export function sessionContext(root, cfg, { readOnly = false } = {}) {
   const { found, rules } = standardsPointers(root, cfg.DO_IT_COMPLIANCE_DIR);
-  const lines = [coreText()];
+  const lines = readOnly ? [] : [coreText()];
   if (found.length || rules.length) {
     lines.push('', '## This repo\'s standards', '');
     if (found.length) lines.push(`Read before editing code they govern: ${found.map((f) => `\`${f}\``).join(', ')}.`);

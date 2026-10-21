@@ -33,9 +33,10 @@ Write files only when the user asked for docs or ran `/map-it` directly.
 
 ## 2. Explore
 
-With a host that has an exploring subagent, send it with the scope and
-[LAYOUT.md](LAYOUT.md) as the brief, very thorough, and work from its
-findings; otherwise explore in the main context. Find:
+With a host that has an exploring subagent, send the `it-scout` agent (cheap
+tier) with the scope and [LAYOUT.md](LAYOUT.md) as the brief, very thorough,
+cap its summary at 500 words, and work from its findings; otherwise explore in
+the main context. Find:
 
 - modules and what each is responsible for, with paths;
 - entry points: routes, CLIs, jobs, workers, public APIs, `main` paths;
