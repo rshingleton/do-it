@@ -221,11 +221,8 @@ test('OpenCode plugin injects context and throws on HIGH edits', async () => {
 
 test('every agent with a tools list and no write tool is in the hook read-only set', async () => {
   const { READ_ONLY_AGENTS } = await import('../hooks/claude.mjs');
-  const { listAgents } = await import('../scripts/lib/skills.mjs');
-  const write = ['Write', 'Edit', 'MultiEdit', 'NotebookEdit'];
+  const { listAgents, readsOnly } = await import('../scripts/lib/skills.mjs');
   for (const a of listAgents()) {
-    const tools = String(a.meta.tools ?? '').split(/[\s,\[\]-]+/).filter(Boolean);
-    const readOnly = tools.length > 0 && !tools.some((t) => write.includes(t));
-    assert.equal(READ_ONLY_AGENTS.has(a.name), readOnly, `${a.name}: hook set and tools list disagree`);
+    assert.equal(READ_ONLY_AGENTS.has(a.name), readsOnly(a), `${a.name}: hook set and tools list disagree`);
   }
 });

@@ -20,7 +20,9 @@ uncommitted for the user to review; `ship-it` commits.
   has resolved it, then `work.mjs event <id> unblock`. A blocked phase
   (lane M): `unblock --phase <n>` once its blocker is resolved.
 - `work.mjs event <id> start`: sets `status: building`, and `base_ref` on the
-  first run only.
+  first run only. Before that first run, `git status --porcelain` showing
+  changes outside `docs/planning/`: the audit will flag them as unplanned.
+  Ask the user to commit them first or add them to the plan.
 - Discover standards and tooling once per session per [STANDARDS.md](STANDARDS.md).
 - Tracker: when the state block names a tracker ref, call the Skill tool with
   "track-it" and run `start` on it (and on the phase ref). A tracker failure

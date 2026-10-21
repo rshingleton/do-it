@@ -15,8 +15,9 @@
   listed under **Not confirmed** with the validator's reason.
 - **One numbering** across groups, Must first, so the user can say "fix 2
   and 5".
-- **Four parts**, one or two sentences each: what it is, the problem, the
-  smallest fix, the cost of skipping it.
+- **One line each**, under 40 words:
+  `n. Must|Should|Nice | file:line | claim | case. Fix: <smallest fix>.`
+  The user asks for a finding's full write-up when they want it.
 - review-it's Spec and Standards reports go in verbatim under a one-line
   verdict; do not rerank them.
 
@@ -37,15 +38,8 @@ Change: <base_ref>..working tree, <N> files. Date: <ISO date>.
 
 ## Findings
 
-### Must
-1. **`.env` added with a live token** (`config/.env:3`)
-   - **What this is:** The change adds `config/.env`, read at startup.
-   - **Problem:** Line 3 holds a real token.
-   - **Fix:** Delete it, add `config/.env` to `.gitignore`, add `.env.example`.
-   - **If we skip it:** The token ships with the first commit.
-
-### Should
-2. ...
+1. Must | `config/.env:3` | live token committed | read at startup, ships with first commit. Fix: delete it, ignore `config/.env`, add `.env.example`.
+2. Should | ...
 
 ## Not confirmed
 - <claim>: rejected by validation, <reason>. Overrule by saying so.

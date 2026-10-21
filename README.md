@@ -245,5 +245,7 @@ These skills are this repo's own rewrites of ideas from
 (improve-codebase-architecture), and `retro-it` (retro). Ideas adapted
 from [addyosmani/agent-skills](https://github.com/addyosmani/agent-skills),
 [denyszorinets/ballet](https://github.com/denyszorinets/ballet),
-[dietrichgebert/ponytail](https://github.com/dietrichgebert/ponytail) and
+[dietrichgebert/ponytail](https://github.com/dietrichgebert/ponytail),
+[juliusbrussee/caveman](https://github.com/juliusbrussee/caveman) (terse
+subagent reports) and
 [multica-ai/andrej-karpathy-skills](https://github.com/multica-ai/andrej-karpathy-skills).

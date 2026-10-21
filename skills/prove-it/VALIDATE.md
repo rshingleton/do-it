@@ -25,13 +25,13 @@ conversation. The validator starts cold on purpose.
 > wrong. Reject it if the code does not do what the claim says, if the case
 > cannot happen (a guard, a type, a caller that never passes it), if a
 > recorded decision in the plan or an ADR covers it, or if a linter already
-> catches it. Answer per claim: `confirmed` with the evidence, or `rejected`
-> with the reason. Under 150 words per claim.
+> catches it. One line per claim: `confirmed | file:line | evidence` or
+> `rejected | reason`. Under 40 words a line.
 
 ## Using the answers
 
 - `confirmed`: the finding stays a Must, with the validator's evidence added to
-  its Problem line.
+  its case.
 - `rejected`: the finding is dropped from the Must group and listed under
   **Not confirmed** in the report with the validator's reason, so the user can
   overrule it. It does not block.

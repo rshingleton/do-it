@@ -122,6 +122,10 @@ export function workItems({ planningDir, write = writeItem }) {
     set(id, key, value) {
       if (!SETTABLE.includes(key)) throw new Error(`set takes one of: ${SETTABLE.join(', ')} (status changes go through event)`);
       if (value === undefined) throw new Error(`set ${key} needs a value`);
+      // An empty string or null would normalize to [] and wipe the field; clearing is an explicit [].
+      if (key !== 'title' && key !== 'lane' && (value === null || (typeof value === 'string' && !value.trim()))) {
+        throw new Error(`set ${key} got an empty value; pass [] to clear it`);
+      }
       if (key !== 'lane') {
         return update(id, (state) => normalize({ ...state, [key]: key === 'phases' ? mergePhases(state.phases || [], value) : value }));
       }

@@ -62,16 +62,17 @@ the diff commands and file list, never this conversation.
 
 > Find (a) requirements missing or only partly done, (b) behaviour added that
 > nobody asked for, (c) requirements that look done but behave wrongly.
-> Quote the spec line for each. Under 400 words.
+> One line per finding: `Must|Should|Nice | file:line | claim | case`, the
+> case quoting the spec line. Under 40 words a line, 300 in all.
 
-**Standards reviewer** gets the list of standards files and the full text of
-[SMELLS.md](SMELLS.md) and [BASELINE.md](BASELINE.md) (it cannot open files
-you only mention) and this brief:
+**Standards reviewer** gets the paths of the standards files,
+[SMELLS.md](SMELLS.md) and [BASELINE.md](BASELINE.md), and this brief:
 
 > Find (a) breaches of a documented rule, citing the file and the rule, and
-> (b) baseline smells, named and with the hunk quoted. Mark which are hard
-> breaches and which are judgement calls; smells are always judgement calls
-> and a documented rule overrides them. Under 400 words.
+> (b) baseline smells, named and with the hunk quoted. A smell is a judgement
+> call, never Must, and a documented rule overrides it. One line per finding:
+> `Must|Should|Nice | file:line | claim | case`. Under 40 words a line, 300
+> in all.
 
 ## 5. Report
 
