@@ -3,7 +3,7 @@
 Nice-to-haves and things to circle back to. Managed by todo-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T71
+Next id: T72
 
 ## Open
 
@@ -65,3 +65,4 @@ Next id: T71
 - [ ] T68 Move the shell lexer (`commandWords`, `parseGitCommit`) from hooks/lib/guard.mjs to its own hooks/lib/shell.mjs with direct tests; do with T65 and T66 `idea` (deepen-it 2026-10-19, candidate 4)
 - [ ] T69 In an apply_patch, a unified `---`/`+++ <path>` pair names <path> for path rules only; also scan the added lines after it under <path>, as unifiedFiles does, so an embedded unified section cannot steer a `files`-scoped rule or `exceptFilePattern` `debt` (hooks/lib/checks.mjs applyPatchFiles; host-decision-layer audit round 5, #30)
 - [ ] T70 Added lines after a delete (`*** Delete File:`, `+++ /dev/null`) are scanned under the deleted path, so an `exceptFilePattern` on that path exempts them; scan them under '' as well `debt` (hooks/lib/checks.mjs; host-decision-layer audit round 5, #31)
+- [ ] T71 The commit hook warns (never blocks) when a `git commit -m` message does not start with `<id>: ` as it-core Git says `idea` (hooks/lib/guard.mjs beforeShell; jira-fields-commit-ids, 2026-10-20)

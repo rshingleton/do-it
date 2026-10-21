@@ -27,15 +27,16 @@ block the same way.
 |---------|------|-------|---------------|----------------|
 | `config` | Effective config, secrets redacted, with the file each value came from, and `untrusted` keys | | | |
 | `trust` | Pins the repo's current `DO_IT_LINT_CMD` / `JIRA_BASE_URL` values for this user ([CONFIG.md](CONFIG.md#trust)). Run it only when the user says to, after showing them the values | | | |
-| `create --title T --type bug\|feature\|todo\|defer --body-file F` | New issue | `docs/issues/<slug>.md` | `gh issue create` | Task (Bug for `bug`) |
+| `create --title T --type bug\|feature\|todo\|defer --body-file F` | New issue | `docs/issues/<slug>.md` | `gh issue create` | Task (Bug for `bug`); also `--project`, `--component` (repeatable) and `--epic` or `--parent` (a sub-task), each refused when unset and not `none` |
 | `get <ref>` | Title, status, body, comments | reads the file | `gh issue view` | issue + comments |
 | `comment <ref> --body-file F` | Add a comment | appends to `## Log` | `gh issue comment` | comment (wiki markup) |
 | `start <ref>` | Work began | `status: in-progress` | adds `DO_IT_GITHUB_START_LABEL` if set | assigns `JIRA_ASSIGNEE` if unassigned, transition `JIRA_START_TRANSITION` |
 | `close <ref> --body-file F` | Work shipped | `status: closed` | `gh issue close` | comment, transition `JIRA_DONE_TRANSITION` |
-| `publish --spec F` | Parent + one child per phase | nothing | parent issue with a task list | Epic (or `JIRA_DEFAULT_EPIC`) + Tasks |
+| `publish --spec F` | Parent + one child per phase | nothing | parent issue with a task list | Epic (or `JIRA_DEFAULT_EPIC`) + Tasks, all with the spec's `components` |
 
 `publish` takes JSON: `{"title", "body", "phases": [{"n", "title", "body"}],
-"parent"?}`. Write it to a temp file or pipe it with `--spec -`. The caller
+"parent"?, "components"?, "project"?}` (`parent: "none"` files the phases
+with no epic). Write it to a temp file or pipe it with `--spec -`. The caller
 records the returned `parent` and `phases` under `tracker:` in the state
 block, through the work-item script ([STATE.md](../do-it/STATE.md)).
 

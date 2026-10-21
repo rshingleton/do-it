@@ -1,6 +1,6 @@
 # The setup proposal
 
-One numbered list, so the user can answer "yes, but 2 is github and skip 4".
+One numbered list, so the user can answer "do it, but 2 is github and skip 4".
 
 ## 1. `.do-it/config.env` (committed, no secrets)
 
@@ -15,14 +15,16 @@ DO_IT_LINT_CMD=npx eslint --max-warnings=0 {file}
 - `DO_IT_TRACKER`: `local` by default. `github` when `origin` is GitHub and
   its issues are in use (offer it; confirm in the proposal); `jira` when
   commit subjects or `.env.example` show Jira. For
-  Jira add `JIRA_BASE_URL` and `JIRA_PROJECT_KEY` here, and name the keys the
-  user sets privately (`JIRA_API_TOKEN`, plus `JIRA_EMAIL` on Cloud).
+  Jira add `JIRA_BASE_URL` and `JIRA_PROJECT_KEY` here, propose
+  `JIRA_COMPONENTS` and `JIRA_DEFAULT_EPIC` (or `none`; new issues need both
+  settled), and name the keys the user sets privately (`JIRA_API_TOKEN`, plus
+  `JIRA_EMAIL` on Cloud).
 - `DO_IT_LINT_CMD`: only when the linter accepts a file path and runs in a
   few seconds; otherwise leave it out and say why.
 - `DO_IT_LINT_CMD` and `JIRA_BASE_URL` here apply only once each developer
   trusts them (the track-it skill's CONFIG.md, Trust). Say so in the
   proposal; after writing, offer `tracker.mjs trust` and run it only on the
-  user's yes.
+  user's "do it".
 - Doc paths (`DO_IT_CONTEXT`, `DO_IT_CHANGELOG`, `DO_IT_ADR_DIR`,
   `DO_IT_REFERENCE_DIR`): only when detection picked the wrong file.
 - `DO_IT_CONTEXT_MAP`: only when the repo's map exists at a path other than

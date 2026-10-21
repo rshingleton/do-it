@@ -33,7 +33,7 @@ The user is stopped only at: plan approval (for M, the grill rounds, whose
 last round is the approval; for L, the roadmap approval), a build stop
 condition, a third failed audit, and the ship question, plus a one-line
 commit confirmation after reviewing work left uncommitted. Work stays
-uncommitted in the working tree until ship, and ship commits only on a yes. Risk-area work
+uncommitted in the working tree until ship, and ship commits only on a "do it". Risk-area work
 gets a rollback note at ship. Between steps, `/do-it` suggests a fresh
 session when the context is getting long; the state block makes that free.
 
@@ -191,8 +191,11 @@ Layered dotenv files: `~/.config/do-it/config.env` (yours, may hold secrets)
 (gitignored) → environment. A lint command or Jira URL set in the repo's
 files applies only after you trust those values (`tracker.mjs trust`), so a
 cloned repo cannot run commands or redirect your token. The tracker defaults to local files under
-`docs/issues/`; GitHub uses `gh`, Jira uses REST v2 with a token. Full key
-list: [skills/track-it/CONFIG.md](skills/track-it/CONFIG.md).
+`docs/issues/`; GitHub uses `gh`, Jira uses REST v2 with a token. A new Jira
+issue needs its project, components and epic or parent settled
+(`JIRA_COMPONENTS`, `JIRA_DEFAULT_EPIC`, or `none` for either). Commits start
+`<id>: ` with the Jira key, `gh-<n>` or the local tracking id. Full key list:
+[skills/track-it/CONFIG.md](skills/track-it/CONFIG.md).
 
 ```bash
 node skills/track-it/scripts/tracker.mjs config   # effective config, secrets redacted

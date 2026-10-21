@@ -23,8 +23,7 @@ Hooks inject this file into every session and subagent. Project standards and
 
 Take the first rung that fully works:
 
-1. Does it need to exist? Skip options nobody asked for; name them under
-   Skipped.
+1. Does it need to exist? Skip what nobody asked for; name it under Skipped.
 2. Already in this codebase? Use it the way the surrounding code does.
 3. Standard library or platform? Use it, unless the project has its own.
 4. An installed dependency? Use it. Never add a dependency for a few lines.
@@ -49,9 +48,8 @@ in shared code is fixed once, at the root, after reading every caller.
   test. Trivial edits need none.
 - Run the project's own test, lint, format and type-check commands; do not
   re-check by eye what tooling enforces.
-- A UI change is not done until it has been seen rendering where it lives (a
-  browser tool, a headless script, or a screenshot). If nothing can show it,
-  say so under Not checked; never claim it works from the code alone.
+- A UI change is done once seen rendering where it lives, never from the code
+  alone; if no browser, script or screenshot can show it, say so under Not checked.
 
 ## Recorded shortcuts
 
@@ -71,10 +69,9 @@ code, comments or `.env` files.
 
 ## Project docs
 
-Skills name the defaults (`CONTEXT-MAP.md`, `CONTEXT.md`, `CHANGELOG.md`,
-`docs/adr/`, `docs/reference/`); use this repo's resolved paths, listed under
-"project docs" in session context (or `tracker.mjs config` in the track-it
-skill when hooks are off). Never create a second context file or changelog.
+Skills name the default doc paths; use this repo's resolved ones, listed under
+"project docs" in session context (`tracker.mjs config` in the track-it skill
+when hooks are off). Never create a second context file or changelog.
 
 **The area's context:** for work in a component, read the context map, then
 the area's `CONTEXT.md` and `docs/adr/` (no map: the root `CONTEXT.md`), per
@@ -84,10 +81,12 @@ are a last fallback; reading never creates a context file.
 ## Git
 
 Do not commit, push, or rewrite history unless the user asks or `ship-it` is
-running. Work stays in the working tree for the user to review. One
-exception: a `build-it` parallel implementer commits on its own `do-it/*`
-scratch branch, in its own worktree, as `build-it/PARALLEL.md` says; those
-commits never reach the user's branch.
+running; work stays in the working tree for review. One exception: a `build-it`
+parallel implementer commits on its own `do-it/*` scratch branch, in its own
+worktree (`build-it/PARALLEL.md`); those commits never reach the user's branch.
+
+A commit message starts `<id>: `: the Jira key, `gh-<n>` (GitHub `#n`), or the
+local tracking id (work id, local issue slug, to-do id), never a path or made-up slug.
 
 ## Close every turn
 
@@ -97,4 +96,5 @@ First line: what happened. Then one line:
 Skipped: <...or none>. Not checked: <...or none>. Risk: <...or none>.
 ```
 
-Last line: the next step.
+Last line: the next step. A stop that waits on the user asks them to say "do
+it" to go ahead; "do it" counts as yes.

@@ -6,12 +6,14 @@
 //   tracker.mjs trust      pin the repo's DO_IT_LINT_CMD / JIRA_BASE_URL values (only on the user's say-so)
 //   tracker.mjs create --title T [--type bug|feature|todo|defer] [--body B | --body-file F]
 //                      [--source S] [--external-id X] [--label L]... [--tracker local|github|jira]
+//                      Jira: [--project KEY] [--component C|none]... [--epic KEY|none | --parent KEY]
+//                      (defaults JIRA_PROJECT_KEY, JIRA_COMPONENTS, JIRA_DEFAULT_EPIC; one of each is required)
 //   tracker.mjs get <ref>
 //   tracker.mjs comment <ref> (--body B | --body-file F)
 //   tracker.mjs start <ref>
 //   tracker.mjs close <ref> [--body B | --body-file F]
 //   tracker.mjs publish --spec F [--tracker github|jira]
-//       F (or "-" for stdin) is JSON: {"title", "body", "phases": [{"n", "title", "body"}], "parent"?}
+//       F (or "-" for stdin) is JSON: {"title", "body", "phases": [{"n", "title", "body"}], "parent"?, "components"?, "project"?}
 //
 // A ref routes by its shape (docs/issues/x.md, #42, ABC-123, an issue URL),
 // so it reaches the tracker it came from whatever DO_IT_TRACKER says.
@@ -27,7 +29,7 @@ import { jiraTracker } from './adapters/jira.mjs';
 const FACTORIES = { local: localTracker, github: githubTracker, jira: jiraTracker };
 
 export function parseArgs(argv) {
-  const opts = { _: [], label: [] };
+  const opts = { _: [], label: [], component: [] };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (!a.startsWith('--')) {
@@ -46,7 +48,7 @@ export function parseArgs(argv) {
       if (value === undefined) throw new Error(`${a} needs a value`);
       i++;
     }
-    if (name === 'label') opts.label.push(value);
+    if (name === 'label' || name === 'component') opts[name].push(value);
     else opts[name] = value;
   }
   return opts;
@@ -98,6 +100,11 @@ export async function run(argv, { config = loadConfig(), deps = {} } = {}) {
         source: opts.source,
         externalId: opts.externalId,
         labels: opts.label,
+        // Jira only; the other trackers ignore them.
+        project: opts.project,
+        components: opts.component,
+        epic: opts.epic,
+        parent: opts.parent,
       });
     }
     case 'get':
