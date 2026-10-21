@@ -33,7 +33,8 @@ The destination fixes the scope; everything else follows from it.
   with "map-it" in chat mode for the areas involved. A health check of a risky
   area: call the Skill tool with "sweep-it".
 - External facts the effort depends on: one subagent per question, on the
-  mid-tier model, each calling the Skill tool with "look-it-up", in parallel.
+  mid-tier model, each calling the Skill tool with "look-it-up", in parallel, each reply
+  `done`, `blocked` or `failed` plus one line, under 100 words.
 - A new project: the greenfield agenda in
   [GREENFIELD.md](../scope-it/GREENFIELD.md) shapes the first milestone.
 

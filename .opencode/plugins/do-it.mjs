@@ -2,6 +2,8 @@
 //
 // - Every turn: the core posture and this repo's standards pointers are added
 //   to the system prompt (OpenCode has no subagent hook; subagents share it).
+//   The internal-voice rules (skills/it-core/VOICE.md) are not injected here:
+//   they would reach the main session too.
 // - Before write/edit/patch: HIGH compliance hits throw, which blocks the tool.
 // - Before bash `git commit`: the staged diff is scanned the same way.
 // - After write/edit/patch: DO_IT_LINT_CMD output and MEDIUM/LOW hits are

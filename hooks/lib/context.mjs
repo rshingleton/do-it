@@ -9,6 +9,7 @@ import { codeMap } from './codemap.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const CORE_FILE = path.resolve(HERE, '../../skills/it-core/SKILL.md');
+export const VOICE_FILE = path.resolve(HERE, '../../skills/it-core/VOICE.md');
 
 const STANDARD_FILES = [
   'AGENTS.md',
@@ -56,6 +57,15 @@ export function coreText(file = CORE_FILE) {
   }
 }
 
+// The terse-voice rules for internal agent text; '' when the file is missing.
+export function voiceText(file = VOICE_FILE) {
+  try {
+    return fs.readFileSync(file, 'utf8').trim();
+  } catch {
+    return '';
+  }
+}
+
 export function standardsPointers(root, complianceDir = '.compliance-rules') {
   const found = STANDARD_FILES.filter((f) => fs.existsSync(path.join(root, f)));
   let rules = [];
@@ -72,7 +82,9 @@ export function standardsPointers(root, complianceDir = '.compliance-rules') {
 
 // readOnly: the agent cannot edit (an explorer or reviewer), so the coding
 // posture is left out; it still gets the standards, project docs and code map.
-export function sessionContext(root, cfg, { readOnly = false } = {}) {
+// voice: the agent has no copy of the voice rules, so they go last, where
+// they win over any other style text.
+export function sessionContext(root, cfg, { readOnly = false, voice = false } = {}) {
   const { found, rules } = standardsPointers(root, cfg.DO_IT_COMPLIANCE_DIR);
   const lines = readOnly ? [] : [coreText()];
   if (found.length || rules.length) {
@@ -96,6 +108,10 @@ export function sessionContext(root, cfg, { readOnly = false } = {}) {
   if (isOn(cfg.DO_IT_MAP ?? 'on')) {
     const map = codeMap(root, cfg);
     if (map) lines.push('', '## Code map', '', 'Check here for existing code before writing new code.', '', map);
+  }
+  if (voice) {
+    const v = voiceText();
+    if (v) lines.push('', v);
   }
   return lines.join('\n').trim();
 }

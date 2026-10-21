@@ -3,13 +3,15 @@
 //
 //   session-start   SessionStart   inject the core posture and standards pointers
 //   subagent-start  SubagentStart  the same for subagents (SessionStart never reaches them);
-//                                  read-only agents (Explore, Plan, it-scout) get it without the coding posture
+//                                  read-only agents (Explore, Plan, it-scout) get it without the coding posture;
+//                                  agents with no voice rules of their own get VOICE.md appended
 //   pre-tool        PreToolUse     block HIGH compliance hits in edits and in git commits
 //   post-tool       PostToolUse    report MEDIUM/LOW hits, run DO_IT_LINT_CMD
 //
 // Fails open: a crash or bad input never blocks the agent.
 
-import { realpathSync } from 'node:fs';
+import fs, { realpathSync } from 'node:fs';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { decide } from './lib/decide.mjs';
 
@@ -17,6 +19,17 @@ import { decide } from './lib/decide.mjs';
 // reports itself as <plugin>:<name>, so the prefix is dropped before the lookup.
 export const READ_ONLY_AGENTS = new Set(['Explore', 'Plan', 'claude-code-guide', 'it-scout', 'it-reviewer', 'it-skeptic']);
 const agentName = (type) => String(type ?? '').replace(/^[^:]+:/, '');
+// The agents/ files carry the voice rules (npm run check keeps the copy
+// current), so the hook adds them only for every other subagent type. A missing
+// agents/ directory means none do.
+const AGENTS_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../agents');
+function carriesVoice(name) {
+  try {
+    return fs.existsSync(path.join(AGENTS_DIR, `${name}.md`));
+  } catch {
+    return false;
+  }
+}
 
 // Claude Code's tool names, as the kinds decide() checks.
 const KINDS = { Write: 'edit', Edit: 'edit', MultiEdit: 'edit', NotebookEdit: 'edit', Bash: 'shell' };
@@ -55,6 +68,7 @@ export async function handle(event, input) {
     args: input.tool_input || {},
     cwd: input.cwd || process.cwd(),
     readOnly: event === 'subagent-start' && READ_ONLY_AGENTS.has(agentName(input.agent_type)),
+    voice: event === 'subagent-start' && !carriesVoice(agentName(input.agent_type)),
   });
   if (r.block) return { exit: 2, stderr: r.block };
   const out = { exit: 0, stderr: r.notice };

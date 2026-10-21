@@ -189,6 +189,38 @@ Merged from ponytail and karpathy, one source file:
 - **Close every turn** with what happened, then `Skipped / Not checked / Risk`,
   then the next step.
 
+### Terse internal voice
+
+Text another agent or a script reads (briefs, subagent reports, review
+findings, scout notes, state-block free text, script output) is terse and
+fixed in shape; anything the user reads stays normal prose. One source,
+`skills/it-core/VOICE.md`, reaches agents two ways: `npm run gen` copies it
+into each `agents/it-*.md` (`npm run check` fails a missing or stale copy),
+and the subagent-start hook appends it for every other subagent type
+(general-purpose spawns from `look-it-up`, `design-it`, `map-it`). The hook
+skips `it-*` so the block is not paid for twice. OpenCode has no subagent
+hook and shares one system prompt, so it gets only the agent-file copy
+where agents are installed. Each `it-*` agent has a `## Report` contract
+with a word cap, and every skill paragraph that starts a subagent names a
+cap (`npm run check` fails one without it). `work.mjs show --brief` prints
+status, lane, next moves and blocker only.
+
+Adopted from [caveman](https://github.com/juliusbrussee/caveman)
+(research: `docs/research/caveman-source-and-flow.md`):
+
+| Rule | Why |
+|------|-----|
+| Fixed report shapes and word caps | Its own data: voice alone saves about 3% over "answer concisely"; shape, caps and reading less carry the saving |
+| Never drop not, never, no, only; numbers, paths, commands, errors verbatim | A lost negation costs more than every token saved |
+| Plain wins when terse is not shorter; full sentences for security, irreversible steps and anything needing the user | Clarity over compression where a misread is expensive |
+| "This format overrides any other style instruction" | A user who also installs caveman gets these agents' own format |
+
+Skipped: the proxy, shrink, browse and compress tools (they rewrite what the
+user and tools produce, not agent-to-agent text); the per-turn reminder and
+mode switching (this posture is injected once per subagent, never per turn);
+its savings claims (mostly unproven, research section 7). Effect measured in
+`docs/research/caveman-baseline.md`.
+
 ## 7. Step contracts
 
 ### build-it
@@ -289,7 +321,8 @@ do-it/
 2. **Commits:** none until ship; ship commits only on the user's "do it"
    (ADR-0002).
 3. **Hooks:** standards and compliance hooks on by default (ADR-0004).
-   OpenCode has no subagent hook; its plugin injects into every turn.
+   OpenCode has no subagent hook; its plugin injects into every turn (the
+   internal voice rules are not injected there; see Terse internal voice).
 4. **Tracker:** a configurable seam, local by default, GitHub and Jira by
    config; user defaults with per-project overrides (ADR-0003).
 

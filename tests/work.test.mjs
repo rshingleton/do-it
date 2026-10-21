@@ -456,3 +456,21 @@ test('work.mjs: roadmap reads the file relative to the current directory', () =>
   assert.equal(out.file, 'docs/roadmap/billing.md');
   assert.equal(out.next, 'R2', 'no plans: R2 is ready and riskier than R4');
 });
+
+test('work.mjs: show --brief prints only status, lane, next moves and the blocker, before or after the id', () => {
+  const dir = tempRepo();
+  work(dir, 'new', 'feat-b', '--lane', 'm', '--title', 'Feature B');
+  const want = ['allowed', 'blocker', 'id', 'lane', 'needs_user', 'status'];
+  for (const args of [['show', 'feat-b', '--brief'], ['show', '--brief', 'feat-b']]) {
+    const r = work(dir, ...args);
+    assert.equal(r.status, 0, JSON.stringify(r.out));
+    assert.deepEqual(Object.keys(r.out).sort(), want);
+    assert.equal(r.out.status, 'draft');
+    assert.deepEqual(r.out.allowed, work(dir, 'show', 'feat-b').out.allowed);
+  }
+  work(dir, 'event', 'feat-b', 'approve');
+  work(dir, 'event', 'feat-b', 'block', 'need a key');
+  const blocked = work(dir, 'show', 'feat-b', '--brief').out;
+  assert.equal(blocked.blocker, 'need a key');
+  assert.equal(blocked.needs_user, true);
+});

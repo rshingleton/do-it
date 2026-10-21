@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { BUILTIN, scan, loadChecks, editParts } from '../hooks/lib/checks.mjs';
 import { beforeEdit, afterEdit, beforeShell } from '../hooks/lib/guard.mjs';
 import { DEFAULTS } from '../skills/track-it/scripts/config.mjs';
-import { sessionContext } from '../hooks/lib/context.mjs';
+import { sessionContext, voiceText } from '../hooks/lib/context.mjs';
 import { mergeClaude, mergeOpencode } from '../scripts/install-hooks.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -225,4 +225,29 @@ test('every agent with a tools list and no write tool is in the hook read-only s
   for (const a of listAgents()) {
     assert.equal(READ_ONLY_AGENTS.has(a.name), readsOnly(a), `${a.name}: hook set and tools list disagree`);
   }
+});
+
+test('voice block: injected last into subagents that carry no copy, never into the main session', () => {
+  const root = repo();
+  const ctx = (event, input) => JSON.parse(hook(event, { cwd: root, ...input }).stdout).hookSpecificOutput.additionalContext;
+  const generic = ctx('subagent-start', { agent_type: 'general-purpose' });
+  assert.match(generic, /Voice for internal agent text/);
+  assert.ok(generic.indexOf('Voice for internal') > generic.indexOf('project docs'), 'voice comes last so it wins');
+  assert.match(ctx('subagent-start', { agent_type: 'Explore' }), /Voice for internal agent text/);
+  assert.doesNotMatch(ctx('session-start', {}), /Voice for internal agent text/);
+  // it-* agents carry their own copy (npm run check), so the hook adds none
+  for (const type of ['it-scout', 'it-builder', 'do-it:it-reviewer']) assert.doesNotMatch(ctx('subagent-start', { agent_type: type }), /Voice for internal agent text/, type);
+});
+
+test('voiceText fails open on a missing file; sessionContext adds it only for subagents', () => {
+  assert.equal(voiceText('/nonexistent/VOICE.md'), '');
+  const root = repo();
+  assert.doesNotMatch(sessionContext(root, { ...DEFAULTS }), /Voice for internal/);
+  assert.match(sessionContext(root, { ...DEFAULTS }, { voice: true }), /Voice for internal/);
+});
+
+test('VOICE.md carries every rule the issue names', () => {
+  const v = voiceText();
+  for (const re of [/not.*never.*no.*only/is, /numbers, paths, commands and errors/i, /plain/i, /full sentences/i, /security/i, /irreversible|cannot be undone/i, /overrides any other style/i, /replies or questions to the user/i])
+    assert.match(v, re);
 });

@@ -4,6 +4,8 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { withVoice } from './lib/voice.mjs';
+import { VOICE_FILE } from '../hooks/lib/context.mjs';
 import { ROOT, agentTools, listSkills, listAgents, userInvoked } from './lib/skills.mjs';
 
 const SKILL_LINE_BUDGET = 100;
@@ -12,7 +14,9 @@ const SKILL_LINE_LIMIT = 150;
 // Files that talk about subagents without starting one.
 const TIER_EXEMPT = new Set(['skills/skill-it/SKILL-MECHANICS.md', 'skills/it-core/SKILL.md', 'skills/do-it/BOUNDARIES.md']);
 // A paragraph that starts or sends a subagent (not one that only mentions them).
-const SPAWN = /\b(start|send)\b[^.]{0,80}(subagent|background agent)|\b(one|a) (fresh-context |fresh |background |exploring |validator )?subagent/i;
+const SPAWN = /\b(start|send)\b[^.]{0,80}(subagent|background agent)|\b(one|a) (fresh-context |fresh |background |exploring |validator )?subagent|\b(start|send|call the Agent tool)\b[^.]{0,80}`it-[a-z]+`/i;
+// A word cap: a number and "words" ("under 300 words", "cap its summary at 300 words").
+const CAP = /\b\d+[- ]words?\b/i;
 
 const errors = [];
 const warnings = [];
@@ -48,11 +52,17 @@ for (const s of skills) {
   else if (lines > SKILL_LINE_BUDGET) warnings.push(`${where}: ${lines} lines (budget ${SKILL_LINE_BUDGET})`);
 }
 
+const voice = fs.existsSync(VOICE_FILE) ? fs.readFileSync(VOICE_FILE, 'utf8') : null;
+
 for (const a of agents) {
   const where = rel(a.file);
+  if (voice === null) errors.push('skills/it-core/VOICE.md: missing');
+  else if (withVoice(a.text, voice) !== a.text) errors.push(`${where}: voice block missing or out of date; run npm run gen`);
   if (a.meta.name !== a.name) errors.push(`${where}: name "${a.meta.name ?? ''}" does not match file "${a.name}"`);
   if (!a.meta.description) errors.push(`${where}: missing description`);
   if (!a.meta.model) errors.push(`${where}: missing model`);
+  const report = a.text.match(/^## Report\n([\s\S]*?)(?=^## |^<!--|(?![\s\S]))/m);
+  if (!report || !/\b\d+ words\b/.test(report[1])) errors.push(`${where}: no ## Report section with a word cap`);
 }
 
 const docs = [...markdownFiles(path.join(ROOT, 'skills')), path.join(ROOT, 'README.md'), path.join(ROOT, 'AGENTS.md')].filter((f) =>
@@ -84,14 +94,20 @@ for (const file of docs) {
   }
 
   // A paragraph that starts a subagent names its model tier, or the subagent
-  // runs on whatever the session uses (SKILL-MECHANICS.md, Subagents).
+  // runs on whatever the session uses (SKILL-MECHANICS.md, Subagents), and a
+  // word cap on its report.
   if (where.startsWith('skills/') && !TIER_EXEMPT.has(where)) {
     const body = text.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, '').replace(/^(```|~~~)[\s\S]*?^\1/gm, '');
-    for (const para of body.split(/\n\s*\n/)) {
-      if (SPAWN.test(para) && !TIER.test(para)) {
-        errors.push(`${where}: starts a subagent without naming its model tier ("${para.trim().slice(0, 50)}...")`);
+    const paras = body.split(/\n\s*\n/);
+    paras.forEach((para, i) => {
+      if (!SPAWN.test(para)) return;
+      if (!TIER.test(para)) errors.push(`${where}: starts a subagent without naming its model tier ("${para.trim().slice(0, 50)}...")`);
+      // The cap may sit in the quoted brief (a `>` paragraph) that follows.
+      const next = paras[i + 1] ?? '';
+      if (!CAP.test(para) && !(next.startsWith('>') && CAP.test(next))) {
+        errors.push(`${where}: starts a subagent without a word cap ("${para.trim().slice(0, 50)}...")`);
       }
-    }
+    });
   }
 
   // A sentence that gives an it-* agent a Skill-tool call it cannot make: the

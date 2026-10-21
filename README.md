@@ -246,5 +246,6 @@ from [addyosmani/agent-skills](https://github.com/addyosmani/agent-skills),
 [denyszorinets/ballet](https://github.com/denyszorinets/ballet),
 [dietrichgebert/ponytail](https://github.com/dietrichgebert/ponytail),
 [juliusbrussee/caveman](https://github.com/juliusbrussee/caveman) (terse
-subagent reports) and
+voice and fixed report shapes with word caps for internal agent text; its
+proxy, compress and per-turn tools are not used) and
 [multica-ai/andrej-karpathy-skills](https://github.com/multica-ai/andrej-karpathy-skills).
