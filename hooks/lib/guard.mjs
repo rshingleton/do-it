@@ -78,10 +78,19 @@ export function afterEdit(ctx, input, { spawn = spawnSync } = {}) {
   return { action: failed ? 'feedback' : 'warn', message: messages.join('\n\n') };
 }
 
-// `git` at the start of a command (or after ; & | && ( ), any global options
-// (-C dir, -c k=v, --no-pager), then the `commit` subcommand itself, not
-// commit-tree or a quoted mention. Its arguments are read by commandWords.
-const GIT_COMMIT = /(?:^|[;&|(]\s*)git((?:\s+(?:-[Cc]\s+(?:'[^']*'|"[^"]*"|\S+)|--?[\w-]+(?:=\S+)?))*)\s+commit(?=\s|$)/;
+// Words that run another command: the options that take a value, short
+// letters and long names. Any other option is read as a flag with no value.
+const WRAPPERS = {
+  env: { short: 'uCS', long: new Set(['unset', 'chdir', 'split-string']) },
+  sudo: { short: 'ughpCDrtTU', long: new Set(['user', 'group', 'host', 'prompt', 'chdir', 'chroot', 'role', 'type']) },
+  command: { short: '', long: new Set() },
+  exec: { short: 'a', long: new Set() },
+  nice: { short: 'n', long: new Set(['adjustment']) },
+  time: { short: 'fo', long: new Set(['format', 'output']) },
+};
+// Words that may stand before a command in a compound statement.
+const LEADERS = new Set(['!', 'if', 'while', 'until', 'then', 'do', 'else', 'elif']);
+const ASSIGNMENT = /^[A-Za-z_]\w*(?:\[[^\]]*\])?\+?=/;
 
 // git commit options that take a value as the next argument (or attached).
 const SHORT_WITH_VALUE = 'mFCct';
@@ -206,22 +215,65 @@ function commandWords(s) {
     i = next;
   }
   end();
-  return { words, sure };
+  return { words, sure, end: i };
 }
 
-export function parseGitCommit(command) {
-  const text = String(command || '');
-  const m = text.match(GIT_COMMIT);
-  if (!m) return null;
-  const dir = m[1].match(/-C\s+(?:'([^']*)'|"([^"]*)"|(\S+))/);
-  // Directory changes earlier in the command, in order; null where the
-  // target cannot be read (bare cd, cd -, popd).
+// The directory changes in a command, in order, each with where it starts;
+// the target is null where it cannot be read (bare cd, cd -, popd).
+function directoryChanges(text) {
   const cds = [];
-  for (const c of text.slice(0, m.index).matchAll(/(?:^|[;&|({]\s*|\b(?:then|do|else)\s+)(?:(?:builtin|command)\s+)?(cd|pushd|popd)(?=\s|$)/g)) {
+  for (const c of text.matchAll(/(?:^|[;&|({`\n]\s*|\b(?:then|do|else|elif)\s+)(?:(?:builtin|command)\s+)?(cd|pushd|popd)(?=\s|$)/g)) {
     const target = c[1] === 'popd' ? undefined : commandWords(text.slice(c.index + c[0].length)).words[0];
-    cds.push(target && target !== '-' ? target : null);
+    cds.push({ at: c.index, to: target && target !== '-' ? target : null });
   }
-  const { words: args, sure } = commandWords(text.slice(m.index + m[0].length));
+  return cds;
+}
+
+// Skip env assignments and wrapper commands (with their options) from word i.
+function skipPrefix(words, i) {
+  for (;;) {
+    const w = words[i];
+    if (w === undefined) return i;
+    if (ASSIGNMENT.test(w)) {
+      i++;
+      continue;
+    }
+    const wrap = Object.hasOwn(WRAPPERS, w) && WRAPPERS[w];
+    if (!wrap) return i;
+    i++;
+    while (words[i]?.startsWith('-') && words[i].length > 1) {
+      const o = words[i++];
+      if (o === '--') break;
+      if (o.startsWith('--')) {
+        if (wrap.long.has(o.slice(2))) i++;
+      } else if (wrap.short.includes(o[o.length - 1]) && o.length === 2) {
+        i++;
+      }
+    }
+  }
+}
+
+// Read git's words from `git` on: global options, then the commit subcommand.
+// Returns the -C directory and the words after `commit`, or null.
+function readGitCommit(words, i) {
+  if (words[i] !== 'git') return null;
+  let dir = null;
+  for (i++; i < words.length; i++) {
+    const w = words[i];
+    if (w === '-C' || w === '-c') {
+      const value = words[++i];
+      if (w === '-C' && value !== undefined) dir = dir === null || path.isAbsolute(value) ? value : path.join(dir, value);
+    } else if (!w.startsWith('-') || w === '-') {
+      break;
+    }
+  }
+  // A `)` or backtick fused to the word closes a subshell or substitution.
+  return /^commit[)`]*$/.test(words[i] ?? '') ? { dir, args: words.slice(i + 1) } : null;
+}
+
+// What `git commit` would record, from the words after it: every tracked
+// change (-a, a pathspec file, unreadable quoting) or the named paths.
+function commitArgs(args, sure) {
   // Quoting that never closes cannot be read: scan every tracked change.
   let all = !sure;
   const paths = [];
@@ -251,7 +303,44 @@ export function parseGitCommit(command) {
       paths.push(a);
     }
   }
-  return { dir: dir ? dir[1] ?? dir[2] ?? dir[3] : null, all, paths, cds };
+  return { all, paths };
+}
+
+// Every `git commit` in a command, in order: { dir, all, paths, cds }, with
+// cds the directory changes before it (all of them, even in subshells or
+// quoted text: over-include). A command starts at the beginning, after
+// ; & | ( { ` or a newline, quoted or not, so text that only looks like a
+// commit is read as one (an over-scan, never a miss).
+export function parseGitCommits(command) {
+  const text = String(command || '');
+  const cds = directoryChanges(text);
+  const commits = [];
+  // Each command start reads to the end of its command, so the total is
+  // about the text's length; a quote that never closes can make it more, so
+  // the work is capped and the rest scanned from the repo root instead.
+  let budget = 20 * text.length + 100000;
+  for (let at = 0; at <= text.length; at++) {
+    if (at > 0 && !';&|({`\n'.includes(text[at - 1])) continue;
+    const { words, sure, end } = commandWords(text.slice(at));
+    if ((budget -= end + 1) < 0) {
+      commits.push({ dir: null, all: true, paths: [], cds: [], bail: true });
+      break;
+    }
+    let i = 0;
+    while (LEADERS.has(words[i])) i++;
+    const found = readGitCommit(words, skipPrefix(words, i));
+    if (!found) continue;
+    commits.push({
+      dir: found.dir,
+      ...commitArgs(found.args, sure),
+      cds: cds.filter((c) => c.at < at).map((c) => c.to),
+    });
+  }
+  return commits;
+}
+
+export function parseGitCommit(command) {
+  return parseGitCommits(command)[0] ?? null;
 }
 
 // A word the shell would expand before git sees it.
@@ -271,32 +360,46 @@ function listChanges(cwd, all, paths) {
   }
 }
 
-// Before a shell command: a git commit gets the change it will record
-// scanned: the staged diff, plus the working tree against HEAD for the
-// paths it names, or for every tracked change with commit -a. When the
-// command cannot be resolved for sure, every tracked change is scanned from
-// the repo root: errors over-scan, never under-scan.
-export function beforeShell(ctx, command) {
-  const commit = ctx.enabled ? parseGitCommit(command) : null;
-  if (!commit) return { action: 'allow' };
-  // The command's paths are relative to the shell's directory (after any cd
-  // before the commit), then -C.
-  const unsure =
-    commit.cds.some((to) => to === null || UNEXPANDED.test(to)) ||
-    [commit.dir ?? '', ...commit.paths].some((w) => UNEXPANDED.test(w));
-  const start = ctx.cwd || ctx.root;
-  // A cd in a subshell, a pipeline or quoted text does not persist, and the
-  // hook cannot tell which: scan from every step of the cd chain.
-  const shells = [start];
-  for (const to of commit.cds) {
-    const next = to ? path.resolve(shells[shells.length - 1], to) : shells[shells.length - 1];
-    if (!shells.includes(next)) shells.push(next);
+// Where the shell may be when a commit runs, given the cds before it. A cd in
+// a subshell, a pipeline or quoted text does not persist, and the hook cannot
+// tell which: try every ordered subset of the cds, each relative one resolved
+// from the last cd kept. Deduped by directory.
+// shortcut: past CD_SUBSET_MAX cds only each step of the chain is tried, plus
+// the repo root, as subsets double per cd; raise the cap or read the shell's
+// real structure.
+const CD_SUBSET_MAX = 4;
+function shellDirs(start, cds) {
+  const dirs = new Set([start]);
+  const step = (from, to) => (to ? path.resolve(from, to) : from);
+  if (cds.length > CD_SUBSET_MAX) {
+    let cur = start;
+    for (const to of cds) dirs.add((cur = step(cur, to)));
+    return [...dirs];
   }
+  for (let mask = 1; mask < 1 << cds.length; mask++) {
+    let cur = start;
+    cds.forEach((to, i) => {
+      if (mask & (1 << i)) cur = step(cur, to);
+    });
+    dirs.add(cur);
+  }
+  return [...dirs];
+}
+
+// Before a shell command: every git commit in it gets the change it will
+// record scanned: the staged diff, plus the working tree against HEAD for the
+// paths it names, or for every tracked change with commit -a. When a commit
+// cannot be resolved for sure, every tracked change is scanned from the repo
+// root: errors over-scan, never under-scan.
+export function beforeShell(ctx, command) {
+  const commits = ctx.enabled ? parseGitCommits(command) : [];
+  if (!commits.length) return { action: 'allow' };
+  const start = ctx.cwd || ctx.root;
   const findings = [];
   const seen = new Set();
-  for (const shell of shells) {
-    const cwd = commit.dir ? path.resolve(shell, commit.dir) : shell;
-    const files = (!unsure && listChanges(cwd, commit.all, commit.paths)) || listChanges(ctx.root, true, []) || [];
+  const listed = new Set();
+  let rootDone = false;
+  const report = (files) => {
     for (const { file, lines } of files) {
       for (const f of scan(lines.map((l) => l.text).join('\n'), ctx.rules, file)) {
         const key = `${file}:${f.id}`;
@@ -305,6 +408,33 @@ export function beforeShell(ctx, command) {
         // scan() numbers the added lines; map back to the line in the file.
         findings.push({ ...f, file, line: f.line && lines[f.line - 1].n });
       }
+    }
+  };
+  const fromRoot = () => {
+    if (rootDone) return;
+    rootDone = true;
+    report(listChanges(ctx.root, true, []) || []);
+  };
+  for (const commit of commits) {
+    // The command's paths are relative to the shell's directory (after any cd
+    // before the commit), then -C.
+    const unsure =
+      commit.bail ||
+      commit.cds.some((to) => to === null || UNEXPANDED.test(to)) ||
+      [commit.dir ?? '', ...commit.paths].some((w) => UNEXPANDED.test(w));
+    if (unsure) {
+      fromRoot();
+      continue;
+    }
+    if (commit.cds.length > CD_SUBSET_MAX) fromRoot();
+    for (const shell of shellDirs(start, commit.cds)) {
+      const cwd = commit.dir ? path.resolve(shell, commit.dir) : shell;
+      const key = `${cwd}\0${commit.all}\0${commit.paths.join('\0')}`;
+      if (listed.has(key)) continue;
+      listed.add(key);
+      const files = listChanges(cwd, commit.all, commit.paths);
+      if (files) report(files);
+      else fromRoot();
     }
   }
   if (!findings.length) return { action: 'allow' };
