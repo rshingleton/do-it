@@ -8,7 +8,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 import { BUILTIN, scan, loadChecks } from '../hooks/lib/checks.mjs';
-import { parseGitCommit, beforeShell } from '../hooks/lib/guard.mjs';
+import { parseGitCommit, parseGitCommits, beforeShell } from '../hooks/lib/guard.mjs';
 import { DEFAULTS, loadConfig, trust } from '../skills/track-it/scripts/config.mjs';
 import { run } from '../skills/track-it/scripts/tracker.mjs';
 
@@ -564,4 +564,131 @@ test('commit guard still blocks beside a tracked file it cannot read', () => {
   } finally {
     fs.chmodSync(path.join(root, 'locked/z.txt'), 0o644);
   }
+});
+
+test('parseGitCommits finds every commit in a chain, in order, with its own arguments', () => {
+  const found = parseGitCommits('git commit -m a a.js && git commit -m b b.js');
+  assert.deepEqual(found.map((c) => c.paths), [['a.js'], ['b.js']]);
+  assert.equal(parseGitCommits('git status; git commit -am x || git commit y.js').length, 2);
+});
+
+test('parseGitCommits reads prefixed and nested forms', () => {
+  for (const cmd of [
+    'VAR=x git commit',
+    "A='a b' git commit",
+    'env -i X=1 git commit',
+    'env -u HOME git commit',
+    'sudo -u me git commit',
+    'command git commit',
+    'exec git commit',
+    'nice -n 5 git commit',
+    'time -p git commit',
+    'echo x\ngit commit',
+    '{ git commit -m x; }',
+    'if true; then git commit -m x; fi',
+    'for f in a; do git commit; done',
+    'if false; then :; else git commit; fi',
+    '! git commit',
+    'echo $(git commit -m x)',
+    "git -c key='a b' commit",
+    'git -c "k=a b" -C sub commit',
+    'git --no-pager commit',
+    'if git commit -m x; then :; fi',
+    'while git commit; do :; done',
+    '(git commit)',
+    'x=$(git commit)',
+    '`git commit`',
+    'cd a && (git commit)',
+  ]) {
+    assert.equal(parseGitCommits(cmd).length, 1, cmd);
+  }
+  assert.equal(parseGitCommits('git -c "k=a b" -C sub commit')[0].dir, 'sub');
+  assert.equal(parseGitCommits('git -C a -C b commit')[0].dir, 'a/b');
+  for (const cmd of ['git commit-tree HEAD', "echo 'later: git commit'", 'git status', 'echo git commit', 'sudo git status', '']) {
+    assert.deepEqual(parseGitCommits(cmd), [], cmd);
+  }
+});
+
+test('parseGitCommits gives each commit every cd before it', () => {
+  const [one, two] = parseGitCommits('cd a && git commit -m x && cd b\ngit commit -m y');
+  assert.deepEqual(one.cds, ['a']);
+  assert.deepEqual(two.cds, ['a', 'b']);
+});
+
+test('parseGitCommit stays the first commit, or null', () => {
+  assert.equal(parseGitCommit('echo hi'), null);
+  assert.deepEqual(parseGitCommit('git commit -m a a.js; git commit b.js').paths, ['a.js']);
+});
+
+test('a secret in the second commit of a chain blocks the command', () => {
+  const root = repo();
+  fs.writeFileSync(path.join(root, 'a.js'), 'ok\n');
+  fs.writeFileSync(path.join(root, 'b.js'), 'ok\n');
+  git(root, 'add', '.');
+  git(root, 'commit', '-qm', 'init');
+  fs.writeFileSync(path.join(root, 'a.js'), 'ok2\n');
+  fs.writeFileSync(path.join(root, 'b.js'), `const t = "${FAKE_SLACK}";\n`);
+  const ctx = ctxFor(root);
+  for (const sep of [' && ', '; ', ' || ', '\n']) {
+    const r = beforeShell(ctx, `git commit -m a a.js${sep}git commit -m b b.js`);
+    assert.equal(r.action, 'block', JSON.stringify(sep));
+    assert.match(r.reason, /slack-token in b\.js/);
+  }
+  assert.equal(beforeShell(ctx, 'git commit -m a a.js && git commit -m c a.js').action, 'allow');
+});
+
+test('a prefixed or nested commit is scanned', () => {
+  const root = repo();
+  fs.writeFileSync(path.join(root, 'a.js'), 'ok\n');
+  git(root, 'add', '.');
+  git(root, 'commit', '-qm', 'init');
+  fs.writeFileSync(path.join(root, 'a.js'), `const t = "${FAKE_SLACK}";\n`);
+  const ctx = ctxFor(root);
+  for (const cmd of ['FOO=1 git commit -m x a.js', 'sudo -u me git commit -m x a.js', 'echo x\ngit commit -m x a.js', "git -c k='a b' commit -m x a.js"]) {
+    assert.equal(beforeShell(ctx, cmd).action, 'block', cmd);
+  }
+});
+
+test('a relative cd after one that does not persist resolves from the right step', () => {
+  const root = repo();
+  for (const d of ['B', 'B/sub', 'C']) fs.mkdirSync(path.join(root, d), { recursive: true });
+  for (const f of ['B/sub/f.js', 'B/f.js', 'C/f.js']) fs.writeFileSync(path.join(root, f), 'ok\n');
+  git(root, 'add', '.');
+  git(root, 'commit', '-qm', 'init');
+  fs.writeFileSync(path.join(root, 'B/sub/f.js'), `const t = "${FAKE_SLACK}";\n`);
+  const ctx = ctxFor(root);
+  assert.equal(beforeShell(ctx, 'cd B && (cd C) && cd sub && git commit -m x f.js').action, 'block');
+  assert.equal(beforeShell(ctx, 'cd B && (cd C) && cd sub && git commit -m x f.js; git status').action, 'block');
+  fs.writeFileSync(path.join(root, 'B/sub/f.js'), 'ok2\n');
+  assert.equal(beforeShell(ctx, 'cd B && (cd C) && cd sub && git commit -m x f.js').action, 'allow');
+});
+
+test('commit scan allows bad input without throwing', () => {
+  const root = repo();
+  fs.writeFileSync(path.join(root, 'a.js'), 'ok\n');
+  git(root, 'add', '.');
+  git(root, 'commit', '-qm', 'init');
+  const ctx = ctxFor(root);
+  assert.equal(beforeShell(ctx, "git commit -m 'a a.js && git commit -m \"b b.js").action, 'allow');
+  assert.equal(beforeShell(ctx, '\0\0 git commit \0 && git commit -m $(').action, 'allow');
+  assert.equal(beforeShell(ctx, null).action, 'allow');
+  assert.equal(beforeShell(ctx, '\0'.repeat(1e5)).action, 'allow');
+  const big = `${'cd sub && '.repeat(20)}${'git commit -m x; '.repeat(50)}echo "${'x'.repeat(95000)}`;
+  const start = Date.now();
+  assert.equal(beforeShell(ctx, big).action, 'allow');
+  assert.ok(Date.now() - start < 3000, `took ${Date.now() - start} ms`);
+  const t2 = Date.now();
+  assert.equal(beforeShell(ctx, ';$('.repeat(33000)).action, 'allow');
+  assert.ok(Date.now() - t2 < 3000, `took ${Date.now() - t2} ms`);
+});
+
+test('past four cds the commit also scans the repo root', () => {
+  const root = repo();
+  fs.mkdirSync(path.join(root, 'B/sub'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'B/sub/f.js'), 'ok\n');
+  git(root, 'add', '.');
+  git(root, 'commit', '-qm', 'init');
+  fs.writeFileSync(path.join(root, 'B/sub/f.js'), `const t = "${FAKE_SLACK}";\n`);
+  const cmd = 'cd B && (cd C) && cd x && cd y && cd sub && git commit -m x f.js';
+  assert.equal(beforeShell(ctxFor(root), cmd).action, 'block');
 });
