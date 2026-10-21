@@ -12,19 +12,25 @@
 // One default export serves both plugin APIs: `server` is the v1 hook object
 // (verified to block by throwing), `setup` is the v2 entry. A build that loads
 // both (OpenCode 1.18.x under "plugin") calls both, so whichever registers
-// hooks first owns them and the other stays empty. Today no binary offers
-// `ctx.session` or `ctx.tool` to `setup` (docs/research/opencode-v2-integration.md),
-// so `setup` registers only what the context offers.
+// hooks first owns them and the other stays empty. OpenCode 2 calls only
+// `setup` (its ctx offers `session` and `tool`); OpenCode 1 calls `server`,
+// and 1.18.x under "plugin" also calls `setup` with a ctx that has neither,
+// so `setup` registers only what the context offers. Shapes: the research
+// note docs/research/opencode-v2-integration.md, verified on 2.1.2.
 //
 // Install: scripts/install.sh, or add this directory to opencode.json:
 //   OpenCode 1: { "plugin": ["/abs/path/do-it/.opencode/plugins/do-it.mjs"] }
 //   OpenCode 2: { "plugins": ["/abs/path/do-it/.opencode/plugins"] }
+// OpenCode 2 loads a plugin directory only through its index.js (which
+// re-exports this file) and skips a plugin file given by path.
 
 import { decide as realDecide } from '../../hooks/lib/decide.mjs';
 
 // OpenCode's tool names, as the kinds decide() checks. OpenCode 1.x
-// registers its patch tool as apply_patch (arg patchText).
-const KINDS = { write: 'edit', edit: 'edit', patch: 'edit', apply_patch: 'edit', multiedit: 'edit', bash: 'shell' };
+// registers its patch tool as apply_patch (arg patchText); 2.x names its shell
+// tool `shell` and has no patch tool (write takes {path, content}, edit takes
+// {path, oldString, newString}).
+const KINDS = { write: 'edit', edit: 'edit', patch: 'edit', apply_patch: 'edit', multiedit: 'edit', bash: 'shell', shell: 'shell' };
 
 const kindOf = (tool) => KINDS[String(tool || '').toLowerCase()] ?? null;
 
@@ -46,6 +52,13 @@ function failOpen(name, fn) {
 function report(r) {
   if (r.notice) process.stderr.write(`${r.notice}\n`);
   return r;
+}
+
+// Tool.Result.content is text or a list of parts; the note goes after what is there.
+function appendContent(result, note) {
+  if (typeof result.content === 'string') result.content += `\n\n${note}`;
+  else if (Array.isArray(result.content)) result.content.push({ type: 'text', text: note });
+  else if (result.content === undefined) result.content = note;
 }
 
 // `createPlugin({decide})` and the server's second argument replace the decision module in tests.
@@ -76,13 +89,14 @@ export function createPlugin({ decide: baseDecide = realDecide } = {}) {
     };
   };
 
-  // The v2 shapes below follow opencode.ai/v2/docs and are unverified: no
-  // available binary offers them. A shape that is not as expected is skipped.
+  // The v2 shapes below were run on OpenCode 2.1.2 (location.directory,
+  // SystemPart {type, text}, Tool.Result {output, content, metadata}). A
+  // shape that is not as expected is skipped.
   const setup = async (ctx) => {
     const decide = baseDecide;
     if (v1Live || !ctx?.session?.hook || !ctx?.tool?.hook) return;
     v2Live = true;
-    const cwd = ctx.directory || process.cwd();
+    const cwd = ctx.location?.directory || process.cwd();
     ctx.session.hook('context', failOpen('context', async (event) => {
       const r = report(decide('session', { cwd }));
       if (r.context && Array.isArray(event.system)) event.system.push({ type: 'text', text: r.context });
@@ -93,7 +107,7 @@ export function createPlugin({ decide: baseDecide = realDecide } = {}) {
     ctx.tool.hook('execute.after', failOpen('after', async (event) => {
       if (event.status !== 'completed') return;
       const r = report(decide('after', { kind: kindOf(event.tool), args: event.input || {}, cwd }));
-      if (r.context && typeof event.result?.output === 'string') event.result.output += `\n\n${r.context}`;
+      if (r.context && event.result) appendContent(event.result, r.context);
     }));
   };
 

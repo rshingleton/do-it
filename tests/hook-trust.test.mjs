@@ -114,6 +114,7 @@ test('OpenCode plugin only translates: tool kinds in, throw, append and stderr o
     assert.deepEqual(sys.system, ['ctx']);
     await assert.rejects(hooks['tool.execute.before']({ tool: 'apply_patch' }, { args: {} }), /^Error: no$/);
     await assert.rejects(hooks['tool.execute.before']({ tool: 'Bash' }, { args: {} }), /no/);
+    await assert.rejects(hooks['tool.execute.before']({ tool: 'shell' }, { args: {} }), /no/);
     await assert.rejects(hooks['tool.execute.before']({ tool: 'read' }, { args: {} }), /no/);
     const out = { output: 'done' };
     await hooks['tool.execute.after']({ tool: 'edit', args: {} }, out);
@@ -124,6 +125,7 @@ test('OpenCode plugin only translates: tool kinds in, throw, append and stderr o
   assert.deepEqual(calls, [
     ['session', undefined, root],
     ['before', 'edit', root],
+    ['before', 'shell', root],
     ['before', 'shell', root],
     ['before', null, root],
     ['after', 'edit', root],
@@ -697,7 +699,7 @@ test('past four cds the commit also scans the repo root', () => {
 function fakeCtx() {
   const hooks = {};
   const domain = () => ({ hook: (name, fn) => (hooks[name] = fn) });
-  return { hooks, ctx: { session: domain(), tool: domain(), directory: '/x' } };
+  return { hooks, ctx: { session: domain(), tool: domain(), location: { directory: '/x' } } };
 }
 
 test('OpenCode plugin default export carries both entry shapes', async () => {
@@ -727,9 +729,15 @@ test('OpenCode plugin setup hooks translate over decide, and v1 then stays empty
   await hooks.context(ev);
   assert.deepEqual(ev.system, [{ type: 'text', text: 'ctx' }]);
   await assert.rejects(hooks['execute.before']({ tool: 'bash', input: { command: 'x' } }), /no/);
-  const done = { status: 'completed', tool: 'edit', input: {}, result: { output: 'ok' } };
+  const done = { status: 'completed', tool: 'edit', input: {}, result: { content: 'ok' } };
   await hooks['execute.after'](done);
-  assert.equal(done.result.output, 'ok\n\nlint');
+  assert.equal(done.result.content, 'ok\n\nlint');
+  const parts = { status: 'completed', tool: 'edit', input: {}, result: { content: [{ type: 'text', text: 'ok' }] } };
+  await hooks['execute.after'](parts);
+  assert.deepEqual(parts.result.content, [{ type: 'text', text: 'ok' }, { type: 'text', text: 'lint' }]);
+  const bare = { status: 'completed', tool: 'edit', input: {}, result: { output: { n: 1 } } };
+  await hooks['execute.after'](bare);
+  assert.equal(bare.result.content, 'lint');
   const failed = { status: 'error', tool: 'edit', input: {}, error: 'e' };
   await hooks['execute.after'](failed);
   assert.deepEqual(calls.at(-1), ['after', 'edit']);
@@ -767,7 +775,7 @@ test('OpenCode plugin setup hooks fail open and skip an unexpected shape', async
   const ev = { system: 'str' };
   await h.hooks.context(ev);
   assert.equal(ev.system, 'str');
-  const odd = { status: 'completed', tool: 'edit', input: {}, result: { output: { text: 1 } } };
+  const odd = { status: 'completed', tool: 'edit', input: {}, result: { content: 42 } };
   await h.hooks['execute.after'](odd);
-  assert.deepEqual(odd.result.output, { text: 1 });
+  assert.equal(odd.result.content, 42);
 });

@@ -193,9 +193,12 @@ It runs at every session and subagent start (every turn under OpenCode).
 OpenCode has no subagent-start hook; its plugin injects the posture into
 every turn's system prompt instead. The plugin's default export carries the
 OpenCode 1 hook object (`experimental.chat.system.transform`,
-`tool.execute.before/after`, verified: a throw blocks the tool) and a v2
-`setup` that registers hooks only when its context offers them; no OpenCode
-build available so far does, so v1 hooks do the work on both.
+`tool.execute.before/after`; a throw blocks the tool) and a v2 `setup` that
+registers `session` and `tool` hooks, which OpenCode 2 runs (verified on
+2.1.2). Register the plugin as a directory on OpenCode 2 (`plugins`:
+`.opencode/plugins`, which holds an `index.js`); a plugin file path is
+skipped there. `scripts/install-hooks.mjs` picks the form from
+`opencode --version`. The OpenCode 2 `execute` code tool is not guarded yet.
 
 OpenCode notes for repos that use do-it:
 
@@ -205,8 +208,8 @@ OpenCode notes for repos that use do-it:
   `external_directory` by default; set it to `ask` or `deny` in
   `opencode.json` if the guards should not be sidestepped by paths outside the
   repo.
-- Session usage (tokens, cost) is available to an OpenCode plugin through the
-  `event` hook (`message.updated`), but do-it records none yet; see
+- Session usage (tokens, cost) is available to an OpenCode plugin (the `event`
+  hook on 1.x, `ctx.event.subscribe` on 2.x), but do-it records none yet; see
   `docs/issues/per-step-usage-record-on-do-it-work-items.md`.
 
 ## Configuration

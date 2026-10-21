@@ -46,7 +46,9 @@ until someone reconstructs it by hand.
   `input`, `output`, `reasoning`, `cache.read`, `cache.write`); subagent
   messages carry their own `sessionID`. So OpenCode can feed the record once
   `work.mjs` has a usage field; no OpenCode code is written before that
-  exists. The v2 docs build is unverified.
+  exists. On OpenCode 2.1.2 (verified) `ctx.event.subscribe` yields
+  `session.step.ended` and `session.usage.updated` with `cost` and `tokens`,
+  without agent or model; the `context` hook has those per request.
 
 - Retro handoff item 5; items 1 to 4, 6 and 7 were built on
   `do-it/retro-items`.

@@ -132,3 +132,48 @@ dev snapshot). Scratch config for load checks, the real config for model runs
 
 Log noise seen: `duplicate skill name do-it` (the same skill linked under
 `~/.claude/skills` and `~/.agents/skills`) is a WARN with no effect.
+
+## v2 plugin types (2026-10-21)
+
+The npm `dev` plugin package has no `session` or `tool` hooks, but
+`@opencode-ai/plugin@beta` (0.0.0-beta-19271) and `@next` do (the `dist/promise`
+files). Read from those types, and the plugin is written to them:
+
+- `Context` has `location.directory`, `session`, `tool`, `permission`, `event`.
+  There is no `ctx.directory`; the plugin now uses `ctx.location.directory`.
+- `session.hook("context")` event: `{sessionID, agent, model, system:
+  SystemPart[], messages, tools, generation, providerOptions}`. `SystemPart` is
+  `{type: "text", text, cache?, metadata?}`.
+- `tool.hook("execute.before")` event: `{tool, sessionID, agent, messageID, id,
+  input}` with `tool` and `input` mutable.
+- `tool.hook("execute.after")` event: the same fields plus `status:
+  "completed"` with `result`, or `status: "error"` with `error`.
+- `Tool.Result` is `{output?, content?, metadata?}`; `content` is a string or
+  a list of `{type: "text", text}` or file parts. It is not a string
+  `output`, so the plugin appends its note to `content` (string: appended,
+  list: a text part pushed, absent: set).
+- `permission.hook("evaluate")` event: `{sessionID, agent?, action, resources,
+  effect, message?}`.
+
+The `opencode-ai@beta` npm binary (0.0.0-beta-202608110357) is the v1 CLI and
+does not host these hooks; OpenCode 2.1.2 (brew) does, see the next section.
+
+## Run on OpenCode 2.1.2 (2026-10-21)
+
+`opencode` was upgraded by brew to v2.1.2 (the real v2 binary). Scratch `HOME`
+and `XDG_*`, `opencode run --standalone`, the free `minimax-m3.1-flash-free`
+model, a probe plugin, and the real do-it plugin.
+
+| Item | Result |
+|------|--------|
+| Plugin entry | A configured plugin must be a directory with an `index.js` (`plugins` or `plugin` key). A plugin file given by path is skipped with `WARN configured plugin path must be a directory`; `main`, `exports["./server"]`, `index.mjs` and a dir with only `x.mjs` are not loaded. `.opencode/plugins/*.js` auto-loads; `.mjs` does not. This repo's `.opencode/plugins/index.js` (re-exporting `do-it.mjs`) is what v2 loads. |
+| `setup` context | `app, location, options, agent, aisdk, command, credential, event, experimental, generate, model, provider, integration, mcp, permission, plugin, reference, rpc, skill, storage, tool, vcs, websearch, worktree, session, shell`. |
+| `session.hook("context")` | Event keys `sessionID, model, system, messages, options, agent, tools`; a pushed `{type: "text", text}` reached the model. |
+| `tool.hook("execute.before")` | `{tool, sessionID, agent, messageID, id, input}`. A throw blocks the tool; the model sees `{"error":{"type":"unknown","message":"<text>"},"content":[]}`. Tool names: `read`, `write`, `edit`, `shell` (not `bash`), `grep`, and an `execute` code tool. No patch tool. Inputs: write `{path, content}`, edit `{path, oldString, newString}`, shell `{command, workdir}`, read `{path}`. |
+| `tool.hook("execute.after")` | `{..., status: "completed", result}` with `result = {output, content: [{type: "text", text}], metadata}`. A text part pushed onto `content` reached the model. |
+| do-it plugin | Registered as `plugins: [<repo>/.opencode/plugins]`, loaded through `index.js`; a `write` containing a fake AWS key was blocked with the compliance message through the v2 `setup` hooks. |
+| `permission.hook("evaluate")` | `{sessionID, agent, action: "shell", resources: ["echo one","echo two","cat"], source, effect: "allow"}` for `echo one && echo two | cat`: scanner-split pieces, not the whole command. `execute.before` still gets the whole `command`, so the commit scan stays there. |
+| Usage | `ctx.event.subscribe({signal})` yields `session.step.ended` (`sessionID`, `assistantMessageID`, `cost`, `tokens {input, output, reasoning, cache {read, write}}`) and `session.usage.updated` (session totals). Agent and model are not on those events; the context hook has them per request. |
+| Generated agents | The `permission` map works: a live `it-scout` had no `write` or `edit` tool (it fell back to shell, which is allowed). The config reader also accepts `permissions` and `tools`. |
+| Gap | The `execute` tool runs code with a `tools` object; do-it's write, edit and shell guards do not see what it does. Filed as an issue. |
+| Stalls | Some first runs on a fresh state dir produced no output for minutes; a re-run on a copy of a warmed state dir was fine. |

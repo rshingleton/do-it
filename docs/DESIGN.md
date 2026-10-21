@@ -302,14 +302,17 @@ do-it/
   (`docs/research/opencode-v2-integration.md`): the plugin hook object blocks
   by throwing; a `permissions` list in an agent file is ignored (the agent
   stays allow-all), so agents use the `permission` map; a Claude-style
-  `tools: Read, Grep` makes the whole config invalid; `skills`, `instructions`
+  `tools: Read, Grep` makes a 1.x config invalid (2.x reads it); `skills`, `instructions`
   (frontmatter included), `commands/` and `command/` are all read. No `skills`
   or `instructions` entry is installed: the symlinks already work, and the
   plugin injects the posture each turn.
-- OpenCode usage: a plugin sees `cost` and `tokens` (input, output, reasoning,
-  cache read/write) with `agent`, `modelID` and `providerID` on each
-  `message.updated` assistant message. Nothing records it until `work.mjs`
-  has a usage field (the per-step usage issue).
+- OpenCode usage: on 1.x a plugin's `event` hook sees `cost` and `tokens`
+  (input, output, reasoning, cache read/write) with `agent`, `modelID` and
+  `providerID` on each `message.updated` assistant message; on 2.x
+  `ctx.event.subscribe` yields `session.step.ended` and `session.usage.updated`
+  with `cost` and `tokens`, and agent and model come from the `context` hook.
+  Nothing records it until `work.mjs` has a usage field (the per-step usage
+  issue).
 - Org-specific material (Jira, `.compliance-rules/`) is configuration, not
   code: the repo works with neither.
 
@@ -373,7 +376,7 @@ do-it/
 
 ## 12. Not built yet
 
-- The OpenCode 2 session and tool hooks from opencode.ai/v2/docs (`ctx.session`, `ctx.tool`, `permission.hook`): no build tested offers them, so the plugin's `setup` is written to the docs and untested against a host.
+- OpenCode 2: the `execute` code tool is not covered by the write and shell guards (`docs/issues/execute-tool-in-opencode-2-bypasses-the-write-and-shell-guards.md`), and `permission.hook("evaluate")` is not used (it gets scanner-split shell pieces, not the whole command).
 - A CI workflow running `npm test` and `npm run check` (routing evals
   included) on every push.
 
