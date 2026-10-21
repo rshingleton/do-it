@@ -53,11 +53,12 @@ the input carried one. Write the body per [PLAN-FORMAT.md](PLAN-FORMAT.md):
   `phase-N.md` per phase.
 
 Every step or phase states how it is verified (`step → verify: check`).
+Lane S in a risk area, or when asked for a top-tier plan: [PLANNER.md](PLANNER.md).
 
 Then run the two passes in [CHECKS.md](CHECKS.md) before showing anything:
 an analyze pass (coverage both ways, verify checks, names, blocks, rules)
-and a builder check (a fresh subagent reads only the plan and returns the
-questions a builder would ask). Fix the plan from both; questions only the
+and a builder check (a fresh `it-reviewer` agent reads only the plan and
+returns the questions a builder would ask). Fix the plan from both; questions only the
 user can answer join the approval turn.
 
 ## 4. ADR only when warranted
@@ -84,8 +85,8 @@ call the Skill tool with "track-it" and run `publish` for the plan. For Jira,
 settle the spec's `project`, `components` and `parent` epic in the approval
 turn (config values recommended; `none` when the user says not to). Record
 the parent and per-phase refs it returns with `work.mjs set <id> tracker
-'{"kind":"<kind>","ref":"<ref>","phases":{"1":"<ref>"}}'`. Lanes S and XS
-publish nothing by default.
+'{"kind":"<kind>","ref":"<ref>","phases":{"1":"<ref>"}}'`. Lanes S and XS do
+not publish by default.
 
 ## 7. Close
 
@@ -95,6 +96,5 @@ When `do-it` called this skill, return `done` and let it continue.
 
 ## Rules
 
-- No code edits, no commits.
-- Out-of-scope work found while planning goes to `log-it`.
+- No code edits, no commits. Out-of-scope work goes to `log-it`.
 - Rejected ideas get one line under the plan's `## Non-goals`.

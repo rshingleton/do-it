@@ -12,7 +12,8 @@ outside.
    changes no behaviour: nothing reads it outside `Client`."
 2. **Evidence.** List what it rests on: files read, commands run, outputs
    seen. Mark anything inferred rather than observed.
-3. **Doubt.** Start one subagent with only the claim, the evidence list and
+3. **Doubt.** Start one `it-skeptic` agent (top tier: a cheaper model checks less
+   well, which defeats the point) with only the claim, the evidence list and
    pointers to the code. Not your reasoning. Brief: "Try to show this claim
    is false. Check each piece of evidence yourself. Report a concrete
    counterexample (file and line, input, command output), or say none was

@@ -35,6 +35,36 @@ its file: "read [scope-it](../scope-it/SKILL.md) and follow it".
 - Shared conventions have one home (`do-it/STATE.md`, `do-it/LANES.md`);
   other skills link there instead of restating them.
 
+## Subagents
+
+A subagent inherits the model of the session that starts it, which is the
+top tier for most users. The role agents in `agents/` pin their own model and
+tools, so a skill names the agent and the tier follows:
+
+| Agent | Tier | Does |
+|-------|------|------|
+| `it-scout` | cheap | read-only exploring and mapping |
+| `it-reviewer` | mid | review one diff against one source, validate a finding, read a plan as its builder |
+| `it-builder` | mid | build one plan phase in a worktree |
+| `it-planner` | top | draft a plan |
+| `it-skeptic` | top | try to prove one claim false |
+
+Installed as the plugin, an agent's name carries the plugin prefix
+(`do-it:it-reviewer`) and the Agent tool refuses the bare name; installed by
+symlink it is bare. Start it by the name the Agent tool lists.
+
+Every paragraph that starts a subagent names one of these agents or a tier:
+**cheap tier** (`model: haiku` in Claude Code), **mid-tier model**
+(`model: sonnet`), or **session model** for work whose quality is the point,
+with the reason. A host without the agents (OpenCode, or an install that
+skipped them) starts a general-purpose subagent on that tier instead. A task
+that needs tools an agent withholds, such as web search for `look-it-up`,
+names the tier and not an agent.
+
+Give a subagent pointers, never the conversation, and a word cap on its
+report: the parent re-reads the report on every later turn.
+`npm run check` fails a paragraph that mentions a subagent and names no tier.
+
 ## Names
 
 Skill names are short `-it` verbs (`scope-it`, `track-it`) so they never

@@ -128,10 +128,13 @@ scripts/install.sh --uninstall
 ```
 
 Skills link into `~/.claude/skills` and `~/.agents/skills` (OpenCode reads
-both). An existing skill of the same name from another repo is skipped unless
-you pass `--force`. Hooks register in `~/.claude/settings.json` and
-`~/.config/opencode/opencode.json`; each file is backed up as
-`*.bak-do-it` first.
+both). The five role agents in `agents/` (`it-scout`, `it-reviewer`,
+`it-builder`, `it-planner`, `it-skeptic`) link into `~/.claude/agents`; each
+pins its own model, so skills that delegate pick the tier by naming the agent.
+An existing skill of the same name from another repo is skipped unless you
+pass `--force`. Hooks register in `~/.claude/settings.json` and
+`~/.config/opencode/opencode.json`; each file is backed up as `*.bak-do-it`
+first.
 
 **Claude Code plugin:**
 
@@ -140,7 +143,8 @@ you pass `--force`. Hooks register in `~/.claude/settings.json` and
 /plugin install do-it@do-it
 ```
 
-The plugin carries skills and hooks. Use it or the symlinks for Claude Code,
+The plugin carries skills, agents and hooks (its agents are namespaced, for
+example `do-it:it-reviewer`). Use it or the symlinks for Claude Code,
 not both. Using OpenCode too? Use the symlink install; it covers both hosts.
 
 **Update:** re-run the one-liner, `git pull` in the clone (symlinks pick it

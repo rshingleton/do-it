@@ -30,15 +30,17 @@ failing test as its case.
 
 ## 3. Reviewers (fresh context, in parallel)
 
-Start these together as subagents and merge their reports here. Give each
-pointers (the diff command, the untracked file list, the plan path), never
-the build transcript.
+An agent cannot call a skill, so run two of these here and start the third:
 
-| Reviewer | Lane S | Lane M | Brief |
-|----------|--------|--------|-------|
-| Spec and Standards | yes | yes | Call the Skill tool with "review-it", fixed point `base_ref`, spec = the plan and its `sources:`; review-it brings the repo's standards and its own baselines |
-| Compliance | yes | yes | Call the Skill tool with "guard-it" on the change |
-| Architecture | no | yes | [ARCHITECTURE.md](ARCHITECTURE.md) on every touched module |
+- **Spec and Standards:** call the Skill tool with "review-it", fixed point
+  `base_ref`, spec = the plan and its `sources:`. It starts its own two
+  `it-reviewer` agents and brings the repo's standards and its baselines.
+- **Compliance:** call the Skill tool with "guard-it" on the change.
+- **Architecture (lane M only):** start one `it-reviewer` agent (mid-tier
+  model) on [ARCHITECTURE.md](ARCHITECTURE.md) for every touched module.
+
+Give the agent pointers (the diff command, the untracked file list, the plan
+path), never the build transcript, and cap its report at 400 words.
 
 Lane XS is not audited here; `ship-it` does its self-review.
 
@@ -47,7 +49,7 @@ Lane XS is not audited here; `ship-it` does its self-review.
 Write findings per the contract in [REPORT.md](REPORT.md): concrete case or no
 finding, recorded decisions are not findings, numbered Must / Should / Nice.
 Then validate every Must except failed mechanical checks per
-[VALIDATE.md](VALIDATE.md): a fresh subagent confirms or rejects each one from
+[VALIDATE.md](VALIDATE.md): a fresh `it-reviewer` agent confirms or rejects each one from
 the code alone; rejected ones move to **Not confirmed** and stop blocking.
 
 - Any confirmed **Must**: `FAIL`.

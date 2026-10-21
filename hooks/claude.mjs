@@ -2,7 +2,8 @@
 // Claude Code hook entry point: node hooks/claude.mjs <event>
 //
 //   session-start   SessionStart   inject the core posture and standards pointers
-//   subagent-start  SubagentStart  the same for subagents (SessionStart never reaches them)
+//   subagent-start  SubagentStart  the same for subagents (SessionStart never reaches them);
+//                                  read-only agents (Explore, Plan, it-scout) get it without the coding posture
 //   pre-tool        PreToolUse     block HIGH compliance hits in edits and in git commits
 //   post-tool       PostToolUse    report MEDIUM/LOW hits, run DO_IT_LINT_CMD
 //
@@ -11,6 +12,11 @@
 import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { decide } from './lib/decide.mjs';
+
+// Subagent types that only read; they skip the coding posture. A plugin agent
+// reports itself as <plugin>:<name>, so the prefix is dropped before the lookup.
+export const READ_ONLY_AGENTS = new Set(['Explore', 'Plan', 'claude-code-guide', 'it-scout', 'it-reviewer', 'it-skeptic']);
+const agentName = (type) => String(type ?? '').replace(/^[^:]+:/, '');
 
 // Claude Code's tool names, as the kinds decide() checks.
 const KINDS = { Write: 'edit', Edit: 'edit', MultiEdit: 'edit', NotebookEdit: 'edit', Bash: 'shell' };
@@ -48,6 +54,7 @@ export async function handle(event, input) {
     kind: KINDS[input.tool_name] ?? null,
     args: input.tool_input || {},
     cwd: input.cwd || process.cwd(),
+    readOnly: event === 'subagent-start' && READ_ONLY_AGENTS.has(agentName(input.agent_type)),
   });
   if (r.block) return { exit: 2, stderr: r.block };
   const out = { exit: 0, stderr: r.notice };

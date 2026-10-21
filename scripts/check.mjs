@@ -4,16 +4,28 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { ROOT, listSkills, userInvoked } from './lib/skills.mjs';
+import { ROOT, listSkills, listAgents, userInvoked } from './lib/skills.mjs';
 
 const SKILL_LINE_BUDGET = 100;
 const SKILL_LINE_LIMIT = 150;
+
+// Files that talk about subagents without starting one.
+const TIER_EXEMPT = new Set(['skills/skill-it/SKILL-MECHANICS.md', 'skills/it-core/SKILL.md', 'skills/do-it/BOUNDARIES.md']);
+// A paragraph that starts or sends a subagent (not one that only mentions them).
+const SPAWN = /\b(start|send)\b[^.]{0,80}(subagent|background agent)|\b(one|a) (fresh-context |fresh |background |exploring |validator )?subagent/i;
+const TIER = /cheap tier|mid-tier\s+model|session model|`it-(?:scout|reviewer|builder|planner|skeptic)`/i;
+
+// Agents that only read: they must list tools, and none may write.
+const READ_ONLY_AGENTS = new Set(['it-scout', 'it-reviewer', 'it-skeptic']);
+const WRITE_TOOLS = ['Write', 'Edit', 'MultiEdit', 'NotebookEdit'];
 
 const errors = [];
 const warnings = [];
 const rel = (p) => path.relative(ROOT, p);
 
 const skills = listSkills();
+const agents = listAgents();
+const agentNames = new Set(agents.map((a) => a.name));
 const names = new Set(skills.map((s) => s.meta.name));
 const userOnly = new Set(skills.filter(userInvoked).map((s) => s.meta.name));
 
@@ -38,6 +50,19 @@ for (const s of skills) {
   const lines = s.text.replace(/\n$/, '').split('\n').length;
   if (lines > SKILL_LINE_LIMIT) errors.push(`${where}: ${lines} lines (limit ${SKILL_LINE_LIMIT}); move detail to a sibling file`);
   else if (lines > SKILL_LINE_BUDGET) warnings.push(`${where}: ${lines} lines (budget ${SKILL_LINE_BUDGET})`);
+}
+
+for (const a of agents) {
+  const where = rel(a.file);
+  if (a.meta.name !== a.name) errors.push(`${where}: name "${a.meta.name ?? ''}" does not match file "${a.name}"`);
+  if (!a.meta.description) errors.push(`${where}: missing description`);
+  if (!a.meta.model) errors.push(`${where}: missing model`);
+  if (READ_ONLY_AGENTS.has(a.name)) {
+    // `tools: Read, Grep` or a YAML list; leave only the tool names.
+    const tools = String(a.meta.tools ?? '').split(/[\s,\[\]-]+/).filter(Boolean);
+    if (!tools.length) errors.push(`${where}: read-only agent needs a tools list`);
+    for (const w of WRITE_TOOLS.filter((t) => tools.includes(t))) errors.push(`${where}: read-only agent lists ${w}`);
+  }
 }
 
 const docs = [...markdownFiles(path.join(ROOT, 'skills')), path.join(ROOT, 'README.md'), path.join(ROOT, 'AGENTS.md')].filter((f) =>
@@ -66,6 +91,22 @@ for (const file of docs) {
         `${where}: calls user-invoked skill "${target}" through the Skill tool, which the host refuses; follow ../${target}/SKILL.md by path instead`,
       );
     }
+  }
+
+  // A paragraph that starts a subagent names its model tier, or the subagent
+  // runs on whatever the session uses (SKILL-MECHANICS.md, Subagents).
+  if (where.startsWith('skills/') && !TIER_EXEMPT.has(where)) {
+    const body = text.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, '').replace(/^(```|~~~)[\s\S]*?^\1/gm, '');
+    for (const para of body.split(/\n\s*\n/)) {
+      if (SPAWN.test(para) && !TIER.test(para)) {
+        errors.push(`${where}: starts a subagent without naming its model tier ("${para.trim().slice(0, 50)}...")`);
+      }
+    }
+  }
+
+  // A backticked it-<word> names a skill or an agent that ships.
+  for (const m of text.matchAll(/`(it-[a-z]+)`/g)) {
+    if (!names.has(m[1]) && !agentNames.has(m[1])) errors.push(`${where}: \`${m[1]}\` is neither a skill nor a file in agents/`);
   }
 
   // Prose: no ``` or ~~~ fences, no inline code. Examples live there.

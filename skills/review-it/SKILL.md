@@ -54,10 +54,9 @@ already enforces.
 
 ## 4. Two reviewers at once
 
-Start both as subagents in the same turn, on the mid-tier model (`model:
-sonnet` in Claude Code); each reads one diff against one source, which does
-not need the top tier. Give each the diff commands and file list, never this
-conversation.
+Start both as `it-reviewer` agents in the same turn (mid-tier model); each
+reads one diff against one source, which does not need the top tier. Give each
+the diff commands and file list, never this conversation.
 
 **Spec reviewer** gets the spec (path or fetched text) and this brief:
 

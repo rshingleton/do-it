@@ -23,8 +23,8 @@ nothing about the pass in the plan; the fixed plan is the record.
 
 ## 2. Builder check (fresh eyes)
 
-Start one subagent with only the plan file(s) and its `sources:`, never the
-grill conversation. Brief:
+Start one `it-reviewer` agent (mid-tier model) with only the plan file(s) and
+its `sources:`, never the grill conversation. Brief:
 
 > You will build this plan alone and cannot ask anyone. Read it and the code
 > it points at. List the questions you would need answered before or during

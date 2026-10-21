@@ -30,8 +30,9 @@ Structure pays back where code keeps changing, so look there first.
 
 ## 2. Explore
 
-Send an exploring subagent through the chosen area with the `design-it`
-vocabulary and these prompts. It reports friction, not fixes:
+Send an `it-reviewer` agent (mid-tier model, report under 400 words) through
+the chosen area with the `design-it` vocabulary and these prompts. It reports
+friction, not fixes:
 
 - understanding one idea means hopping across many small modules;
 - an interface is nearly as large as what sits behind it;

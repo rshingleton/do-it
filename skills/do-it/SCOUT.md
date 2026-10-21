@@ -2,8 +2,9 @@
 
 A short, read-only look at the code before sizing. Budget: a few searches and
 a handful of files. Do it in the main context for small repos; with a large
-repo and a host that has an exploring subagent, send one with the request
-and this brief, and keep only its summary.
+repo and a host that has an exploring subagent, send the `it-scout` agent
+(cheap tier) with the request and this brief, cap its summary at 300 words,
+and keep only that.
 
 ## 1. Project state
 

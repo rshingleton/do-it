@@ -27,8 +27,9 @@ data writes, background jobs, shared state.
 
 Run the lenses in [LENSES.md](LENSES.md): bugs, risk, scale, test gaps, debt,
 drift, lean, and a short architecture pass. A repo-wide sweep on a host with
-subagents: one fresh-context subagent per group of lenses (correctness and
-risk; tests; debt, drift and lean), each given the scope, the assumed load and
+subagents: one fresh-context `it-reviewer` agent (mid-tier model) per group of
+lenses (correctness and risk; tests; debt, drift and lean), each reporting
+under 500 words and given the scope, the assumed load and
 [LENSES.md](LENSES.md); merge their findings here and re-check each one.
 
 Compliance: call the Skill tool with "guard-it" on the scope, so repo
