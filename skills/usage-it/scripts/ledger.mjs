@@ -359,7 +359,8 @@ export function projectWeek(snapshots, now = Date.now()) {
 }
 
 // Every raw record plus every rollup row; a rollup row carries `runs`, a raw
-// record counts as one.
+// record counts as one. A day that has a raw file wins over its rollup rows, so a
+// day rebuilt from the transcripts after it was rolled up is not counted twice.
 export function readAll(dir) {
   let names = [];
   try {
@@ -367,13 +368,19 @@ export function readAll(dir) {
   } catch {
     return [];
   }
-  return names.filter((n) => n.endsWith('.jsonl')).flatMap((n) => readFile(path.join(dir, n)));
+  const rawDays = new Set(names.filter((n) => /^\d{4}-\d{2}-\d{2}\.jsonl$/.test(n)).map((n) => n.slice(0, 10)));
+  return names
+    .filter((n) => n.endsWith('.jsonl'))
+    .flatMap((n) => readFile(path.join(dir, n)))
+    .filter((r) => r.id || !rawDays.has(r.day));
 }
 
 // Backfill from the transcripts Claude Code already keeps: every session and
 // subagent file under `root` (~/.claude/projects) touched within `days`.
 // Re-running is safe; records are keyed by id. Returns how many were written.
-export function importTranscripts(root, { dir = usageDir(), days = keepDays(), rollupDays = rollupKeepDays(), now = new Date() } = {}) {
+// `days` is only how far back to look; `keep` is how long raw days are kept, so a
+// short look-back never rolls older raw days up.
+export function importTranscripts(root, { dir = usageDir(), days = keepDays(), keep = keepDays(), rollupDays = rollupKeepDays(), now = new Date() } = {}) {
   const since = now.getTime() - days * 86400000;
   let n = 0;
   const fresh = (f) => fs.statSync(f).mtimeMs >= since;
@@ -384,7 +391,7 @@ export function importTranscripts(root, { dir = usageDir(), days = keepDays(), r
       const sid = name.slice(0, -'.jsonl'.length);
       const main = path.join(pdir, name);
       try {
-        if (fresh(main) && trackUsage('session', { session_id: sid, transcript_path: main }, { dir, days, rollupDays, now })) n++;
+        if (fresh(main) && trackUsage('session', { session_id: sid, transcript_path: main }, { dir, days: keep, rollupDays, now })) n++;
       } catch {}
       const subs = path.join(pdir, sid, 'subagents');
       for (const f of safeDir(subs)) {
@@ -397,7 +404,7 @@ export function importTranscripts(root, { dir = usageDir(), days = keepDays(), r
             agentType = JSON.parse(fs.readFileSync(file.replace(/\.jsonl$/, '.meta.json'), 'utf8')).agentType;
           } catch {}
           const input = { session_id: sid, agent_id: f.slice(6, -6), agent_type: agentType, agent_transcript_path: file };
-          if (trackUsage('subagent', input, { dir, days, rollupDays, now })) n++;
+          if (trackUsage('subagent', input, { dir, days: keep, rollupDays, now })) n++;
         } catch {}
       }
     }

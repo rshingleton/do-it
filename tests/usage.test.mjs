@@ -470,3 +470,26 @@ test('refreshUtilization runs `claude -p /usage` only when the cached reading is
   fs.rmSync(path.join(cfg, '.claude.json'));
   assert.equal(refreshUtilization({ env: { ...env, PATH: '/nonexistent' }, now }), false, 'no claude binary fails open');
 });
+
+test('a short import look-back does not roll older raw days up, and a rebuilt day is not counted twice', () => {
+  const work = tmp();
+  const dir = path.join(work, 'usage');
+  const root = path.join(work, 'projects');
+  const proj = path.join(root, 'p');
+  fs.mkdirSync(proj, { recursive: true });
+  const now = new Date('2026-10-21T12:00:00Z');
+  const day = (n) => new Date(now.getTime() - n * 86400000).toISOString();
+  const turn = (id, ts) => JSON.stringify({ type: 'assistant', timestamp: ts, message: { id, role: 'assistant', model: 'm', usage: { input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 1, cache_creation_input_tokens: 1 } } });
+  record(dir, { id: 'old', kind: 'session', agent: 'main', model: 'm', project: 'p', day: day(10).slice(0, 10), at: day(10), turns: 1, in: 1, out: 1, cr: 1, cc: 1 });
+  fs.writeFileSync(path.join(proj, 'recent.jsonl'), turn('r', day(0)));
+  fs.utimesSync(path.join(proj, 'recent.jsonl'), now, now);
+  assert.equal(importTranscripts(root, { dir, days: 2, keep: 30, now }), 1);
+  assert.ok(fs.existsSync(path.join(dir, `${day(10).slice(0, 10)}.jsonl`)), 'the 10-day-old raw file stays');
+  assert.equal(fs.existsSync(path.join(dir, 'rollup.jsonl')), false);
+
+  // A day rolled up earlier and then rebuilt: the raw file wins over its rollup rows.
+  fs.writeFileSync(path.join(dir, 'rollup.jsonl'), `${JSON.stringify({ day: day(10).slice(0, 10), agent: 'main', model: 'm', project: 'p', runs: 1, turns: 1, in: 1, out: 1, cr: 1, cc: 1 })}\n${JSON.stringify({ day: '2026-09-01', agent: 'main', model: 'm', project: 'p', runs: 2, turns: 1, in: 1, out: 1, cr: 1, cc: 1 })}\n`);
+  const rows = readAll(dir);
+  assert.equal(rows.filter((r) => r.day === day(10).slice(0, 10)).length, 1);
+  assert.equal(rows.filter((r) => r.day === '2026-09-01').length, 1, 'a rolled-up day with no raw file is kept');
+});
