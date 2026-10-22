@@ -427,7 +427,7 @@ test('the stop hook and the report take Claude Code\'s cached reading, and the r
   const dir = path.join(work, 'usage');
   const main = path.join(work, 's9.jsonl');
   fs.writeFileSync(main, line('m1', 10));
-  const env = { ...process.env, DO_IT_USAGE_DIR: dir, CLAUDE_CONFIG_DIR: cfg };
+  const env = { ...process.env, DO_IT_USAGE_DIR: dir, CLAUDE_CONFIG_DIR: cfg, TZ: 'America/New_York' }; // report days are local; the two readings share one only here
   const saved = { dir: process.env.DO_IT_USAGE_DIR, cfg: process.env.CLAUDE_CONFIG_DIR };
   Object.assign(process.env, { DO_IT_USAGE_DIR: dir, CLAUDE_CONFIG_DIR: cfg });
   try {
