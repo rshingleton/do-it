@@ -2,7 +2,7 @@
 // Work-item CLI: the only writer of a plan's state block. Prints JSON.
 //
 //   work.mjs new <id> --lane s|m --title "<title>"
-//   work.mjs show <id> [--brief]
+//   work.mjs show <id> [--brief]   (--brief also on new, list, event, set, verify-phase)
 //   work.mjs list
 //   work.mjs event <id> <event> [args] [--phase n] [--fingerprint f] [--date d]
 //   work.mjs set <id> <key> <json>
@@ -131,23 +131,24 @@ export async function run(argv, { cwd = process.cwd() } = {}) {
   const [cmd, id, ...rest] = pos;
   const ctx = context(cwd);
   const { items } = ctx;
+  const shown = (item) => (opts.brief ? brief(item) : view(ctx, item));
 
   switch (cmd) {
     case 'new':
-      return view(ctx, items.create(id, { lane: opts.lane, title: opts.title }));
+      return shown(items.create(id, { lane: opts.lane, title: opts.title }));
     case 'show':
-      return opts.brief ? brief(items.get(id)) : view(ctx, items.get(id));
+      return shown(items.get(id));
     case 'list':
-      return items.list().map((i) => ({ ...i, path: path.relative(ctx.root, i.path) }));
+      return items.list().map((i) => (opts.brief ? { id: i.id, lane: i.lane, status: i.status } : { ...i, path: path.relative(ctx.root, i.path) }));
     case 'event': {
       const item = items.get(id);
       const [event, ...args] = rest;
       if (!event) throw new Error(`missing event; allowed from ${item.state.status}: ${firableEvents(item.state.status).join(', ')}`);
-      return view(ctx, items.fire(id, event, eventArgs(ctx, item, event, args, opts)));
+      return shown(items.fire(id, event, eventArgs(ctx, item, event, args, opts)));
     }
     case 'set': {
       const [key, value] = rest;
-      return view(ctx, items.set(id, key, value === undefined ? undefined : json(value)));
+      return shown(items.set(id, key, value === undefined ? undefined : json(value)));
     }
     case 'fingerprint': {
       const item = items.get(id);
@@ -184,7 +185,7 @@ export async function run(argv, { cwd = process.cwd() } = {}) {
         if (r.status !== 0) return { ok: false, why: `${text} exited ${r.status ?? r.signal}` };
         return { ok: true, text };
       };
-      return view(ctx, items.verifyPhase(id, phase === undefined ? undefined : Number(phase), check, { date: opts.date }));
+      return shown(items.verifyPhase(id, phase === undefined ? undefined : Number(phase), check, { date: opts.date }));
     }
     case 'roadmap': {
       if (!id) throw new Error('roadmap needs a roadmap file');

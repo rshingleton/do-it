@@ -6,7 +6,9 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-import { sumTranscript, record, prune, readAll, trackUsage, subagentTranscript, importTranscripts } from '../skills/usage-it/scripts/ledger.mjs';
+import { sumTranscript, record, prune, readAll, trackUsage, subagentTranscript, importTranscripts, clearLimit } from '../skills/usage-it/scripts/ledger.mjs';
+import { baselineSizes, descriptionSizes } from '../skills/usage-it/scripts/baseline.mjs';
+import { contextOutliers } from '../skills/usage-it/scripts/outliers.mjs';
 import { handle } from '../hooks/claude.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -37,7 +39,17 @@ test('sumTranscript counts a message once however many blocks repeat it', () => 
     first: '2026-10-21T10:00:00.000Z',
     last: '2026-10-21T10:00:00.000Z',
     cwd: null,
+    ctx0: 112,
+    peak: 112,
   });
+});
+
+test('sumTranscript reports first-turn and peak context, each message once', () => {
+  const big = (id, cr) =>
+    JSON.stringify({ type: 'assistant', message: { id, role: 'assistant', usage: { input_tokens: 1, output_tokens: 1, cache_read_input_tokens: cr, cache_creation_input_tokens: 4 } } });
+  const s = sumTranscript([big('a', 100), big('a', 100), big('b', 900), big('c', 300)].join('\n'));
+  assert.equal(s.ctx0, 105);
+  assert.equal(s.peak, 905);
 });
 
 test('sumTranscript of an empty transcript has no turns', () => {
@@ -208,4 +220,126 @@ test('report.mjs writes a self-contained page, escapes ledger strings, and handl
   assert.match(html, /Main sessions on Opus/);
   assert.match(html, /unpinned agent types \(general-purpose\)/);
   assert.ok(!/https?:\/\//.test(html.replace('http://www.w3.org', '')), 'no network references');
+});
+
+test('trackUsage returns prevPeak from the earlier stop without storing it, and old rows still read', () => {
+  const work = tmp();
+  const dir = path.join(work, 'usage');
+  const main = path.join(work, 's2.jsonl');
+  fs.writeFileSync(main, line('m1', 10));
+  const opts = { dir, days: 7, now: new Date('2026-10-21T12:00:00Z') };
+  const input = { session_id: 's2', transcript_path: main };
+  record(dir, { id: 'old', kind: 'session', agent: 'main', day: '2026-10-21', out: 1 });
+
+  const first = trackUsage('session', input, opts);
+  assert.equal(first.prevPeak, null);
+  assert.equal(first.peak, 112);
+  fs.appendFileSync(main, `\n${JSON.stringify({ type: 'assistant', message: { id: 'm2', role: 'assistant', usage: { input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 500, cache_creation_input_tokens: 0 } } })}`);
+  const second = trackUsage('session', input, opts);
+  assert.equal(second.prevPeak, 112);
+  assert.equal(second.peak, 501);
+
+  const rows = readAll(dir);
+  assert.equal('prevPeak' in rows.find((r) => r.id === 's2'), false);
+  assert.equal(rows.find((r) => r.id === 'old').peak, undefined);
+});
+
+test('contextOutliers flags peaks above twice the median and skips rows without a peak', () => {
+  const s = (id, peak, ctx0 = 50) => ({ id, kind: 'session', session: id, peak, ctx0 });
+  const o = contextOutliers([s('a', 100), s('b', 110), s('c', 120), s('d', 130), s('e', 900), { id: 'old', kind: 'session' }, { id: 'sub', kind: 'subagent', peak: 5000 }]);
+  assert.equal(o.sessions, 5);
+  assert.equal(o.medianPeak, 120);
+  assert.equal(o.medianStart, 50);
+  assert.equal(o.flagged, 1);
+  assert.equal(o.top[0].id, 'e');
+  assert.equal(o.top[0].flagged, true);
+  assert.equal(o.top[1].flagged, false);
+  assert.equal(contextOutliers([]).sessions, 0);
+});
+
+test('report.mjs lists context outliers and says so when no session has a peak', () => {
+  const dir = tmp();
+  const out = path.join(tmp(), 'r.html');
+  const run = () => execFileSync('node', [path.join(ROOT, 'skills', 'usage-it', 'scripts', 'report.mjs'), '--days', '30', '--out', out], { env: { ...process.env, DO_IT_USAGE_DIR: dir }, encoding: 'utf8' });
+  const today = new Date().toISOString().slice(0, 10);
+  const base = { kind: 'session', agent: 'main', model: 'claude-sonnet-5-5', project: 'p', day: today, turns: 3, in: 1, out: 1, cr: 10, cc: 1 };
+  record(dir, { ...base, id: 'x', session: 'x'.repeat(12) });
+  run();
+  assert.match(fs.readFileSync(out, 'utf8'), /Context outliers<\/h2><p class="muted">No session/);
+  for (const [id, peak] of [['a', 100], ['b', 110], ['c', 120], ['z', 900]]) record(dir, { ...base, id, session: id.repeat(12), ctx0: 50, peak });
+  run();
+  const html = fs.readFileSync(out, 'utf8');
+  assert.match(html, /Context outliers<\/h2>.*<code>zzzzzzzz<\/code>.*over 2x median/s);
+  assert.match(html, /1 of 4 session\(s\) peaked above 2x/);
+});
+
+test('clearLimit reads DO_IT_CLEAR_AT, with 0 meaning off and junk falling back', () => {
+  assert.equal(clearLimit({}), 300000);
+  assert.equal(clearLimit({ DO_IT_CLEAR_AT: '150000' }), 150000);
+  assert.equal(clearLimit({ DO_IT_CLEAR_AT: '0' }), 0);
+  assert.equal(clearLimit({ DO_IT_CLEAR_AT: 'lots' }), 300000);
+  assert.equal(clearLimit({ DO_IT_CLEAR_AT: '' }), 300000);
+});
+
+test('the stop hook tells the user once when the context first passes the limit, never for subagents', async () => {
+  const work = tmp();
+  const main = path.join(work, 's3.jsonl');
+  const turn = (id, cr) => JSON.stringify({ type: 'assistant', message: { id, role: 'assistant', usage: { input_tokens: 1, output_tokens: 1, cache_read_input_tokens: cr, cache_creation_input_tokens: 0 } } });
+  const input = { session_id: 's3', transcript_path: main, cwd: '/repo/p' };
+  const saved = { dir: process.env.DO_IT_USAGE_DIR, at: process.env.DO_IT_CLEAR_AT };
+  process.env.DO_IT_USAGE_DIR = path.join(work, 'usage');
+  process.env.DO_IT_CLEAR_AT = '1000';
+  try {
+    fs.writeFileSync(main, turn('a', 200));
+    assert.deepEqual(await handle('stop', input), { exit: 0 }); // below the limit
+    fs.appendFileSync(main, `\n${turn('b', 2000)}`);
+    const crossed = await handle('stop', input);
+    assert.match(crossed.stdout.systemMessage, /reached 2k tokens.*\/clear/);
+    assert.equal(crossed.exit, 0);
+    fs.appendFileSync(main, `\n${turn('c', 3000)}`);
+    assert.deepEqual(await handle('stop', input), { exit: 0 }); // already told
+    const sub = path.join(work, 's3', 'subagents');
+    fs.mkdirSync(sub, { recursive: true });
+    fs.writeFileSync(path.join(sub, 'agent-q.jsonl'), turn('q', 9000));
+    assert.deepEqual(await handle('subagent-stop', { ...input, agent_id: 'q', agent_type: 'Explore' }), { exit: 0 });
+    process.env.DO_IT_CLEAR_AT = '0';
+    fs.writeFileSync(path.join(work, 's4.jsonl'), turn('z', 9000));
+    assert.deepEqual(await handle('stop', { session_id: 's4', transcript_path: path.join(work, 's4.jsonl') }), { exit: 0 }); // off
+  } finally {
+    for (const [k, v] of [['DO_IT_USAGE_DIR', saved.dir], ['DO_IT_CLEAR_AT', saved.at]]) v === undefined ? delete process.env[k] : (process.env[k] = v);
+  }
+});
+
+test('usage.mjs --from/--to keeps runs that ended inside the window, bounds inclusive', () => {
+  const dir = tmp();
+  const base = { kind: 'subagent', day: '2026-10-21', turns: 1, in: 1, cr: 0, cc: 0, out: 5, model: 'haiku' };
+  record(dir, { ...base, id: 'a', agent: 'before', at: '2026-10-21T08:59:59Z' });
+  record(dir, { ...base, id: 'b', agent: 'start', at: '2026-10-21T09:00:00Z' });
+  record(dir, { ...base, id: 'c', agent: 'end', at: '2026-10-21T10:00:00Z' });
+  record(dir, { ...base, id: 'd', agent: 'after', at: '2026-10-21T10:00:01Z' });
+  const run = (...a) => execFileSync('node', [path.join(ROOT, 'skills', 'usage-it', 'scripts', 'usage.mjs'), '--json', '--days', '90', ...a], { env: { ...process.env, DO_IT_USAGE_DIR: dir }, encoding: 'utf8' });
+  assert.deepEqual(JSON.parse(run('--from', '2026-10-21T09:00:00Z', '--to', '2026-10-21T10:00:00Z')).map((r) => r.agent).sort(), ['end', 'start']);
+  assert.equal(JSON.parse(run('--from', '2026-10-21T09:30:00Z')).length, 2);
+  assert.throws(() => run('--from', 'yesterday'), /ISO timestamps/);
+  // The ledger's own timestamps carry milliseconds: a bound written without them must still be inclusive.
+  record(dir, { ...base, id: 'e', agent: 'ms-start', at: '2026-10-21T09:00:00.000Z' });
+  record(dir, { ...base, id: 'f', agent: 'ms-end', at: '2026-10-21T10:00:00.000Z' });
+  assert.deepEqual(JSON.parse(run('--from', '2026-10-21T09:00:00Z', '--to', '2026-10-21T10:00:00Z')).map((r) => r.agent).sort(), ['end', 'ms-end', 'ms-start', 'start']);
+});
+
+test('baselineSizes measures the invocable descriptions and tolerates a missing project', async () => {
+  const skills = tmp();
+  const mk = (name, body) => {
+    fs.mkdirSync(path.join(skills, name));
+    fs.writeFileSync(path.join(skills, name, 'SKILL.md'), body);
+  };
+  mk('auto', '---\nname: auto\ndescription: Does a thing.\n---\n');
+  mk('typed', '---\nname: typed\ndescription: Hidden.\ndisable-model-invocation: true\n---\n');
+  assert.deepEqual(descriptionSizes(skills), [{ name: 'auto', chars: 'Does a thing.'.length }]);
+  const rows = await baselineSizes(tmp(), { skillsDir: skills });
+  assert.equal(rows.at(-1).chars, 'Does a thing.'.length);
+  assert.equal(rows.find((r) => /CLAUDE/.test(r.label)).chars, 0);
+  const out = execFileSync('node', [path.join(ROOT, 'skills', 'usage-it', 'scripts', 'usage.mjs'), '--baseline'], { env: { ...process.env, DO_IT_USAGE_DIR: tmp() }, encoding: 'utf8', cwd: ROOT });
+  assert.match(out, /session-start block.*~[\d,]+\)/);
+  assert.match(out, /No session has a recorded start context/);
 });

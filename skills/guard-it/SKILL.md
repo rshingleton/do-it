@@ -1,6 +1,6 @@
 ---
 name: guard-it
-description: Check a change against the repo's compliance rules, security policy, secret and dependency policy, and report findings by severity. Use for a compliance or security pre-flight, before a PR is marked ready, when prove-it runs its compliance reviewer, or when the user asks to add or tune a compliance rule.
+description: Check a change against the repo's compliance rules, security policy, secret and dependency policy, and report findings by severity. Use for a compliance or security pre-flight, before a PR is marked ready or when the user asks to add or tune a compliance rule.
 ---
 
 # guard-it

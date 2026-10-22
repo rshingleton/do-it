@@ -7,7 +7,8 @@
 //                                  agents with no voice rules of their own get VOICE.md appended
 //   pre-tool        PreToolUse     block HIGH compliance hits in edits and in git commits
 //   post-tool       PostToolUse    report MEDIUM/LOW hits, run DO_IT_LINT_CMD
-//   stop            Stop           record the main session's token totals (skills/usage-it/scripts/ledger.mjs)
+//   stop            Stop           record the main session's token totals (skills/usage-it/scripts/ledger.mjs);
+//                                  tell the user once when its context first passes DO_IT_CLEAR_AT tokens
 //   subagent-stop   SubagentStop   record the subagent's token totals
 //
 // Fails open: a crash or bad input never blocks the agent.
@@ -16,7 +17,7 @@ import fs, { realpathSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { decide } from './lib/decide.mjs';
-import { trackUsage } from '../skills/usage-it/scripts/ledger.mjs';
+import { trackUsage, clearLimit } from '../skills/usage-it/scripts/ledger.mjs';
 
 // Subagent types that only read; they skip the coding posture. A plugin agent
 // reports itself as <plugin>:<name>, so the prefix is dropped before the lookup.
@@ -65,9 +66,16 @@ function emit(obj) {
 // PostToolUse channel); a notice goes to stderr and the tool runs.
 export async function handle(event, input) {
   if (event === 'stop' || event === 'subagent-stop') {
+    let rec = null;
     try {
-      trackUsage(event === 'stop' ? 'session' : 'subagent', input);
+      rec = trackUsage(event === 'stop' ? 'session' : 'subagent', input);
     } catch {}
+    // A notice to the user only, on the stop that first crosses the limit.
+    const limit = clearLimit();
+    if (event === 'stop' && rec && limit > 0 && rec.peak >= limit && (rec.prevPeak ?? 0) < limit) {
+      const k = Math.round(rec.peak / 1000);
+      return { exit: 0, stdout: { systemMessage: `This session's context reached ${k}k tokens, re-read on every turn. Consider /pass-it, then /clear.` } };
+    }
     return { exit: 0 };
   }
   const [name, hookEventName] = EVENTS[event] ?? [];

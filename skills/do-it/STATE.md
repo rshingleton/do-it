@@ -25,6 +25,14 @@ from anywhere in the repo.
 | `work.mjs roadmap <file>` | Every slice's derived state and the next one to start |
 | `work.mjs close <id>` | Deletes the plan and prints the to-do ids, roadmap slice and tracker refs to close |
 
+`new`, `set`, `event`, `verify-phase` and `list` take `--brief`: the same short
+shape as `show --brief` (`list`: `id`, `lane`, `status` per item). A step that
+only needs the result of a write passes it and re-reads with `show` when it
+needs more. `fingerprint`, `review-diff`, `roadmap` and `close` already print
+only what the caller reads, so they have no brief form. Free text in the block
+(`blocker`, `assumptions`, `fix`, `verified`) follows
+[VOICE.md](../it-core/VOICE.md): terse, numbers and paths verbatim, negations kept.
+
 ## Events
 
 | Event | From | To | Records |

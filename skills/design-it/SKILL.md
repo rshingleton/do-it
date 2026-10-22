@@ -1,6 +1,6 @@
 ---
 name: design-it
-description: The shared vocabulary and principles for shaping modules so a lot of behaviour sits behind a small, testable interface: module, interface, depth, seam, adapter, leverage, locality, and the deletion test. Use when designing or reshaping a module's interface, deciding where a seam goes, judging whether a module earns its keep, making code easier to test or navigate, or when another skill asks for the design vocabulary.
+description: The shared vocabulary and principles for shaping modules so a lot of behaviour sits behind a small, testable interface: module, interface, depth, seam, adapter, leverage, locality, and the deletion test. Use when designing or reshaping a module's interface, deciding where a seam goes, judging whether a module earns its keep, making code easier to test or navigate.
 ---
 
 # design-it

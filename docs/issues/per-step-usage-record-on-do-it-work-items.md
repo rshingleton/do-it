@@ -29,7 +29,7 @@ on. What remains is attributing usage to a work item.
 - [x] A hook captures usage (SubagentStop and Stop) and fails open: missing or
   malformed usage data never blocks the agent. Done as `skills/usage-it`.
 - [x] Subagent counts: runs per agent in `/usage-it`.
-- [ ] A work item's usage can be read per phase (scope, build, prove, ship)
+- [x] A work item's usage can be read per phase (done as `usage.mjs --from/--to`; a state-block record stays deferred unless the window proves too coarse) (scope, build, prove, ship)
   without a second capture path: derive it from the ledger's session id and
   timestamps against the time each phase skill ran. Only if that proves too
   coarse, add a record in the state block written through `work.mjs` (survives

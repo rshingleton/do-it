@@ -1,6 +1,6 @@
 ---
 name: grill-it
-description: Interview the user round by round until a plan, decision or idea is fully understood, asking only the decisions they must make, each with a recommended answer. Use when the user wants to stress-test their thinking or be grilled, when scope-it plans lane M work, or when deepen-it explores a chosen candidate.
+description: Interview the user round by round until a plan, decision or idea is fully understood, asking only the decisions they must make, each with a recommended answer. Use when the user wants to stress-test their thinking or be grilled.
 ---
 
 # grill-it

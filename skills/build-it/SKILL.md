@@ -19,7 +19,7 @@ uncommitted for the user to review; `ship-it` commits.
 - `status: blocked`: show the recorded blocker; continue only once the user
   has resolved it, then `work.mjs event <id> unblock`. A blocked phase
   (lane M): `unblock --phase <n>` once its blocker is resolved.
-- `work.mjs event <id> start`: sets `status: building`, and `base_ref` on the
+- `work.mjs event <id> start --brief`: sets `status: building`, and `base_ref` on the
   first run only. Before that first run, `git status --porcelain` showing
   changes outside `docs/planning/`: the audit will flag them as unplanned.
   Ask the user to commit them first or add them to the plan.
@@ -58,10 +58,10 @@ uncommitted for the user to review; `ship-it` commits.
    "debug-it", passing the assumption that may be wrong.
 4. Run the self-check in [STANDARDS.md](STANDARDS.md) §3.
 5. Run the project's test, lint, format and type-check commands through
-   `work.mjs verify-phase <id> [n] -- "<commands>"` (quoted, so a chain
+   `work.mjs verify-phase <id> [n] --brief -- "<commands>"` (quoted, so a chain
    runs whole under the gate): it records the phase
    (lane S: the item) as verified only when they exit 0. New assumptions:
-   `work.mjs set <id> assumptions '<json list>'`, the old ones included.
+   `work.mjs set <id> assumptions '<json list>' --brief`, the old ones included.
 
 Out-of-scope problems go to `log-it`, not into the diff.
 

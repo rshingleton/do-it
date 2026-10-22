@@ -1,6 +1,6 @@
 ---
 name: debug-it
-description: Find and fix the cause of a hard bug or performance regression by first building a command that reproduces it on demand, then testing ranked hypotheses against it. Use when something is broken, throwing, failing, flaky, or got slow since a change and the cause is not obvious, when the user says debug or diagnose, or when build-it hands over a failure that survived three fix attempts.
+description: Find and fix the cause of a hard bug or performance regression by first building a command that reproduces it on demand, then testing ranked hypotheses against it. Use when something is broken, throwing, failing, flaky, or got slow since a change and the cause is not obvious, when the user says debug or diagnose.
 ---
 
 # debug-it

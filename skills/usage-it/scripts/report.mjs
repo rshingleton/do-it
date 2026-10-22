@@ -9,6 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { readAll, usageDir } from './ledger.mjs';
+import { contextOutliers, FACTOR } from './outliers.mjs';
 
 const args = process.argv.slice(2);
 const opt = (name, fallback) => {
@@ -143,6 +144,16 @@ function sessionTable(limit = 10) {
   return `<table><thead><tr><th>session</th><th>project</th><th>day</th><th class="n">runs</th><th class="n">work tokens</th><th class="n">cache read</th></tr></thead><tbody>${body}</tbody></table>`;
 }
 
+// Main sessions by peak context: the long, context-heavy ones /clear would have helped.
+function outlierTable() {
+  const o = contextOutliers(recs);
+  if (!o.sessions) return '<p class="muted">No session in this range recorded its context size yet; run <code>usage.mjs --import</code> to backfill.</p>';
+  const body = o.top
+    .map((r) => `<tr${r.flagged ? ' class="flag"' : ''}><td><code>${esc(String(r.session ?? r.id).slice(0, 8))}</code></td><td>${esc(r.project)}</td><td>${esc(r.day)}</td><td class="n">${r.turns}</td><td class="n">${fmt(r.ctx0 ?? 0)}</td><td class="n">${fmt(r.peak)}</td><td>${r.flagged ? `over ${FACTOR}x median` : ''}</td></tr>`)
+    .join('');
+  return `<p class="muted">Median start ${fmt(o.medianStart)}, median peak ${fmt(o.medianPeak)} over ${o.sessions} session(s).</p><table><thead><tr><th>session</th><th>project</th><th>day</th><th class="n">turns</th><th class="n">start context</th><th class="n">peak context</th><th></th></tr></thead><tbody>${body}</tbody></table>`;
+}
+
 // ---- what stands out: plain sentences from the numbers, nothing guessed ----
 function notes() {
   const out = [];
@@ -156,6 +167,8 @@ function notes() {
   if (loose.length) out.push(`${loose.length} run(s) of unpinned agent types (${[...new Set(loose.map((r) => r.agent))].map(esc).join(', ')}) ran on Opus because they follow the session model.`);
   const all = sum(recs, 'work') + sum(recs, 'cr');
   if (all) out.push(`Re-reading context (cache reads) is ${pct(sum(recs, 'cr'), all)} of all tokens. Long sessions that carry old context cost the most; <code>/clear</code> between tasks.`);
+  const o = contextOutliers(recs);
+  if (o.sessions) out.push(`Fresh sessions start at a median ${fmt(o.medianStart)} tokens of context, re-read every turn; ${o.flagged} of ${o.sessions} session(s) peaked above ${FACTOR}x the median peak (${fmt(o.medianPeak)}).`);
   return out.length ? `<ul>${out.map((n) => `<li>${n}</li>`).join('')}</ul>` : '<p class="muted">Nothing stands out yet.</p>';
 }
 
@@ -179,6 +192,7 @@ svg{width:100%;height:auto;display:block}.grid{stroke:var(--line)}.axis{fill:var
 .legend{display:flex;gap:14px;flex-wrap:wrap;color:var(--ink2);font-size:12px;margin-bottom:4px}.sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px}
 .sw.s1{background:var(--s1)}.sw.s2{background:var(--s2)}.sw.s3{background:var(--s3)}.sw.s4{background:var(--s4)}
 table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}th{color:var(--ink2);font-weight:500;font-size:12px}.n{text-align:right;font-variant-numeric:tabular-nums}
+tr.flag td{font-weight:600}
 .bar{height:3px;background:var(--line);border-radius:2px;margin-top:3px}.bar b{display:block;height:3px;background:var(--s1);border-radius:2px}
 li{margin:4px 0}code{background:var(--panel);padding:1px 4px;border-radius:4px}
 #tip{position:fixed;pointer-events:none;background:var(--ink);color:var(--bg);padding:4px 8px;border-radius:6px;font-size:12px;display:none;max-width:320px}
@@ -197,6 +211,7 @@ ${chart('cr', 'cr', 'Cache reads over time, by model')}
 <h2>By agent</h2>${table(group(recs, (r) => r.agent), 'agent', true)}
 <h2>By model</h2>${table(group(recs, (r) => r.model), 'model')}
 <h2>By project</h2>${table(group(recs, (r) => r.project), 'project')}
+<h2>Context outliers</h2>${outlierTable()}
 <h2>Top sessions</h2>${sessionTable()}
 </main><div id="tip"></div>
 <script>
