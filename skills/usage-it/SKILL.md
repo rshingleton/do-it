@@ -46,7 +46,7 @@ The page is self-contained: no network, light and dark themes.
 ## 3. Say what it shows
 
 Give the path, then at most five lines taken from the page's "What stands out"
-list and its tables: the largest consumer, whether main sessions ran on the
+list and its tables (the top-sessions table shows the heaviest sessions by id, project and day): the largest consumer, whether main sessions ran on the
 top model, unpinned agent types (no model of their own) on the top model, and the cache-read share.
 Quote numbers from the report; do not infer causes it does not show. Nothing
 recorded for the range: say so and name the ledger directory.

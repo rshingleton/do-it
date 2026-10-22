@@ -119,6 +119,30 @@ function table(rows, label, extra = false) {
   return `<table><thead><tr><th>${label}</th>${extra ? '<th>mostly</th>' : ''}<th class="n">runs</th><th class="n">work tokens</th><th class="n">output</th><th class="n">cache read</th></tr></thead><tbody>${body}</tbody></table>`;
 }
 
+// Sessions from the raw rows (rollup rows carry no session id): a main session
+// and its subagents add up, ranked by work plus cache reads so long,
+// context-heavy sessions come first.
+function sessionTable(limit = 10) {
+  const m = new Map();
+  for (const r of recs) {
+    if (!r.session) continue;
+    const g = m.get(r.session) ?? { id: r.session, project: null, day: r.day, runs: 0, work: 0, cr: 0 };
+    if (r.agent === 'main') g.project = r.project;
+    g.project ??= r.project;
+    g.day = r.day < g.day ? r.day : g.day;
+    g.runs += r.runs;
+    g.work += r.work;
+    g.cr += r.cr ?? 0;
+    m.set(r.session, g);
+  }
+  const rows = [...m.values()].sort((a, b) => b.work + b.cr - (a.work + a.cr)).slice(0, limit);
+  if (!rows.length) return '<p class="muted">No per-session rows in this range.</p>';
+  const body = rows
+    .map((g) => `<tr><td><code>${esc(g.id.slice(0, 8))}</code></td><td>${esc(g.project)}</td><td>${esc(g.day)}</td><td class="n">${g.runs}</td><td class="n">${fmt(g.work)}</td><td class="n">${fmt(g.cr)}</td></tr>`)
+    .join('');
+  return `<table><thead><tr><th>session</th><th>project</th><th>day</th><th class="n">runs</th><th class="n">work tokens</th><th class="n">cache read</th></tr></thead><tbody>${body}</tbody></table>`;
+}
+
 // ---- what stands out: plain sentences from the numbers, nothing guessed ----
 function notes() {
   const out = [];
@@ -173,6 +197,7 @@ ${chart('cr', 'cr', 'Cache reads over time, by model')}
 <h2>By agent</h2>${table(group(recs, (r) => r.agent), 'agent', true)}
 <h2>By model</h2>${table(group(recs, (r) => r.model), 'model')}
 <h2>By project</h2>${table(group(recs, (r) => r.project), 'project')}
+<h2>Top sessions</h2>${sessionTable()}
 </main><div id="tip"></div>
 <script>
 const tip=document.getElementById('tip');

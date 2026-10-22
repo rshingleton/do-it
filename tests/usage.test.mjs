@@ -200,6 +200,11 @@ test('report.mjs writes a self-contained page, escapes ledger strings, and handl
   const html = fs.readFileSync(out, 'utf8');
   assert.ok(!html.includes(evil), 'project name must be escaped');
   assert.ok(html.includes('&lt;script&gt;alert(1)&lt;/script&gt;'));
+  assert.match(html, /No per-session rows/); // no session ids recorded yet
+  record(dir, { id: 'c', kind: 'session', session: 'c'.repeat(12), agent: 'main', model: 'claude-opus-5-5', project: 'big', day: today, turns: 9, in: 1, out: 1, cr: 9000, cc: 0 });
+  record(dir, { id: 'd', kind: 'subagent', session: 'c'.repeat(12), agent: 'Explore', model: 'claude-haiku-5-5', project: 'big', day: today, turns: 1, in: 1, out: 1, cr: 10, cc: 0 });
+  run(dir);
+  assert.match(fs.readFileSync(out, 'utf8'), /Top sessions<\/h2><table>.*<code>cccccccc<\/code><\/td><td>big<\/td><td>[\d-]+<\/td><td class="n">2<\/td>/s);
   assert.match(html, /Main sessions on Opus/);
   assert.match(html, /unpinned agent types \(general-purpose\)/);
   assert.ok(!/https?:\/\//.test(html.replace('http://www.w3.org', '')), 'no network references');
