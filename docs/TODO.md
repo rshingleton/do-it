@@ -3,10 +3,11 @@
 Nice-to-haves and things to circle back to. Managed by log-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T72
+Next id: T73
 
 ## Open
 
+- [ ] T72 usage-it report: a top-sessions table (tokens per session, from the ledger's session id and times) so long, context-heavy sessions show up `idea` (skills/usage-it/scripts/report.mjs; usage-it 2026-10-22)
 - [ ] T2 Dogfood the flow: run /do-it on a small real change and /setup-it on another repo `circle-back` (session 2026-10-19)
   - The workflow skills are instructions no agent has executed end to end yet.
 - [ ] T3 Add a tracker.mjs doctor command that checks gh auth or a Jira /myself call, so setup-it verifies reachability `nice-to-have` (session 2026-10-19)

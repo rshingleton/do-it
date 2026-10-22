@@ -22,14 +22,22 @@ until someone reconstructs it by hand.
 
 ## Acceptance
 
-- Each step appends one usage record to the work item state: step, round
-  (for prove), input and output tokens, cost, subagent count.
-- Records are written only through `work.mjs` and survive `normalize()` on
-  older plans that lack the field.
-- A hook captures usage (SubagentStop and Stop, or the host equivalent) and
-  fails open: missing or malformed usage data never blocks the agent.
-- `ship-it` shows per-step and total usage in its summary.
-- OpenCode gets the record too, or the gap is documented.
+Rescoped 2026-10-22: capture is done (see the Answered note below), and a
+`work.mjs` state field is deferred until the ledger's numbers have been acted
+on. What remains is attributing usage to a work item.
+
+- [x] A hook captures usage (SubagentStop and Stop) and fails open: missing or
+  malformed usage data never blocks the agent. Done as `skills/usage-it`.
+- [x] Subagent counts: runs per agent in `/usage-it`.
+- [ ] A work item's usage can be read per phase (scope, build, prove, ship)
+  without a second capture path: derive it from the ledger's session id and
+  timestamps against the time each phase skill ran. Only if that proves too
+  coarse, add a record in the state block written through `work.mjs` (survives
+  `normalize()` on older plans) and show it in `ship-it`'s summary.
+- [ ] OpenCode gets the record too, or the gap stays documented
+  (`docs/DESIGN.md`).
+- [ ] Decide whether "cost" is wanted: the ledger is tokens only, since prices
+  change.
 
 ## Notes
 
@@ -54,4 +62,5 @@ until someone reconstructs it by hand.
   `do-it/retro-items`.
 - Check what usage fields the SubagentStop and Stop hook inputs carry
   before designing the record; a transcript read may be needed.
+- Answered 2026-10-21: the Stop and SubagentStop hooks give `transcript_path`, `session_id`, `agent_id`, `agent_type` (and `agent_transcript_path`); a transcript read is needed. `skills/usage-it/scripts/ledger.mjs` now sums it (each `message.id` once) into a per-agent ledger (30 days raw, then a 365-day daily rollup), so this issue needs only the step attribution and the `work.mjs` field, not a second capture path. Claude Code only; OpenCode is unchanged. Covered so far: the hook capture and a subagent count (runs per agent), as `/usage-it` (`--days`, `--hours`). Still open: the per-step record in the state block through `work.mjs`, `normalize()` for older plans, `ship-it` showing per-step and total usage, and OpenCode. The ledger is tokens only, so the acceptance line's "cost" needs a decision.
 - First use case: `docs/research/caveman-baseline.md` measured the terse-voice change by hand from transcripts (one run per side, inconclusive); a recorded per-step usage would replace that script and give real work items as the sample.
