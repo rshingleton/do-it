@@ -95,6 +95,7 @@ criteria, and lighter one-line to-dos.
 | `sketch-it` | Throwaway prototype to answer a design question |
 | `merge-it` | Resolves merge, rebase and cherry-pick conflicts by intent |
 | `pass-it` | Handoff note for the next session (typed) |
+| `usage-it` | HTML report of token usage by agent, model, project and day, from the usage ledger (typed) |
 | `skill-it` | Writing skills and agent instructions |
 
 Every name is an `-it` verb so it never collides with another skill repo
@@ -200,6 +201,18 @@ registers `session` and `tool` hooks, which OpenCode 2 runs (verified on
 skipped there. `scripts/install-hooks.mjs` picks the form from
 `opencode --version`. The OpenCode 2 `execute` code tool cannot write or run a command by itself on 2.1.2, and a nested tool call reaches the same guards.
 
+Token usage (Claude Code): the `Stop` and `SubagentStop` hooks sum each main
+session's and each subagent's tokens from its transcript and keep one line per
+run in `~/.claude/do-it/usage/<day>.jsonl` (about 50 KB a heavy day) for 30
+days (`DO_IT_USAGE_DAYS`). Older days roll up into `rollup.jsonl`, one row per
+day, agent, model and project, kept 365 days (`DO_IT_USAGE_ROLLUP_DAYS`) for
+trends. `DO_IT_USAGE_DIR` moves it all. `node skills/usage-it/scripts/usage.mjs [--days N,
+default 30 | --hours N] [--by agent|model|day|month|project] [--json]` reports raw and
+rolled-up rows together (`--days 90 --by month` for a trend; `--hours N` keeps
+raw runs that ended in the last N hours); `--import` first
+backfills from the transcripts Claude Code already keeps. Cost in dollars is
+not estimated, since prices change; tokens only.
+
 OpenCode notes for repos that use do-it:
 
 - OpenCode reads `AGENTS.md`, not `CLAUDE.md`. Put the standards in
@@ -269,7 +282,8 @@ These skills are this repo's own rewrites of ideas from
 (improve-codebase-architecture), and `retro-it` (retro). Ideas adapted
 from [addyosmani/agent-skills](https://github.com/addyosmani/agent-skills),
 [denyszorinets/ballet](https://github.com/denyszorinets/ballet),
-[dietrichgebert/ponytail](https://github.com/dietrichgebert/ponytail),
+[dietrichgebert/ponytail](https://github.com/dietrichgebert/ponytail) (the
+band's idea of a usage ledger rebuilt from session transcripts; no code taken),
 [juliusbrussee/caveman](https://github.com/juliusbrussee/caveman) (terse
 voice and fixed report shapes with word caps for internal agent text; its
 proxy, compress and per-turn tools are not used) and

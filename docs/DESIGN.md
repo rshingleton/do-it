@@ -311,8 +311,10 @@ do-it/
   `providerID` on each `message.updated` assistant message; on 2.x
   `ctx.event.subscribe` yields `session.step.ended` and `session.usage.updated`
   with `cost` and `tokens`, and agent and model come from the `context` hook.
-  Nothing records it until `work.mjs` has a usage field (the per-step usage
-  issue).
+  Nothing records it there until `work.mjs` has a usage field (the per-step
+  usage issue). On Claude Code the `Stop` and `SubagentStop` hooks already keep
+  a per-run usage ledger from the transcripts (`skills/usage-it`, tokens only,
+  no dollar estimate since prices change); it is not tied to a work item or step.
 - Org-specific material (Jira, `.compliance-rules/`) is configuration, not
   code: the repo works with neither.
 
