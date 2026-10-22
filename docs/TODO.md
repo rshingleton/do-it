@@ -3,7 +3,7 @@
 Nice-to-haves and things to circle back to. Managed by log-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T76
+Next id: T77
 
 ## Open
 
@@ -51,3 +51,4 @@ Next id: T76
 - [ ] T62 The lifecycle stops at a local commit: no skill owns push or PR (body, protected-branch check), changelog version headings, or carrying out ship-it's rollback note `idea` (docs/reference-audit/2026-10-19-repo.md, finding 20; T24 covers PR feedback)
 - [ ] T64 Review the to-do list for additive ideas versus simplification: most open items add features, while removing duplication would save roughly 150 to 250 lines `question` (docs/reference-audit/2026-10-19-repo.md)
 - [ ] T71 The commit hook warns (never blocks) when a `git commit -m` message does not start with `<id>: ` as it-core Git says `idea` (hooks/lib/guard.mjs beforeShell; jira-fields-commit-ids, 2026-10-20)
+- [ ] T76 usage-it windows (`--from/--to`, `--hours`) count a whole run by its last message time, so a session that straddles a window edge (a weekly reset) is counted entirely inside it; split by per-message timestamps from the transcript, or label the window as run-based `debt` (found checking usage against the 3am weekly reset, session 2026-10-22)

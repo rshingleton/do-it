@@ -4,7 +4,9 @@
 // except usageDir().
 //
 // One record per agent run (a main session or a subagent):
-//   { id, kind, agent, model, session, project, day, at, turns, in, out, cr, cc, ctx0, peak }
+//   { id, kind, agent, model, session, project, day, start, at, turns, in, out, cr, cc, ctx0, peak }
+// day is the UTC date the file is kept under; start and at are the run's first and last
+// message times (ISO, UTC). Reports show local days, derived by localDay().
 // in = fresh input, cr = cache reads, cc = cache writes, out = output tokens.
 // ctx0 and peak are the total context (in + cr + cc) of the run's first turn and
 // of its largest turn; records from before they existed lack them.
@@ -46,6 +48,17 @@ export function clearLimit(env = process.env) {
 }
 
 const cutoffDay = (days, now) => new Date(now.getTime() - (days - 1) * 86400000).toISOString().slice(0, 10);
+// The local calendar date of an ISO time (the machine's TZ), for reports; files stay UTC.
+export function localDay(iso) {
+  const d = new Date(iso);
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+// A record seen through the local clock: day comes from when the run started
+// (older records without start: when it ended; rollup rows keep their UTC day).
+export const localized = (r) => (r.start || r.at ? { ...r, day: localDay(r.start ?? r.at) } : r);
+
 const dayOf = (iso) => String(iso).slice(0, 10);
 
 // Transcripts repeat an API message once per content block with the same
@@ -213,6 +226,7 @@ export function trackUsage(kind, input, { dir = usageDir(), days = keepDays(), r
     session: input.session_id ?? null,
     project: input.cwd || total.cwd ? path.basename(input.cwd || total.cwd) : null,
     day: dayOf(total.first ?? at),
+    start: total.first ?? at,
     at,
     turns: total.turns,
     in: total.in,

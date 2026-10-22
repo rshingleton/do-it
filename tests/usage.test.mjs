@@ -6,7 +6,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-import { sumTranscript, record, prune, readAll, trackUsage, subagentTranscript, importTranscripts, clearLimit } from '../skills/usage-it/scripts/ledger.mjs';
+import { sumTranscript, record, prune, readAll, trackUsage, subagentTranscript, importTranscripts, clearLimit, localDay, localized } from '../skills/usage-it/scripts/ledger.mjs';
 import { baselineSizes, descriptionSizes } from '../skills/usage-it/scripts/baseline.mjs';
 import { contextOutliers } from '../skills/usage-it/scripts/outliers.mjs';
 import { handle } from '../hooks/claude.mjs';
@@ -342,4 +342,14 @@ test('baselineSizes measures the invocable descriptions and tolerates a missing 
   const out = execFileSync('node', [path.join(ROOT, 'skills', 'usage-it', 'scripts', 'usage.mjs'), '--baseline'], { env: { ...process.env, DO_IT_USAGE_DIR: tmp() }, encoding: 'utf8', cwd: ROOT });
   assert.match(out, /session-start block.*~[\d,]+\)/);
   assert.match(out, /No session has a recorded start context/);
+});
+
+test('days are local calendar days: a run that starts at 9:30pm New York time belongs to that day, not the next UTC day', () => {
+  const dir = tmp();
+  record(dir, { id: 'late', kind: 'session', agent: 'main', model: 'm', project: 'p', day: '2026-10-22', start: '2026-10-22T01:30:00.000Z', at: '2026-10-22T02:10:00.000Z', turns: 1, in: 1, out: 1, cr: 1, cc: 1 });
+  const run = (tz) => JSON.parse(execFileSync('node', [path.join(ROOT, 'skills', 'usage-it', 'scripts', 'usage.mjs'), '--json', '--days', '365', '--by', 'day'], { env: { ...process.env, DO_IT_USAGE_DIR: dir, TZ: tz }, encoding: 'utf8' })).map((r) => r.day);
+  assert.deepEqual(run('America/New_York'), ['2026-10-21']);
+  assert.deepEqual(run('UTC'), ['2026-10-22']);
+  assert.equal(localized({ id: 'old', day: '2026-10-22', at: '2026-10-22T01:30:00.000Z' }).day, localDay('2026-10-22T01:30:00.000Z'));
+  assert.equal(localized({ day: '2026-09-01', runs: 3 }).day, '2026-09-01'); // rollup rows keep their stored day
 });

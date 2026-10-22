@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { readAll, usageDir } from './ledger.mjs';
+import { readAll, usageDir, localDay, localized } from './ledger.mjs';
 import { contextOutliers, FACTOR } from './outliers.mjs';
 
 const args = process.argv.slice(2);
@@ -24,11 +24,13 @@ if (!(days > 0)) {
 }
 
 const now = new Date();
-const today = now.toISOString().slice(0, 10);
-const cutoff = new Date(now.getTime() - (days - 1) * 86400000).toISOString().slice(0, 10);
+// Days are local calendar days; the ledger files are UTC.
+const today = localDay(now);
+const cutoff = localDay(new Date(now.getTime() - (days - 1) * 86400000));
 // --hours filters on when a run ended; rolled-up rows carry no time and drop out.
 const since = hours > 0 ? new Date(now.getTime() - hours * 3600000).toISOString() : null;
 const recs = readAll(usageDir())
+  .map(localized)
   .filter((r) => (since ? r.at >= since : r.day >= cutoff))
   .map((r) => ({ ...r, runs: r.runs ?? 1, work: (r.in ?? 0) + (r.out ?? 0) + (r.cc ?? 0), family: familyOf(r.model) }));
 

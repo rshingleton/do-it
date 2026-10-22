@@ -9,7 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { baselineSizes, tokens, MCP_NOTE } from './baseline.mjs';
 import { contextOutliers } from './outliers.mjs';
-import { importTranscripts, readAll, usageDir } from './ledger.mjs';
+import { importTranscripts, localDay, localized, readAll, usageDir } from './ledger.mjs';
 
 const args = process.argv.slice(2);
 const opt = (name, fallback) => {
@@ -30,7 +30,7 @@ if (args.includes('--import')) {
   console.error(`imported ${n} run(s) from the last ${days} day(s)`);
 }
 
-const cutoff = new Date(Date.now() - (days - 1) * 86400000).toISOString().slice(0, 10);
+const cutoff = localDay(new Date(Date.now() - (days - 1) * 86400000)); // local calendar days
 // --hours filters on when a run ended; rolled-up rows carry no time and drop out.
 const since = hours > 0 ? new Date(Date.now() - hours * 3600000).toISOString() : null;
 const from = opt('from', null);
@@ -43,7 +43,7 @@ if ((from && Number.isNaN(Date.parse(from))) || (to && Number.isNaN(Date.parse(t
 // Compared as times, not strings: a bound written without milliseconds sorts after the ledger's own.
 const [fromMs, toMs] = [from, to].map((v) => (v ? Date.parse(v) : null));
 const inRange = (r) => (from || to ? Boolean(r.at) && (fromMs === null || Date.parse(r.at) >= fromMs) && (toMs === null || Date.parse(r.at) <= toMs) : since ? r.at >= since : r.day >= cutoff);
-const recs = readAll(usageDir()).filter(inRange);
+const recs = readAll(usageDir()).map(localized).filter(inRange);
 
 if (args.includes('--baseline')) {
   const n = (v) => v.toLocaleString('en-US');
