@@ -45,7 +45,7 @@ tools, so a skill names the agent and the tier follows:
 |-------|------|------|
 | `it-scout` | cheap | read-only exploring and mapping |
 | `it-reviewer` | mid | review one diff against one source, validate a finding, read a plan as its builder |
-| `it-builder` | mid | build one plan phase in a worktree |
+| `it-builder` | mid | build one plan phase, in a worktree or in place |
 | `it-planner` | top | draft a plan |
 | `it-skeptic` | top | try to prove one claim false |
 

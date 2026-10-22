@@ -8,8 +8,7 @@ model: sonnet
 
 # build-it
 
-Builds what the plan approved, and nothing else. Leaves the whole change
-uncommitted for the user to review; `ship-it` commits.
+Builds what the plan approved, nothing else, uncommitted; `ship-it` commits.
 
 ## 1. Start
 
@@ -43,25 +42,26 @@ uncommitted for the user to review; `ship-it` commits.
   uncommitted changes outside `docs/planning/` and the item's own `sources:`
   issue files (which the tracker `start` may have edited): build them in
   parallel per [PARALLEL.md](PARALLEL.md). Otherwise build them one at a
-  time in place.
+  time in place, each in an `it-builder` agent per [DELEGATE.md](DELEGATE.md)
+  (main builds when it says so: lane S, fix mode, no subagents).
 
 ## 3. Build one unit
 
-1. Call the Skill tool with "test-it". Pass the unit's `## Seams` and say they
-   were agreed in planning, so tests go only there and are not re-confirmed.
-   No seams listed: propose them with what each catches and misses, record
-   them as an assumption, continue.
+Delegated phase: agent items 1, 2, 4 (item 3: it reports `failed`), main item 5.
+
+1. Call the Skill tool with "test-it", passing the unit's `## Seams` as agreed
+   in planning (tests go only there). None listed: propose them, record them
+   as an assumption, continue.
 2. Follow the `it-core` posture: reuse ladder, scope list, surgical edits,
    `shortcut:` markers.
 3. A failure you cannot explain in one hypothesis, a flaky one, or one still
    failing after three fix rounds: call the Skill tool with
    "debug-it", passing the assumption that may be wrong.
 4. Run the self-check in [STANDARDS.md](STANDARDS.md) §3.
-5. Run the project's test, lint, format and type-check commands through
-   `work.mjs verify-phase <id> [n] --brief -- "<commands>"` (quoted, so a chain
-   runs whole under the gate): it records the phase
-   (lane S: the item) as verified only when they exit 0. New assumptions:
-   `work.mjs set <id> assumptions '<json list>' --brief`, the old ones included.
+5. Run the project's checks through `work.mjs verify-phase <id> [n] --brief --
+   "<commands>"` (quoted, so a chain runs whole): it records the phase (lane
+   S: the item) verified only when they exit 0. New assumptions:
+   `work.mjs set <id> assumptions '<json list>' --brief`, old ones included.
 
 Out-of-scope problems go to `log-it`, not into the diff.
 
@@ -79,7 +79,7 @@ Stop when:
 - the next action cannot be undone from the working tree (a migration
   against a shared database, a call to a production service, a force push).
 
-Other ready phases that do not depend on a blocked one keep going.
+Other ready phases not depending on a blocked one keep going.
 
 ## 5. Finish
 

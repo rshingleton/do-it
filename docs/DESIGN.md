@@ -125,7 +125,7 @@ OpenCode installs have no namespace). Renamed from their sources:
 | `do-it` | ask-matt router, the `Next:` chain | Size, pick lane, resume from state, run steps |
 | `log-it` | issue-it, from-jira intake, todo-it | The one intake and backlog skill: sorts each item into an issue (`docs/issues/` or a remote tracker) or a one-line to-do (`docs/TODO.md`); lists, reviews, closes and promotes both; receives out-of-scope discoveries (`propose_work`). See ADR 0007 |
 | `scope-it` | plan-it, from-jira, to-spec, to-tickets | Grill scaled to lane, write plan, optional `--jira` publish |
-| `build-it` | implement-it, implement, implement-spec | One phase, or the whole frontier with parallel worktrees; never commits |
+| `build-it` | implement-it, implement, implement-spec | One phase, or the whole frontier with parallel worktrees; lane M phases run in `it-builder` agents (in place, or in worktrees); never commits |
 | `prove-it` | audit-it, code-review gate | Fresh-context fan-out, findings, verdict, loop cap |
 | `ship-it` | verify-it + commit-it | Finalize docs, confirm assumptions, one commit only on the user's "do it", push/PR on request |
 

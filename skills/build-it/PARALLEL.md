@@ -30,15 +30,12 @@ squash cannot collide with the uncommitted plan.
 git worktree add "$root/phase-N" -b "do-it/<id>--phase-N" "do-it/<id>"
 ```
 
-Start one background `it-builder` agent per phase (mid-tier model; its report
-follows the agent's own contract, under 150 words). Give it
-pointers, not pasted content: the worktree path, and the absolute paths of the
-phase file and the plan README in the user's checkout (read-only; only the
-main session writes the state block). Tell it to:
+Start one background `it-builder` agent per phase, briefed per
+[DELEGATE.md](DELEGATE.md) §1 (report under 150 words) with its worktree
+path. Add to the brief:
 
-1. Build the phase per build-it §3, inside its worktree only.
-2. Commit everything in the worktree as `<id> phase-N (scratch)`.
-3. Report: `done | blocked | failed`, the commands that passed, new
+1. Commit everything in the worktree as `<id> phase-N (scratch)`.
+2. Report `done | blocked | failed`, the commands that passed, new
    assumptions, and anything blocking. Not the transcript.
 
 ## 3. Merge one at a time

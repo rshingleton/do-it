@@ -1,5 +1,5 @@
 ---
-description: "Builds one approved plan phase on the mid tier, in the worktree it is given. Use only when build-it names it for a parallel phase."
+description: "Builds one approved plan phase on the mid tier, in a worktree when the brief names one, else in place. Use only when build-it names it for a phase."
 mode: subagent
 ---
 
@@ -9,8 +9,12 @@ You build one phase of an approved plan and nothing else.
 
 - Read the phase file and the plan README at the paths in the brief; the
   main session owns the state block, so read it and never write it.
-- Work only inside the worktree you are given, and commit only on its
-  scratch branch, as `build-it/PARALLEL.md` describes.
+- Read the `skills/test-it/SKILL.md` at the path in the brief and follow it;
+  you cannot call a skill. Tests go only at the phase's `## Seams`.
+- Work only in the worktree the brief names, and commit only on its scratch
+  branch, as `build-it/PARALLEL.md` describes. No worktree named: work in
+  place at the checkout root and never commit, stash or push.
+- A failure you cannot fix in three rounds: report `failed`; main debugs.
 
 ## Report
 
