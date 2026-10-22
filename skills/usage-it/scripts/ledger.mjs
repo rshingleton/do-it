@@ -243,6 +243,47 @@ export function trackUsage(kind, input, { dir = usageDir(), days = keepDays(), r
   return { ...rec, prevPeak };
 }
 
+// Readings of the plan meter (the /usage percentages), typed in by the user
+// because nothing local exposes them. One JSON line each in snapshots.ndjson,
+// a name readAll() skips; kept as long as the rollup.
+const SNAPSHOTS = 'snapshots.ndjson';
+export function recordSnapshot(dir, snap) {
+  fs.mkdirSync(dir, { recursive: true });
+  fs.appendFileSync(path.join(dir, SNAPSHOTS), `${JSON.stringify(snap)}\n`);
+}
+export const readSnapshots = (dir) => readFile(path.join(dir, SNAPSHOTS)).filter((s) => s.at && Number.isFinite(s.weekPct));
+
+// When the weekly meter would reach 100%, from the readings. A reading is
+// { at, weekPct, resetsAt, ... } (ISO times); the week starts 7 days before
+// resetsAt at 0%, so one reading already gives a pace. The latest week only,
+// oldest reading first; null when there are none.
+const HOUR = 3600000;
+const WEEK = 7 * 24 * HOUR;
+
+export function projectWeek(snapshots, now = Date.now()) {
+  const latest = [...snapshots].sort((a, b) => Date.parse(a.at) - Date.parse(b.at)).at(-1);
+  if (!latest || !latest.resetsAt) return null;
+  const resetsAt = Date.parse(latest.resetsAt);
+  const start = resetsAt - WEEK;
+  const reads = snapshots
+    .filter((s) => s.resetsAt && Date.parse(s.resetsAt) === resetsAt)
+    .map((s) => ({ ...s, t: Date.parse(s.at) }))
+    .sort((a, b) => a.t - b.t);
+  const last = reads.at(-1);
+  const pace = (from, to) => {
+    const hours = (to.t - from.t) / HOUR;
+    return hours > 0 && to.weekPct > from.weekPct ? (to.weekPct - from.weekPct) / hours : null;
+  };
+  const exhaust = (rate) => (rate ? new Date(last.t + ((100 - last.weekPct) / rate) * HOUR) : null);
+  const average = pace({ t: start, weekPct: 0 }, last);
+  const recent = reads.length > 1 ? pace(reads.at(-2), last) : null;
+  const wrap = (rate) => {
+    const at = exhaust(rate);
+    return rate ? { perDay: rate * 24, exhaustsAt: at.toISOString(), beforeReset: at.getTime() < resetsAt } : null;
+  };
+  return { resetsAt: new Date(resetsAt).toISOString(), readings: reads.length, last: { at: last.at, weekPct: last.weekPct }, average: wrap(average), recent: wrap(recent), now };
+}
+
 // Every raw record plus every rollup row; a rollup row carries `runs`, a raw
 // record counts as one.
 export function readAll(dir) {

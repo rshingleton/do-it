@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { readAll, usageDir, localDay, localized } from './ledger.mjs';
+import { projectWeek, readAll, readSnapshots, usageDir, localDay, localized } from './ledger.mjs';
 import { contextOutliers, FACTOR } from './outliers.mjs';
 
 const args = process.argv.slice(2);
@@ -156,6 +156,20 @@ function outlierTable() {
   return `<p class="muted">Median start ${fmt(o.medianStart)}, median peak ${fmt(o.medianPeak)} over ${o.sessions} session(s).</p><table><thead><tr><th>session</th><th>project</th><th>day</th><th class="n">turns</th><th class="n">start context</th><th class="n">peak context</th><th></th></tr></thead><tbody>${body}</tbody></table>`;
 }
 
+// The plan meter: typed-in /usage readings of the latest week, and when it would hit 100%.
+function meterSection() {
+  const snaps = readSnapshots(usageDir());
+  const p = projectWeek(snaps);
+  if (!p) return '<p class="muted">No readings yet. Record one with <code>usage.mjs --snapshot --week &lt;pct&gt; --resets &lt;iso&gt;</code> from <code>/usage</code>.</p>';
+  const when = (v) => (v ? `${esc(new Date(v.exhaustsAt).toLocaleString())} at ${v.perDay.toFixed(1)}%/day, ${v.beforeReset ? '<b>before</b>' : 'after'} the reset` : 'no pace yet');
+  const rows = snaps
+    .filter((s) => s.resetsAt && Date.parse(s.resetsAt) === Date.parse(p.resetsAt))
+    .sort((a, b) => Date.parse(a.at) - Date.parse(b.at))
+    .map((s) => `<tr><td>${esc(new Date(s.at).toLocaleString())}</td><td class="n">${s.weekPct}%</td><td class="n">${s.sessionPct ?? ''}${s.sessionPct == null ? '' : '%'}</td></tr>`)
+    .join('');
+  return `<p>Week resets ${esc(new Date(p.resetsAt).toLocaleString())}. Latest reading ${p.last.weekPct}% (${p.readings} reading(s)).</p><ul><li>Average pace since the reset: ${when(p.average)}.</li><li>Pace since the previous reading: ${when(p.recent)}.</li></ul><table><thead><tr><th>reading</th><th class="n">week</th><th class="n">session</th></tr></thead><tbody>${rows}</tbody></table><p class="muted">A straight-line estimate from readings you typed in; sleep, weekends and heavy days make it rough.</p>`;
+}
+
 // ---- what stands out: plain sentences from the numbers, nothing guessed ----
 function notes() {
   const out = [];
@@ -213,6 +227,7 @@ ${chart('cr', 'cr', 'Cache reads over time, by model')}
 <h2>By agent</h2>${table(group(recs, (r) => r.agent), 'agent', true)}
 <h2>By model</h2>${table(group(recs, (r) => r.model), 'model')}
 <h2>By project</h2>${table(group(recs, (r) => r.project), 'project')}
+<h2>Plan meter</h2>${meterSection()}
 <h2>Context outliers</h2>${outlierTable()}
 <h2>Top sessions</h2>${sessionTable()}
 </main><div id="tip"></div>

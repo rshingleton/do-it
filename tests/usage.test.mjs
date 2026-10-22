@@ -6,7 +6,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-import { sumTranscript, record, prune, readAll, trackUsage, subagentTranscript, importTranscripts, clearLimit, localDay, localized } from '../skills/usage-it/scripts/ledger.mjs';
+import { sumTranscript, record, prune, readAll, trackUsage, subagentTranscript, importTranscripts, clearLimit, localDay, localized, projectWeek, readSnapshots } from '../skills/usage-it/scripts/ledger.mjs';
 import { baselineSizes, descriptionSizes } from '../skills/usage-it/scripts/baseline.mjs';
 import { contextOutliers } from '../skills/usage-it/scripts/outliers.mjs';
 import { handle } from '../hooks/claude.mjs';
@@ -352,4 +352,36 @@ test('days are local calendar days: a run that starts at 9:30pm New York time be
   assert.deepEqual(run('UTC'), ['2026-10-22']);
   assert.equal(localized({ id: 'old', day: '2026-10-22', at: '2026-10-22T01:30:00.000Z' }).day, localDay('2026-10-22T01:30:00.000Z'));
   assert.equal(localized({ day: '2026-09-01', runs: 3 }).day, '2026-09-01'); // rollup rows keep their stored day
+});
+
+test('projectWeek turns readings of the plan meter into an exhaustion date', () => {
+  const resetsAt = '2026-10-28T06:59:00.000Z'; // week starts 2026-10-21T06:59Z at 0%
+  assert.equal(projectWeek([]), null);
+  const one = projectWeek([{ at: '2026-10-22T06:59:00Z', weekPct: 20, resetsAt }]); // 20% after exactly one day
+  assert.equal(one.average.perDay, 20);
+  assert.equal(one.average.exhaustsAt, '2026-10-26T06:59:00.000Z'); // 80% more at 20%/day = 4 days
+  assert.equal(one.average.beforeReset, true);
+  assert.equal(one.recent, null);
+  const two = projectWeek([{ at: '2026-10-22T06:59:00Z', weekPct: 20, resetsAt }, { at: '2026-10-23T06:59:00Z', weekPct: 24, resetsAt }, { at: '2026-10-20T00:00:00Z', weekPct: 90, resetsAt: '2026-10-21T06:59:00.000Z' }]);
+  assert.equal(two.readings, 2); // the earlier week's reading is left out
+  assert.equal(Math.round(two.recent.perDay), 4);
+  assert.equal(two.recent.beforeReset, false); // 76% more at 4%/day runs past the reset
+  assert.equal(projectWeek([{ at: '2026-10-22T06:59:00Z', weekPct: 0, resetsAt }]).average, null);
+});
+
+test('--snapshot records a reading outside the usage rows and prints the pace; the report shows it', () => {
+  const dir = tmp();
+  const run = (script, ...a) => execFileSync('node', [path.join(ROOT, 'skills', 'usage-it', 'scripts', script), ...a], { env: { ...process.env, DO_IT_USAGE_DIR: dir }, encoding: 'utf8' });
+  record(dir, { id: 'r1', kind: 'session', agent: 'main', model: 'claude-opus-5-5', project: 'p', day: '2026-10-22', at: '2026-10-22T01:00:00.000Z', turns: 1, in: 1, out: 7, cr: 100, cc: 5 });
+  const out = run('usage.mjs', '--snapshot', '--week', '15', '--session', '18', '--resets', '2026-10-28T02:59:00-04:00', '--at', '2026-10-22T01:50:00Z');
+  assert.match(out, /recorded 15% of the week/);
+  assert.match(out, /average pace since the reset: .*before the reset/);
+  const [s] = readSnapshots(dir);
+  assert.equal(s.weekPct, 15);
+  assert.equal(s.sessionPct, 18);
+  assert.deepEqual(s.tokens.opus, { runs: 1, in: 1, out: 7, cr: 100, cc: 5 });
+  assert.equal(readAll(dir).length, 1, 'a reading is not a usage row');
+  assert.match(run('report.mjs', '--days', '30', '--out', path.join(dir, 'r.html')), /r\.html/);
+  assert.match(fs.readFileSync(path.join(dir, 'r.html'), 'utf8'), /Plan meter<\/h2>.*Latest reading 15%/s);
+  assert.throws(() => run('usage.mjs', '--snapshot', '--week', '150', '--resets', '2026-10-28T02:59:00-04:00'), /usage: usage.mjs --snapshot/);
 });

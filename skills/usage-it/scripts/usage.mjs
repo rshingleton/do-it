@@ -2,6 +2,7 @@
 // Summarise recorded token usage (default last 30 days): node skills/usage-it/scripts/usage.mjs [--days N | --hours N] [--by agent|model|day|month|project] [--json]
 //   node skills/usage-it/scripts/usage.mjs --import   first backfill the last N days from ~/.claude/projects
 //   --from <iso> --to <iso>   only runs that ended in that window (bounds inclusive), e.g. one step of a work item
+//   --snapshot --week <pct> --resets <iso> [--session <pct>] [--at <iso>]   record a /usage reading and print the pace
 //   --baseline   what do-it adds to every session, beside the median start context recorded
 // Reads the files ledger.mjs keeps (DO_IT_USAGE_DIR, default ~/.claude/do-it/usage).
 
@@ -9,7 +10,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { baselineSizes, tokens, MCP_NOTE } from './baseline.mjs';
 import { contextOutliers } from './outliers.mjs';
-import { importTranscripts, localDay, localized, readAll, usageDir } from './ledger.mjs';
+import { importTranscripts, localDay, localized, readAll, projectWeek, readSnapshots, recordSnapshot, usageDir } from './ledger.mjs';
 
 const args = process.argv.slice(2);
 const opt = (name, fallback) => {
@@ -44,6 +45,35 @@ if ((from && Number.isNaN(Date.parse(from))) || (to && Number.isNaN(Date.parse(t
 const [fromMs, toMs] = [from, to].map((v) => (v ? Date.parse(v) : null));
 const inRange = (r) => (from || to ? Boolean(r.at) && (fromMs === null || Date.parse(r.at) >= fromMs) && (toMs === null || Date.parse(r.at) <= toMs) : since ? r.at >= since : r.day >= cutoff);
 const recs = readAll(usageDir()).map(localized).filter(inRange);
+
+const familyKey = (m) => (String(m ?? '').includes('opus') ? 'opus' : String(m ?? '').includes('haiku') ? 'haiku' : String(m ?? '').includes('sonnet') ? 'sonnet' : 'other');
+
+if (args.includes('--snapshot')) {
+  const weekPct = Number(opt('week', NaN));
+  const resetsAt = opt('resets', null);
+  const at = opt('at', new Date().toISOString());
+  if (!(weekPct >= 0 && weekPct <= 100) || Number.isNaN(Date.parse(resetsAt)) || Number.isNaN(Date.parse(at))) {
+    console.error('usage: usage.mjs --snapshot --week <0-100> --resets <ISO with offset, e.g. 2026-10-28T02:59:00-04:00> [--session <0-100>] [--at <ISO>]');
+    process.exit(2);
+  }
+  const weekStart = Date.parse(resetsAt) - 7 * 86400000;
+  // Tokens on this host since the week began, by run end time (a run that straddles the reset counts whole).
+  const tokens = {};
+  for (const r of readAll(usageDir())) {
+    if (!r.at || Date.parse(r.at) < weekStart || Date.parse(r.at) > Date.parse(at)) continue;
+    const t = (tokens[familyKey(r.model)] ??= { runs: 0, in: 0, out: 0, cr: 0, cc: 0 });
+    t.runs += 1;
+    for (const f of ['in', 'out', 'cr', 'cc']) t[f] += r[f] ?? 0;
+  }
+  const session = opt('session', null);
+  recordSnapshot(usageDir(), { at: new Date(at).toISOString(), weekPct, sessionPct: session === null ? null : Number(session), resetsAt: new Date(resetsAt).toISOString(), tokens });
+  const p = projectWeek(readSnapshots(usageDir()));
+  const when = (v) => (v ? `${new Date(v.exhaustsAt).toLocaleString()} (${v.perDay.toFixed(1)}%/day${v.beforeReset ? ', before the reset' : ', after the reset'})` : 'no pace yet');
+  console.log(`recorded ${weekPct}% of the week at ${new Date(at).toLocaleString()}; resets ${new Date(resetsAt).toLocaleString()}`);
+  console.log(`  at the average pace since the reset: ${when(p.average)}`);
+  console.log(`  at the pace since the previous reading: ${when(p.recent)}`);
+  process.exit(0);
+}
 
 if (args.includes('--baseline')) {
   const n = (v) => v.toLocaleString('en-US');

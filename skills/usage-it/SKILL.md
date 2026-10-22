@@ -53,6 +53,16 @@ tokens, flagged above twice the median peak); a long peak, not a heavy start, is
 what `/clear` and `pass-it` address. Quote numbers from the report; do not infer causes it does not show. Nothing
 recorded for the range: say so and name the ledger directory.
 
+## The plan meter
+
+Nothing local exposes the `/usage` percentages, so type them in:
+`usage.mjs --snapshot --week <pct> --resets <ISO with offset> [--session <pct>] [--at <ISO>]`,
+for example `--week 15 --resets 2026-10-28T02:59:00-04:00`. Each reading goes to
+`snapshots.ndjson` in the ledger directory with this host's tokens since the week began, and the
+report's "Plan meter" section projects when the week would reach 100% (the pace since the
+reset, and since the previous reading). The ledger is per host; a second host's usage counts
+toward the same meter but is not added here.
+
 ## The `/clear` nudge
 
 When a main session's context first passes 300000 tokens, the `Stop` hook shows
