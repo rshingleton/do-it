@@ -314,7 +314,8 @@ do-it/
   Nothing records it there until `work.mjs` has a usage field (the per-step
   usage issue). On Claude Code the `Stop` and `SubagentStop` hooks already keep
   a per-run usage ledger from the transcripts (`skills/usage-it`, tokens only,
-  no dollar estimate since prices change); it is not tied to a work item or step.
+  no dollar estimate since prices change); it is not tied to a work item or step,
+  but a step's usage can be read by time window (`usage.mjs --from/--to`).
 - Org-specific material (Jira, `.compliance-rules/`) is configuration, not
   code: the repo works with neither.
 

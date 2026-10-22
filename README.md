@@ -95,7 +95,7 @@ criteria, and lighter one-line to-dos.
 | `sketch-it` | Throwaway prototype to answer a design question |
 | `merge-it` | Resolves merge, rebase and cherry-pick conflicts by intent |
 | `pass-it` | Handoff note for the next session (typed) |
-| `usage-it` | HTML report of token usage by agent, model, project and day, from the usage ledger (typed) |
+| `usage-it` | HTML report of token usage by agent, model, project and day, context outliers and a plan-meter projection, from the usage ledger (typed) |
 | `skill-it` | Writing skills and agent instructions |
 
 Every name is an `-it` verb so it never collides with another skill repo
@@ -204,15 +204,31 @@ skipped there. `scripts/install-hooks.mjs` picks the form from
 Token usage (Claude Code): the `Stop` and `SubagentStop` hooks sum each main
 session's and each subagent's tokens from its transcript and keep one line per
 run in `~/.claude/do-it/usage/<day>.jsonl` (about 50 KB a heavy day) for 30
-days (`DO_IT_USAGE_DAYS`). Older days roll up into `rollup.jsonl`, one row per
-day, agent, model and project, kept 365 days (`DO_IT_USAGE_ROLLUP_DAYS`) for
-trends. `DO_IT_USAGE_DIR` moves it all. When a session's context first passes
-`DO_IT_CLEAR_AT` tokens (default 300000, `0` is off) the `Stop` hook shows one line suggesting `/clear`. `node skills/usage-it/scripts/usage.mjs [--days N,
-default 30 | --hours N] [--by agent|model|day|month|project] [--json]` reports raw and
-rolled-up rows together (`--days 90 --by month` for a trend; `--hours N` keeps
-raw runs that ended in the last N hours); `--import` first
-backfills from the transcripts Claude Code already keeps. Cost in dollars is
-not estimated, since prices change; tokens only.
+days (`DO_IT_USAGE_DAYS`). A line holds the tokens, the run's start and end
+times, and the context size of its first turn (`ctx0`) and its largest turn
+(`peak`). Older days roll up into `rollup.jsonl`, one row per day, agent, model
+and project, kept 365 days (`DO_IT_USAGE_ROLLUP_DAYS`) for trends.
+`DO_IT_USAGE_DIR` moves it all. Cost in dollars is not estimated, since prices
+change; tokens only. Days in every report are local calendar days; the files
+are named by UTC date.
+
+- `/usage-it` writes an HTML report: totals, work and cache reads over time,
+  by agent, model and project, a context-outliers table (main sessions by peak
+  context) and a plan-meter section.
+- `node skills/usage-it/scripts/usage.mjs [--days N, default 30 | --hours N]
+  [--by agent|model|day|month|project] [--json]` prints the same rows as a
+  table, rolled-up rows included (`--days 90 --by month` for a trend).
+  `--from <iso> --to <iso>` keeps runs that ended in that window, so a step's
+  usage is its start and end time. `--import` first backfills from the
+  transcripts Claude Code already keeps. `--baseline` prints what do-it adds to
+  every session next to the median start context.
+- When a main session's context first passes `DO_IT_CLEAR_AT` tokens (default
+  300000, `0` is off), the `Stop` hook shows one line suggesting `/pass-it`
+  then `/clear`. It never blocks and adds nothing to the model's context.
+- The plan meter: `usage.mjs --snapshot --week <pct> --resets <iso with offset>
+  [--session <pct>]` stores a reading of `/usage` (nothing local exposes it),
+  and the report projects when the week would reach 100% from the pace so far.
+  The ledger is per host.
 
 OpenCode notes for repos that use do-it:
 
