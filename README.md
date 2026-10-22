@@ -225,10 +225,14 @@ are named by UTC date.
 - When a main session's context first passes `DO_IT_CLEAR_AT` tokens (default
   300000, `0` is off), the `Stop` hook shows one line suggesting `/pass-it`
   then `/clear`. It never blocks and adds nothing to the model's context.
-- The plan meter: `usage.mjs --snapshot --week <pct> --resets <iso with offset>
-  [--session <pct>]` stores a reading of `/usage` (nothing local exposes it),
-  and the report projects when the week would reach 100% from the pace so far.
-  The ledger is per host.
+- The plan meter: Claude Code caches its `/usage` percentages in
+  `~/.claude.json`; the `Stop` hook and the report record each new reading, and
+  the report charts the week, lists each day's growth and projects when the
+  week would reach 100%. The report refreshes a stale cache first with `claude -p /usage` (no model call;
+  `DO_IT_USAGE_REFRESH=0` turns it off) and re-imports the last two days of
+  transcripts. `usage.mjs --snapshot` takes a reading now (or
+  `--snapshot --week <pct> --resets <iso>` gives one by hand). Readings are
+  account-wide; the tokens stored with them are this host's.
 
 OpenCode notes for repos that use do-it:
 

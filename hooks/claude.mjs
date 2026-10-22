@@ -17,7 +17,7 @@ import fs, { realpathSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { decide } from './lib/decide.mjs';
-import { trackUsage, clearLimit } from '../skills/usage-it/scripts/ledger.mjs';
+import { autoSnapshot, trackUsage, clearLimit, usageDir } from '../skills/usage-it/scripts/ledger.mjs';
 
 // Subagent types that only read; they skip the coding posture. A plugin agent
 // reports itself as <plugin>:<name>, so the prefix is dropped before the lookup.
@@ -70,6 +70,11 @@ export async function handle(event, input) {
     try {
       rec = trackUsage(event === 'stop' ? 'session' : 'subagent', input);
     } catch {}
+    if (event === 'stop') {
+      try {
+        autoSnapshot(usageDir());
+      } catch {}
+    }
     // A notice to the user only, on the stop that first crosses the limit.
     const limit = clearLimit();
     if (event === 'stop' && rec && limit > 0 && rec.peak >= limit && (rec.prevPeak ?? 0) < limit) {

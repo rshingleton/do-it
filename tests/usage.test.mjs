@@ -6,13 +6,16 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-import { sumTranscript, record, prune, readAll, trackUsage, subagentTranscript, importTranscripts, clearLimit, localDay, localized, projectWeek, readSnapshots } from '../skills/usage-it/scripts/ledger.mjs';
+import { sumTranscript, record, prune, readAll, trackUsage, subagentTranscript, importTranscripts, clearLimit, localDay, localized, projectWeek, readSnapshots, readUtilization, autoSnapshot, refreshUtilization } from '../skills/usage-it/scripts/ledger.mjs';
 import { baselineSizes, descriptionSizes } from '../skills/usage-it/scripts/baseline.mjs';
 import { contextOutliers } from '../skills/usage-it/scripts/outliers.mjs';
 import { handle } from '../hooks/claude.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-usage-'));
+// Keep these tests off the real ~/.claude.json: its cached /usage numbers would leak into the temp ledgers.
+process.env.CLAUDE_CONFIG_DIR = tmp();
+process.env.DO_IT_USAGE_REFRESH = '0'; // never start a real claude from a test
 
 const line = (id, out, extra = {}) =>
   JSON.stringify({
@@ -384,4 +387,86 @@ test('--snapshot records a reading outside the usage rows and prints the pace; t
   assert.match(run('report.mjs', '--days', '30', '--out', path.join(dir, 'r.html')), /r\.html/);
   assert.match(fs.readFileSync(path.join(dir, 'r.html'), 'utf8'), /Plan meter<\/h2>.*Latest reading 15%/s);
   assert.throws(() => run('usage.mjs', '--snapshot', '--week', '150', '--resets', '2026-10-28T02:59:00-04:00'), /usage: usage.mjs --snapshot/);
+});
+
+// A Claude Code global-state file holding its cached /usage reading.
+const utilFile = (dir, { fetched = '2026-10-22T02:00:00.000Z', week = 15, five = 20, resets = '2026-10-28T07:00:00.487663+00:00' } = {}) => {
+  fs.writeFileSync(path.join(dir, '.claude.json'), JSON.stringify({ cachedUsageUtilization: { fetchedAtMs: Date.parse(fetched), utilization: { five_hour: { utilization: five, resets_at: '2026-10-22T03:10:00+00:00' }, seven_day: { utilization: week, resets_at: resets } } } }));
+  return path.join(dir, '.claude.json');
+};
+
+test('readUtilization reads Claude Code\'s cached /usage numbers and tolerates anything else', () => {
+  const cfg = tmp();
+  assert.deepEqual(readUtilization(utilFile(cfg)), { fetchedAt: '2026-10-22T02:00:00.000Z', weekPct: 15, resetsAt: '2026-10-28T07:00:00.487Z', sessionPct: 20 });
+  assert.equal(readUtilization(path.join(cfg, 'missing.json')), null);
+  fs.writeFileSync(path.join(cfg, 'odd.json'), '{"cachedUsageUtilization":{"fetchedAtMs":1,"utilization":{"seven_day":null}}}');
+  assert.equal(readUtilization(path.join(cfg, 'odd.json')), null);
+  fs.writeFileSync(path.join(cfg, 'bad.json'), 'not json');
+  assert.equal(readUtilization(path.join(cfg, 'bad.json')), null);
+});
+
+test('autoSnapshot records a new reading once, again when it moves or an hour passes, with the host tokens', () => {
+  const dir = tmp();
+  const cfg = tmp();
+  record(dir, { id: 'r', kind: 'session', agent: 'main', model: 'claude-sonnet-5-5', project: 'p', day: '2026-10-22', at: '2026-10-22T01:00:00.000Z', turns: 1, in: 1, out: 2, cr: 3, cc: 4 });
+  const take = (o) => autoSnapshot(dir, { util: readUtilization(utilFile(cfg, o)) });
+  const first = take();
+  assert.equal(first.auto, true);
+  assert.deepEqual(first.tokens.sonnet, { runs: 1, in: 1, out: 2, cr: 3, cc: 4 });
+  assert.equal(take(), null, 'the same fetch is not recorded twice');
+  assert.equal(take({ fetched: '2026-10-22T02:10:00.000Z' }), null, 'unchanged numbers minutes later are noise');
+  assert.equal(take({ fetched: '2026-10-22T02:20:00.000Z', week: 16 }).weekPct, 16);
+  assert.ok(take({ fetched: '2026-10-22T03:30:00.000Z', week: 16 }), 'unchanged numbers an hour later are kept');
+  assert.equal(readSnapshots(dir).length, 3);
+  assert.equal(autoSnapshot(dir, { util: null }), null);
+});
+
+test('the stop hook and the report take Claude Code\'s cached reading, and the report charts the week', async () => {
+  const work = tmp();
+  const cfg = tmp();
+  const dir = path.join(work, 'usage');
+  const main = path.join(work, 's9.jsonl');
+  fs.writeFileSync(main, line('m1', 10));
+  const env = { ...process.env, DO_IT_USAGE_DIR: dir, CLAUDE_CONFIG_DIR: cfg };
+  const saved = { dir: process.env.DO_IT_USAGE_DIR, cfg: process.env.CLAUDE_CONFIG_DIR };
+  Object.assign(process.env, { DO_IT_USAGE_DIR: dir, CLAUDE_CONFIG_DIR: cfg });
+  try {
+    utilFile(cfg, { fetched: '2026-10-21T20:00:00.000Z', week: 5 });
+    await handle('stop', { session_id: 's9', transcript_path: main, cwd: '/repo/p' });
+    assert.equal(readSnapshots(dir).length, 1);
+    utilFile(cfg, { fetched: '2026-10-22T02:00:00.000Z', week: 15 });
+  } finally {
+    for (const [k, v] of [['DO_IT_USAGE_DIR', saved.dir], ['CLAUDE_CONFIG_DIR', saved.cfg]]) v === undefined ? delete process.env[k] : (process.env[k] = v);
+  }
+  const out = path.join(work, 'r.html');
+  execFileSync('node', [path.join(ROOT, 'skills', 'usage-it', 'scripts', 'report.mjs'), '--days', '90', '--out', out], { env, encoding: 'utf8' });
+  const html = fs.readFileSync(out, 'utf8');
+  assert.equal(readSnapshots(dir).length, 2, 'building the report took the newer reading');
+  assert.match(html, /Plan meter<\/h2>.*Latest reading 15% \(2 reading/s);
+  assert.match(html, /<polyline[^>]*stroke-dasharray/); // the projection
+  assert.match(html, /<td class="n">15%<\/td><td class="n">\+15<\/td>/); // both readings fall on one local day: it ended at 15%, adding 15
+  assert.match(execFileSync('node', [path.join(ROOT, 'skills', 'usage-it', 'scripts', 'usage.mjs'), '--snapshot'], { env, encoding: 'utf8' }), /no new reading/);
+});
+
+test('refreshUtilization runs `claude -p /usage` only when the cached reading is stale, and can be turned off', () => {
+  const bin = tmp();
+  const marker = path.join(bin, 'ran');
+  fs.writeFileSync(path.join(bin, 'claude'), `#!/bin/sh\necho "$@" >> ${marker}\n`, { mode: 0o755 });
+  const cfg = tmp();
+  const base = { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}`, CLAUDE_CONFIG_DIR: cfg };
+  const env = { ...base, DO_IT_USAGE_REFRESH: '1' };
+  const now = Date.parse('2026-10-22T02:00:00Z');
+
+  utilFile(cfg, { fetched: '2026-10-22T01:58:00.000Z' }); // two minutes old
+  assert.equal(refreshUtilization({ env, now }), false);
+  assert.equal(fs.existsSync(marker), false);
+
+  utilFile(cfg, { fetched: '2026-10-22T01:00:00.000Z' }); // an hour old
+  assert.equal(refreshUtilization({ env: { ...base, DO_IT_USAGE_REFRESH: '0' }, now }), false, 'off switch');
+  assert.equal(fs.existsSync(marker), false);
+  assert.equal(refreshUtilization({ env, now }), true);
+  assert.equal(fs.readFileSync(marker, 'utf8').trim(), '-p /usage');
+
+  fs.rmSync(path.join(cfg, '.claude.json'));
+  assert.equal(refreshUtilization({ env: { ...env, PATH: '/nonexistent' }, now }), false, 'no claude binary fails open');
 });

@@ -20,6 +20,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 
 export const DEFAULT_DAYS = 30;
 export const DEFAULT_ROLLUP_DAYS = 365;
@@ -243,9 +244,77 @@ export function trackUsage(kind, input, { dir = usageDir(), days = keepDays(), r
   return { ...rec, prevPeak };
 }
 
-// Readings of the plan meter (the /usage percentages), typed in by the user
-// because nothing local exposes them. One JSON line each in snapshots.ndjson,
-// a name readAll() skips; kept as long as the rollup.
+// Where Claude Code keeps its global state; it caches the /usage percentages there
+// (cachedUsageUtilization), refreshed when /usage runs and now and then.
+export const claudeConfigFile = (env = process.env) => path.join(env.CLAUDE_CONFIG_DIR || os.homedir(), '.claude.json');
+
+// The cached reading, or null when absent or shaped differently (the field is not
+// a documented interface). Times are ISO, UTC.
+export function readUtilization(file = claudeConfigFile()) {
+  try {
+    const u = JSON.parse(fs.readFileSync(file, 'utf8')).cachedUsageUtilization;
+    const week = u?.utilization?.seven_day;
+    const five = u?.utilization?.five_hour;
+    if (!u?.fetchedAtMs || !Number.isFinite(week?.utilization) || Number.isNaN(Date.parse(week.resets_at))) return null;
+    return {
+      fetchedAt: new Date(u.fetchedAtMs).toISOString(),
+      weekPct: week.utilization,
+      resetsAt: new Date(week.resets_at).toISOString(),
+      sessionPct: Number.isFinite(five?.utilization) ? five.utilization : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+// Ask Claude Code to refresh its cached /usage numbers by running the built-in
+// command headless (`claude -p /usage`: a local command, no model call, no tokens).
+// Only when the cached reading is older than maxAgeMin; never from a hook, which
+// would start a session whose own hooks run. DO_IT_USAGE_REFRESH=0 turns it off.
+// Fails open: a missing claude binary or a timeout just leaves the old reading.
+export function refreshUtilization({ maxAgeMin = 10, env = process.env, now = Date.now() } = {}) {
+  if (env.DO_IT_USAGE_REFRESH === '0') return false;
+  const u = readUtilization(claudeConfigFile(env));
+  if (u && now - Date.parse(u.fetchedAt) < maxAgeMin * 60000) return false;
+  try {
+    const r = spawnSync('claude', ['-p', '/usage'], { cwd: os.tmpdir(), env, timeout: 30000, stdio: 'ignore' });
+    return r.status === 0;
+  } catch {
+    return false;
+  }
+}
+
+// This host's tokens by model family from runs that ended in [fromMs, toMs]; a run
+// that straddles an edge counts whole (by its last message).
+export function tokensBetween(dir, fromMs, toMs) {
+  const out = {};
+  for (const r of readAll(dir)) {
+    const t = r.at ? Date.parse(r.at) : NaN;
+    if (!(t >= fromMs && t <= toMs)) continue;
+    const m = String(r.model ?? '');
+    const f = (out[m.includes('opus') ? 'opus' : m.includes('haiku') ? 'haiku' : m.includes('sonnet') ? 'sonnet' : 'other'] ??= { runs: 0, in: 0, out: 0, cr: 0, cc: 0 });
+    f.runs += 1;
+    for (const k of ['in', 'out', 'cr', 'cc']) f[k] += r[k] ?? 0;
+  }
+  return out;
+}
+
+// Record Claude Code's cached /usage reading when it is new: a different fetch whose
+// percentages moved or that is an hour after the last one. Returns the snapshot or null.
+export function autoSnapshot(dir, { util = readUtilization() } = {}) {
+  if (!util) return null;
+  const last = readSnapshots(dir).at(-1);
+  if (last && Date.parse(last.at) >= Date.parse(util.fetchedAt)) return null;
+  const moved = !last || last.weekPct !== util.weekPct || last.sessionPct !== util.sessionPct || last.resetsAt !== util.resetsAt;
+  if (!moved && Date.parse(util.fetchedAt) - Date.parse(last.at) < 3600000) return null;
+  const snap = { at: util.fetchedAt, weekPct: util.weekPct, sessionPct: util.sessionPct, resetsAt: util.resetsAt, auto: true, tokens: tokensBetween(dir, Date.parse(util.resetsAt) - 7 * 86400000, Date.parse(util.fetchedAt)) };
+  recordSnapshot(dir, snap);
+  return snap;
+}
+
+// Readings of the plan meter (the /usage percentages): taken from Claude Code's cache
+// (autoSnapshot) or typed in. One JSON line each in snapshots.ndjson, a name
+// readAll() skips; kept as long as the rollup.
 const SNAPSHOTS = 'snapshots.ndjson';
 export function recordSnapshot(dir, snap) {
   fs.mkdirSync(dir, { recursive: true });
@@ -257,6 +326,9 @@ export const readSnapshots = (dir) => readFile(path.join(dir, SNAPSHOTS)).filter
 // { at, weekPct, resetsAt, ... } (ISO times); the week starts 7 days before
 // resetsAt at 0%, so one reading already gives a pace. The latest week only,
 // oldest reading first; null when there are none.
+// The reset time reads a minute or less apart between sources; readings within an hour of each other are one week.
+export const sameWeek = (a, b) => Math.abs(Date.parse(a) - Date.parse(b)) < 3600000;
+
 const HOUR = 3600000;
 const WEEK = 7 * 24 * HOUR;
 
@@ -266,7 +338,7 @@ export function projectWeek(snapshots, now = Date.now()) {
   const resetsAt = Date.parse(latest.resetsAt);
   const start = resetsAt - WEEK;
   const reads = snapshots
-    .filter((s) => s.resetsAt && Date.parse(s.resetsAt) === resetsAt)
+    .filter((s) => s.resetsAt && sameWeek(s.resetsAt, latest.resetsAt))
     .map((s) => ({ ...s, t: Date.parse(s.at) }))
     .sort((a, b) => a.t - b.t);
   const last = reads.at(-1);
@@ -276,7 +348,9 @@ export function projectWeek(snapshots, now = Date.now()) {
   };
   const exhaust = (rate) => (rate ? new Date(last.t + ((100 - last.weekPct) / rate) * HOUR) : null);
   const average = pace({ t: start, weekPct: 0 }, last);
-  const recent = reads.length > 1 ? pace(reads.at(-2), last) : null;
+  // The pace over the last stretch of at least 6 hours, so readings minutes apart do not make noise.
+  const from = [...reads].reverse().find((s) => s.t <= last.t - 6 * HOUR);
+  const recent = from ? pace(from, last) : null;
   const wrap = (rate) => {
     const at = exhaust(rate);
     return rate ? { perDay: rate * 24, exhaustsAt: at.toISOString(), beforeReset: at.getTime() < resetsAt } : null;

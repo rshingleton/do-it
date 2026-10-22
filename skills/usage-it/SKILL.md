@@ -21,6 +21,9 @@ days are kept 30 days (`DO_IT_USAGE_DAYS`); older days roll up into
 
 ## 1. Fill the ledger if it is empty
 
+The hooks write each run as it stops, and the report re-imports the last two days
+itself, so a run in progress or on a host without the hooks is still counted.
+
 Without hooks installed, or on a first run, the ledger has nothing. Run:
 
 ```bash
@@ -55,13 +58,22 @@ recorded for the range: say so and name the ledger directory.
 
 ## The plan meter
 
-Nothing local exposes the `/usage` percentages, so type them in:
-`usage.mjs --snapshot --week <pct> --resets <ISO with offset> [--session <pct>] [--at <ISO>]`,
-for example `--week 15 --resets 2026-10-28T02:59:00-04:00`. Each reading goes to
-`snapshots.ndjson` in the ledger directory with this host's tokens since the week began, and the
-report's "Plan meter" section projects when the week would reach 100% (the pace since the
-reset, and since the previous reading). The ledger is per host; a second host's usage counts
-toward the same meter but is not added here.
+Claude Code caches its `/usage` percentages in `~/.claude.json`
+(`cachedUsageUtilization`: the 5-hour and weekly windows, with reset times).
+The `Stop` hook and the report copy a new reading into `snapshots.ndjson` in
+the ledger directory, with this host's tokens since the week began, so the trend
+builds up without typing. When the cached reading is over 10 minutes old, the report
+and `usage.mjs --snapshot` first run `claude -p /usage` (a local command: no model
+call, no tokens) to refresh it; `DO_IT_USAGE_REFRESH=0` turns that off. The hook
+never does, since it would start a session of its own. The report's "Plan meter" section charts
+the week, adds a per-day table and projects when the week would reach 100% (the
+average pace since the reset, and the pace over the last 6 hours or more). The
+numbers are account-wide, from any host; the tokens stored are this host's.
+
+`usage.mjs --snapshot` takes the cached reading now and prints the pace. By hand
+(when the cache is missing): `--snapshot --week <pct> --resets <ISO with offset>
+[--session <pct>] [--at <ISO>]`. The field is not a documented interface; if
+Claude Code changes it, readings stop and the section says so.
 
 ## The `/clear` nudge
 

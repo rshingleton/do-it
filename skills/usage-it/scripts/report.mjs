@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { projectWeek, readAll, readSnapshots, usageDir, localDay, localized } from './ledger.mjs';
+import { autoSnapshot, importTranscripts, projectWeek, readAll, readSnapshots, refreshUtilization, sameWeek, usageDir, localDay, localized } from './ledger.mjs';
 import { contextOutliers, FACTOR } from './outliers.mjs';
 
 const args = process.argv.slice(2);
@@ -22,6 +22,12 @@ if (!(days > 0)) {
   console.error('usage: report.mjs [--days N | --hours N] [--out file] [--open]');
   process.exit(2);
 }
+
+// Catch the ledger up first: the hooks write each run when it stops, so only a run in
+// progress or on a host without the hooks is missing. Idempotent and quick for two days.
+try {
+  importTranscripts(path.join(process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude'), 'projects'), { days: 2 });
+} catch {}
 
 const now = new Date();
 // Days are local calendar days; the ledger files are UTC.
@@ -158,16 +164,38 @@ function outlierTable() {
 
 // The plan meter: typed-in /usage readings of the latest week, and when it would hit 100%.
 function meterSection() {
+  try {
+    refreshUtilization(); // ask Claude Code for current /usage numbers when the cache is stale
+    autoSnapshot(usageDir()); // then record the cached reading
+  } catch {}
   const snaps = readSnapshots(usageDir());
   const p = projectWeek(snaps);
-  if (!p) return '<p class="muted">No readings yet. Record one with <code>usage.mjs --snapshot --week &lt;pct&gt; --resets &lt;iso&gt;</code> from <code>/usage</code>.</p>';
+  if (!p) return '<p class="muted">No readings yet. Claude Code caches its <code>/usage</code> numbers; open <code>/usage</code> once, then rebuild this report.</p>';
   const when = (v) => (v ? `${esc(new Date(v.exhaustsAt).toLocaleString())} at ${v.perDay.toFixed(1)}%/day, ${v.beforeReset ? '<b>before</b>' : 'after'} the reset` : 'no pace yet');
-  const rows = snaps
-    .filter((s) => s.resetsAt && Date.parse(s.resetsAt) === Date.parse(p.resetsAt))
-    .sort((a, b) => Date.parse(a.at) - Date.parse(b.at))
-    .map((s) => `<tr><td>${esc(new Date(s.at).toLocaleString())}</td><td class="n">${s.weekPct}%</td><td class="n">${s.sessionPct ?? ''}${s.sessionPct == null ? '' : '%'}</td></tr>`)
-    .join('');
-  return `<p>Week resets ${esc(new Date(p.resetsAt).toLocaleString())}. Latest reading ${p.last.weekPct}% (${p.readings} reading(s)).</p><ul><li>Average pace since the reset: ${when(p.average)}.</li><li>Pace since the previous reading: ${when(p.recent)}.</li></ul><table><thead><tr><th>reading</th><th class="n">week</th><th class="n">session</th></tr></thead><tbody>${rows}</tbody></table><p class="muted">A straight-line estimate from readings you typed in; sleep, weekends and heavy days make it rough.</p>`;
+  const resets = Date.parse(p.resetsAt);
+  const start = resets - 7 * 86400000;
+  const reads = snaps.filter((s) => s.resetsAt && sameWeek(s.resetsAt, p.resetsAt)).sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+  // Week % at the end of each local day, and what that day added.
+  const byDay = new Map();
+  for (const s of reads) byDay.set(localDay(s.at), s.weekPct);
+  let prev = 0;
+  const days = [...byDay].map(([d, v]) => {
+    const row = `<tr><td>${esc(d)}</td><td class="n">${v}%</td><td class="n">${v - prev >= 0 ? '+' : ''}${v - prev}</td></tr>`;
+    prev = v;
+    return row;
+  });
+  const W = 640;
+  const H = 150;
+  const x = (ms) => 30 + ((ms - start) / (resets - start)) * (W - 40);
+  const y = (v) => 10 + (1 - v / 100) * (H - 30);
+  const pts = [[start, 0], ...reads.map((s) => [Date.parse(s.at), s.weekPct])];
+  const last = pts.at(-1);
+  const proj = p.average ? [[last[0], last[1]], [Math.min(Date.parse(p.average.exhaustsAt), resets), p.average.beforeReset ? 100 : last[1] + (p.average.perDay * (Math.min(Date.parse(p.average.exhaustsAt), resets) - last[0])) / 86400000]] : null;
+  const line = (ps) => ps.map(([t, v]) => `${x(t).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+  const ticks = [0, 50, 100].map((v) => `<line class="grid" x1="30" x2="${W - 10}" y1="${y(v)}" y2="${y(v)}"/><text class="axis" x="26" y="${y(v) + 4}" text-anchor="end">${v}%</text>`).join('');
+  const chart = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Weekly plan meter, readings and projection">${ticks}<polyline fill="none" stroke="var(--s1)" stroke-width="2" points="${line(pts)}"/>${proj ? `<polyline fill="none" stroke="var(--s2)" stroke-width="2" stroke-dasharray="5 4" points="${line(proj)}"/>` : ''}<text class="axis" x="30" y="${H - 4}">${esc(localDay(new Date(start)))}</text><text class="axis" x="${W - 10}" y="${H - 4}" text-anchor="end">reset ${esc(localDay(new Date(resets)))}</text></svg>`;
+  const recent = reads.slice(-6).reverse().map((s) => `<tr><td>${esc(new Date(s.at).toLocaleString())}</td><td class="n">${s.weekPct}%</td><td class="n">${s.sessionPct == null ? '' : `${s.sessionPct}%`}</td></tr>`).join('');
+  return `<p>Week resets ${esc(new Date(resets).toLocaleString())}. Latest reading ${p.last.weekPct}% (${p.readings} reading(s)).</p><ul><li>Average pace since the reset: ${when(p.average)}.</li><li>Recent pace (last 6 hours or more): ${when(p.recent)}.</li></ul>${chart}<table><thead><tr><th>day</th><th class="n">week at day end</th><th class="n">added</th></tr></thead><tbody>${days.join('')}</tbody></table><table><thead><tr><th>latest readings</th><th class="n">week</th><th class="n">5-hour</th></tr></thead><tbody>${recent}</tbody></table><p class="muted">Readings are Claude Code's cached <code>/usage</code> numbers (account-wide, from any host), taken when this report builds and as sessions end. The dashed line is a straight-line estimate; sleep, weekends and heavy days make it rough.</p>`;
 }
 
 // ---- what stands out: plain sentences from the numbers, nothing guessed ----
