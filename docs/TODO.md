@@ -3,7 +3,7 @@
 Nice-to-haves and things to circle back to. Managed by log-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T73
+Next id: T76
 
 ## Open
 
@@ -32,10 +32,8 @@ Next id: T73
 - [ ] T30 Read-only reviewer agents (agents/ with restricted tools and model) generated from the skill briefs, like gen-opencode `idea` (research: claude-code plugins)
 - [ ] T31 Bugfix plans list behaviour that must not change, feeding regression seams `idea` (research: Kiro bugfix specs)
 - [ ] T32 Path-scoped standards files that load only when matching files are edited `idea` (research: Kiro steering)
-- [ ] T38 Trim internal-caller clauses from model-invoked descriptions (grill-it, review-it, guard-it, look-it-up) to cut per-turn tokens `nice-to-have` (overlap audit)
 - [ ] T39 Decide: fold doubt-it into it-core, and drop prove-it --since (review-it plus guard-it cover it) `question` (overlap audit)
   - Sweep 2026-10-19 (finding 18): prove-it/VALIDATE.md is doubt-it rebuilt, and no skill calls doubt-it.
-- [ ] T43 Explore: make it-core non-invocable (hooks inject it; its description costs ~35 words a turn for nothing) `question` (deepen-it 2026-10-19, candidate 5; see T38, T39)
 - [ ] T44 Explore: move shared config and doc resolution from skills/track-it/scripts into a top-level lib/ `question` (deepen-it 2026-10-19, candidate 6)
 - [ ] T45 Explore: merge map-it with sweep-it as a single skill with modes `question` (deepen-it 2026-10-19, candidate 7; not recommended now; the log-it and todo-it half shipped as single-intake)
 - [ ] T46 Code map in large repos: cache the map keyed by HEAD and index mtime so subagent starts reuse it, and fall back to tracked files only (no untracked walk) when the 1.5 s timeout hits `idea` (hooks/lib/codemap.mjs; codemap-containers review)

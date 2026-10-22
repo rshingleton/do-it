@@ -474,3 +474,21 @@ test('work.mjs: show --brief prints only status, lane, next moves and the blocke
   assert.equal(blocked.blocker, 'need a key');
   assert.equal(blocked.needs_user, true);
 });
+
+test('work.mjs: --brief on new, list, event, set and verify-phase prints the short shape', () => {
+  const dir = tempRepo();
+  const want = ['allowed', 'blocker', 'id', 'lane', 'needs_user', 'status'];
+  const shape = (r) => {
+    assert.equal(r.status, 0, JSON.stringify(r.out));
+    assert.deepEqual(Object.keys(r.out).sort(), want);
+    return r.out;
+  };
+  assert.equal(shape(work(dir, 'new', 'feat-c', '--lane', 's', '--title', 'Feature C', '--brief')).status, 'draft');
+  assert.equal(shape(work(dir, 'set', 'feat-c', 'assumptions', '["a"]', '--brief')).id, 'feat-c');
+  assert.equal(shape(work(dir, 'event', 'feat-c', 'approve', '--brief')).status, 'planned');
+  assert.equal(shape(work(dir, 'event', 'feat-c', 'start', '--brief')).status, 'building');
+  assert.equal(shape(work(dir, 'verify-phase', 'feat-c', '--brief', '--', 'true')).status, 'building');
+  const list = work(dir, 'list', '--brief').out;
+  assert.deepEqual(list, [{ id: 'feat-c', lane: 's', status: 'building' }]);
+  assert.ok(work(dir, 'show', 'feat-c').out.verified, 'the full form still records and shows the check');
+});

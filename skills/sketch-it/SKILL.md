@@ -1,6 +1,6 @@
 ---
 name: sketch-it
-description: Build a throwaway sketch that settles one design question, either a clickable model of some logic or several competing layouts of a screen, then record the answer and remove the sketch. Use when a state model, rule set or data shape needs to be felt before it is built, when the user wants to compare what a page could look like, or when scope-it hits a decision nobody can settle on paper.
+description: Build a throwaway sketch that settles one design question, either a clickable model of some logic or several competing layouts of a screen, then record the answer and remove the sketch. Use when a state model, rule set or data shape needs to be felt before it is built, when the user wants to compare what a page could look like.
 ---
 
 # sketch-it

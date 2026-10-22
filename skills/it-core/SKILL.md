@@ -1,6 +1,7 @@
 ---
 name: it-core
-description: The always-on coding posture for do-it: think first, reuse before writing, surgical changes, verifiable goals, recorded shortcuts, assume-or-ask. Use when writing, reviewing, or refactoring code, or when another skill says to follow the it-core posture.
+description: The always-on coding posture, injected by the hooks into every session and subagent; typed only to read it.
+disable-model-invocation: true
 ---
 
 # Core posture
@@ -47,7 +48,7 @@ in shared code is fixed once, at the root, after reading every caller.
 - New non-trivial logic (a branch, a loop, a parser, money, security) leaves a
   test. Trivial edits need none.
 - Run the project's own test, lint, format and type-check commands; do not
-  re-check by eye what tooling enforces.
+  re-check by eye what they enforce.
 - A UI change is done once seen rendering where it lives, never from the code
   alone; if no browser, script or screenshot can show it, say so under Not checked.
 
@@ -69,9 +70,9 @@ code, comments or `.env` files.
 
 ## Project docs
 
-Skills name the default doc paths; use this repo's resolved ones, listed under
-"project docs" in session context (`tracker.mjs config` in the track-it skill
-when hooks are off). Never create a second context file or changelog.
+Use this repo's resolved doc paths, listed under "project docs" in session
+context (`tracker.mjs config` in the track-it skill when hooks are off), not the
+skills' defaults. Never create a second context file or changelog.
 
 **The area's context:** for work in a component, read the context map, then
 the area's `CONTEXT.md` and `docs/adr/` (no map: the root `CONTEXT.md`), per
@@ -81,7 +82,7 @@ are a last fallback; reading never creates a context file.
 ## Git
 
 Do not commit, push, or rewrite history unless the user asks or `ship-it` is
-running; work stays in the working tree for review. One exception: a `build-it`
+running; work stays in the working tree. One exception: a `build-it`
 parallel implementer commits on its own `do-it/*` scratch branch, in its own
 worktree (`build-it/PARALLEL.md`); those commits never reach the user's branch.
 

@@ -1,6 +1,6 @@
 ---
 name: review-it
-description: Review a change since a base (a commit, branch, tag or merge-base, committed or still in the working tree) on two separate axes, Spec (did it build what was asked) and Standards (does it follow this repo's rules), in parallel fresh-context reviewers, reported side by side. Use when asked to review a branch, a PR, work in progress or "everything since X", or when prove-it needs its spec and standards review.
+description: Review a change since a base (a commit, branch, tag or merge-base, committed or still in the working tree) on two separate axes, Spec (did it build what was asked) and Standards (does it follow this repo's rules), in parallel fresh-context reviewers, reported side by side. Use when asked to review a branch, a PR, work in progress or "everything since X".
 ---
 
 # review-it

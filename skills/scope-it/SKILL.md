@@ -42,7 +42,7 @@ No `CONTEXT.md` for the plan's area: never write one while scouting; propose
 
 ## 3. Write the plan
 
-Create the plan file with `work.mjs new <id> --lane s|m --title "<title>"`
+Create the plan file with `work.mjs new <id> --lane s|m --title "<title>" --brief`
 (the work-item script, [STATE.md](../do-it/STATE.md)); it writes the full
 state block, `status: draft`. Then fill the block with `work.mjs set`:
 `sources`, `phases` (lane M), `assumptions`, and `roadmap` or `todo` when
@@ -75,7 +75,7 @@ and what each delivers, the assumptions, and any builder-check questions for
 the user (each with a recommended answer). The plan stays `status: draft`.
 End the turn; lane M makes this its last grill round ([GRILL.md](GRILL.md)).
 
-On approval, `work.mjs event <id> approve`. Edits the user asks for are made
+On approval, `work.mjs event <id> approve --brief`. Edits the user asks for are made
 and re-presented; approval of the edited plan counts.
 
 ## 6. Publish (optional)

@@ -1,6 +1,6 @@
 ---
 name: merge-it
-description: Resolve an in-progress git merge, rebase or cherry-pick conflict by the intent of both sides, then prove the result with the project's checks. Use when git reports conflicts, a build-it parallel merge stops on a conflict, or the user asks to finish a merge or rebase.
+description: Resolve an in-progress git merge, rebase or cherry-pick conflict by the intent of both sides, then prove the result with the project's checks. Use when git reports conflicts or the user asks to finish a merge or rebase.
 ---
 
 # merge-it

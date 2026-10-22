@@ -4,8 +4,10 @@
 // except usageDir().
 //
 // One record per agent run (a main session or a subagent):
-//   { id, kind, agent, model, session, project, day, at, turns, in, out, cr, cc }
+//   { id, kind, agent, model, session, project, day, at, turns, in, out, cr, cc, ctx0, peak }
 // in = fresh input, cr = cache reads, cc = cache writes, out = output tokens.
+// ctx0 and peak are the total context (in + cr + cc) of the run's first turn and
+// of its largest turn; records from before they existed lack them.
 // Records are keyed by id and rewritten in place, so a session that stops many
 // times keeps one line with running totals.
 //
@@ -36,6 +38,13 @@ export function rollupKeepDays(env = process.env) {
   return Number.isInteger(n) && n > 0 ? n : DEFAULT_ROLLUP_DAYS;
 }
 
+// Total context (tokens) at which the Stop hook first suggests /clear; 0 turns it off.
+export const DEFAULT_CLEAR_AT = 300000;
+export function clearLimit(env = process.env) {
+  const n = Number(env.DO_IT_CLEAR_AT);
+  return env.DO_IT_CLEAR_AT !== undefined && env.DO_IT_CLEAR_AT !== '' && Number.isInteger(n) && n >= 0 ? n : DEFAULT_CLEAR_AT;
+}
+
 const cutoffDay = (days, now) => new Date(now.getTime() - (days - 1) * 86400000).toISOString().slice(0, 10);
 const dayOf = (iso) => String(iso).slice(0, 10);
 
@@ -47,6 +56,8 @@ export function sumTranscript(text) {
   let last = null;
   let cwd = null;
   const models = new Map();
+  let ctx0 = null;
+  let peak = 0;
   for (const line of String(text).split('\n')) {
     if (!line) continue;
     let o;
@@ -62,6 +73,11 @@ export function sumTranscript(text) {
     cwd ??= o.cwd ?? null;
     const key = o.message.id ?? o.requestId ?? o.uuid;
     const prev = byId.get(key);
+    if (!prev) {
+      const ctx = (u.input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0);
+      ctx0 ??= ctx;
+      peak = Math.max(peak, ctx);
+    }
     if (!prev || (u.output_tokens ?? 0) >= prev.out) {
       byId.set(key, {
         in: u.input_tokens ?? 0,
@@ -81,7 +97,7 @@ export function sumTranscript(text) {
     if (m.model) models.set(m.model, (models.get(m.model) ?? 0) + 1);
   }
   const model = [...models.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
-  return { ...t, model, first, last, cwd };
+  return { ...t, model, first, last, cwd, ctx0, peak };
 }
 
 // Insert or replace the record with the same id in its day's file. The day is
@@ -106,6 +122,11 @@ export function record(dir, rec) {
   });
   if (!replaced) lines.push(mine);
   fs.writeFileSync(file, `${lines.join('\n')}\n`);
+}
+
+// The record with this id in its day's file, or null.
+function existing(dir, day, id) {
+  return readFile(path.join(dir, `${day}.jsonl`)).find((r) => r.id === id) ?? null;
 }
 
 // Roll day files older than `days` days (today counts as day one) into the
@@ -176,7 +197,8 @@ export function subagentTranscript(input) {
 }
 
 // Entry for the hook: kind is 'session' (Stop) or 'subagent' (SubagentStop).
-// Returns the record written, or null when there was nothing to count.
+// Returns the record written plus prevPeak (the peak this id had before this
+// stop, null if none; not stored), or null when there was nothing to count.
 export function trackUsage(kind, input, { dir = usageDir(), days = keepDays(), rollupDays = rollupKeepDays(), now = new Date() } = {}) {
   const file = kind === 'subagent' ? subagentTranscript(input) : input.transcript_path;
   if (!file) return null;
@@ -197,11 +219,14 @@ export function trackUsage(kind, input, { dir = usageDir(), days = keepDays(), r
     out: total.out,
     cr: total.cr,
     cc: total.cc,
+    ctx0: total.ctx0,
+    peak: total.peak,
   };
   if (!rec.id || rec.day < cutoffDay(days, now)) return null; // already rolled up, or about to be
+  const prevPeak = existing(dir, rec.day, rec.id)?.peak ?? null;
   record(dir, rec);
   prune(dir, days, now, rollupDays);
-  return rec;
+  return { ...rec, prevPeak };
 }
 
 // Every raw record plus every rollup row; a rollup row carries `runs`, a raw

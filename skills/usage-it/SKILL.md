@@ -48,8 +48,16 @@ The page is self-contained: no network, light and dark themes.
 Give the path, then at most five lines taken from the page's "What stands out"
 list and its tables (the top-sessions table shows the heaviest sessions by id, project and day): the largest consumer, whether main sessions ran on the
 top model, unpinned agent types (no model of their own) on the top model, and the cache-read share.
-Quote numbers from the report; do not infer causes it does not show. Nothing
+The "Context outliers" table lists main sessions by peak context (start and peak
+tokens, flagged above twice the median peak); a long peak, not a heavy start, is
+what `/clear` and `pass-it` address. Quote numbers from the report; do not infer causes it does not show. Nothing
 recorded for the range: say so and name the ledger directory.
+
+## The `/clear` nudge
+
+When a main session's context first passes 300000 tokens, the `Stop` hook shows
+the user one line suggesting `/pass-it`, then `/clear`. It never blocks and adds
+nothing to the model's context. `DO_IT_CLEAR_AT` sets the size; `0` turns it off.
 
 ## Reading it
 
@@ -59,5 +67,11 @@ recorded for the range: say so and name the ledger directory.
 - A session's model is the one it used most; a session that switched models
   counts under the majority.
 - Sessions of other repos appear too, under their project name.
+
+`usage.mjs --baseline` prints what do-it adds to every session (the session-start
+block, `CLAUDE.md` and `AGENTS.md`, the invocable skill descriptions) beside the
+median start context recorded. `usage.mjs --from <iso> --to <iso>` limits any
+summary to runs that ended in that window, so a step's usage is its start and end
+time with `--by agent`.
 
 For a quick table instead of a page: `usage.mjs --days N --by agent|model|day|month|project`.

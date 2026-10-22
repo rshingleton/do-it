@@ -60,15 +60,6 @@
         { "prompt": "review this branch against our coding standards and the spec", "owner": "review-it" }
       ]
     },
-    "it-core": {
-      "positive": [
-        "follow the coding posture: reuse before writing and keep changes surgical",
-        "keep this refactor minimal, think first and record any shortcuts"
-      ],
-      "negative": [
-        { "prompt": "build this feature test-first with red green refactor", "owner": "test-it" }
-      ]
-    },
     "log-it": {
       "positive": [
         "log a bug: the export button does nothing on Safari",

@@ -206,7 +206,8 @@ session's and each subagent's tokens from its transcript and keep one line per
 run in `~/.claude/do-it/usage/<day>.jsonl` (about 50 KB a heavy day) for 30
 days (`DO_IT_USAGE_DAYS`). Older days roll up into `rollup.jsonl`, one row per
 day, agent, model and project, kept 365 days (`DO_IT_USAGE_ROLLUP_DAYS`) for
-trends. `DO_IT_USAGE_DIR` moves it all. `node skills/usage-it/scripts/usage.mjs [--days N,
+trends. `DO_IT_USAGE_DIR` moves it all. When a session's context first passes
+`DO_IT_CLEAR_AT` tokens (default 300000, `0` is off) the `Stop` hook shows one line suggesting `/clear`. `node skills/usage-it/scripts/usage.mjs [--days N,
 default 30 | --hours N] [--by agent|model|day|month|project] [--json]` reports raw and
 rolled-up rows together (`--days 90 --by month` for a trend; `--hours N` keeps
 raw runs that ended in the last N hours); `--import` first
