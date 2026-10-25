@@ -336,7 +336,7 @@ test('an unresolvable earlier git add may stage an untracked file: its secret bl
   assert.equal(beforeShell(ctx, 'git add $(ls) && git commit -m x').action, 'block');
   assert.equal(beforeShell(ctx, 'X=. && cd $X && git add n.js && git commit -m x').action, 'block');
   // Nothing stages the file, so the commit records nothing of it.
-  assert.equal(beforeShell(ctx, 'cd $X && git commit -m x').action, 'allow');
+  assert.equal(beforeShell(ctx, 'cd $X && git commit -m "t: x"').action, 'allow');
 });
 
 test('an untracked file named by an earlier git add is read through its textconv driver', () => {

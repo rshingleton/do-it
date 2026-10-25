@@ -77,6 +77,8 @@ export function createPlugin({ decide: baseDecide = realDecide } = {}) {
         if (r.context) output.system.push(r.context);
       }),
 
+      // shortcut: a commit-message warning (r.context) has no channel here, so
+      // OpenCode only gets blocks; add one when the host exposes a before-note.
       'tool.execute.before': failOpen('before', async (input, output) => {
         return report(decide('before', { kind: kindOf(input.tool), args: output.args || {}, cwd })).block;
       }),

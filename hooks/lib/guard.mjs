@@ -49,6 +49,14 @@ export function beforeEdit(ctx, input) {
   return { action: 'allow' };
 }
 
+const DEFAULT_HOOK_TIMEOUT = 20;
+// Seconds before the lint command is abandoned: the configured value when it is
+// a positive number, else the default.
+export function hookTimeout(cfg) {
+  const n = Number(cfg.DO_IT_HOOK_TIMEOUT);
+  return Number.isFinite(n) && n > 0 ? n : DEFAULT_HOOK_TIMEOUT;
+}
+
 // After a file edit: run the configured per-file lint command on every file
 // the edit leaves behind, in edit order.
 // shortcut: each file gets its own timeout and there is no total cap, so a
@@ -67,10 +75,10 @@ export function afterEdit(ctx, input, { spawn = spawnSync } = {}) {
       cwd: ctx.root,
       shell: true,
       encoding: 'utf8',
-      timeout: Number(ctx.cfg.DO_IT_HOOK_TIMEOUT || 20) * 1000,
+      timeout: hookTimeout(ctx.cfg) * 1000,
     });
     if (res.error?.code === 'ETIMEDOUT' || res.signal) {
-      messages.push(`do-it lint timed out after ${ctx.cfg.DO_IT_HOOK_TIMEOUT}s: ${cmd}`);
+      messages.push(`do-it lint timed out after ${hookTimeout(ctx.cfg)}s: ${cmd}`);
     } else if (res.status !== 0) {
       const out = `${res.stdout || ''}${res.stderr || ''}`.trim().slice(-3000);
       messages.push(`do-it lint failed for ${path.relative(ctx.root, abs)} (\`${ctx.cfg.DO_IT_LINT_CMD}\`):\n${out}`);
@@ -80,6 +88,9 @@ export function afterEdit(ctx, input, { spawn = spawnSync } = {}) {
   if (!messages.length) return { action: 'allow' };
   return { action: failed ? 'feedback' : 'warn', message: messages.join('\n\n') };
 }
+
+// A commit message starts with its id: a Jira key, gh-<n>, a work id or slug.
+const MESSAGE_ID = /^[\w.-]+: /;
 
 // A word the shell would expand before git sees it.
 const UNEXPANDED = /[$`]|^~/;
@@ -198,7 +209,11 @@ export function beforeShell(ctx, command) {
       else fromRoot();
     }
   }
-  if (!findings.length) return { action: 'allow' };
+  if (!findings.length) {
+    const bad = commits.find((c) => c.message !== undefined && c.message !== null && !MESSAGE_ID.test(c.message));
+    if (!bad) return { action: 'allow' };
+    return { action: 'warn', message: `do-it: the commit message "${bad.message.split('\n')[0]}" does not start with \`<id>: \` (the Jira key, gh-<n>, or the work id; it-core Git).` };
+  }
   return {
     action: 'block',
     reason: `do-it compliance blocked the commit:\n${findings.map((f) => format([f], f.file)).join('\n')}\nUnstage or fix these first.`,

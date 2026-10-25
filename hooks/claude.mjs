@@ -41,7 +41,7 @@ const KINDS = { Write: 'edit', Edit: 'edit', MultiEdit: 'edit', NotebookEdit: 'e
 const EVENTS = {
   'session-start': ['session', 'SessionStart'],
   'subagent-start': ['session', 'SubagentStart'],
-  'pre-tool': ['before'],
+  'pre-tool': ['before', 'PreToolUse'],
   'post-tool': ['after', 'PostToolUse'],
 };
 

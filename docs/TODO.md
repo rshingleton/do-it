@@ -3,12 +3,11 @@
 Nice-to-haves and things to circle back to. Managed by log-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T77
+Next id: T91
 
 ## Open
 
-- [ ] T2 Dogfood the flow: run /do-it on a small real change and /setup-it on another repo `circle-back` (session 2026-10-19)
-  - The workflow skills are instructions no agent has executed end to end yet.
+- [ ] T2 Dogfood /setup-it on another repo (/do-it has already run on this one, see T49) `circle-back` (session 2026-10-19; narrowed 2026-10-25)
 - [ ] T3 Add a tracker.mjs doctor command that checks gh auth or a Jira /myself call, so setup-it verifies reachability `nice-to-have` (session 2026-10-19)
 - [ ] T4 Add a provenance check script that flags skill text copied from known source repos `nice-to-have` (session 2026-10-19)
 - [ ] T6 setup-it writes DO_IT_PROTECTED_BRANCHES from the remote's default branch when it is not main or master `nice-to-have` (skills/setup-it)
@@ -32,8 +31,6 @@ Next id: T77
 - [ ] T30 Read-only reviewer agents (agents/ with restricted tools and model) generated from the skill briefs, like gen-opencode `idea` (research: claude-code plugins)
 - [ ] T31 Bugfix plans list behaviour that must not change, feeding regression seams `idea` (research: Kiro bugfix specs)
 - [ ] T32 Path-scoped standards files that load only when matching files are edited `idea` (research: Kiro steering)
-- [ ] T39 Decide: fold doubt-it into it-core, and drop prove-it --since (review-it plus guard-it cover it) `question` (overlap audit)
-  - Sweep 2026-10-19 (finding 18): prove-it/VALIDATE.md is doubt-it rebuilt, and no skill calls doubt-it.
 - [ ] T44 Explore: move shared config and doc resolution from skills/track-it/scripts into a top-level lib/ `question` (deepen-it 2026-10-19, candidate 6)
 - [ ] T45 Explore: merge map-it with sweep-it as a single skill with modes `question` (deepen-it 2026-10-19, candidate 7; not recommended now; the log-it and todo-it half shipped as single-intake)
 - [ ] T46 Code map in large repos: cache the map keyed by HEAD and index mtime so subagent starts reuse it, and fall back to tracked files only (no untracked walk) when the 1.5 s timeout hits `idea` (hooks/lib/codemap.mjs; codemap-containers review)
@@ -50,5 +47,16 @@ Next id: T77
 - [ ] T60 Drop the plan parser's flow-map and multi-line paths (in skills/do-it/scripts/block.mjs) now that no plan uses the older format `debt` (docs/reference-audit/2026-10-19-repo.md, architecture notes)
 - [ ] T62 The lifecycle stops at a local commit: no skill owns push or PR (body, protected-branch check), changelog version headings, or carrying out ship-it's rollback note `idea` (docs/reference-audit/2026-10-19-repo.md, finding 20; T24 covers PR feedback)
 - [ ] T64 Review the to-do list for additive ideas versus simplification: most open items add features, while removing duplication would save roughly 150 to 250 lines `question` (docs/reference-audit/2026-10-19-repo.md)
-- [ ] T71 The commit hook warns (never blocks) when a `git commit -m` message does not start with `<id>: ` as it-core Git says `idea` (hooks/lib/guard.mjs beforeShell; jira-fields-commit-ids, 2026-10-20)
 - [ ] T76 usage-it windows (`--from/--to`, `--hours`) count a whole run by its last message time, so a session that straddles a window edge (a weekly reset) is counted entirely inside it; split by per-message timestamps from the transcript, or label the window as run-based `debt` (found checking usage against the 3am weekly reset, session 2026-10-22)
+- [ ] T77 setup-it checks `opencode.json` for `external_directory` set to `ask` or `deny` on OpenCode 2 and offers to add it `nice-to-have` (README.md:241; handoff review 2026-10-25)
+- [ ] T78 An install doctor (Node >= 18, host, agent and skill symlink health, hook registration, `checks.json` validity); extends T3's tracker-only doctor `idea` (handoff review 2026-10-25)
+- [ ] T79 Routing eval: "file an issue: we need rate limiting on the search API" ranks `look-it-up` third-or-lower for `log-it`; sharpen the log-it or look-it-up description `debt` (evals/routing.json:66; npm run check 2026-10-25)
+- [ ] T80 `skills/ship-it/SKILL.md` is 112 lines and `skills/it-core/SKILL.md` 101 against a budget of 100; move detail to sibling files `debt` (npm run check warnings 2026-10-25)
+- [ ] T81 Trim passing-test noise from `npm test` and build output before it reaches the model; feasibility first, since Claude Code's PostToolUse hook may not rewrite Bash output (T27 is the related hook) `question` (handoff review 2026-10-25, unproven)
+- [ ] T82 Pre-edit guard against whole-file rewrites of large files (over 300 lines or 25 KB), steering to targeted edits; weigh against generated files and the cost of false blocks `question` (handoff review 2026-10-25, unproven)
+- [ ] T83 Tests read the developer's real environment (HOME, `DO_IT_*`, global git signing and hooks); add one test helper with a temp HOME, cleared `DO_IT_*` and `GIT_CONFIG_GLOBAL=/dev/null` `debt` (reference-audit finding 13, TR-4; not re-checked 2026-10-25)
+- [ ] T84 `npm run check` enforces less than AGENTS.md says: a skill link that leaves `skills/`, a missing "Use when", a non-`-it` name; either enforce or stop claiming `debt` (reference-audit finding 14, TR-9; not re-checked)
+- [ ] T85 One rule in SKILL-MECHANICS.md: only the main context fans out; review-it and look-it-up run inline when already inside a subagent `debt` (reference-audit finding 15; not re-checked)
+- [ ] T86 Concurrent local creates can collide on a slug and a partial remote publish loses its refs; write with `wx` and retry the suffix, return partial publish results so a re-run resumes; local issue writes are also not atomic `debt` (reference-audit finding 16, skills/track-it/scripts/adapters/local.mjs:43)
+- [ ] T89 Small hook and script gaps: `work.mjs show/event/close` skip the id check `new` does, `isMain` is copied 5 times, no test that hooks.json event names match claude.mjs `debt` (reference-audit, "8 smaller findings"; not re-checked)
+- [ ] T90 Test gaps from the audit: install-hooks leaves a commented settings.json byte-identical and `--dry-run` writes nothing, Jira and GitHub adapter request building with a fake fetch, `work.mjs close` from `building` refused, config precedence (env over file) `debt` (reference-audit TR-6, TR-7, TR-8, TR-10; not re-checked)

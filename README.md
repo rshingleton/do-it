@@ -166,7 +166,7 @@ On by default; `DO_IT_HOOKS=off` turns them off for a user, a repo or a shell.
 | Session start, subagent start | Injects the `it-core` posture, pointers to the repo's standards and compliance rules, its resolved project docs, and a compact code map (`DO_IT_MAP=off` to skip) |
 | Before an edit | Blocks HIGH hits: secrets, env files, rules in `.compliance-rules/checks.json` |
 | After an edit | Reports MEDIUM/LOW hits; runs `DO_IT_LINT_CMD` on the file and feeds failures back |
-| Before `git commit` | Scans the staged diff; blocks on HIGH |
+| Before `git commit` | Scans the staged diff; blocks on HIGH. A `-m` message without an `<id>: ` prefix gets a warning on Claude Code, never a block |
 
 Mechanical rules (a regex decides) live in `checks.json` and run on every
 edit; judgement rules (`.compliance-rules/*.md`) are checked by `prove-it`.

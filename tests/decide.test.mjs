@@ -93,3 +93,12 @@ test('a failure inside fails open with a notice', () => {
     notice: 'do-it hook before failed open: boom',
   });
 });
+
+test('before a shell command, a commit message without an id prefix passes with a note', () => {
+  const { dir } = repo();
+  const env = cleanEnv();
+  const bad = decide('before', { kind: 'shell', args: { command: 'git commit --allow-empty -m "fix thing"' }, cwd: dir }, { env });
+  assert.equal(bad.block, undefined);
+  assert.match(bad.context, /<id>: /);
+  assert.deepEqual(decide('before', { kind: 'shell', args: { command: 'git commit --allow-empty -m "abc-1: fix thing"' }, cwd: dir }, { env }), {});
+});
