@@ -30,7 +30,7 @@ Exit: every commit-guard and patch-scan case from the issues has a regression te
 | Slice | Kind | Delivers | Covers | Blocked by | Verify | Risk | Status |
 |-------|------|----------|--------|------------|--------|------|--------|
 | R1 | build | Commit guard scans untracked files after an unresolvable `git add`, reads untracked files through textconv, and shares one time budget; guard and scan share one `addedLines` (issues: commit-guard x3, T88) | G1 | none | Three regression tests pass; a 3,000-file staged commit finishes in under the 15 s hook timeout in a test | high | shipped 2026-10-25 commit-guard-hardening |
-| R2 | build | An apply_patch `+++ /dev/null` pair is scanned under the old path, and `.env` rules match on Windows separators (issue: embedded dev-null pair, T87) | G1 | none | A test shows the embedded pair cannot exempt a line from a scoped rule; a `app\.env` path is blocked in a test | high | |
+| R2 | build | An apply_patch `+++ /dev/null` pair is scanned under the old path, and `.env` rules match on Windows separators (issue: embedded dev-null pair, T87) | G1 | none | A test shows the embedded pair cannot exempt a line from a scoped rule; a `app\.env` path is blocked in a test | high | shipped 2026-10-25 guard-patch-paths |
 | R3 | build | Hook timeout is validated, and a commit message without `<id>: ` warns, never blocks (T89 timeout part, T71) | G1 | R1 (same file, guard.mjs) | `DO_IT_HOOK_TIMEOUT=abc` falls back to the default in a test; a bad message warns and the commit is allowed | low | |
 
 ### M2: The tracker keeps its data
@@ -104,3 +104,4 @@ Exit: an OpenCode session computes its context once, and the token savings claim
 ## Changes
 - 2026-10-25: charted from the open issues, the backlog and the 2026-10-19 audit.
 - 2026-10-25: R1 shipped as commit-guard-hardening (`addedLines` diffs plain text in chunks: 3,000 staged files 31.7 s before, a few seconds now).
+- 2026-10-25: R2 shipped as guard-patch-paths (an embedded `+++ /dev/null` pair scans under its old path and `''`; `scan` reads `\` as `/`; the in-hunk twin in `unifiedFiles` filed as an issue).

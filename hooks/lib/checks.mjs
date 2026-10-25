@@ -109,15 +109,17 @@ function applies(rule, file) {
   return rule.files.some((ext) => file.endsWith(ext));
 }
 
-// Scan text for rule hits. `file` scopes rules with a `files` list.
+// Scan text for rule hits. `file` scopes rules with a `files` list; rules
+// match it with `\` read as `/`, so a Windows path meets the same rules.
 export function scan(text, rules, file = '') {
   const findings = [];
   const lines = String(text || '').split('\n');
+  const matched = String(file).replace(/\\/g, '/');
   for (const rule of rules) {
-    if (!applies(rule, file)) continue;
-    if (rule.exceptFilePattern && file && safeRegex(rule.exceptFilePattern, rule.flags)?.test(file)) continue;
+    if (!applies(rule, matched)) continue;
+    if (rule.exceptFilePattern && matched && safeRegex(rule.exceptFilePattern, rule.flags)?.test(matched)) continue;
     if (rule.filePattern) {
-      if (file && safeRegex(rule.filePattern, rule.flags)?.test(file)) {
+      if (matched && safeRegex(rule.filePattern, rule.flags)?.test(matched)) {
         findings.push({ id: rule.id, severity: (rule.severity || 'HIGH').toUpperCase(), line: 0, message: rule.message || rule.id });
       }
       continue;
@@ -192,12 +194,15 @@ export function editParts(input = {}) {
 // the current one, including one that reads `+++ x`. A `--- ` / `+++ <path>`
 // pair also names <path>, since a lenient tool may apply a unified section
 // embedded in the patch: the added lines after it are scanned under <path>
-// too, until the next `***` block or embedded pair. The added lines of a
-// deleted file are also scanned under '', which no exception can exempt.
+// too, until the next `***` block or embedded pair. A `--- <old>` /
+// `+++ /dev/null` pair deletes <old>: the lines after it are scanned under
+// <old> and under '' for the same span. The added lines of a deleted file
+// are also scanned under '', which no exception can exempt.
 function applyPatchFiles(lines, { add, exists }) {
   let current = '';
   let also = null;
   let deleted = false;
+  let embeddedDelete = false;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const block = line.match(/^\*\*\* (Add File|Update File|Delete File|Move to): (.+)$/);
@@ -206,6 +211,7 @@ function applyPatchFiles(lines, { add, exists }) {
       if (block[1] === 'Move to') exists.delete(current);
       current = block[2].trim();
       also = null;
+      embeddedDelete = false;
       deleted = block[1] === 'Delete File';
       if (deleted) {
         exists.delete(current);
@@ -215,14 +221,20 @@ function applyPatchFiles(lines, { add, exists }) {
       add(current);
     } else if (line.startsWith('+')) {
       const text = line.slice(1);
-      if (named && named !== '/dev/null') {
+      if (named === '/dev/null') {
+        const old = headerPath(lines[i - 1], '---');
+        also = old && old !== '/dev/null' ? old : null;
+        embeddedDelete = true;
+        if (also) add(also);
+      } else if (named) {
         also = named;
+        embeddedDelete = false;
         add(also);
       } else if (also) {
         add(also, text);
       }
       add(current, text);
-      if (deleted) add('', text);
+      if (deleted || (embeddedDelete && !named)) add('', text);
     }
   }
 }

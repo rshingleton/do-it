@@ -8,7 +8,7 @@ import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-import { BUILTIN, scan, loadChecks } from '../hooks/lib/checks.mjs';
+import { BUILTIN, scan, loadChecks, editParts } from '../hooks/lib/checks.mjs';
 import { beforeEdit, afterEdit, beforeShell } from '../hooks/lib/guard.mjs';
 import { DEFAULTS } from '../skills/track-it/scripts/config.mjs';
 
@@ -356,4 +356,51 @@ test('a 3,000-file staged commit is scanned inside the hook timeout', () => {
   assert.ok(Date.now() - start < 10000, `took ${Date.now() - start} ms`);
   assert.equal(res.action, 'block');
   assert.match(res.reason, /f2990\.js/);
+});
+
+// An apply_patch whose first block is a.txt and which embeds a unified delete of x.py.
+const embeddedDelete = ['*** Begin Patch', '*** Update File: a.txt', '--- a/x.py', '+++ /dev/null', '+EVIL', '*** End Patch'].join('\n');
+
+function repoWithRules(rules) {
+  const { dir } = repo();
+  fs.mkdirSync(path.join(dir, '.compliance-rules'));
+  fs.writeFileSync(path.join(dir, '.compliance-rules', 'checks.json'), JSON.stringify(rules));
+  return ctxFor(dir);
+}
+
+test('an embedded dev-null pair scans its added lines under the old path and the empty path', () => {
+  const parts = editParts({ patchText: embeddedDelete });
+  const under = (file) => parts.find((p) => p.file === file);
+  assert.match(under('a.txt').added, /EVIL/);
+  assert.match(under('x.py').added, /EVIL/);
+  assert.equal(under('x.py').gone, true);
+  assert.match(under('').added, /EVIL/);
+});
+
+test('an embedded dev-null pair cannot steer a line past a scoped rule', () => {
+  const rule = { id: 'no-evil', severity: 'HIGH', pattern: 'EVIL' };
+  const scoped = repoWithRules([{ ...rule, files: ['.py'] }]);
+  assert.equal(beforeEdit(scoped, { patchText: embeddedDelete }).action, 'block');
+  const excepted = repoWithRules([{ ...rule, exceptFilePattern: 'a\\.txt$' }]);
+  assert.equal(beforeEdit(excepted, { patchText: embeddedDelete }).action, 'block');
+});
+
+test('the embedded dev-null scan ends at the next block', () => {
+  const patch = ['*** Begin Patch', '*** Update File: a.txt', '--- a/x.py', '+++ /dev/null', '+one', '*** Update File: b.txt', '+two', '*** End Patch'].join('\n');
+  const parts = editParts({ patchText: patch });
+  assert.doesNotMatch(parts.find((p) => p.file === 'x.py').added, /two/);
+  assert.doesNotMatch(parts.find((p) => p.file === '').added, /two/);
+});
+
+test('an old path the patch also updates stays an existing file', () => {
+  const patch = ['*** Begin Patch', '*** Update File: x.py', '*** Update File: a.txt', '--- a/x.py', '+++ /dev/null', '+EVIL', '*** End Patch'].join('\n');
+  assert.equal(editParts({ patchText: patch }).find((p) => p.file === 'x.py').gone, undefined);
+});
+
+test('path rules match a backslash path (T87)', () => {
+  const ctx = ctxFor(repo().dir);
+  const r = beforeEdit(ctx, { file_path: 'app\\.env', content: '' });
+  assert.equal(r.action, 'block');
+  assert.match(r.reason, /env-file in app\\\.env/);
+  assert.equal(beforeEdit(ctx, { file_path: 'app\\.env.example', content: '' }).action, 'allow');
 });
