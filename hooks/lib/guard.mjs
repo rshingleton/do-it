@@ -135,7 +135,9 @@ function shellDirs(start, cds) {
 // record scanned: the staged diff, plus the working tree against HEAD for the
 // paths it names, or for every tracked change with commit -a. When a commit
 // cannot be resolved for sure, every tracked change is scanned from the repo
-// root: errors over-scan, never under-scan.
+// root, and every untracked file too when something earlier in the command
+// may have staged one (an unresolved `git add`) or the parser gave up:
+// errors over-scan, never under-scan.
 export function beforeShell(ctx, command) {
   const commits = ctx.enabled ? parseGitCommits(command) : [];
   if (!commits.length) return { action: 'allow' };
@@ -145,7 +147,9 @@ export function beforeShell(ctx, command) {
   const listed = new Set();
   // One time budget for reading binaries across every listing this hook makes.
   const budget = { deadline: Date.now() + BINARY_BUDGET };
-  let rootDone = false;
+  // How much of the root has been listed: 0 nothing, 1 tracked changes, 2 with
+  // untracked files, 3 with ignored ones too (`git add -f`). Each level once.
+  let rootLevel = 0;
   const report = (files) => {
     for (const { file, lines } of files) {
       for (const f of scan(lines.map((l) => l.text).join('\n'), ctx.rules, file)) {
@@ -157,10 +161,11 @@ export function beforeShell(ctx, command) {
       }
     }
   };
-  const fromRoot = () => {
-    if (rootDone) return;
-    rootDone = true;
-    report(listChanges(ctx.root, true, [], { all: false, paths: [], force: false }, budget) || []);
+  const fromRoot = (level = 1) => {
+    if (rootLevel >= level) return;
+    rootLevel = level;
+    const stages = { all: level > 1, paths: [], force: level > 2 };
+    report(listChanges(ctx.root, true, [], stages, budget) || []);
   };
   for (const commit of commits) {
     // The command's paths are relative to the shell's directory (after any cd
@@ -178,7 +183,8 @@ export function beforeShell(ctx, command) {
       commit.cds.some((to) => to === null || UNEXPANDED.test(to)) ||
       [commit.dir ?? '', ...commit.paths, ...stages.paths].some((w) => UNEXPANDED.test(w));
     if (unsure) {
-      fromRoot();
+      const mayStage = commit.bail || commit.stages.some((st) => st.all || st.paths.length);
+      fromRoot(mayStage ? (stages.force ? 3 : 2) : 1);
       continue;
     }
     if (commit.cds.length > CD_SUBSET_MAX) fromRoot();

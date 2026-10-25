@@ -321,3 +321,39 @@ test('anchored patterns still match where the old ones did', () => {
     assert.deepEqual(ids(`${before}${jwt}`), ['jwt'], `jwt after ${JSON.stringify(before)}`);
   }
 });
+
+// A textconv driver that decodes a base64 file, so a token can hide in it.
+function b64Driver(dir, git) {
+  fs.writeFileSync(path.join(dir, 'dec.mjs'), "import fs from 'node:fs';\nprocess.stdout.write(Buffer.from(fs.readFileSync(process.argv[2], 'utf8').trim(), 'base64'));\n");
+  fs.writeFileSync(path.join(dir, '.gitattributes'), '*.b64 diff=b64\n');
+  git('config', 'diff.b64.textconv', `node ${path.join(dir, 'dec.mjs')}`);
+}
+
+test('an unresolvable earlier git add may stage an untracked file: its secret blocks the commit', () => {
+  const { dir } = repo();
+  fs.writeFileSync(path.join(dir, 'n.js'), `k = "${KEY}"\n`);
+  const ctx = ctxFor(dir);
+  assert.equal(beforeShell(ctx, 'git add $(ls) && git commit -m x').action, 'block');
+  assert.equal(beforeShell(ctx, 'X=. && cd $X && git add n.js && git commit -m x').action, 'block');
+  // Nothing stages the file, so the commit records nothing of it.
+  assert.equal(beforeShell(ctx, 'cd $X && git commit -m x').action, 'allow');
+});
+
+test('an untracked file named by an earlier git add is read through its textconv driver', () => {
+  const { dir, git } = repo();
+  b64Driver(dir, git);
+  fs.writeFileSync(path.join(dir, 's.b64'), Buffer.from(`k = "${KEY}"\n`).toString('base64'));
+  const ctx = ctxFor(dir);
+  assert.equal(beforeShell(ctx, 'git add s.b64 && git commit -m x').action, 'block');
+});
+
+test('a 3,000-file staged commit is scanned inside the hook timeout', () => {
+  const { dir, git } = repo();
+  for (let i = 0; i < 3000; i++) fs.writeFileSync(path.join(dir, `f${i}.js`), i === 2990 ? `k = "${KEY}"\n` : `line ${i}\n`);
+  git('add', '-A');
+  const start = Date.now();
+  const res = beforeShell(ctxFor(dir), 'git commit -m x');
+  assert.ok(Date.now() - start < 10000, `took ${Date.now() - start} ms`);
+  assert.equal(res.action, 'block');
+  assert.match(res.reason, /f2990\.js/);
+});
