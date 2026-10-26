@@ -47,7 +47,7 @@ Exit: a fix round cannot reach audit unverified, and `/retro-it` can read a fini
 
 | Slice | Kind | Delivers | Covers | Blocked by | Verify | Risk | Status |
 |-------|------|----------|--------|------------|--------|------|--------|
-| R7 | build | `build-done` in fix mode requires a passing verify-phase recorded since the fix began (issue: build-done fix mode) | G3 | none | Tests for fix mode with no verify and with a failing verify | med | |
+| R7 | build | `build-done` in fix mode requires a passing verify-phase recorded since the fix began (issue: build-done fix mode) | G3 | none | Tests for fix mode with no verify and with a failing verify | med | shipped 2026-10-25 build-done-fix-verify |
 | R8 | build | The retro-it offer comes at the ship question, before `work.mjs close` deletes the candidates (issue: guardrail candidates) | G3 | none | A check or test shows the offer precedes close | low | |
 | R9 | build | When the next step is a typed skill, the closing line names the slash command and does not offer "do it"; `npm run check` fails the old form (issue: closing line) | G3 | R12 (both edit scripts/check.mjs) | `npm run check` fails a fixture closing line that offers "do it" for a typed skill | low | |
 
@@ -109,3 +109,4 @@ Exit: an OpenCode session computes its context once, and the token savings claim
 - 2026-10-25: R4 shipped as local-tracker-integrity (a local ref must be an `.md` inside the issues dir; `comment` and `start` refuse a file with no or non-flat frontmatter; rewrites go through temp plus rename; `create` opens with `wx`; T86 local part closed, its GHE and publish parts stay with R5).
 - 2026-10-25: R5 shipped as tracker-ghe-publish (`parseRef` keeps a non-github.com host so `gh` gets `-R host/owner/repo`; a failed GitHub or Jira `publish` returns the refs made plus `error` and the CLI exits 1; the GHE issue was reproduced first, not already fixed; T86 closed).
 - 2026-10-25: R6 shipped as frontmatter-module (`skills/track-it/scripts/frontmatter.mjs`: split, join, flat read and write; five copies removed, one more than the roadmap counted: block.mjs, the local tracker, skills.mjs, context.mjs, check.mjs; a comment line no longer folds into the key above it; T58 closed). M2 is complete.
+- 2026-10-25: R7 shipped as build-done-fix-verify (a fix-mode `phase-done` records `fix_verified`; `build-done` refuses without it; `audit-fail`, `reject-assumption` and `replan` clear it; lane M verifies any phase).

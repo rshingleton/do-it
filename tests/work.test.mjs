@@ -122,7 +122,8 @@ test('transitions: lane S walks draft to shipping through a failed audit', () =>
   assert.equal(s.audit.round, 1);
   s = walk(s, [['start', { head: 'def' }]]);
   assert.equal(s.base_ref, 'abc', 'a resumed start keeps the base');
-  s = walk(s, [['build-done'], ['audit-pass', { fingerprint: 'f1' }], ['ship-prepared', { fingerprint: 'f2' }]]);
+  assert.throws(() => transition(s, 'build-done'), /since the fix began/, 'fix mode needs its own verify');
+  s = walk(s, [['phase-done', { verified: 'npm test: pass' }], ['build-done'], ['audit-pass', { fingerprint: 'f1' }], ['ship-prepared', { fingerprint: 'f2' }]]);
   assert.equal(s.status, 'shipping');
   assert.deepEqual(s.audit.must, []);
   assert.equal(s.audit.round, 0, 'a pass resets the failed-round count');
@@ -146,14 +147,15 @@ test('transitions: lane M needs every phase done, in dependency order', () => {
 test('transitions: the third failed audit asks the user; fix mode skips phases', () => {
   let s = normalize({ ...emptyBlock({ id: 'm', title: 'M', lane: 'm' }), phases: [{ n: 1 }] });
   s = walk(s, [['approve'], ['start', { head: 'a' }], ['phase-done', { n: 1, verified: 'ok' }], ['build-done']]);
-  for (let r = 1; r <= 3; r++) s = walk(s, [['audit-fail', { must: [`M${r}`] }], ...(r < 3 ? [['build-done']] : [])]);
+  for (let r = 1; r <= 3; r++) s = walk(s, [['audit-fail', { must: [`M${r}`] }], ...(r < 3 ? [['phase-done', { n: 1, verified: 'ok' }], ['build-done']] : [])]);
   assert.equal(s.status, 'blocked');
   assert.equal(s.audit.round, 3);
   assert.match(s.blocker, /fix, accept with a recorded decision, or re-plan/);
   assert.equal(needsUser(s), true);
   s = walk(s, [['unblock']]);
   assert.equal(needsUser(s), false, 'the answer is recorded once; resume does not ask again');
-  s = walk(s, [['build-done']]);
+  assert.throws(() => transition(s, 'build-done'), /since the fix began/);
+  s = walk(s, [['phase-done', { n: 1, verified: 'ok' }], ['build-done']]);
   assert.equal(s.status, 'auditing', 'accepting with a recorded decision re-audits');
 });
 
@@ -174,9 +176,11 @@ test('transitions: a rejected assumption gives build-it work (bug 1)', () => {
   assert.deepEqual(s.fix, ['Rejected assumption: Limit is 5 a minute. Instead: limit is 10']);
   assert.deepEqual(s.assumptions, ['Per IP'], 'a rejected assumption is not asked about again');
   assert.equal(s.ship.prepared, null);
-  s = walk(s, [['build-done']]);
+  assert.throws(() => transition(s, 'build-done'), /since the fix began/);
+  s = walk(s, [['phase-done', { verified: 'ok' }], ['build-done']]);
   assert.equal(s.status, 'auditing');
   assert.deepEqual(s.fix, []);
+  assert.equal('fix_verified' in s, false, 'the record is spent with the fix');
 });
 
 test('transitions: an illegal event names the allowed ones', () => {
@@ -311,6 +315,26 @@ test('work.mjs: verify-phase records only a passing check; audit-pass hashes the
   assert.equal(r.out.audit.fingerprint, before);
 });
 
+test('work.mjs: build-done in fix mode needs a passing verify-phase since the fix began', () => {
+  const dir = tempRepo();
+  const git = (...a) => execFileSync('git', a, { cwd: dir, encoding: 'utf8' });
+  git('-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '--allow-empty', '-m', 'base');
+  work(dir, 'new', 'fix-z', '--lane', 's', '--title', 'Fix Z');
+  for (const e of ['approve', 'start']) work(dir, 'event', 'fix-z', e);
+  work(dir, 'verify-phase', 'fix-z', '--', 'node -e "process.exit(0)"');
+  work(dir, 'event', 'fix-z', 'build-done');
+  work(dir, 'event', 'fix-z', 'audit-fail', 'M1 missing test');
+
+  let r = work(dir, 'event', 'fix-z', 'build-done');
+  assert.equal(r.status, 1);
+  assert.match(r.out.error, /since the fix began/, 'the pre-fix verify does not count');
+  r = work(dir, 'verify-phase', 'fix-z', '--', 'node -e "process.exit(3)"');
+  assert.equal(r.status, 1);
+  assert.equal(work(dir, 'event', 'fix-z', 'build-done').status, 1, 'a failing verify records nothing');
+  work(dir, 'verify-phase', 'fix-z', '--', 'node -e "process.exit(0)"');
+  assert.equal(work(dir, 'event', 'fix-z', 'build-done').out.status, 'auditing');
+});
+
 test('work.mjs: review-diff shows edits made after ship prepared, without touching the index', () => {
   const dir = tempRepo();
   const git = (...a) => execFileSync('git', a, { cwd: dir, encoding: 'utf8' });
@@ -341,7 +365,7 @@ test('audit round 1 regressions: replan, parens, empty lane M, comments, CRLF', 
   // Must 1: after a re-plan the new phases are built, not skipped by fix mode.
   let s = normalize({ ...emptyBlock({ id: 'm', title: 'M', lane: 'm' }), phases: [{ n: 1 }] });
   s = walk(s, [['approve'], ['start', { head: 'a' }], ['phase-done', { n: 1, verified: 'ok' }], ['build-done']]);
-  s = walk(s, [['audit-fail', { must: [1] }], ['build-done'], ['audit-fail', { must: [1] }], ['build-done'], ['audit-fail', { must: [1] }], ['replan']]);
+  s = walk(s, [['audit-fail', { must: [1] }], ['phase-done', { n: 1, verified: 'ok' }], ['build-done'], ['audit-fail', { must: [1] }], ['phase-done', { n: 1, verified: 'ok' }], ['build-done'], ['audit-fail', { must: [1] }], ['replan']]);
   assert.deepEqual([s.audit.verdict, s.audit.round, s.fix], [null, 0, []]);
   s = normalize({ ...s, phases: [...s.phases, { n: 2, blocked_by: [1] }] });
   s = walk(s, [['approve'], ['start']]);
@@ -491,4 +515,11 @@ test('work.mjs: --brief on new, list, event, set and verify-phase prints the sho
   const list = work(dir, 'list', '--brief').out;
   assert.deepEqual(list, [{ id: 'feat-c', lane: 's', status: 'building' }]);
   assert.ok(work(dir, 'show', 'feat-c').out.verified, 'the full form still records and shows the check');
+});
+
+test('transitions: a fix round forgets the last one\'s verify', () => {
+  let s = emptyBlock({ id: 'x', title: 'X', lane: 's' });
+  s = walk(s, [['approve'], ['start', { head: 'a' }], ['phase-done', { verified: 'ok' }], ['build-done'], ['audit-fail', { must: ['M1'] }], ['phase-done', { verified: 'fix1' }], ['build-done'], ['audit-fail', { must: ['M2'] }]]);
+  assert.equal('fix_verified' in s, false);
+  assert.throws(() => transition(s, 'build-done'), /since the fix began/, 'round 1 verify does not cover round 2');
 });

@@ -105,6 +105,10 @@ const EVENTS = {
     from: ['building'],
     apply: (s, a) => {
       if (!a.verified) throw new Error('phase-done needs the commands that passed (verified)');
+      // Fix mode rebuilds no phase; the record that the fix passed its checks
+      // is kept apart, since the old phase records predate the fix. It says a
+      // verify ran since the fix began, not that the code is unchanged since.
+      if (fixMode(s)) s.fix_verified = a.verified;
       if (s.lane !== 'm') {
         s.verified = a.verified;
         return undefined;
@@ -152,6 +156,8 @@ const EVENTS = {
     from: ['building'],
     apply: (s) => {
       if (fixMode(s)) {
+        if (!s.fix_verified) throw new Error('no verified record since the fix began: run verify-phase first');
+        delete s.fix_verified;
         s.fix = [];
         return 'auditing';
       }
@@ -183,6 +189,7 @@ const EVENTS = {
         fingerprint: a.fingerprint ?? null,
         at: a.date,
       });
+      delete s.fix_verified;
       // The third failed round in a row waits for the user; unblock is their answer.
       if (s.audit.round >= 3) {
         s.blocker = `audit failed ${s.audit.round} times in a row: fix, accept with a recorded decision, or re-plan`;
@@ -199,6 +206,7 @@ const EVENTS = {
       s.approvals.plan = null;
       s.blocker = null;
       s.fix = [];
+      delete s.fix_verified;
       s.audit = { verdict: null, round: 0, must: [], fingerprint: null, at: null };
       s.ship = { prepared: null, fingerprint: null };
       return 'draft';
@@ -229,6 +237,7 @@ const EVENTS = {
       }
       if (!a.text) throw new Error('reject-assumption needs what replaces the assumption');
       const [old] = s.assumptions.splice(i, 1);
+      delete s.fix_verified;
       s.fix.push(`Rejected assumption: ${old}. Instead: ${a.text}`);
       s.ship = { prepared: null, fingerprint: null };
       return 'building';

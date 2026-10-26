@@ -42,7 +42,7 @@ only what the caller reads, so they have no brief form. Free text in the block
 | `phase-done` (fired by `verify-phase` only) | building | building | phase `n` done with `verified` (lane S: top-level `verified`); its `blocked_by` phases must be done |
 | `block <why> [--phase n]` | planned, building, auditing, shipping | blocked | `blocker`; with `--phase`, only that phase is blocked and the item keeps building |
 | `unblock [--phase n]` | blocked (phase: building) | building | clears `blocker` |
-| `build-done` | building | auditing | needs every phase done (lane S: `verified`), except in fix mode, where it clears `fix` |
+| `build-done` | building | auditing | needs every phase done (lane S: `verified`); in fix mode it needs a `verify-phase` that passed since the fix began (`fix_verified`, dropped with the fix) and clears `fix` |
 | `audit-pass [fingerprint]` | auditing | shipping | `audit`: PASS, `round` 0, `must` [], `fingerprint` (computed when omitted), `at` |
 | `audit-fail <must...>` | auditing | building; blocked at round 3 or later | `audit`: FAIL, `round` + 1, `must`, `at`; from round 3 a `blocker` asking the user |
 | `ship-prepared [fingerprint]` | shipping | shipping | `ship`: `prepared`, `fingerprint` (computed when omitted), `tree` (a snapshot of the working tree, written through a throwaway index) |
@@ -119,6 +119,9 @@ ship:
 blocker: null
 ---
 ```
+
+While in fix mode the block also carries `fix_verified` (the passing
+`verify-phase` text since the fix began); `build-done` drops it.
 
 `roadmap` is set when the item is a roadmap slice, `todo` when it was promoted
 from the to-do list, `tracker` when it was published or the slice has a
