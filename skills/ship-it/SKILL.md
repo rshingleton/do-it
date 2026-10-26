@@ -16,26 +16,12 @@ is written before the user answers the one question (§2).
 `work.mjs` below is the work-item script in [STATE.md](../do-it/STATE.md);
 a refused command (exit 1) is `blocked`.
 
-- **Lane XS:** no state block. Run the project's checks; show the diff
-  summary. `--ref` and `--todo` name the issue and to-do item it came from.
-  Nothing uncommitted: the user committed it before this run; do §3 step 2's
-  closes, leave those edits uncommitted and say so, then close the remote
-  tracker (§3 step 4).
+- **Lane XS:** no state block, no id to close; [RESUME.md](RESUME.md).
 - **Otherwise** `work.mjs show <id>` and require `status: shipping` and
   `audit.verdict: PASS`. First run: `work.mjs fingerprint <id>` must equal
   `audit.fingerprint`, else the code moved after the audit:
   `work.mjs event <id> reaudit`, stop, **Next:** `/prove-it <id>`.
-- **Resumed after review** (`ship.prepared` set), no §2 question:
-  - nothing uncommitted outside the plan: the user committed; close the remote
-    tracker and the plan (§3 step 4);
-  - fingerprint equals `ship.fingerprint`: ask one line, "Commit now with
-    this message?" (show it), then §3 step 4;
-  - it differs: the review edited files. Show `work.mjs review-diff <id>`
-    (`files: null`: no snapshot, show `git status --short`) and the commit
-    message, and ask one line: commit as reviewed (default), or re-audit first
-    (default when a changed file is in a risk area,
-    [LANES.md](../do-it/LANES.md)). As reviewed: `event ship-prepared`
-    again, then §3 step 4. Re-audit: `event reaudit`; **Next:** `/prove-it <id>`.
+- **Resumed after review** (`ship.prepared` set): [RESUME.md](RESUME.md).
 
 ## 2. The one question
 
@@ -47,9 +33,7 @@ One turn; write nothing yet. **Show** (information, no answer needed):
   when the repo keeps one).
 - Tracker, to-do and roadmap updates: one `close` per ref (state block refs,
   the slice's `Ref` cell, or `--ref`) with a comment drawn from the
-  changelog. **Risk-area work** ([LANES.md](../do-it/LANES.md)): a rollback
-  note (revert, a flag, a down migration, data to restore) for the
-  changelog and commit body; no safe rollback: say so plainly.
+  changelog. Risk-area work also gets a rollback note, per [DOCS.md](DOCS.md).
 - Guardrail candidates or a failed round in the audit: one line offering
   `/retro-it <id>`. `work.mjs close` deletes the candidates, so retro-it
   runs before the user answers "commit now".
@@ -82,9 +66,8 @@ to the last alone keeps the defaults:
      it done with the work id (lane XS: the commit);
    - a local-tracker ref: `tracker.mjs close <ref>`, which deletes the issue
      file; a ref whose file is already gone was closed by an earlier run;
-   - `event <id> ship-prepared` (not lane XS).
-   Lane XS with no id: "file one" calls `log-it`; the ref given or filed is
-   the commit id and joins `--ref` from here on.
+   - `event <id> ship-prepared` (not lane XS; its no-id case is in
+     [RESUME.md](RESUME.md)).
 3. **Leave it for review:** stop; the plan stays (`status: shipping`), the
    remote tracker stays open. Repeat the commit message and the command that
    finishes, `/ship-it <id>` (lane XS: `--lane xs` with its `--ref` and

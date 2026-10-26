@@ -1,6 +1,6 @@
 ---
 name: map-it
-description: Map an existing codebase or one area of it, as reference docs under docs/reference/ or as a map in chat, so later planning and review start from facts. Use when onboarding to an unfamiliar repo, when asked how something is structured or where something lives, before planning work in an area nobody has mapped, or when docs/reference/ is stale.
+description: Map an existing codebase or one area of it, as reference docs under docs/reference/ or as a map in chat, so later planning and review start from facts. Use when onboarding to an unfamiliar repo, when asked how something is structured or fits together or where something lives, before planning work in an area nobody has mapped, or when docs/reference/ is stale.
 argument-hint: "[path or area] [--chat]"
 ---
 

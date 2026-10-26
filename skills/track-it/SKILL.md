@@ -1,6 +1,6 @@
 ---
 name: track-it
-description: The issue-tracker seam for do-it: create, fetch, comment on, start, close and publish issues in the configured tracker (local docs/issues files by default, GitHub, or Jira). Use when a skill needs to read or update an issue, when the user gives an issue ref like #42, ABC-123 or an issue URL, or asks which tracker or tracker config is in effect.
+description: The issue-tracker seam for do-it: create, fetch, comment on, start, close and publish tickets in the configured tracker (local markdown by default, GitHub, or Jira). Use when a skill needs to read or update one, when the user gives an issue ref like #42, ABC-123 or an issue URL, or asks which tracker or tracker config is in effect.
 ---
 
 # track-it

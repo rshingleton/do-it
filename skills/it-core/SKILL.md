@@ -47,47 +47,42 @@ in shared code is fixed once, at the root, after reading every caller.
   a feature gets the observable behaviour that proves it.
 - New non-trivial logic (a branch, a loop, a parser, money, security) leaves a
   test. Trivial edits need none.
-- Run the project's own test, lint, format and type-check commands; do not
-  re-check by eye what they enforce.
+- Run the project's own test, lint, format and type-check; never re-check by eye what they enforce.
 - A UI change is done once seen rendering where it lives, never from the code
   alone; if no browser, script or screenshot can show it, say so under Not checked.
 
 ## Recorded shortcuts
 
-A deliberate limit gets a comment in the file's syntax:
-
-```text
-// shortcut: <the limit>, <when to upgrade>
-```
-
-Both parts, always. Review treats a marker that names its limit as a decision.
+A deliberate limit gets a comment in the file's syntax, with both parts, always:
+`// shortcut: <the limit>, <when to upgrade>`. Review treats a marker that
+names its limit as a decision.
 
 ## Never cut
 
 Validation at trust boundaries, error handling that prevents data loss,
-security, accessibility. No secrets, tokens or credential placeholders in
-code, comments or `.env` files.
+security, accessibility. No secrets, tokens or credential placeholders in code,
+comments or `.env` files.
 
 ## Project docs
 
-Use this repo's resolved doc paths, listed under "project docs" in session
-context (`tracker.mjs config` in the track-it skill when hooks are off), not the
-skills' defaults. Never create a second context file or changelog.
+Use this repo's resolved doc paths ("project docs" in session context;
+`tracker.mjs config` in track-it when hooks are off), not the skills' defaults.
+Never create a second context file or changelog.
 
-**The area's context:** for work in a component, read the context map, then
-the area's `CONTEXT.md` and `docs/adr/` (no map: the root `CONTEXT.md`), per
-name-it's [CONTEXT-FORMAT.md](../name-it/CONTEXT-FORMAT.md). GLOSSARY files
-are a last fallback; reading never creates a context file.
+**The area's context:** for work in a component, read the context map, then the
+area's `CONTEXT.md` and `docs/adr/` (no map: root `CONTEXT.md`), per name-it's
+[CONTEXT-FORMAT.md](../name-it/CONTEXT-FORMAT.md). GLOSSARY files are a last
+fallback; reading never creates a context file.
 
 ## Git
 
 Do not commit, push, or rewrite history unless the user asks or `ship-it` is
-running; work stays in the working tree. One exception: a `build-it`
-parallel implementer commits on its own `do-it/*` scratch branch, in its own
-worktree (`build-it/PARALLEL.md`); those commits never reach the user's branch.
+running; work stays in the working tree. One exception: a `build-it` parallel
+implementer commits on its own `do-it/*` scratch branch in its own worktree
+(`build-it/PARALLEL.md`); those commits never reach the user's branch.
 
-A commit message starts `<id>: `: the Jira key, `gh-<n>` (GitHub `#n`), or the
-local tracking id (work id, local issue slug, to-do id), never a path or made-up slug.
+A commit message starts `<id>: `: Jira key, `gh-<n>` (GitHub `#n`) or local
+id (work id, issue slug, to-do id); never a path or an invented slug.
 
 ## Close every turn
 
@@ -97,7 +92,6 @@ First line: what happened. Then one line:
 Skipped: <...or none>. Not checked: <...or none>. Risk: <...or none>.
 ```
 
-Last line: the next step. A stop that waits on the user asks them to say "do
-it" to go ahead; "do it" counts as yes. When the next step is a typed skill
-(`do-it`, `ship-it` and the other user-invoked ones), the model cannot start
-it: give the exact slash command to type and do not ask for "do it".
+Last line: the next step. A stop waiting on the user asks them to say "do it",
+which counts as yes. A typed skill (`do-it`, `ship-it`, any user-invoked one)
+cannot be started by the model: give its slash command, not "do it".

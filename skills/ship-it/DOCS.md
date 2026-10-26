@@ -33,6 +33,12 @@ existing style: what shipped, in user-facing terms.
 With no linked ADR, add the audit's non-blocking notes and the plan's key
 decisions as sub-bullets. No changelog in the repo: skip, do not create one.
 
+## Rollback note
+
+**Risk-area work** ([LANES.md](../do-it/LANES.md)): a rollback note (revert,
+a flag, a down migration, data to restore) for the changelog and commit body;
+no safe rollback: say so plainly.
+
 ## Shortcut markers
 
 List the markers the change added:

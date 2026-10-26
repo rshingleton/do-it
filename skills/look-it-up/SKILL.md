@@ -1,6 +1,6 @@
 ---
 name: look-it-up
-description: Research a question about a library, API, standard, tool or platform against primary sources in a background agent, and write cited findings to a Markdown file in the repo. Use when the user asks to research or look something up, or what a spec, standard or official guidance says, when a plan or build depends on an external fact the code does not settle (a version's behaviour, an API limit, a spec rule).
+description: Research a question about a library, API, standard, tool or platform against primary sources in a background agent, and write cited findings to a Markdown file in the repo. Use when the user asks to research or look something up, or what a spec, standard or official guidance says, when a plan or build depends on an external fact the code does not settle (a version's behaviour, a spec rule).
 ---
 
 # look-it-up
