@@ -3,7 +3,7 @@
 Nice-to-haves and things to circle back to. Managed by log-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T104
+Next id: T106
 
 ## Open
 
@@ -52,7 +52,6 @@ Next id: T104
 - [ ] T81 Trim passing-test noise from `npm test` and build output before it reaches the model; feasibility first, since Claude Code's PostToolUse hook may not rewrite Bash output (T27 is the related hook) `question` (handoff review 2026-10-25, unproven)
 - [ ] T82 Pre-edit guard against whole-file rewrites of large files (over 300 lines or 25 KB), steering to targeted edits; weigh against generated files and the cost of false blocks `question` (handoff review 2026-10-25, unproven)
 - [ ] T89 Small hook and script gaps: `work.mjs show/event/close` skip the id check `new` does, `isMain` is copied 5 times, no test that hooks.json event names match claude.mjs `debt` (reference-audit, "8 smaller findings"; not re-checked)
-- [ ] T90 Test gaps from the audit: install-hooks leaves a commented settings.json byte-identical and `--dry-run` writes nothing, Jira and GitHub adapter request building with a fake fetch, `work.mjs close` from `building` refused, config precedence (env over file) `debt` (reference-audit TR-6, TR-7, TR-8, TR-10; not re-checked)
 - [ ] T91 `npm run check` spawn-cap rule only compares `N words`; an "N in all" cap (review-it: "300 in all") is not compared with the agent's cap `debt` (spawn-caps-carries-voice audit, scripts/check.mjs)
 - [ ] T92 `npm run check` reads only the first `>` paragraph after a spawn paragraph as its brief; a cap in a second one is missed `debt` (spawn-caps-carries-voice audit, scripts/check.mjs)
 - [ ] T93 check.mjs spawn-cap loop re-tests `owner` per pass and the `briefed` ternary restates the old `next.startsWith('>')` test; compute once `nice-to-have` (spawn-caps-carries-voice audit, scripts/check.mjs)
@@ -66,3 +65,5 @@ Next id: T104
 - [ ] T101 `tests/env.mjs` sets up HOME and XDG twice (top level and `cleanEnv`); share one helper that takes the home path `debt` (test-env-helper audit, tests/env.mjs)
 - [ ] T102 `cleanEnv` spreads the import-time env, so a `DO_IT_*` a suite sets in-process reaches its children while set; strip at call time `debt` (test-env-helper audit, tests/env.mjs)
 - [ ] T103 Consider `node --test --import ./tests/env.mjs` in the `npm test` script instead of the per-suite import line; it couples the helper to the test command `idea` (test-env-helper audit, package.json)
+- [ ] T104 `tests/config-precedence.test.mjs` checks four layer scenarios in one test, so a failure does not name the layer; split by layer `nice-to-have` (adapter-and-installer-tests audit, tests/config-precedence.test.mjs:39)
+- [ ] T105 The fake fetch and gh runner in `tests/tracker-regressions.test.mjs` are not exported, so `tests/adapters.test.mjs` has its own; extract one shared set `debt` (adapter-and-installer-tests audit, tests/adapters.test.mjs:24)

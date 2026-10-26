@@ -289,6 +289,17 @@ test('work.mjs: new, set, event, show, list and close on a repo', () => {
   assert.match(work(dir, 'show', 'feat-x').out.error, /no plan for feat-x/);
 });
 
+test('work.mjs: close from building exits 1, names the status and removes nothing', () => {
+  const dir = tempRepo();
+  work(dir, 'new', 'busy', '--lane', 's', '--title', 'Busy');
+  work(dir, 'event', 'busy', 'approve');
+  work(dir, 'event', 'busy', 'start');
+  const r = work(dir, 'close', 'busy');
+  assert.equal(r.status, 1);
+  assert.match(r.out.error, /close needs status shipping; busy is building/);
+  assert.ok(fs.existsSync(path.join(dir, 'docs/planning/busy.md')), 'the plan is still there');
+});
+
 test('work.mjs: verify-phase records only a passing check; audit-pass hashes the change (T21, T8)', () => {
   const dir = tempRepo();
   const git = (...a) => execFileSync('git', a, { cwd: dir, encoding: 'utf8' });
