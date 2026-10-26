@@ -27,6 +27,8 @@ const skills = listSkills();
 const agents = listAgents();
 const agentNames = new Set(agents.map((a) => a.name));
 const TIER = new RegExp(`cheap tier|mid-tier\\s+model|session model|\`(?:${[...agentNames].join('|')})\``, 'i');
+// Each agent's own cap ("Cap: 300 words, or the brief's lower cap."); an agent without one is reported below.
+const agentCaps = new Map(agents.flatMap((a) => { const m = a.text.match(/^Cap: (\d+) words/m); return m ? [[a.name, Number(m[1])]] : []; }));
 const names = new Set(skills.map((s) => s.meta.name));
 const userOnly = new Set(skills.filter(userInvoked).map((s) => s.meta.name));
 
@@ -105,8 +107,17 @@ for (const file of docs) {
       if (!TIER.test(para)) errors.push(`${where}: starts a subagent without naming its model tier ("${para.trim().slice(0, 50)}...")`);
       // The cap may sit in the quoted brief (a `>` paragraph) that follows.
       const next = paras[i + 1] ?? '';
-      if (!CAP.test(para) && !(next.startsWith('>') && CAP.test(next))) {
+      const briefed = next.startsWith('>') ? `${para}\n${next}` : para;
+      if (!CAP.test(briefed)) {
         errors.push(`${where}: starts a subagent without a word cap ("${para.trim().slice(0, 50)}...")`);
+      }
+      // The agent's own cap wins, so a higher number in the spawn text is dead.
+      const named = [...para.matchAll(/`(it-[a-z]+)`/g)].map((m) => m[1]).filter((n) => agentCaps.has(n));
+      const owner = named.sort((a, b) => agentCaps.get(a) - agentCaps.get(b))[0];
+      for (const m of briefed.matchAll(/\b(\d+)[- ]words?\b/gi)) {
+        if (owner && Number(m[1]) > agentCaps.get(owner)) {
+          errors.push(`${where}: word cap ${m[1]} is above the ${agentCaps.get(owner)} in agents/${owner}.md`);
+        }
       }
     });
   }

@@ -232,7 +232,7 @@ test('check.mjs: a paragraph that starts a subagent must name its model tier', (
 
 import { withVoice } from '../scripts/lib/voice.mjs';
 const VOICE = fs.readFileSync(path.join(ROOT, 'skills/it-core/VOICE.md'), 'utf8');
-const AGENT = (name, extra = 'model: sonnet\ntools: Read, Grep, Glob, Bash') => withVoice(`---\nname: ${name}\ndescription: Test agent.\n${extra}\n---\n\nBrief.\n\n## Report\n\nCap: 100 words.\n`, VOICE);
+const AGENT = (name, extra = 'model: sonnet\ntools: Read, Grep, Glob, Bash') => withVoice(`---\nname: ${name}\ndescription: Test agent.\n${extra}\n---\n\nBrief.\n\n## Report\n\nCap: 500 words.\n`, VOICE);
 
 test('check.mjs validates agent files: name, model; tools may be a list', () => {
   const ok = checkWith({ 'agents/it-reviewer.md': AGENT('it-reviewer') });
@@ -344,4 +344,22 @@ test('check.mjs: a paragraph that starts a subagent needs a word cap, here or in
   assert.equal(quoted.status, 0, quoted.stdout);
   const unrelated = checkWith({ 'skills/zz-it/SKILL.md': SKILL('Start one `it-scout` agent with the question.\n\nElsewhere, a summary is capped at 300 words.') });
   assert.match(unrelated.stdout, /without a word cap/);
+});
+
+test('check.mjs: a spawn cap above the named agent\'s cap fails; at or below passes', () => {
+  const spawn = (n) => SKILL(`Start one \`it-scout\` agent with this brief:\n\n> Find it. Under ${n} words.`);
+  const over = checkWith({ 'agents/it-scout.md': AGENT('it-scout'), 'skills/zz-it/SKILL.md': spawn(600) });
+  assert.equal(over.status, 1, over.stdout);
+  assert.match(over.stdout, /skills\/zz-it\/SKILL\.md: word cap 600 is above the 500 in agents\/it-scout\.md/);
+  for (const n of [500, 400]) {
+    const ok = checkWith({ 'agents/it-scout.md': AGENT('it-scout'), 'skills/zz-it/SKILL.md': spawn(n) });
+    assert.equal(ok.status, 0, ok.stdout);
+  }
+});
+
+test('check.mjs: a paragraph naming two agents is held to the lower cap', () => {
+  const para = SKILL('Start `it-scout` and `it-reviewer` agents with this brief:\n\n> Find it. Under 600 words.');
+  const lower = AGENT('it-reviewer').replace('Cap: 500 words', 'Cap: 800 words');
+  const r = checkWith({ 'agents/it-scout.md': AGENT('it-scout'), 'agents/it-reviewer.md': lower, 'skills/zz-it/SKILL.md': para });
+  assert.match(r.stdout, /word cap 600 is above the 500 in agents\/it-scout\.md/);
 });

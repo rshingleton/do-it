@@ -17,6 +17,7 @@ import fs, { realpathSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { decide } from './lib/decide.mjs';
+import { START } from '../scripts/lib/voice.mjs';
 import { autoSnapshot, trackUsage, clearLimit, usageDir } from '../skills/usage-it/scripts/ledger.mjs';
 
 // Subagent types that only read; they skip the coding posture. A plugin agent
@@ -27,9 +28,9 @@ const agentName = (type) => String(type ?? '').replace(/^[^:]+:/, '');
 // current), so the hook adds them only for every other subagent type. A missing
 // agents/ directory means none do.
 const AGENTS_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../agents');
-function carriesVoice(name) {
+export function carriesVoice(name, dir = AGENTS_DIR) {
   try {
-    return fs.existsSync(path.join(AGENTS_DIR, `${name}.md`));
+    return fs.readFileSync(path.join(dir, `${name}.md`), 'utf8').includes(START);
   } catch {
     return false;
   }

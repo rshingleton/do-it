@@ -17,7 +17,7 @@ outside.
    pointers to the code. Not your reasoning. Brief: "Try to show this claim
    is false. Check each piece of evidence yourself. Report a concrete
    counterexample (file and line, input, command output), or say none was
-   found and what you checked. Under 300 words."
+   found and what you checked. Under 200 words."
 4. **Reconcile.**
    - Counterexample: the claim is wrong or narrower. Restate it, fix the
      plan, and say what changed.

@@ -404,3 +404,16 @@ test('path rules match a backslash path (T87)', () => {
   assert.match(r.reason, /env-file in app\\\.env/);
   assert.equal(beforeEdit(ctx, { file_path: 'app\\.env.example', content: '' }).action, 'allow');
 });
+
+test('carriesVoice is true only for an agent file that holds the voice marker, and false on a read error', async () => {
+  const { carriesVoice } = await import('../hooks/claude.mjs');
+  const { START } = await import('../scripts/lib/voice.mjs');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-voice-'));
+  fs.writeFileSync(path.join(dir, 'with.md'), `body\n\n${START}\nV\n<!-- voice:end -->\n`);
+  fs.writeFileSync(path.join(dir, 'without.md'), 'body\n');
+  fs.mkdirSync(path.join(dir, 'dir.md'));
+  assert.equal(carriesVoice('with', dir), true);
+  assert.equal(carriesVoice('without', dir), false);
+  assert.equal(carriesVoice('missing', dir), false);
+  assert.equal(carriesVoice('dir', dir), false);
+});

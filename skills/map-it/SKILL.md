@@ -35,7 +35,7 @@ Write files only when the user asked for docs or ran `/map-it` directly.
 
 With a host that has an exploring subagent, send the `it-scout` agent (cheap
 tier) with the scope and [LAYOUT.md](LAYOUT.md) as the brief, very thorough,
-cap its summary at 500 words, and work from its findings; otherwise explore in
+cap its summary at 300 words, and work from its findings; otherwise explore in
 the main context. Find:
 
 - modules and what each is responsible for, with paths;

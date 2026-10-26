@@ -3,7 +3,7 @@
 Nice-to-haves and things to circle back to. Managed by log-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T91
+Next id: T94
 
 ## Open
 
@@ -59,3 +59,6 @@ Next id: T91
 - [ ] T86 Concurrent local creates can collide on a slug and a partial remote publish loses its refs; write with `wx` and retry the suffix, return partial publish results so a re-run resumes; local issue writes are also not atomic `debt` (reference-audit finding 16, skills/track-it/scripts/adapters/local.mjs:43)
 - [ ] T89 Small hook and script gaps: `work.mjs show/event/close` skip the id check `new` does, `isMain` is copied 5 times, no test that hooks.json event names match claude.mjs `debt` (reference-audit, "8 smaller findings"; not re-checked)
 - [ ] T90 Test gaps from the audit: install-hooks leaves a commented settings.json byte-identical and `--dry-run` writes nothing, Jira and GitHub adapter request building with a fake fetch, `work.mjs close` from `building` refused, config precedence (env over file) `debt` (reference-audit TR-6, TR-7, TR-8, TR-10; not re-checked)
+- [ ] T91 `npm run check` spawn-cap rule only compares `N words`; an "N in all" cap (review-it: "300 in all") is not compared with the agent's cap `debt` (spawn-caps-carries-voice audit, scripts/check.mjs)
+- [ ] T92 `npm run check` reads only the first `>` paragraph after a spawn paragraph as its brief; a cap in a second one is missed `debt` (spawn-caps-carries-voice audit, scripts/check.mjs)
+- [ ] T93 check.mjs spawn-cap loop re-tests `owner` per pass and the `briefed` ternary restates the old `next.startsWith('>')` test; compute once `nice-to-have` (spawn-caps-carries-voice audit, scripts/check.mjs)
