@@ -149,7 +149,14 @@ function isMain() {
 
 if (isMain()) {
   run(process.argv.slice(2))
-    .then((out) => process.stdout.write(`${JSON.stringify(out, null, 2)}\n`))
+    .then((out) => {
+      // A partial publish still prints the refs it made, then fails the command.
+      if (out?.error) {
+        out.error = maskUrlCredentials(out.error);
+        process.exitCode = 1;
+      }
+      process.stdout.write(`${JSON.stringify(out, null, 2)}\n`);
+    })
     .catch((e) => {
       process.stdout.write(`${JSON.stringify({ error: maskUrlCredentials(e.message) })}\n`);
       process.exit(1);

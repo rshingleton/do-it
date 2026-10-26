@@ -40,12 +40,15 @@ block the same way.
 with no epic). Write it to a temp file or pipe it with `--spec -`. The caller
 records the returned `parent` and `phases` under `tracker:` in the state
 block, through the work-item script ([STATE.md](../do-it/STATE.md)).
+A `publish` that fails part way prints the refs it made with an `error` and
+exits 1; record those refs, then finish the rest by hand.
 
 A ref routes by its shape, whatever the default tracker is:
 `docs/issues/x.md` is local; `owner/repo#42`, `#42`, `gh-42` or an issue URL
 on any GitHub host is GitHub; `ABC-123` (any case) or a `/browse/ABC-123` URL
-is Jira. GitHub results carry `owner/repo#N` so later calls reach the same
-repo; use that form when recording refs. `create` and `publish` use
+is Jira. GitHub results carry `owner/repo#N` (`host/owner/repo#N` on a
+GitHub Enterprise host, passed to `gh` as `-R host/owner/repo`) so later calls
+reach the same repo; use that form when recording refs. `create` and `publish` use
 `DO_IT_TRACKER` unless `--tracker` says otherwise. When `gh` rejects a label,
 the issue is still created and the result lists `labelsDropped`.
 

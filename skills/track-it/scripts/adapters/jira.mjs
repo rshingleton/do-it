@@ -201,14 +201,20 @@ export function jiraTracker(cfg, { fetch: fetchImpl = globalThis.fetch } = {}) {
     async publish({ title, body = '', phases = [], parent, components, project }) {
       let epic = String(parent || '').trim() || defaultEpic;
       let url;
-      if (!epic) {
-        const created = await create({ title, body, components, project, issueType: cfg.JIRA_EPIC_TYPE });
-        epic = created.ref;
-        url = created.url;
-      }
       const children = {};
-      for (const p of phases) {
-        children[p.n] = (await create({ title: `${title}: ${p.title}`, body: p.body || '', components, project, epic })).ref;
+      try {
+        if (!epic) {
+          const created = await create({ title, body, components, project, issueType: cfg.JIRA_EPIC_TYPE });
+          epic = created.ref;
+          url = created.url;
+        }
+        for (const p of phases) {
+          children[p.n] = (await create({ title: `${title}: ${p.title}`, body: p.body || '', components, project, epic })).ref;
+        }
+      } catch (e) {
+        // Return what was made so the caller records it; a thrown error would lose the refs.
+        const hasEpic = epic && !isNone(epic);
+        return { parent: hasEpic ? epic : null, ...(hasEpic ? { url: url || `${base}/browse/${epic}` } : {}), phases: children, error: String(e.message || e) };
       }
       if (isNone(epic)) return { parent: null, phases: children };
       return { parent: epic, url: url || `${base}/browse/${epic}`, phases: children };
