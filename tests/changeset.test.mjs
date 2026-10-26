@@ -1,5 +1,6 @@
 // The change-set module's addedLines: what a change adds, at which lines.
 
+import './env.mjs'; // first: isolates the developer's environment
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';

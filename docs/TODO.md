@@ -3,7 +3,7 @@
 Nice-to-haves and things to circle back to. Managed by log-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T98
+Next id: T104
 
 ## Open
 
@@ -51,7 +51,6 @@ Next id: T98
 - [ ] T78 An install doctor (Node >= 18, host, agent and skill symlink health, hook registration, `checks.json` validity); extends T3's tracker-only doctor `idea` (handoff review 2026-10-25)
 - [ ] T81 Trim passing-test noise from `npm test` and build output before it reaches the model; feasibility first, since Claude Code's PostToolUse hook may not rewrite Bash output (T27 is the related hook) `question` (handoff review 2026-10-25, unproven)
 - [ ] T82 Pre-edit guard against whole-file rewrites of large files (over 300 lines or 25 KB), steering to targeted edits; weigh against generated files and the cost of false blocks `question` (handoff review 2026-10-25, unproven)
-- [ ] T83 Tests read the developer's real environment (HOME, `DO_IT_*`, global git signing and hooks); add one test helper with a temp HOME, cleared `DO_IT_*` and `GIT_CONFIG_GLOBAL=/dev/null` `debt` (reference-audit finding 13, TR-4; not re-checked 2026-10-25)
 - [ ] T89 Small hook and script gaps: `work.mjs show/event/close` skip the id check `new` does, `isMain` is copied 5 times, no test that hooks.json event names match claude.mjs `debt` (reference-audit, "8 smaller findings"; not re-checked)
 - [ ] T90 Test gaps from the audit: install-hooks leaves a commented settings.json byte-identical and `--dry-run` writes nothing, Jira and GitHub adapter request building with a fake fetch, `work.mjs close` from `building` refused, config precedence (env over file) `debt` (reference-audit TR-6, TR-7, TR-8, TR-10; not re-checked)
 - [ ] T91 `npm run check` spawn-cap rule only compares `N words`; an "N in all" cap (review-it: "300 in all") is not compared with the agent's cap `debt` (spawn-caps-carries-voice audit, scripts/check.mjs)
@@ -63,3 +62,7 @@ Next id: T98
 - [ ] T97 `skills/ship-it/SKILL.md` is at exactly 100 lines; R23 adds to the same question, so move detail to DOCS.md or RESUME.md first `debt` (audit-leftovers-at-ship audit, skills/ship-it/SKILL.md)
 - [ ] T98 `skills/ship-it/DOCS.md` "Surfaced defects" repeats the log-it wording of "Audit findings"; share one paragraph `nice-to-have` (surfaced-defects-at-ship audit, skills/ship-it/DOCS.md:47)
 - [ ] T99 `roadmap.mjs:84` counts `shipped ..., Verify unmet` as done, so dependents unblock; decide whether a dependent of an unmet-Verify slice should wait `question` (surfaced-defects-at-ship audit, skills/do-it/scripts/roadmap.mjs:84)
+- [ ] T100 `tests/scripts-regressions.test.mjs` builds six inline `{ ...process.env, HOME, XDG_CONFIG_HOME }` objects; `cleanEnv` from `tests/env.mjs` could replace them `debt` (test-env-helper audit, tests/scripts-regressions.test.mjs:37)
+- [ ] T101 `tests/env.mjs` sets up HOME and XDG twice (top level and `cleanEnv`); share one helper that takes the home path `debt` (test-env-helper audit, tests/env.mjs)
+- [ ] T102 `cleanEnv` spreads the import-time env, so a `DO_IT_*` a suite sets in-process reaches its children while set; strip at call time `debt` (test-env-helper audit, tests/env.mjs)
+- [ ] T103 Consider `node --test --import ./tests/env.mjs` in the `npm test` script instead of the per-suite import line; it couples the helper to the test command `idea` (test-env-helper audit, package.json)

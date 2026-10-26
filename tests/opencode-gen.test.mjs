@@ -1,5 +1,6 @@
 // OpenCode files generated from agents/ and skills/: agents, command/ and commands/.
 
+import './env.mjs'; // first: isolates the developer's environment
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';

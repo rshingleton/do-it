@@ -1,6 +1,7 @@
 // Regression tests for bugs found in the track-it scripts. Each test reproduces
 // the reported failure; see the commit that added this file for the hunt.
 
+import './env.mjs'; // first: isolates the developer's environment
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';

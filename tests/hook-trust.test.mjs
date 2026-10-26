@@ -1,3 +1,4 @@
+import { cleanEnv } from './env.mjs'; // first: isolates the developer's environment
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
@@ -22,14 +23,6 @@ function repo() {
   execFileSync('git', ['init', '-q'], { cwd: dir });
   return dir;
 }
-
-// The developer's own do-it config and DO_IT_* variables must not leak in.
-function cleanEnv(extra = {}) {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-home-'));
-  const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^(DO_IT_|JIRA_|GITHUB_)/.test(k)));
-  return { ...env, HOME: home, XDG_CONFIG_HOME: path.join(home, '.config'), ...extra };
-}
-
 
 function writeChecks(root, value) {
   fs.mkdirSync(path.join(root, '.compliance-rules'), { recursive: true });
