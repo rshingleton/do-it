@@ -289,7 +289,7 @@ do-it/
     install.sh                # symlinks + hook registration (hooks on by default)
     install-hooks.mjs         # idempotent settings merge, with backups
     gen-opencode.mjs          # skills -> OpenCode commands, agents -> OpenCode agents (--check for drift)
-    check.mjs                 # frontmatter, line budget, skill calls, links, em-dashes, agent files and tools
+    check.mjs                 # frontmatter, -it names, "Use when", line budget, skill calls, spawn caps, links, em-dashes, agent files and tools
   tests/                      # node --test, no dependencies
   docs/DESIGN.md, docs/adr/
 ```
