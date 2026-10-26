@@ -21,6 +21,11 @@ in the main context. Savings also mean nothing if findings are lost.
 
 ## Acceptance
 
+Narrowed 2026-10-26: the headless A/B below still needs an isolated, logged-in
+run (an API key); the ledger comparison is done in
+`docs/research/terse-voice-ledger.md` and is not proven. Open: the paired
+A/B, its quality check and a verdict that replaces the not-proven one.
+
 - A throwaway harness (not shipped code) runs two arms from the same repo:
   `7ae5158` in a git worktree and the current tree, each driven headless
   (`claude -p --output-format json`), with hooks and agent files resolving
@@ -48,3 +53,8 @@ in the main context. Savings also mean nothing if findings are lost.
   sample from real work items and replaces the transcript script.
 - The voice block and contracts stay in the meantime: they add no measurable
   cost and guard against long reports.
+- 2026-10-26: the harness could not run: an isolated headless run is not logged in
+  and no API key was set, and the real config dir loads the global `~/.claude`
+  agents into both arms. A ledger before/after is in
+  `docs/research/terse-voice-ledger.md` (not proven). This issue stays open for
+  the paired A/B, which needs an API key for an isolated run.

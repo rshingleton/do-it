@@ -67,7 +67,7 @@ Date 2026-10-21, same briefs with `AFTER-` markers, after phases 1 to 3
 
 ## Verdict
 
-Not proven. The totals moved the right way, but one run per side cannot
+Not proven (still the verdict; see the follow-up at the end of this section). The totals moved the right way, but one run per side cannot
 separate the change from variance: the biggest movers (cache read, 37% down
 for scout, 51% down for skeptic, 37% up for reviewer) track how many turns
 each agent happened to take, not the text. Cache write, the cost of the
@@ -82,6 +82,12 @@ long reports (prove-it, review-it, builder) this workload does not exercise.
 To settle it, repeat on a workload with longer reports, several runs per
 side, or land `per-step-usage-record-on-do-it-work-items` and compare real
 work items.
+
+Follow-up 2026-10-26: [terse-voice-ledger.md](terse-voice-ledger.md) compares
+418 real `it-*` runs in the usage ledger before and after the change. Still
+not proven: the only clean comparison (`it-reviewer`, same day) is flat on
+turns and output and within about 10% on cache, and the rest is confounded by
+the work mix.
 
 ## Appendix: usage-snapshot
 

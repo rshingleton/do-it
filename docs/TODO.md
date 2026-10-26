@@ -3,7 +3,7 @@
 Nice-to-haves and things to circle back to. Managed by log-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T106
+Next id: T111
 
 ## Open
 
@@ -65,3 +65,4 @@ Next id: T106
 - [ ] T107 The prove-it Architecture brief and sweep-it LENSES item 8 only link design-it for the deletion test, so a pointer-only agent may not open it; decide whether one sentence belongs inline `nice-to-have` (docs-one-copy audit, skills/prove-it/ARCHITECTURE.md:9)
 - [ ] T108 ship-it DOCS.md carries a sentence about an approved plan step that the context rule did not ask for; keep or drop `nice-to-have` (docs-one-copy audit, skills/ship-it/DOCS.md:26)
 - [ ] T109 DESIGN.md section 4 lost the phase-file section list and its karpathy credit; confirm PLAN-FORMAT.md carries the list and the README credits the idea `debt` (docs-one-copy audit, docs/DESIGN.md:72)
+- [ ] T110 The usage-ledger rows behind `docs/research/terse-voice-ledger.md` live in `~/.claude` and roll off after 30 days, so its table cannot be recomputed later; snapshot the `it-*` rows if the verdict is cited again `debt` (terse-voice-ab-harness audit, docs/research/terse-voice-ledger.md)
