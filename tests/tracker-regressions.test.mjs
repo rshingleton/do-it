@@ -83,6 +83,69 @@ test('CRLF issue files keep their frontmatter', () => {
   assert.equal(fs.readFileSync(file, 'utf8').match(/^---/gm).length, 2);
 });
 
+const WORK_ITEM = '---\nid: w\ntitle: W\nstatus: building\nphases:\n  - n: 1\n    status: done\naudit:\n  verdict: null\n---\n\n# Plan\n';
+
+function seedFile(root, rel, text) {
+  const file = path.join(root, rel);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, text);
+  return file;
+}
+
+test('a work-item file passed as a ref is refused and left unchanged', () => {
+  const root = tmpRepo();
+  const file = seedFile(root, 'docs/planning/w.md', WORK_ITEM);
+  const t = localTracker(DEFAULTS, { root });
+  for (const call of [() => t.comment('docs/planning/w.md', 'x'), () => t.start('docs/planning/w.md'), () => t.close('docs/planning/w.md')]) {
+    assert.throws(call, /outside the issues dir/);
+    assert.equal(fs.readFileSync(file, 'utf8'), WORK_ITEM);
+  }
+});
+
+test('get refuses a ref outside the issues dir and a non-.md file inside it', () => {
+  const root = tmpRepo();
+  const outside = seedFile(root, 'x.md', '---\ntitle: X\n---\n');
+  seedFile(root, 'docs/issues/notes.txt', 'hi');
+  const t = localTracker(DEFAULTS, { root });
+  assert.throws(() => t.get('../x.md'), /outside the issues dir/);
+  assert.throws(() => t.get('x.md'), /outside the issues dir/);
+  assert.throws(() => t.get(outside), /outside the issues dir/);
+  assert.throws(() => t.get('docs/issues/notes.txt'), /outside the issues dir/);
+});
+
+test('a rewrite that would drop frontmatter lines is refused', () => {
+  const root = tmpRepo();
+  const nested = '---\ntitle: N\nstatus: open\nlabels:\n  - a\n---\n\nBody\n';
+  const file = seedFile(root, 'docs/issues/n.md', nested);
+  const t = localTracker(DEFAULTS, { root });
+  for (const call of [() => t.comment('docs/issues/n.md', 'x'), () => t.start('docs/issues/n.md')]) {
+    assert.throws(call, /docs\/issues\/n\.md.*  - a/);
+    assert.equal(fs.readFileSync(file, 'utf8'), nested);
+  }
+  const bare = seedFile(root, 'docs/issues/bare.md', 'Just text\n');
+  assert.throws(() => t.comment('docs/issues/bare.md', 'x'), /no frontmatter/);
+  assert.equal(fs.readFileSync(bare, 'utf8'), 'Just text\n');
+});
+
+test('two creates of one title keep both files, and a dotted name is not mistaken for a climb', () => {
+  const root = tmpRepo();
+  const t = localTracker(DEFAULTS, { root });
+  assert.deepEqual([t.create({ title: 'Same' }).ref, t.create({ title: 'Same' }).ref], ['docs/issues/same.md', 'docs/issues/same-2.md']);
+  seedFile(root, 'docs/issues/..notes.md', '---\ntitle: D\n---\n');
+  assert.equal(t.get('docs/issues/..notes.md').title, 'D');
+});
+
+test('create never overwrites an existing slug file, and leaves no temp file after a rewrite', () => {
+  const root = tmpRepo();
+  const same = seedFile(root, 'docs/issues/same.md', 'keep me\n');
+  const t = localTracker(DEFAULTS, { root });
+  assert.equal(t.create({ title: 'Same' }).ref, 'docs/issues/same-2.md');
+  assert.equal(t.create({ title: 'Same' }).ref, 'docs/issues/same-3.md');
+  assert.equal(fs.readFileSync(same, 'utf8'), 'keep me\n');
+  t.comment('docs/issues/same-2.md', 'note');
+  assert.deepEqual(fs.readdirSync(path.join(root, 'docs/issues')).filter((f) => !f.endsWith('.md')), []);
+});
+
 function capture() {
   const calls = [];
   const fetch = async (url, init) => {

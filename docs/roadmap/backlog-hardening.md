@@ -38,7 +38,7 @@ Exit: a wrong ref cannot change a plan or an issue, and two sessions creating th
 
 | Slice | Kind | Delivers | Covers | Blocked by | Verify | Risk | Status |
 |-------|------|----------|--------|------------|--------|------|--------|
-| R4 | build | The local tracker refuses refs outside the issues dir and refuses a rewrite that would drop frontmatter, writes atomically and creates with `wx` (issue: local tracker, T86 local part) | G2 | none | A work-item file passed as a ref is left unchanged; two creates of one title give two files | high | |
+| R4 | build | The local tracker refuses refs outside the issues dir and refuses a rewrite that would drop frontmatter, writes atomically and creates with `wx` (issue: local tracker, T86 local part) | G2 | none | A work-item file passed as a ref is left unchanged; two creates of one title give two files | high | shipped 2026-10-25 local-tracker-integrity |
 | R5 | build | A GitHub Enterprise ref keeps its host and `gh` gets `-R host/owner/repo`; a partial remote publish returns its created refs (issue: GHE, T86 publish part) | G2 | none | Tests for a github.com and a GHE URL; a publish that fails halfway returns the refs made. Reproduce first: if the GHE issue is already fixed, close it and keep the publish part | med | |
 | R6 | enabler | One frontmatter module (split, join, CRLF, flat read and write) under state, the local tracker, skills.mjs and context.mjs (T58) | G2, G5 | R4 (local tracker settled first) | The existing CRLF and quoting regression tests pass against the shared module; the four copies are gone | med | |
 
@@ -106,3 +106,4 @@ Exit: an OpenCode session computes its context once, and the token savings claim
 - 2026-10-25: R1 shipped as commit-guard-hardening (`addedLines` diffs plain text in chunks: 3,000 staged files 31.7 s before, a few seconds now).
 - 2026-10-25: R2 shipped as guard-patch-paths (an embedded `+++ /dev/null` pair scans under its old path and `''`; `scan` reads `\` as `/`; the in-hunk twin in `unifiedFiles` filed as an issue).
 - 2026-10-25: R3 shipped as commit-msg-warn-timeout (`hookTimeout` falls back to 20 s; a `-m` message without `<id>: ` warns as PreToolUse context on Claude Code, OpenCode has no channel for it; T71 closed, T89 keeps its other gaps).
+- 2026-10-25: R4 shipped as local-tracker-integrity (a local ref must be an `.md` inside the issues dir; `comment` and `start` refuse a file with no or non-flat frontmatter; rewrites go through temp plus rename; `create` opens with `wx`; T86 local part closed, its GHE and publish parts stay with R5).
