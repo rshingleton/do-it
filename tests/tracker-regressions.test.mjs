@@ -205,6 +205,15 @@ test('CLI: a publish that fails partway prints the refs made and exits 1', () =>
   assert.match(out.error, /boom|Command failed/);
 });
 
+test('a hand-written double-quoted issue title decodes its escapes and rewrites as plain JSON quoting', () => {
+  const root = tmpRepo();
+  seedFile(root, 'docs/issues/q.md', '---\ntitle: "Tab\\there \\u00e9"\nstatus: open\n---\n\nBody\n');
+  const t = localTracker(DEFAULTS, { root });
+  assert.equal(t.get('docs/issues/q.md').title, 'Tab\there \u00e9');
+  t.start('docs/issues/q.md');
+  assert.equal(t.get('docs/issues/q.md').title, 'Tab\there \u00e9');
+});
+
 function capture() {
   const calls = [];
   const fetch = async (url, init) => {

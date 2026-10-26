@@ -7,6 +7,7 @@ import path from 'node:path';
 import { withVoice } from './lib/voice.mjs';
 import { VOICE_FILE } from '../hooks/lib/context.mjs';
 import { ROOT, agentTools, listSkills, listAgents, userInvoked } from './lib/skills.mjs';
+import { splitFrontmatter } from '../skills/track-it/scripts/frontmatter.mjs';
 
 const SKILL_LINE_BUDGET = 100;
 const SKILL_LINE_LIMIT = 150;
@@ -97,7 +98,7 @@ for (const file of docs) {
   // runs on whatever the session uses (SKILL-MECHANICS.md, Subagents), and a
   // word cap on its report.
   if (where.startsWith('skills/') && !TIER_EXEMPT.has(where)) {
-    const body = text.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, '').replace(/^(```|~~~)[\s\S]*?^\1/gm, '');
+    const body = (splitFrontmatter(text)?.body ?? text).replace(/^(```|~~~)[\s\S]*?^\1/gm, '');
     const paras = body.split(/\n\s*\n/);
     paras.forEach((para, i) => {
       if (!SPAWN.test(para)) return;

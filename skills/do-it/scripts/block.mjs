@@ -7,6 +7,7 @@
 
 import fs from 'node:fs';
 import { normalize } from './state.mjs';
+import { splitFrontmatter, joinFrontmatter } from '../../track-it/scripts/frontmatter.mjs';
 
 // ---------------------------------------------------------------------------
 // Parsing
@@ -335,20 +336,12 @@ export function writeBlock(state) {
 // ---------------------------------------------------------------------------
 // Files
 
-const FRONT = /^---\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/;
-
-function splitPlan(text) {
-  const m = text.match(FRONT);
-  if (!m) return null;
-  return { yaml: m[1], body: text.slice(m[0].length) };
-}
-
 export function readItem(file) {
   const text = fs.readFileSync(file, 'utf8');
-  const parts = splitPlan(text);
+  const parts = splitFrontmatter(text);
   if (!parts) throw new Error(`${file}: no state block (YAML frontmatter)`);
   const state = normalize(parseBlock(parts.yaml));
-  return { path: file, state, body: parts.body, eol: text.includes('\r\n') ? '\r\n' : '\n' };
+  return { path: file, state, body: parts.body, eol: parts.eol };
 }
 
 // Keeps the file's line endings, so a CRLF plan stays CRLF throughout. Writes
@@ -356,10 +349,9 @@ export function readItem(file) {
 // leaves the old plan whole; plans are uncommitted and git has no copy.
 export function writeItem(item, { renameSync = fs.renameSync, writeFileSync = fs.writeFileSync } = {}) {
   const eol = item.eol ?? '\n';
-  const block = `---\n${writeBlock(item.state)}---\n`;
   const tmp = `${item.path}.${process.pid}.tmp`;
   try {
-    writeFileSync(tmp, `${eol === '\n' ? block : block.replace(/\n/g, eol)}${item.body}`);
+    writeFileSync(tmp, joinFrontmatter(writeBlock(item.state), item.body, eol));
     renameSync(tmp, item.path);
   } catch (e) {
     fs.rmSync(tmp, { force: true });

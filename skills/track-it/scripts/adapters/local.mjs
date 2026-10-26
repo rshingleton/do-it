@@ -3,45 +3,19 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { slugify } from '../refs.mjs';
-
-const FRONT = /^---\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/;
-// Values that stay readable bare in YAML; anything else is written JSON-quoted.
-const BARE = /^[A-Za-z0-9_][\w .\/-]*$/;
-
-function readValue(raw) {
-  const v = raw.trim();
-  if (v.startsWith('"')) {
-    try {
-      return JSON.parse(v);
-    } catch {
-      return v;
-    }
-  }
-  if (v.length >= 2 && v.startsWith("'") && v.endsWith("'")) return v.slice(1, -1).replaceAll("''", "'");
-  return v;
-}
+import { splitFrontmatter, joinFrontmatter, parseFlat, writeFlat } from '../frontmatter.mjs';
 
 export function readIssue(file) {
   const text = fs.readFileSync(file, 'utf8');
-  const m = text.match(FRONT);
-  const meta = {};
-  const skipped = [];
-  if (m) {
-    for (const line of m[1].split(/\r?\n/)) {
-      const kv = line.match(/^([A-Za-z_][\w-]*):\s*(.*)$/);
-      if (kv) meta[kv[1]] = readValue(kv[2]);
-      else if (line.trim()) skipped.push(line);
-    }
-  }
-  return { meta, body: m ? text.slice(m[0].length) : text, hasFront: Boolean(m), skipped };
+  const parts = splitFrontmatter(text);
+  if (!parts) return { meta: {}, body: text, hasFront: false, skipped: [] };
+  const { meta, skipped, continued } = parseFlat(parts.yaml);
+  // A rewrite writes flat key: value lines only, so a folded or nested line counts as dropped.
+  return { meta, body: parts.body, hasFront: true, skipped: [...skipped, ...continued] };
 }
 
 function issueText(meta, body) {
-  const front = Object.entries(meta)
-    .filter(([, v]) => v !== undefined && v !== '')
-    .map(([k, v]) => `${k}: ${BARE.test(String(v)) && !/\s$/.test(String(v)) ? v : JSON.stringify(String(v))}`)
-    .join('\n');
-  return `---\n${front}\n---\n\n${body.replace(/^(\r?\n)+/, '')}`;
+  return joinFrontmatter(writeFlat(meta), `\n${body.replace(/^(\r?\n)+/, '')}`);
 }
 
 // Write beside the target and rename over it, so a crash never leaves a
