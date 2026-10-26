@@ -289,6 +289,30 @@ test('lines added after a delete are also scanned past the deleted path (audit 5
   }
 });
 
+test('an in-hunk dev-null pair cannot exempt a line from a scoped rule or an exception (R25)', () => {
+  const rulesFor = (rule) => {
+    const { dir } = repo();
+    fs.mkdirSync(path.join(dir, '.compliance-rules'));
+    fs.writeFileSync(path.join(dir, '.compliance-rules', 'checks.json'), JSON.stringify([{ id: 'no-evil', severity: 'HIGH', pattern: 'EVIL', ...rule }]));
+    return ctxFor(dir);
+  };
+  const patch = (...lines) => ['--- a/a.txt', '+++ b/a.txt', '@@ -0,0 +1,3 @@', ...lines].join('\n');
+  const scoped = rulesFor({ files: ['.py'], exceptFilePattern: '\\.txt$' });
+  assert.match(beforeEdit(scoped, { patch: patch('--- a/x.py', '+++ /dev/null', '+EVIL') }).reason, /no-evil in x\.py/);
+  // The old path is excepted too, so only the empty-path scan can catch it.
+  const excepted = rulesFor({ exceptFilePattern: '\\.txt$' });
+  assert.equal(beforeEdit(excepted, { patch: patch('--- a/y.txt', '+++ /dev/null', '+EVIL') }).action, 'block');
+  assert.equal(beforeEdit(excepted, { patch: patch('--- /dev/null', '+++ /dev/null', '+EVIL') }).action, 'block');
+  // The scan ends at the next file header.
+  const later = ['--- a/a.txt', '+++ b/a.txt', '@@ -0,0 +1,2 @@', '--- a/y.txt', '+++ /dev/null', '+ok', '--- a/b.txt', '+++ b/b.txt', '@@ -0,0 +1 @@', '+EVIL'].join('\n');
+  assert.equal(beforeEdit(excepted, { patch: later }).action, 'allow');
+  const laterScoped = later.replace('a/y.txt', 'a/x.py');
+  assert.equal(beforeEdit(scoped, { patch: laterScoped }).action, 'allow');
+  // A pair with no old path keeps the file an earlier in-hunk pair named.
+  const kept = patch('--- a/x.py', '+++ b/y.py', '--- /dev/null', '+++ /dev/null', '+EVIL').replace('+1,3', '+1,4');
+  assert.match(beforeEdit(scoped, { patch: kept }).reason, /no-evil in y\.py/);
+});
+
 test('diff -u timestamps and git quoting do not hide a header path (audit 4)', () => {
   const ctx = ctxFor(repo().dir);
   for (const header of ['+++ .env\t2024-01-01 00:00:00', '+++ "b/.env"']) {

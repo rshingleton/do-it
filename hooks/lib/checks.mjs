@@ -247,12 +247,15 @@ function applyPatchFiles(lines, { add, exists }) {
 // lenient tool (a bare `@@`, a wrong count) may split files on it: it also
 // names <path>, and the added lines after it are scanned under both files.
 // After `+++ /dev/null`, added lines are also scanned under '', as in
-// apply_patch, until the next `+++ <path>`.
+// apply_patch, until the next `+++ <path>`. An in-hunk `--- <old>` /
+// `+++ /dev/null` pair likewise scans the lines after it under <old> and ''
+// until the next pair or file header.
 function unifiedFiles(lines, { add, exists }) {
   let current = '';
   let also = null;
   let from = null;
   let deleted = false;
+  let embeddedDelete = false;
   let oldLeft = 0;
   let newLeft = 0;
   const addLine = (text) => {
@@ -264,13 +267,20 @@ function unifiedFiles(lines, { add, exists }) {
     const c = line[0];
     if ((oldLeft > 0 || newLeft > 0) && (c === '+' || c === '-' || c === ' ' || c === '\\' || line === '')) {
       const named = headerPath(lines[i - 1], '---') !== null && headerPath(line, '+++');
-      if (named && named !== '/dev/null') {
+      if (named === '/dev/null') {
+        const old = headerPath(lines[i - 1], '---');
+        if (old && old !== '/dev/null') also = old;
+        embeddedDelete = true;
+        if (also) add(also);
+      } else if (named) {
         also = named;
+        embeddedDelete = false;
         add(also);
       } else if (c === '+' && also) {
         add(also, line.slice(1));
       }
       if (c === '+') addLine(line.slice(1));
+      if (c === '+' && embeddedDelete && !named) add('', line.slice(1));
       if (c === '+' || c === ' ' || line === '') newLeft--;
       if (c === '-' || c === ' ' || line === '') oldLeft--;
       continue;
@@ -288,11 +298,13 @@ function unifiedFiles(lines, { add, exists }) {
     } else if (to === '/dev/null') {
       current = from && from !== '/dev/null' ? from : '';
       also = null;
+      embeddedDelete = false;
       deleted = true;
       exists.delete(current);
     } else if (to !== null) {
       current = to;
       also = null;
+      embeddedDelete = false;
       deleted = false;
       exists.add(current);
       add(current);

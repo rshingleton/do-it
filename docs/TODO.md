@@ -77,3 +77,7 @@ Next id: T113
 - [ ] T120 The edited OpenCode usage paragraph in DESIGN.md section 8 was not rewrapped, so the diff is noisy `nice-to-have` (opencode-usage-ledger audit, docs/DESIGN.md:309)
 - [ ] T121 The blocking-decision ask is restated in do-it sections 3 and 4 and roadmap-it section 6; keep do-it to links if it drifts `nice-to-have` (open-decisions-asked audit, skills/do-it/SKILL.md:66)
 - [ ] T122 `roadmap.mjs` repeats the shipped-or-dropped test in `blocking` that the `done` helper already holds; share one predicate `nice-to-have` (open-decisions-asked audit, skills/do-it/scripts/roadmap.mjs:119)
+- [ ] T123 The `''` scan after an in-hunk dev-null pair in `unifiedFiles` could fold into `addLine` with the `deleted` branch `nice-to-have` (unified-in-hunk-dev-null audit, hooks/lib/checks.mjs:282)
+- [ ] T124 `also` and `embeddedDelete` are set and reset together at four sites in `unifiedFiles`; one state object would remove the pairing `nice-to-have` (unified-in-hunk-dev-null audit, hooks/lib/checks.mjs:274)
+- [ ] T125 `named` in `unifiedFiles` is a path, `false` or `/dev/null` read three ways; compute `oldPath` once beside it `nice-to-have` (unified-in-hunk-dev-null audit, hooks/lib/checks.mjs:268)
+- [ ] T126 An in-hunk dev-null pair's own `+++ /dev/null` line is not scanned under the old path, as in `applyPatchFiles`; the effect is negligible `nice-to-have` (unified-in-hunk-dev-null audit, hooks/lib/checks.mjs:271)
