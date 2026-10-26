@@ -17,6 +17,7 @@ repo's hooks, tracker, flow state and checks do what the docs say.
 - G4: `npm test` and `npm run check` enforce what AGENTS.md and the skills claim, and do not depend on the developer's environment.
 - G5: Each rule and each parser lives in one place, and the docs describe the model that ships.
 - G6: OpenCode pays for session context once and can record usage, with token claims measured before anything is optimised.
+- G7: A finding the flow surfaces (an audit's Should and Nice, a product defect a verify slice exposes) is offered to `log-it` at ship, not lost when the plan is deleted, and a slice whose verify clause is unmet says so.
 
 ## Milestones
 
@@ -48,7 +49,7 @@ Exit: a fix round cannot reach audit unverified, and `/retro-it` can read a fini
 | Slice | Kind | Delivers | Covers | Blocked by | Verify | Risk | Status |
 |-------|------|----------|--------|------------|--------|------|--------|
 | R7 | build | `build-done` in fix mode requires a passing verify-phase recorded since the fix began (issue: build-done fix mode) | G3 | none | Tests for fix mode with no verify and with a failing verify | med | shipped 2026-10-25 build-done-fix-verify |
-| R8 | build | The retro-it offer comes at the ship question, before `work.mjs close` deletes the candidates (issue: guardrail candidates) | G3 | none | A check or test shows the offer precedes close | low | |
+| R8 | build | The retro-it offer comes at the ship question, before `work.mjs close` deletes the candidates (issue: guardrail candidates) | G3 | none | A check or test shows the offer precedes close | low | shipped 2026-10-25 retro-offer-at-ship |
 | R9 | build | When the next step is a typed skill, the closing line names the slash command and does not offer "do it"; `npm run check` fails the old form (issue: closing line) | G3 | R12 (both edit scripts/check.mjs) | `npm run check` fails a fixture closing line that offers "do it" for a typed skill | low | |
 
 ### M4: Checks and tests say what they enforce
@@ -80,6 +81,14 @@ Exit: an OpenCode session computes its context once, and the token savings claim
 | R20 | build | `/setup-it` checks that `opencode.json` sets `external_directory` to `ask` or `deny` and offers to add it (T77) | G6 | none | A test or fixture run shows the check flags `allow` and a missing key | low | |
 | R21 | build | OpenCode usage is recorded into the shared ledger from the `event` hook (1.x) and `ctx.event.subscribe` (2.x) (issue: per-step usage, OpenCode checkbox) | G6 | D1 (is cost wanted) | A fixture OpenCode event stream produces a ledger row that `usage-it` reports | med | |
 
+### M7: No finding is lost at ship
+Exit: a ship that follows an audit with Should or Nice findings, or a slice that surfaced product defects, offers each to `log-it` and states an unmet verify clause before the roadmap row is marked shipped.
+
+| Slice | Kind | Delivers | Covers | Blocked by | Verify | Risk | Status |
+|-------|------|----------|--------|------------|--------|------|--------|
+| R22 | build | ship-it's one question lists the audit's Should and Nice findings and offers to log them as to-dos (default: log), and prove-it's Route names that home; a repo with a changelog keeps today's behaviour (issue: ship-it should offer to log the audit's findings) | G7 | R14 (ship-it must be under its line budget before it grows) | A fixture audit with two Should findings and no changelog produces the offer and two `log-it` to-dos; `npm run check` reports 0 warnings | low | |
+| R23 | build | A work item records surfaced defects (`work.mjs` state field), scope-it adds a file-defects step for a slice whose verify compares or measures, build-it records them as they appear, and ship-it lists them in the same question and states an unmet roadmap verify clause (issue: surfaced product defects) | G7 | R22 (same ship-it question) | A fixture slice with two surfaced defects: the ship question lists both, `log-it` files them with `source: <work id>`, and the roadmap row is not marked shipped without the unmet-verify note | med | |
+
 ## Open decisions
 - D1: Does the usage ledger record cost, or stay tokens only (prices change)? Answer by: grill with the user when R21 is next. Blocks R21.
 
@@ -89,6 +98,7 @@ Exit: an OpenCode session computes its context once, and the token savings claim
 - Usage windows that straddle a reset (T76): label them run-based or split by message time.
 - A tracker doctor and an install doctor (T3, T78): may become one `/setup-it` check slice.
 - Running `/setup-it` on another repo (T2): a user-run check, not a build slice.
+- Issues no slice covers yet: `Unified in-hunk dev-null header pair` (R2's twin in `unifiedFiles`; a guard slice).
 
 ## Out of scope
 - The research-derived ideas T13 to T32 and T44, T45, T47, T62: parked 2026-10-25; return through T47 when an audit or retro cites one.
@@ -100,6 +110,7 @@ Exit: an OpenCode session computes its context once, and the token savings claim
 - 2026-10-25 Decision: do removal and correctness work before new features (T64).
 - 2026-10-25 Decision: narrow T2 to `/setup-it` on another repo.
 - 2026-10-25 Decision: park T13 to T32 until evidence.
+- 2026-10-25 Decision: findings that reach ship (audit leftovers, defects a verify slice surfaces) get their own milestone M7 after M4, since both edit ship-it's question and ship-it must first fit its line budget (R14).
 
 ## Changes
 - 2026-10-25: charted from the open issues, the backlog and the 2026-10-19 audit.
@@ -112,3 +123,6 @@ Exit: an OpenCode session computes its context once, and the token savings claim
 - 2026-10-25: R7 shipped as build-done-fix-verify (a fix-mode `phase-done` records `fix_verified`; `build-done` refuses without it; `audit-fail`, `reject-assumption` and `replan` clear it; lane M verifies any phase).
 - 2026-10-25: R12 shipped as spawn-caps-carries-voice (`npm run check` fails a spawn paragraph whose `N words` cap exceeds the lowest `Cap:` of the `it-*` agents it names; map-it 500 to 300, doubt-it 300 to 200; `carriesVoice` needs the voice marker in the agent file and fails open on a read error; audit leftovers filed as T91-T93 and an issue on logging them at ship).
 - 2026-10-25: R13 shipped as check-skill-rules (`check.mjs` fails a `skills/` link that leaves `skills/`, a model-invoked description without "Use when", and a name with no `it` segment; a skill with no routing entry is now a routing-eval failure; doubt-it, guard-it and sweep-it reworded to "Use when"; T84 closed; T85 was already satisfied by SKILL-MECHANICS.md; audit leftovers T94, T95).
+- 2026-10-25: status sync after R13: T86 removed from the to-do list (R4 and R5 closed it); README and DESIGN `check.mjs` lines list the new rules; three uncovered issues added to Fog. The roadmap has no R10 and git history never held one; the id gap is left as is.
+- 2026-10-25: replan: added G7 and M7 with R22 (audit leftovers offered at ship) and R23 (surfaced defects recorded and offered at ship); the two ship-it issues leave Fog; shipped slices untouched.
+- 2026-10-25: R8 shipped as retro-offer-at-ship (the `/retro-it <id>` offer moved from the closing message to the ship question, before `work.mjs close` deletes the candidates; a test pins the order).

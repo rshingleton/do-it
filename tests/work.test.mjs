@@ -523,3 +523,13 @@ test('transitions: a fix round forgets the last one\'s verify', () => {
   assert.equal('fix_verified' in s, false);
   assert.throws(() => transition(s, 'build-done'), /since the fix began/, 'round 1 verify does not cover round 2');
 });
+
+test('ship-it: the retro-it offer sits at the question, before close deletes the candidates', () => {
+  const ship = fs.readFileSync(path.join(ROOT, 'skills/ship-it/SKILL.md'), 'utf8');
+  const question = ship.indexOf('## 2. The one question');
+  const after = ship.indexOf('## 3. After the answer');
+  const offer = ship.indexOf('/retro-it <id>');
+  assert.ok(offer > question && offer < after, 'the offer is in section 2');
+  assert.ok(offer < ship.indexOf('`work.mjs close <id>`'), 'the offer precedes the close step');
+  assert.equal(ship.split('/retro-it <id>').length, 2, 'offered once, not again after close');
+});

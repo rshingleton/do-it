@@ -50,6 +50,9 @@ One turn; write nothing yet. **Show** (information, no answer needed):
   changelog. **Risk-area work** ([LANES.md](../do-it/LANES.md)): a rollback
   note (revert, a flag, a down migration, data to restore) for the
   changelog and commit body; no safe rollback: say so plainly.
+- Guardrail candidates or a failed round in the audit: one line offering
+  `/retro-it <id>`. `work.mjs close` deletes the candidates, so retro-it
+  runs before the user answers "commit now".
 - The commit message: `<id>: <summary>` (the commit id, it-core Git), a
   blank line, one bullet per phase or step; on a protected branch (`main`,
   `master`, `DO_IT_PROTECTED_BRANCHES`), the feature branch to create first.
@@ -101,8 +104,7 @@ to the last alone keeps the defaults:
 
 "Shipped <id>: committed as abc123 | prepared, left for review", then
 Skipped / Not checked / Risk, then **Next:** (the finish command, push when
-ready, or nothing). Guardrail candidates or a failed round in the audit: one
-line offering `/retro-it <id>` to turn them into checks.
+ready, or nothing).
 
 ## Rules
 
