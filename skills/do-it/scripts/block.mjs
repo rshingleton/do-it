@@ -2,8 +2,8 @@
 //
 // The block is YAML frontmatter on the plan (docs/planning/<id>.md for lane S,
 // docs/planning/<id>/README.md for lane M). This module reads the subset the
-// flow writes, plus the flow-map style older plans use, and writes block
-// style only. What the block may hold and how it moves is state.mjs.
+// flow writes and writes block style only; the flow-map style older plans used
+// is refused. What the block may hold and how it moves is state.mjs.
 
 import fs from 'node:fs';
 import { normalize } from './state.mjs';
@@ -25,166 +25,94 @@ function stripComment(text) {
   return text.replace(/\s+#.*$/, '');
 }
 
-// Flow values: { a: b }, [a, b], "x", 'x', plain. Plain values end at a comma
-// or closing bracket outside parentheses, so `title: Fixes (report, code)`
-// stays one value.
-function parseFlow(text) {
+// A one-line value that starts with a bracket or a quote, the shapes
+// writeBlock emits: `"x"`, `[a, "b, c"]`, `[]` and `{}`. Items are scalars,
+// plain or quoted. Plain items end at a comma or `]`
+// outside parentheses, so `[Fixes (report, code)]` stays one item. Flow maps
+// with content, nested values and brackets spanning lines are refused, not
+// misread.
+function flow(text) {
   let i = 0;
-  const ws = () => {
-    while (i < text.length && /\s/.test(text[i])) i++;
+  const refuse = (why) => {
+    throw new Error(`state block: ${why}; rewrite in block style: ${text}`);
   };
-  const fail = (why) => {
-    throw new Error(`state block: ${why} at column ${i + 1} in: ${text}`);
+  const ws = () => {
+    while (text[i] === ' ') i++;
   };
 
+  if (text[0] === '{') {
+    if (!/^\{\s*\}\s*(#.*)?$/.test(text)) refuse('flow maps are no longer read');
+    return {};
+  }
+
   function quoted() {
-    const q = text[i];
-    if (q === '"') {
+    if (text[i] === '"') {
       let j = i + 1;
       while (j < text.length && text[j] !== '"') j += text[j] === '\\' ? 2 : 1;
-      if (j >= text.length) fail('unterminated string');
+      if (j >= text.length) refuse('unterminated string');
       const out = JSON.parse(text.slice(i, j + 1));
       i = j + 1;
       return out;
     }
     let out = '';
-    i++;
-    for (;;) {
-      if (i >= text.length) fail('unterminated string');
-      if (text[i] === "'") {
-        if (text[i + 1] === "'") {
-          out += "'";
-          i += 2;
-          continue;
-        }
+    for (i++; i < text.length; i++) {
+      if (text[i] !== "'") out += text[i];
+      else if (text[i + 1] === "'") out += text[++i];
+      else {
         i++;
         return out;
       }
-      out += text[i++];
     }
+    return refuse('unterminated string');
   }
 
-  function plain(stops) {
+  function plain() {
     let depth = 0;
     const start = i;
-    while (i < text.length) {
+    for (; i < text.length; i++) {
       const c = text[i];
       if (c === '(') depth++;
       else if (c === ')') depth = Math.max(0, depth - 1);
-      else if (depth === 0 && stops.includes(c)) break;
-      i++;
+      else if (depth === 0 && (c === ',' || c === ']')) break;
     }
-    return text.slice(start, i);
+    return scalar(text.slice(start, i));
   }
 
-  function value(stops) {
+  function end(value) {
+    const rest = text.slice(i).trim();
+    if (rest && !rest.startsWith('#')) refuse('unexpected text after the value');
+    return value;
+  }
+
+  if (text[0] === '"' || text[0] === "'") return end(quoted());
+  i = 1;
+  const out = [];
+  for (;;) {
     ws();
-    const c = text[i];
-    if (c === '{') return map();
-    if (c === '[') return list();
-    if (c === '"' || c === "'") return quoted();
-    return scalar(plain(stops));
+    if (i >= text.length) refuse('unterminated list');
+    if (text[i] === ']') break;
+    if (text[i] === '[' || text[i] === '{') refuse('nested flow values are no longer read');
+    out.push(text[i] === '"' || text[i] === "'" ? quoted() : plain());
+    ws();
+    if (text[i] === ',') i++;
+    else if (text[i] !== ']') refuse("expected ',' or ']'");
   }
-
-  function map() {
-    const out = {};
-    i++;
-    for (;;) {
-      ws();
-      if (text[i] === '}') {
-        i++;
-        return out;
-      }
-      const key = text[i] === '"' || text[i] === "'" ? String(quoted()) : plain(':,}').trim();
-      ws();
-      if (text[i] !== ':') fail(`expected ':' after ${key}`);
-      i++;
-      out[key] = value(',}');
-      ws();
-      if (text[i] === ',') i++;
-      else if (text[i] !== '}') fail("expected ',' or '}'");
-    }
-  }
-
-  function list() {
-    const out = [];
-    i++;
-    for (;;) {
-      ws();
-      if (text[i] === ']') {
-        i++;
-        return out;
-      }
-      out.push(value(',]'));
-      ws();
-      if (text[i] === ',') i++;
-      else if (text[i] !== ']') fail("expected ',' or ']'");
-    }
-  }
-
-  const out = value('');
-  ws();
-  if (i < text.length && text[i] !== '#') fail('unexpected text');
-  return out;
+  i++;
+  return end(out);
 }
 
 function inline(text) {
   const t = text.trim();
-  if (/^[{["']/.test(t)) return parseFlow(t);
+  if (/^[{["']/.test(t)) return flow(t);
   return scalar(stripComment(t));
 }
 
-// Bracket balance of a line, ignoring quoted text and comments.
-function balance(line) {
-  let depth = 0;
-  let quote = null;
-  for (let i = 0; i < line.length; i++) {
-    const c = line[i];
-    if (quote) {
-      if (c === '\\' && quote === '"') i++;
-      else if (c === quote) quote = null;
-    } else if (c === '"' || c === "'") {
-      if (i === 0 || /[\s[{,:-]/.test(line[i - 1])) quote = c;
-    } else if (c === '#' && (i === 0 || /\s/.test(line[i - 1]))) break;
-    else if (c === '{' || c === '[') depth++;
-    else if (c === '}' || c === ']') depth--;
-  }
-  return depth;
-}
-
-// A line without its trailing comment, quotes respected.
-function uncomment(line) {
-  let quote = null;
-  for (let i = 0; i < line.length; i++) {
-    const c = line[i];
-    if (quote) {
-      if (c === '\\' && quote === '"') i++;
-      else if (c === quote) quote = null;
-    } else if (c === '"' || c === "'") {
-      if (i === 0 || /[\s[{,:-]/.test(line[i - 1])) quote = c;
-    } else if (c === '#' && (i === 0 || /\s/.test(line[i - 1]))) return line.slice(0, i).trimEnd();
-  }
-  return line;
-}
-
-// Lines of the block with indentation, multi-line flow values joined.
+// Lines of the block with their indentation, blanks and comments dropped.
 function logicalLines(yaml) {
-  const out = [];
-  const raw = yaml.split(/\r?\n/);
-  for (let n = 0; n < raw.length; n++) {
-    let line = raw[n];
-    if (!line.trim() || /^\s*#/.test(line)) continue;
-    let depth = balance(line);
-    if (depth > 0) line = uncomment(line);
-    while (depth > 0 && n + 1 < raw.length) {
-      const next = raw[++n];
-      line += ` ${uncomment(next).trim()}`;
-      depth += balance(next);
-    }
-    const indent = line.match(/^ */)[0].length;
-    out.push({ indent, text: line.trim() });
-  }
-  return out;
+  return yaml
+    .split(/\r?\n/)
+    .filter((line) => line.trim() && !/^\s*#/.test(line))
+    .map((line) => ({ indent: line.match(/^ */)[0].length, text: line.trim() }));
 }
 
 const KEY = /^([A-Za-z0-9_.-]+|"[^"]*"):(?:\s+(.*))?$/;

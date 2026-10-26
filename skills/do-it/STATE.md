@@ -129,9 +129,10 @@ from the to-do list, `tracker` when it was published or the slice has a
 `Ref`. An optional `blocked_by: [<work id>]` names other items this one must
 wait for. Raising lane S to M with `set lane m` moves the file into a
 directory; a lane is never lowered. Phase statuses are
-`ready | done | blocked`. The script also reads the older flow style
-(`audit: { verdict: null, ... }`, a scalar `todo:`), so existing plans keep
-working; its first write converts them.
+`ready | done | blocked`. The script reads block style, one-line
+scalar lists and `{}`, and a scalar `todo:`. It no longer reads the older flow
+maps (`audit: { verdict: null, ... }`) or brackets spanning lines: it stops
+with an error, and the plan is rewritten in block style by hand.
 
 ## Rules
 

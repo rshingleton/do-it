@@ -13,29 +13,6 @@ import { roadmapSlices } from '../skills/do-it/scripts/roadmap.mjs';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const WORK = path.join(ROOT, 'skills/do-it/scripts/work.mjs');
 
-// The style STATE.md and older plans use: flow maps, one spanning two lines,
-// a scalar todo, trailing comments, a title with a comma in parentheses.
-const FLOW = `id: ABC-123
-title: Rate-limit the login endpoint
-lane: m
-status: building        # draft | planned | building
-tracker: { kind: jira, ref: ABC-123, phases: { 1: ABC-124, 2: ABC-125 } }
-sources: [docs/issues/login-rate-limit.md]
-todo: T5                # promoted from the to-do list
-base_ref: 1a2b3c4
-approvals:
-  plan: 2026-10-19
-phases:
-  - { n: 1, title: Limiter module, blocked_by: [], status: done,
-      verified: "npm test, npm run lint: pass" }
-  - { n: 2, title: Wire into login (rate, lockout), blocked_by: [1], status: ready }
-assumptions:
-  - "Limit is 5 attempts per minute per IP (reversible: config)"
-audit: { verdict: null, round: 0, must: [], fingerprint: null }
-ship: { prepared: null, fingerprint: null }
-blocker: null
-`;
-
 const BLOCK = `id: ABC-123
 title: Rate-limit the login endpoint
 lane: m
@@ -72,8 +49,17 @@ test('state block: block style round-trips byte for byte', () => {
   assert.equal(writeBlock(normalize(parseBlock(once))), once);
 });
 
-test('state block: the old flow style reads the same as its block rewrite', () => {
-  assert.deepEqual(normalize(parseBlock(FLOW)), normalize(parseBlock(BLOCK)));
+test('state block: one-line scalar lists and {} read; the old flow style is refused', () => {
+  const read = (v) => parseBlock(`k: ${v}\n`).k;
+  assert.deepEqual(read('[]'), []);
+  assert.deepEqual(read('{}'), {});
+  assert.deepEqual(read('["x, y", 2]'), ['x, y', 2]);
+  assert.deepEqual(read("['it''s', a (b, c)]"), ["it's", 'a (b, c)']);
+  assert.deepEqual(read('[a, b] # c'), ['a', 'b']);
+  for (const old of ['{ a: 1 }', '[[1]]', '[{ a: 1 }]', '[a,\n  b]']) {
+    assert.throws(() => parseBlock(`k: ${old}\n`), /rewrite in block style/, old);
+  }
+  assert.throws(() => parseBlock('k:\n  - { a: 1 }\n'), /rewrite in block style/);
   const stateDoc = fs.readFileSync(path.join(ROOT, 'skills/do-it/STATE.md'), 'utf8');
   const example = stateDoc.match(/```yaml\n---\n([\s\S]*?)---\n```/)[1];
   const s = normalize(parseBlock(example));
@@ -390,9 +376,6 @@ test('audit round 1 regressions: replan, parens, empty lane M, comments, CRLF', 
   // Should 4: lane M with no phases cannot go to audit.
   const empty = walk(emptyBlock({ id: 'e', title: 'E', lane: 'm' }), [['approve'], ['start', { head: 'a' }]]);
   assert.throws(() => transition(empty, 'build-done'), /no phases/);
-
-  // Nice 8: a comment inside a multi-line flow map is dropped.
-  assert.deepEqual(parseBlock('audit: { verdict: null, # c\n  round: 0 }\n').audit, { verdict: null, round: 0 });
 
   // Nice 9: a CRLF plan stays CRLF.
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-crlf-'));
