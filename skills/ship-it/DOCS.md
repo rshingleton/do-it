@@ -33,6 +33,17 @@ existing style: what shipped, in user-facing terms.
 With no linked ADR, add the audit's non-blocking notes and the plan's key
 decisions as sub-bullets. No changelog in the repo: skip, do not create one.
 
+## Audit findings
+
+With no changelog (no resolved changelog and no `.changeset/`) to carry them,
+the audit's Should and Nice findings would be lost when the plan is deleted.
+Take them from the plan's `## Audit` section (lane M: `audit-report.md`), in
+the `Must|Should|Nice | file:line | claim` shape. For each one the user chose,
+call the Skill tool with "log-it": one to-do, `source: <work id> audit`, the
+claim and its `file:line`. None chosen, none found, or no plan audit (lane
+XS): skip. With a changelog: log none; they go into its entry as under
+"Changelog".
+
 ## Rollback note
 
 **Risk-area work** ([LANES.md](../do-it/LANES.md)): a rollback note (revert,

@@ -86,11 +86,11 @@ Exit: a ship that follows an audit with Should or Nice findings, or a slice that
 
 | Slice | Kind | Delivers | Covers | Blocked by | Verify | Risk | Status |
 |-------|------|----------|--------|------------|--------|------|--------|
-| R22 | build | ship-it's one question lists the audit's Should and Nice findings and offers to log them as to-dos (default: log), and prove-it's Route names that home; a repo with a changelog keeps today's behaviour (issue: ship-it should offer to log the audit's findings) | G7 | R14 (ship-it must be under its line budget before it grows) | A fixture audit with two Should findings and no changelog produces the offer and two `log-it` to-dos; `npm run check` reports 0 warnings | low | |
+| R22 | build | ship-it's one question lists the audit's Should and Nice findings and offers to log them as to-dos (default: log), and prove-it's Route names that home; a repo with a changelog keeps today's behaviour (issue: ship-it should offer to log the audit's findings) | G7 | R14 (ship-it must be under its line budget before it grows) | A fixture audit with two Should findings and no changelog produces the offer and two `log-it` to-dos; `npm run check` reports 0 warnings | low | shipped 2026-10-26 audit-leftovers-at-ship |
 | R23 | build | A work item records surfaced defects (`work.mjs` state field), scope-it adds a file-defects step for a slice whose verify compares or measures, build-it records them as they appear, and ship-it lists them in the same question and states an unmet roadmap verify clause (issue: surfaced product defects) | G7 | R22 (same ship-it question) | A fixture slice with two surfaced defects: the ship question lists both, `log-it` files them with `source: <work id>`, and the roadmap row is not marked shipped without the unmet-verify note | med | |
 
 ## Open decisions
-- D1: Does the usage ledger record cost, or stay tokens only (prices change)? Answer by: grill with the user when R21 is next. Blocks R21.
+None.
 
 ## Fog
 - Scoping each work item's fingerprint and audit diff to its own paths (T49): may become a slice once concurrent items are routine.
@@ -111,6 +111,7 @@ Exit: a ship that follows an audit with Should or Nice findings, or a slice that
 - 2026-10-25 Decision: narrow T2 to `/setup-it` on another repo.
 - 2026-10-25 Decision: park T13 to T32 until evidence.
 - 2026-10-25 Decision: findings that reach ship (audit leftovers, defects a verify slice surfaces) get their own milestone M7 after M4, since both edit ship-it's question and ship-it must first fit its line budget (R14).
+- 2026-10-26 Decision: D1 settled: the usage ledger records tokens only, never cost (prices change; usage-it can apply a price table when reporting). R21 is unblocked.
 
 ## Changes
 - 2026-10-25: charted from the open issues, the backlog and the 2026-10-19 audit.
@@ -128,3 +129,4 @@ Exit: a ship that follows an audit with Should or Nice findings, or a slice that
 - 2026-10-25: R8 shipped as retro-offer-at-ship (the `/retro-it <id>` offer moved from the closing message to the ship question, before `work.mjs close` deletes the candidates; a test pins the order).
 - 2026-10-26: R9 shipped as closing-line-slash-command (it-core says a typed skill is named by its slash command, not "do it"; `npm run check` fails a `Next:` line that offers "do it" beside a user-invoked skill; the existing closing lines already used the slash form).
 - 2026-10-26: R14 shipped as skills-line-budget (ship-it 114 to 97 lines: lane XS and resumed-after-review moved to RESUME.md, rollback note to DOCS.md; it-core 103 to 97; log-it, look-it-up, track-it and map-it descriptions reworded so the routing eval is 100% and the file-an-issue prompt ranks log-it first; T79, T80 closed; audit Nice leftovers: none filed).
+- 2026-10-26: R22 shipped as audit-leftovers-at-ship (with no changelog, ship-it's question lists the audit's Should and Nice findings and question 2 offers to log them as to-dos, default log, via DOCS.md "Audit findings" and `log-it` with `source: <work id> audit`; prove-it's Route names the same home; a pin test; the source issue closed; audit leftovers filed as T96, T97). D1 settled earlier the same day: tokens only.

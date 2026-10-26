@@ -34,6 +34,7 @@ One turn; write nothing yet. **Show** (information, no answer needed):
 - Tracker, to-do and roadmap updates: one `close` per ref (state block refs,
   the slice's `Ref` cell, or `--ref`) with a comment drawn from the
   changelog. Risk-area work also gets a rollback note, per [DOCS.md](DOCS.md).
+- No changelog: the audit's Should and Nice findings, numbered ([DOCS.md](DOCS.md)).
 - Guardrail candidates or a failed round in the audit: one line offering
   `/retro-it <id>`. `work.mjs close` deletes the candidates, so retro-it
   runs before the user answers "commit now".
@@ -46,7 +47,8 @@ to the last alone keeps the defaults:
 
 1. `assumptions:`, numbered: reject any? (default: keep all). Lane XS, no id:
    always asked, no default: the ref to use, or "file one" with `log-it`?
-2. New `shortcut:` markers with no upgrade trigger: file any? (default: none)
+2. To log: new `shortcut:` markers with no upgrade trigger, and the audit
+   findings above (default: the findings, no markers)
 3. **Commit now** (say "do it") or **leave it for review**? Recommend leave it
    unless the user asked to commit; `DO_IT_COMMIT=never` makes it the only option.
 
@@ -56,7 +58,8 @@ to the last alone keeps the defaults:
    reject-assumption <n> "<instead>"`; stop. **Next:** `/do-it <id>`. One
    that changes nothing: `work.mjs set` the assumptions.
 2. **Docs and closes, before any commit:** write what §2 showed per
-   [DOCS.md](DOCS.md), updating an earlier run's; park or file the markers.
+   [DOCS.md](DOCS.md), updating an earlier run's; park or file the markers; log
+   the chosen findings (no changelog).
    Then close everything that lives in the repo, so one commit holds it all
    (the user's own commit after a review included):
    - the refs to close: `todo`, `roadmap` and `tracker` from

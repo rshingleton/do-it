@@ -3,7 +3,7 @@
 Nice-to-haves and things to circle back to. Managed by log-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T96
+Next id: T98
 
 ## Open
 
@@ -59,3 +59,5 @@ Next id: T96
 - [ ] T93 check.mjs spawn-cap loop re-tests `owner` per pass and the `briefed` ternary restates the old `next.startsWith('>')` test; compute once `nice-to-have` (spawn-caps-carries-voice audit, scripts/check.mjs)
 - [ ] T94 No test runs `scripts/eval-routing.mjs` to show a model-invoked skill with no routing entry exits 1; only `evaluate()` is covered `debt` (check-skill-rules audit, tests/scripts-regressions.test.mjs)
 - [ ] T95 Routing eval has no dedicated unit case for the missing-entry failure; the flipped assertion at tests/codemap-routing.test.mjs:220 covers it `nice-to-have` (check-skill-rules audit)
+- [ ] T96 The R22 pin test pins phrasing by regex (`audit\s+findings above ...`), so a rewrap of ship-it §2 or prove-it §5 breaks it; check positions and counts like the retro-it pin `debt` (audit-leftovers-at-ship audit, tests/work.test.mjs)
+- [ ] T97 `skills/ship-it/SKILL.md` is at exactly 100 lines; R23 adds to the same question, so move detail to DOCS.md or RESUME.md first `debt` (audit-leftovers-at-ship audit, skills/ship-it/SKILL.md)

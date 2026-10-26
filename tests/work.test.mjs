@@ -533,3 +533,16 @@ test('ship-it: the retro-it offer sits at the question, before close deletes the
   assert.ok(offer < ship.indexOf('`work.mjs close <id>`'), 'the offer precedes the close step');
   assert.equal(ship.split('/retro-it <id>').length, 2, 'offered once, not again after close');
 });
+
+test('ship-it: the question offers the audit leftovers, DOCS.md and prove-it name where they go', () => {
+  const ship = fs.readFileSync(path.join(ROOT, 'skills/ship-it/SKILL.md'), 'utf8');
+  const docs = fs.readFileSync(path.join(ROOT, 'skills/ship-it/DOCS.md'), 'utf8');
+  const prove = fs.readFileSync(path.join(ROOT, 'skills/prove-it/SKILL.md'), 'utf8');
+  const question = ship.slice(ship.indexOf('## 2. The one question'), ship.indexOf('## 3. After the answer'));
+  assert.match(question, /No changelog: the audit's Should and Nice findings/, 'the question shows the findings');
+  assert.match(question, /audit\s+findings above \(default: the findings/, 'question 2 offers them, default log');
+  assert.ok(docs.includes('## Audit findings'), 'DOCS.md has the section');
+  const section = docs.slice(docs.indexOf('## Audit findings'));
+  assert.match(section, /"log-it"[\s\S]*`source: <work id> audit`/, 'it logs through log-it with the audit source');
+  assert.match(prove, /with no changelog offers to log them as\s+to-dos/, 'prove-it names the home');
+});
