@@ -17,5 +17,5 @@ broken. A documented repo rule that allows the pattern switches the smell off.
 | Mixed reasons | One file edited for several unrelated reasons | Split it along those reasons |
 | Just-in-case | Parameters, hooks or layers the spec never asked for | Delete; add back when a real need shows up |
 | Long chains | `a.b().c().d()` walks the caller should not know about | One method on the first object hides the walk |
-| Pass-through | A class or function that only hands calls onward | Remove it and call the real target |
+| Pass-through | A class or function that only hands calls onward | Remove it and call the real target (the deletion test in [design-it](../design-it/SKILL.md) confirms it) |
 | Ignored inheritance | A subclass that overrides or ignores most of its parent | Composition instead of inheritance |

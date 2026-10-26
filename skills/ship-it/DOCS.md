@@ -21,9 +21,9 @@ The area is the one the plan worked in (it-core). In its `CONTEXT.md`:
   deleted. Leave the other sections to `map-it`.
 
 In `CONTEXT-MAP.md`, update the area's row when its Location or Scope moved.
-No context file for the area and the plan introduced domain terms: create it,
-and its map row, as name-it's
-[CONTEXT-FORMAT.md](../name-it/CONTEXT-FORMAT.md) says.
+No context file for the area and the plan introduced domain terms: create
+nothing here; offer "create `<area>/CONTEXT.md` with `/map-it <area>`" in the
+ship question. A plan step the user approved to create it is built as planned.
 
 ## Changelog
 

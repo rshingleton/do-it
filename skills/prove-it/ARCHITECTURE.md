@@ -6,9 +6,8 @@ Brief for a fresh-context `it-reviewer` agent (mid-tier model). Use the
 
 Scope: every module the change adds or touches.
 
-1. **Deletion test.** For each new or changed module: what behaviour vanishes
-   if it is deleted, and where would it reappear? "Nowhere new" means a
-   pass-through.
+1. **Deletion test**, as defined in [design-it](../design-it/SKILL.md), for
+   each new or changed module.
 2. **Classify** anything flagged:
 
    | Signal | Means |

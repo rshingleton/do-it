@@ -71,32 +71,17 @@ payments, data migrations, CI or secrets is at least S regardless of size.
 
 ## 4. Work-item state
 
-One frontmatter block, in `docs/planning/<id>.md` (S) or
-`docs/planning/<id>/README.md` (M), owned by whichever step is running:
+One frontmatter block per work item, in `docs/planning/<id>.md` (S) or
+`docs/planning/<id>/README.md` (M), owned by whichever step is running. The
+fields, events and rules are in [STATE.md](../skills/do-it/STATE.md) and the
+plan layout in [PLAN-FORMAT.md](../skills/scope-it/PLAN-FORMAT.md); nothing
+is committed per phase (ADR [0002](adr/0002-no-commits-until-ship.md)).
 
-```yaml
-id: ABC-123            # Jira key, or a slug
-lane: m
-status: building       # planned | building | auditing | shipping | done
-base_ref: 1a2b3c4
-phases:
-  - { n: 1, status: done, commit: 9f8e7d6, verified: "npm test @ 9f8e7d6" }
-  - { n: 2, status: ready, blocked_by: [] }
-assumptions:
-  - "Retry cap of 3 is acceptable (reversible: config)"
-approvals:
-  plan: 2026-10-19
-audit: { verdict: null, at: null, round: 0 }
-jira: { epic: ABC-123, phases: { 1: ABC-124, 2: ABC-125 } }
-```
+Principles behind it:
 
-Rules:
-
-- A recorded verification is a claim about a specific commit; re-run it only if
-  the code moved (addyosmani).
-- Approvals count only when recorded here, never inferred from a past chat.
-- Phase files (`phase-N.md`) exist only in lane M. Sections: Goal, Scope,
-  Seams, Steps (`step -> verify: check`, karpathy), Done when.
+- A recorded verification is a claim about the code at that moment; re-run it
+  only if the code moved (addyosmani).
+- Approvals count only when recorded in the block, never inferred from a past chat.
 - No `jira.md` stub, no `sources/` move, no separate `execution-notes.md`. Jira
   keys and intake links live in the state block.
 
@@ -236,14 +221,14 @@ its savings claims (mostly unproven, research section 7). Effect measured in
 - Stop conditions: ambiguity that fails assume-or-ask, a failure after
   diagnosis, a merge break on the integration branch (revert the phase merge,
   mark `blocked`), anything `git revert` cannot undo.
-- Output: per-phase report in the state block (`done|blocked|failed`,
-  verification command and commit).
+- Output: per-phase report in the state block (`done|blocked|failed`, and
+  the verification command that passed).
 
 ### prove-it
 
 - Fresh-context subagents in parallel, merged in the main context: Spec and
   Standards (`review-it`), Compliance (`.compliance-rules/`, secrets),
-  Architecture (deletion test, seams). Lane S runs Spec+Standards only.
+  Architecture (deletion test, seams). Lane S skips Architecture only.
 - Finding contract (fork + ponytail): concrete case or no finding; recorded
   decisions and `shortcut:` markers are not findings; numbered Must / Should /
   Nice, one line each (`Must|Should|Nice | file:line | claim | case`, with a
