@@ -98,4 +98,6 @@ Skipped: <...or none>. Not checked: <...or none>. Risk: <...or none>.
 ```
 
 Last line: the next step. A stop that waits on the user asks them to say "do
-it" to go ahead; "do it" counts as yes.
+it" to go ahead; "do it" counts as yes. When the next step is a typed skill
+(`do-it`, `ship-it` and the other user-invoked ones), the model cannot start
+it: give the exact slash command to type and do not ask for "do it".

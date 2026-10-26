@@ -50,7 +50,7 @@ Exit: a fix round cannot reach audit unverified, and `/retro-it` can read a fini
 |-------|------|----------|--------|------------|--------|------|--------|
 | R7 | build | `build-done` in fix mode requires a passing verify-phase recorded since the fix began (issue: build-done fix mode) | G3 | none | Tests for fix mode with no verify and with a failing verify | med | shipped 2026-10-25 build-done-fix-verify |
 | R8 | build | The retro-it offer comes at the ship question, before `work.mjs close` deletes the candidates (issue: guardrail candidates) | G3 | none | A check or test shows the offer precedes close | low | shipped 2026-10-25 retro-offer-at-ship |
-| R9 | build | When the next step is a typed skill, the closing line names the slash command and does not offer "do it"; `npm run check` fails the old form (issue: closing line) | G3 | R12 (both edit scripts/check.mjs) | `npm run check` fails a fixture closing line that offers "do it" for a typed skill | low | |
+| R9 | build | When the next step is a typed skill, the closing line names the slash command and does not offer "do it"; `npm run check` fails the old form (issue: closing line) | G3 | R12 (both edit scripts/check.mjs) | `npm run check` fails a fixture closing line that offers "do it" for a typed skill | low | shipped 2026-10-26 closing-line-slash-command |
 
 ### M4: Checks and tests say what they enforce
 Exit: `npm run check` rejects every rule the docs claim it enforces, and `npm test` is green under a hostile `HOME` and git config.
@@ -126,3 +126,4 @@ Exit: a ship that follows an audit with Should or Nice findings, or a slice that
 - 2026-10-25: status sync after R13: T86 removed from the to-do list (R4 and R5 closed it); README and DESIGN `check.mjs` lines list the new rules; three uncovered issues added to Fog. The roadmap has no R10 and git history never held one; the id gap is left as is.
 - 2026-10-25: replan: added G7 and M7 with R22 (audit leftovers offered at ship) and R23 (surfaced defects recorded and offered at ship); the two ship-it issues leave Fog; shipped slices untouched.
 - 2026-10-25: R8 shipped as retro-offer-at-ship (the `/retro-it <id>` offer moved from the closing message to the ship question, before `work.mjs close` deletes the candidates; a test pins the order).
+- 2026-10-26: R9 shipped as closing-line-slash-command (it-core says a typed skill is named by its slash command, not "do it"; `npm run check` fails a `Next:` line that offers "do it" beside a user-invoked skill; the existing closing lines already used the slash form).

@@ -98,6 +98,15 @@ for (const file of docs) {
     }
   }
 
+  // A Next line that points at a typed skill gives the slash command to type;
+  // the model cannot start the skill when the user answers "do it".
+  for (const line of text.split('\n')) {
+    if (!/\bNext:/.test(line) || !/\bdo it\b/i.test(line)) continue;
+    for (const m of line.matchAll(/`\/([a-z]+-it)\b/g)) {
+      if (userOnly.has(m[1])) errors.push(`${where}: closing line offers "do it" for user-invoked skill "${m[1]}"; give the slash command alone`);
+    }
+  }
+
   // A paragraph that starts a subagent names its model tier, or the subagent
   // runs on whatever the session uses (SKILL-MECHANICS.md, Subagents), and a
   // word cap on its report.

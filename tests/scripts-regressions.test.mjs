@@ -388,3 +388,11 @@ test('check.mjs: a skill name needs an it segment (it-core and look-it-up pass)'
   assert.match(bad.stdout, /skills\/zz-tool\/SKILL\.md: name "zz-tool" is not an -it name/);
   for (const n of ['zz-it', 'it-zz', 'look-zz-it-up']) assert.equal(checkWith(named(n)).status, 0, n);
 });
+
+test('check.mjs: a closing line that offers "do it" for a typed skill fails; the slash command alone passes', () => {
+  const bad = checkWith({ 'skills/zz-it/SKILL.md': SKILL('> Done. **Next:** say "do it" to run `/ship-it <id>`.') });
+  assert.equal(bad.status, 1, bad.stdout);
+  assert.match(bad.stdout, /offers "do it" for user-invoked skill "ship-it"/);
+  const ok = checkWith({ 'skills/zz-it/SKILL.md': SKILL('> Done. **Next:** `/ship-it <id>`.\n\nCommit now (say "do it") or leave it.') });
+  assert.equal(ok.status, 0, ok.stdout);
+});
