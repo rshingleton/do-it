@@ -241,7 +241,7 @@ OpenCode notes for repos that use do-it:
 - OpenCode 2 has no todo tool or LSP by default and allows
   `external_directory` by default; set it to `ask` or `deny` in
   `opencode.json` if the guards should not be sidestepped by paths outside the
-  repo.
+  repo. `/setup-it` checks this and offers the fix.
 - Session usage (tokens, cost) is available to an OpenCode plugin (the `event`
   hook on 1.x, `ctx.event.subscribe` on 2.x), but do-it records none yet; see
   `docs/issues/per-step-usage-record-on-do-it-work-items.md`.
