@@ -2,6 +2,7 @@
 //
 // - Every turn: the core posture and this repo's standards pointers are added
 //   to the system prompt (OpenCode has no subagent hook; subagents share it).
+//   The text is built once and rebuilt when HEAD or the index moves.
 //   The internal-voice rules (skills/it-core/VOICE.md) are not injected here:
 //   they would reach the main session too.
 // - Before write/edit/patch: HIGH compliance hits throw, which blocks the tool.
@@ -24,6 +25,8 @@
 // OpenCode 2 loads a plugin directory only through its index.js (which
 // re-exports this file) and skips a plugin file given by path.
 
+import fs from 'node:fs';
+import path from 'node:path';
 import { decide as realDecide } from '../../hooks/lib/decide.mjs';
 
 // OpenCode's tool names, as the kinds decide() checks. OpenCode 1.x
@@ -61,6 +64,36 @@ function appendContent(result, note) {
   else if (result.content === undefined) result.content = note;
 }
 
+// The session context (posture, project docs, code map) is built once and
+// reused until HEAD or the index moves, so a model request does not pay a
+// `git ls-files` walk. A result with a notice is rebuilt, so a fixed config
+// problem clears.
+// shortcut: the key is stats of `<cwd>/.git` (HEAD, its reflog, the index), so
+// a new untracked file, or an edit to AGENTS.md or the config, shows only after
+// the next git add or commit; outside a repo root (a subdirectory, a
+// worktree) it is built once per plugin instance. Upgrade to `git rev-parse`
+// and a stat of the standards files if either matters.
+function sessionMemo(decide, cwd) {
+  const stamp = (f) => {
+    try {
+      return fs.statSync(path.join(cwd, '.git', f)).mtimeMs;
+    } catch {
+      return 0;
+    }
+  };
+  let key = null;
+  let result = null;
+  return () => {
+    // logs/HEAD moves with every commit, checkout and reset; HEAD itself only on a branch switch.
+    const now = `${stamp('HEAD')}:${stamp('logs/HEAD')}:${stamp('index')}`;
+    if (result && key === now) return result;
+    const r = decide('session', { cwd });
+    result = r.notice ? null : r;
+    key = now;
+    return r;
+  };
+}
+
 // `createPlugin({decide})` and the server's second argument replace the decision module in tests.
 export function createPlugin({ decide: baseDecide = realDecide } = {}) {
   let v1Live = false;
@@ -71,9 +104,10 @@ export function createPlugin({ decide: baseDecide = realDecide } = {}) {
     const decide = override || baseDecide;
     v1Live = true;
     const cwd = directory || process.cwd();
+    const session = sessionMemo(decide, cwd);
     return {
       'experimental.chat.system.transform': failOpen('context', async (_input, output) => {
-        const r = report(decide('session', { cwd }));
+        const r = report(session());
         if (r.context) output.system.push(r.context);
       }),
 
@@ -99,8 +133,9 @@ export function createPlugin({ decide: baseDecide = realDecide } = {}) {
     if (v1Live || !ctx?.session?.hook || !ctx?.tool?.hook) return;
     v2Live = true;
     const cwd = ctx.location?.directory || process.cwd();
+    const session = sessionMemo(decide, cwd);
     ctx.session.hook('context', failOpen('context', async (event) => {
-      const r = report(decide('session', { cwd }));
+      const r = report(session());
       if (r.context && Array.isArray(event.system)) event.system.push({ type: 'text', text: r.context });
     }));
     ctx.tool.hook('execute.before', failOpen('before', async (event) => {

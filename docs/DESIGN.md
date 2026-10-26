@@ -291,6 +291,16 @@ do-it/
   (frontmatter included), `commands/` and `command/` are all read. No `skills`
   or `instructions` entry is installed: the symlinks already work, and the
   plugin injects the posture each turn.
+- OpenCode context: both hosts ask for the system context on every model
+  request, so the plugin builds it once and reuses it until `.git/HEAD`, its
+  reflog or `.git/index` change (stats, no spawn). A 10-turn scripted drive of
+  the hook in this repo: 5,022 bytes a turn either way; a rebuild each turn
+  cost 153 ms in all (13 ms a turn, a first turn of 34 ms), the cached plugin
+  13 ms in all (the first turn only). The full text stays on every turn rather
+  than a short reminder after turn 1: the repeated prefix is byte-identical so
+  providers cache it, and a changed prefix would bust that cache for a saving
+  of about 1,250 tokens. Not measured: provider cache hits in a live session
+  (no model calls were made).
 - OpenCode usage: on 1.x a plugin's `event` hook sees `cost` and `tokens`
   (input, output, reasoning, cache read/write) with `agent`, `modelID` and
   `providerID` on each `message.updated` assistant message; on 2.x

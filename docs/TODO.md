@@ -3,7 +3,7 @@
 Nice-to-haves and things to circle back to. Managed by log-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T111
+Next id: T113
 
 ## Open
 
@@ -66,3 +66,5 @@ Next id: T111
 - [ ] T108 ship-it DOCS.md carries a sentence about an approved plan step that the context rule did not ask for; keep or drop `nice-to-have` (docs-one-copy audit, skills/ship-it/DOCS.md:26)
 - [ ] T109 DESIGN.md section 4 lost the phase-file section list and its karpathy credit; confirm PLAN-FORMAT.md carries the list and the README credits the idea `debt` (docs-one-copy audit, docs/DESIGN.md:72)
 - [ ] T110 The usage-ledger rows behind `docs/research/terse-voice-ledger.md` live in `~/.claude` and roll off after 30 days, so its table cannot be recomputed later; snapshot the `it-*` rows if the verdict is cited again `debt` (terse-voice-ab-harness audit, docs/research/terse-voice-ledger.md)
+- [ ] T111 The new tests in `tests/opencode-context.test.mjs` leave `mkdtempSync` dirs in tmp, as `tests/decide.test.mjs` and others do; one cleanup helper in `tests/env.mjs` would cover them `nice-to-have` (opencode-context-cache audit, tests/opencode-context.test.mjs:15)
+- [ ] T112 DESIGN.md section 8 says the full text saves about 1,250 tokens if replaced by a reminder; that is bytes divided by 4, not a measured token count `nice-to-have` (opencode-context-cache audit, docs/DESIGN.md:294)
