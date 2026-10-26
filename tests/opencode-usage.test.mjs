@@ -68,7 +68,28 @@ test('v2 step events take agent and model from the context hook', () => {
   usage.event({ type: 'session.step.ended', sessionID: 's2', tokens: {} }); // no message id
   usage.event({ type: 'session.usage.updated', sessionID: 's2', tokens: tokens(99, 99) }); // session totals are not a step
   const r = rowsOf(dir).s2;
-  assert.deepEqual([r.kind, r.agent, r.model, r.turns, r.in, r.out, r.cr, r.cc], ['session', 'main', 'm2', 2, 6, 8, 40, 2]);
+  assert.deepEqual([r.kind, r.agent, r.model, r.turns, r.in, r.out, r.cr, r.cc], ['session', 'build', 'm2', 2, 6, 8, 40, 2]);
+});
+
+test('prune runs once per day change, not once per step', () => {
+  const calls = [];
+  let now = Date.parse('2026-10-26T10:00:00Z');
+  const usage = createOpenCodeUsage({ dir: tmp(), cwd: '/x/proj', prune: (...a) => calls.push(a), now: () => new Date(now) });
+  usage.context({ sessionID: 's3', agent: 'build', model: 'm3' });
+  const step = (i) => usage.event({ type: 'session.step.ended', sessionID: 's3', assistantMessageID: `m${i}`, tokens: { input: 1, output: 1, cache: { read: 0, write: 0 } } });
+  for (let i = 0; i < 200; i++) step(i);
+  assert.equal(calls.length, 1);
+  now += 24 * 3600 * 1000;
+  step(200);
+  step(201);
+  assert.equal(calls.length, 2);
+});
+
+test('a prune that throws still leaves the row recorded', () => {
+  const dir = tmp();
+  const usage = createOpenCodeUsage({ dir, prune: () => { throw new Error('boom'); } });
+  assert.doesNotThrow(() => usage.event({ type: 'session.step.ended', sessionID: 's4', assistantMessageID: 'x', tokens: { input: 1, output: 1 } }));
+  assert.equal(readAll(dir).length, 1);
 });
 
 test('malformed payloads record nothing and never throw', () => {

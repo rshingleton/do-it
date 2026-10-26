@@ -17,12 +17,14 @@ const num = (v) => (Number.isFinite(v) && v > 0 ? v : 0);
 const iso = (ms) => new Date(Number.isFinite(ms) ? ms : Date.now()).toISOString();
 const modelName = (m) => (typeof m === 'string' ? m : (m?.modelID ?? m?.id ?? null));
 
-export function createOpenCodeUsage({ dir = usageDir(), cwd = process.cwd() } = {}) {
+// `prune` and `now` are test seams.
+export function createOpenCodeUsage({ dir = usageDir(), cwd = process.cwd(), prune: pruneFn = prune, now = () => new Date() } = {}) {
   const project = path.basename(cwd);
-  const runs = new Map(); // session id -> { parent, agent, model, messages, first, last }
+  const runs = new Map(); // session id -> { parent, agent, hooked, model, messages, first, last }
+  let prunedDay = null;
 
   const run = (id) => {
-    if (!runs.has(id)) runs.set(id, { parent: null, agent: null, model: null, messages: new Map(), first: null, last: null });
+    if (!runs.has(id)) runs.set(id, { parent: null, agent: null, hooked: false, model: null, messages: new Map(), first: null, last: null });
     return runs.get(id);
   };
 
@@ -49,7 +51,7 @@ export function createOpenCodeUsage({ dir = usageDir(), cwd = process.cwd() } = 
     record(dir, {
       id,
       kind: subagent ? 'subagent' : 'session',
-      agent: subagent ? (r.agent ?? 'unknown') : 'main',
+      agent: subagent ? (r.agent ?? 'unknown') : r.hooked ? (r.agent ?? 'main') : 'main',
       model: r.model,
       session: id,
       project,
@@ -64,7 +66,11 @@ export function createOpenCodeUsage({ dir = usageDir(), cwd = process.cwd() } = 
       ctx0,
       peak,
     });
-    prune(dir, keepDays(), new Date(), rollupKeepDays());
+    const today = now().toISOString().slice(0, 10);
+    if (today !== prunedDay) {
+      prunedDay = today;
+      pruneFn(dir, keepDays(), now(), rollupKeepDays());
+    }
   }
 
   // One completed assistant message (or step) with its tokens; the same id again replaces it.
@@ -108,6 +114,7 @@ export function createOpenCodeUsage({ dir = usageDir(), cwd = process.cwd() } = 
       try {
         if (!event?.sessionID) return;
         const r = run(event.sessionID);
+        r.hooked = true;
         r.agent = event.agent ?? r.agent;
         r.model = modelName(event.model) ?? r.model;
       } catch {}

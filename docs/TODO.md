@@ -3,7 +3,7 @@
 Nice-to-haves and things to circle back to. Managed by log-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T113
+Next id: T131
 
 ## Open
 
@@ -67,8 +67,6 @@ Next id: T113
 - [ ] T110 The usage-ledger rows behind `docs/research/terse-voice-ledger.md` live in `~/.claude` and roll off after 30 days, so its table cannot be recomputed later; snapshot the `it-*` rows if the verdict is cited again `debt` (terse-voice-ab-harness audit, docs/research/terse-voice-ledger.md)
 - [ ] T111 The new tests in `tests/opencode-context.test.mjs` leave `mkdtempSync` dirs in tmp, as `tests/decide.test.mjs` and others do; one cleanup helper in `tests/env.mjs` would cover them `nice-to-have` (opencode-context-cache audit, tests/opencode-context.test.mjs:15)
 - [ ] T112 DESIGN.md section 8 says the full text saves about 1,250 tokens if replaced by a reminder; that is bytes divided by 4, not a measured token count `nice-to-have` (opencode-context-cache audit, docs/DESIGN.md:294)
-- [ ] T113 OpenCode v2 runs record agent `main`; the plan assumed the context-hook agent name, so `usage-it --by agent` cannot tell v2 agents apart; use `r.agent ?? 'main'` or amend DESIGN `debt` (opencode-usage-ledger audit, skills/usage-it/scripts/opencode.mjs:51)
-- [ ] T114 `opencode.mjs` runs `prune` after every step event (a directory scan and rollup read per message); prune once per day change or on a counter `debt` (opencode-usage-ledger audit, skills/usage-it/scripts/opencode.mjs:67)
 - [ ] T115 A v2 `session.step.ended` without `assistantMessageID` is dropped, so a live field-name difference gives zero rows; confirm the shape on a live OpenCode 2 `debt` (opencode-usage-ledger audit, skills/usage-it/scripts/opencode.mjs:99)
 - [ ] T116 `opencode.mjs` reads `ev.data` as an event shape no spec line names; drop it or cite the source `nice-to-have` (opencode-usage-ledger audit, skills/usage-it/scripts/opencode.mjs:117)
 - [ ] T117 The v2 `ctx.event.subscribe` loop gets a signal that is never aborted, so it cannot stop when the plugin is disposed `nice-to-have` (opencode-usage-ledger audit, .opencode/plugins/do-it.mjs:149)
@@ -81,3 +79,7 @@ Next id: T113
 - [ ] T124 `also` and `embeddedDelete` are set and reset together at four sites in `unifiedFiles`; one state object would remove the pairing `nice-to-have` (unified-in-hunk-dev-null audit, hooks/lib/checks.mjs:274)
 - [ ] T125 `named` in `unifiedFiles` is a path, `false` or `/dev/null` read three ways; compute `oldPath` once beside it `nice-to-have` (unified-in-hunk-dev-null audit, hooks/lib/checks.mjs:268)
 - [ ] T126 An in-hunk dev-null pair's own `+++ /dev/null` line is not scanned under the old path, as in `applyPatchFiles`; the effect is negligible `nice-to-have` (unified-in-hunk-dev-null audit, hooks/lib/checks.mjs:271)
+- [ ] T127 `report.mjs` counts a row as the user's own session only when `agent === 'main'` (lines 139, 207, 208, 220, 221), so an OpenCode 2 session recorded under its hook agent (`build`) counts as a delegated run; test the row's kind instead `debt` (opencode-usage-agent-prune audit, skills/usage-it/scripts/report.mjs:221)
+- [ ] T128 `hooked` in `opencode.mjs` says how the agent was set, not what it means; rename it for "a context hook agent was seen" `nice-to-have` (opencode-usage-agent-prune audit, skills/usage-it/scripts/opencode.mjs:54)
+- [ ] T129 `prunedDay` is set before `pruneFn` runs, so a throwing prune is not retried until the next UTC day `nice-to-have` (opencode-usage-agent-prune audit, skills/usage-it/scripts/opencode.mjs:69)
+- [ ] T130 The `prune` and `now` test seams sit in the public `createOpenCodeUsage` signature; judgement only `nice-to-have` (opencode-usage-agent-prune audit, skills/usage-it/scripts/opencode.mjs:20)
