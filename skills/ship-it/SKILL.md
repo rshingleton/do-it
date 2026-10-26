@@ -29,15 +29,15 @@ One turn; write nothing yet. **Show** (information, no answer needed):
 
 - `git status --short`: everything that will be in the change.
 - The docs this will write, per [DOCS.md](DOCS.md): ADRs to accept, the
-  area's `CONTEXT.md` and map row, the changelog entry (lane XS: changelog only, and only
-  when the repo keeps one).
+  area's `CONTEXT.md` and map row, the changelog entry (lane XS: changelog
+  only, when the repo keeps one).
 - Tracker, to-do and roadmap updates: one `close` per ref (state block refs,
   the slice's `Ref` cell, or `--ref`) with a comment drawn from the
   changelog. Risk-area work also gets a rollback note, per [DOCS.md](DOCS.md).
-- No changelog: the audit's Should and Nice findings, numbered ([DOCS.md](DOCS.md)).
-- Guardrail candidates or a failed round in the audit: one line offering
-  `/retro-it <id>`. `work.mjs close` deletes the candidates, so retro-it
-  runs before the user answers "commit now".
+- Numbered: the audit's Should and Nice findings (no changelog), surfaced `defects:`,
+  and a roadmap Verify clause they leave unmet ([DOCS.md](DOCS.md)).
+- Guardrail candidates or a failed audit round: one line offering `/retro-it <id>`.
+  `work.mjs close` deletes the candidates, so it runs before "commit now".
 - The commit message: `<id>: <summary>` (the commit id, it-core Git), a
   blank line, one bullet per phase or step; on a protected branch (`main`,
   `master`, `DO_IT_PROTECTED_BRANCHES`), the feature branch to create first.
@@ -47,8 +47,8 @@ to the last alone keeps the defaults:
 
 1. `assumptions:`, numbered: reject any? (default: keep all). Lane XS, no id:
    always asked, no default: the ref to use, or "file one" with `log-it`?
-2. To log: new `shortcut:` markers with no upgrade trigger, and the audit
-   findings above (default: the findings, no markers)
+2. To log: new `shortcut:` markers with no upgrade trigger, the audit findings and
+   surfaced defects above (default: findings and defects, no markers)
 3. **Commit now** (say "do it") or **leave it for review**? Recommend leave it
    unless the user asked to commit; `DO_IT_COMMIT=never` makes it the only option.
 
@@ -64,8 +64,8 @@ to the last alone keeps the defaults:
    (the user's own commit after a review included):
    - the refs to close: `todo`, `roadmap` and `tracker` from
      `work.mjs show <id>`; lane XS: `--todo` and `--ref`;
-   - each roadmap slice: Status `shipped <date> <work id>` and a dated line in
-     its Changes; each to-do id: call the Skill tool with "log-it" to mark
+   - each roadmap slice: Status `shipped <date> <work id>` (unmet Verify: DOCS.md) and a
+     dated line in its Changes; each to-do id: call the Skill tool with "log-it" to mark
      it done with the work id (lane XS: the commit);
    - a local-tracker ref: `tracker.mjs close <ref>`, which deletes the issue
      file; a ref whose file is already gone was closed by an earlier run;

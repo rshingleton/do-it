@@ -14,7 +14,7 @@ import path from 'node:path';
 import { allowedEvents, emptyBlock, normalize, transition } from './state.mjs';
 import { readItem, writeItem } from './block.mjs';
 
-const SETTABLE = ['title', 'lane', 'tracker', 'sources', 'roadmap', 'todo', 'blocked_by', 'phases', 'assumptions'];
+const SETTABLE = ['title', 'lane', 'tracker', 'sources', 'roadmap', 'todo', 'blocked_by', 'phases', 'assumptions', 'defects'];
 const LANE_RANK = { s: 1, m: 2 };
 
 // Lane S is one file; lane M is a directory, phases beside the README.

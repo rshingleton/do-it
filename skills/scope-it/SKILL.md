@@ -52,14 +52,14 @@ the input carried one. Write the body per [PLAN-FORMAT.md](PLAN-FORMAT.md):
 - Lane M: below the block in `docs/planning/<id>/README.md`, plus one
   `phase-N.md` per phase.
 
-Every step or phase states how it is verified (`step → verify: check`).
-Lane S in a risk area, or when asked for a top-tier plan: [PLANNER.md](PLANNER.md).
+Every step or phase states how it is verified (`step → verify: check`). A slice that
+compares or measures adds a last step ([PLAN-FORMAT.md](PLAN-FORMAT.md)). Risk-area lane S, or a top-tier plan: [PLANNER.md](PLANNER.md).
 
 Then run the two passes in [CHECKS.md](CHECKS.md) before showing anything:
 an analyze pass (coverage both ways, verify checks, names, blocks, rules)
 and a builder check (a fresh `it-reviewer` agent reads only the plan and
-returns the questions a builder would ask). Fix the plan from both; questions only the
-user can answer join the approval turn.
+returns the questions a builder would ask). Fix the plan from both; questions
+only the user can answer join the approval turn.
 
 ## 4. ADR only when warranted
 

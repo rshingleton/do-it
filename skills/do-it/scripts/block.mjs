@@ -323,7 +323,7 @@ function writeList(v, indent, out) {
 // Keys in the order STATE.md documents; anything else follows in its own order.
 const ORDER = [
   'id', 'title', 'lane', 'status', 'tracker', 'sources', 'roadmap', 'todo', 'blocked_by',
-  'base_ref', 'approvals', 'phases', 'verified', 'assumptions', 'fix', 'audit', 'ship', 'blocker',
+  'base_ref', 'approvals', 'phases', 'verified', 'assumptions', 'fix', 'defects', 'audit', 'ship', 'blocker',
 ];
 
 export function writeBlock(state) {

@@ -44,6 +44,18 @@ claim and its `file:line`. None chosen, none found, or no plan audit (lane
 XS): skip. With a changelog: log none; they go into its entry as under
 "Changelog".
 
+## Surfaced defects
+
+The state block's `defects:` are product breaks a slice found and did not fix.
+For each one the user chose (default: all), call the Skill tool with
+"log-it": one issue, `source: <work id>`, the defect text. Skip an entry that
+already ends `(issue: <ref>)`; none left: skip.
+
+A roadmap slice whose Verify clause the defects leave unmet is not marked
+plainly `shipped`. Its Status says `shipped <date> <work id>, Verify unmet:
+<clause>` and its Changes line lists the issue refs; the closing message says
+the same, in one line.
+
 ## Rollback note
 
 **Risk-area work** ([LANES.md](../do-it/LANES.md)): a rollback note (revert,

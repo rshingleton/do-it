@@ -28,6 +28,7 @@ verified: null
 assumptions:
   - "5 attempts per minute per IP (reversible: config)"
 fix: []
+defects: []
 audit:
   verdict: null
   round: 0
@@ -100,6 +101,19 @@ One line per seam: interface, what a test there catches, what it misses.
 ## Starting points
 Files worth reading first.
 ```
+
+## Slices that compare or measure
+
+A roadmap Verify that compares or measures (differences listed, parity, the
+same suite passes on both, a benchmark, an audit) can surface product defects
+the slice does not fix. Its last step, after the last build step:
+
+```markdown
+N. File each surfaced defect with `log-it`, `source: <work id>` → verify: every `defects:` entry in the state block ends `(issue: <ref>)`
+```
+
+build-it records each defect in `defects:` as it appears, and the step adds `(issue: <ref>)`
+to each entry it files; ship-it offers the rest.
 
 No Jira map file, no `sources/` move, no execution-notes file. Refs and
 progress live in the state block.

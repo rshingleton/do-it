@@ -27,6 +27,7 @@ export function emptyBlock({ id, title, lane }) {
   Object.assign(block, {
     assumptions: [],
     fix: [],
+    defects: [],
     audit: { verdict: null, round: 0, must: [], fingerprint: null, at: null },
     ship: { prepared: null, fingerprint: null },
     blocker: null,
@@ -60,6 +61,7 @@ export function normalize(raw) {
   out.sources = asList(raw.sources);
   out.assumptions = asList(raw.assumptions);
   out.fix = asList(raw.fix);
+  out.defects = asList(raw.defects);
   if (out.base_ref !== null && out.base_ref !== undefined) out.base_ref = String(out.base_ref);
   out.approvals = { ...base.approvals, ...(raw.approvals || {}) };
   if (out.approvals.plan !== null) out.approvals.plan = String(out.approvals.plan);

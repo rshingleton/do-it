@@ -36,7 +36,7 @@ path. Add to the brief:
 
 1. Commit everything in the worktree as `<id> phase-N (scratch)`.
 2. Report `done | blocked | failed`, the commands that passed, new
-   assumptions, and anything blocking. Not the transcript.
+   assumptions, surfaced defects, and anything blocking. Not the transcript.
 
 ## 3. Merge one at a time
 

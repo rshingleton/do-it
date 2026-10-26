@@ -61,3 +61,5 @@ Next id: T98
 - [ ] T95 Routing eval has no dedicated unit case for the missing-entry failure; the flipped assertion at tests/codemap-routing.test.mjs:220 covers it `nice-to-have` (check-skill-rules audit)
 - [ ] T96 The R22 pin test pins phrasing by regex (`audit\s+findings above ...`), so a rewrap of ship-it §2 or prove-it §5 breaks it; check positions and counts like the retro-it pin `debt` (audit-leftovers-at-ship audit, tests/work.test.mjs)
 - [ ] T97 `skills/ship-it/SKILL.md` is at exactly 100 lines; R23 adds to the same question, so move detail to DOCS.md or RESUME.md first `debt` (audit-leftovers-at-ship audit, skills/ship-it/SKILL.md)
+- [ ] T98 `skills/ship-it/DOCS.md` "Surfaced defects" repeats the log-it wording of "Audit findings"; share one paragraph `nice-to-have` (surfaced-defects-at-ship audit, skills/ship-it/DOCS.md:47)
+- [ ] T99 `roadmap.mjs:84` counts `shipped ..., Verify unmet` as done, so dependents unblock; decide whether a dependent of an unmet-Verify slice should wait `question` (surfaced-defects-at-ship audit, skills/do-it/scripts/roadmap.mjs:84)

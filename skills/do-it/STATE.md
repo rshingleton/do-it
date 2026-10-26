@@ -16,7 +16,7 @@ from anywhere in the repo.
 | Command | Does |
 |---------|------|
 | `work.mjs new <id> --lane s\|m --title "<title>"` | Creates the plan file with the full empty block, `status: draft` |
-| `work.mjs set <id> <key> <json>` | Sets a field with no event: `title`, `lane`, `tracker`, `sources`, `roadmap`, `todo`, `blocked_by`, `phases`, `assumptions`. An empty or null value is refused (`[]` clears a list). `phases` takes `n`, `title`, `blocked_by`; a phase's `status` and `verified` are kept across a re-plan and only events change them |
+| `work.mjs set <id> <key> <json>` | Sets a field with no event: `title`, `lane`, `tracker`, `sources`, `roadmap`, `todo`, `blocked_by`, `phases`, `assumptions`, `defects`. An empty or null value is refused (`[]` clears a list). `phases` takes `n`, `title`, `blocked_by`; a phase's `status` and `verified` are kept across a re-plan and only events change them |
 | `work.mjs event <id> <event> [args]` | Moves the item (table below) |
 | `work.mjs show <id> [--brief]` / `work.mjs list` | One item (`--brief`: only `id`, `lane`, `status`, `allowed`, `blocker` and `needs_user`, enough to resume), with `allowed` (the next moves: the events `event` takes, plus `close` from shipping) and `needs_user`; or every open item |
 | `work.mjs fingerprint <id>` | Hash of the change since `base_ref`, planning files excluded |
@@ -30,7 +30,7 @@ shape as `show --brief` (`list`: `id`, `lane`, `status` per item). A step that
 only needs the result of a write passes it and re-reads with `show` when it
 needs more. `fingerprint`, `review-diff`, `roadmap` and `close` already print
 only what the caller reads, so they have no brief form. Free text in the block
-(`blocker`, `assumptions`, `fix`, `verified`) follows
+(`blocker`, `assumptions`, `fix`, `defects`, `verified`) follows
 [VOICE.md](../it-core/VOICE.md): terse, numbers and paths verbatim, negations kept.
 
 ## Events
@@ -107,6 +107,7 @@ phases:
 assumptions:
   - "Limit is 5 attempts per minute per IP (reversible: config)"
 fix: []
+defects: []
 audit:
   verdict: null
   round: 0

@@ -539,10 +539,39 @@ test('ship-it: the question offers the audit leftovers, DOCS.md and prove-it nam
   const docs = fs.readFileSync(path.join(ROOT, 'skills/ship-it/DOCS.md'), 'utf8');
   const prove = fs.readFileSync(path.join(ROOT, 'skills/prove-it/SKILL.md'), 'utf8');
   const question = ship.slice(ship.indexOf('## 2. The one question'), ship.indexOf('## 3. After the answer'));
-  assert.match(question, /No changelog: the audit's Should and Nice findings/, 'the question shows the findings');
-  assert.match(question, /audit\s+findings above \(default: the findings/, 'question 2 offers them, default log');
+  assert.match(question, /the audit's Should and Nice findings \(no changelog\)/, 'the question shows the findings');
+  assert.match(question, /audit findings and\s+surfaced defects above \(default: findings and defects/, 'question 2 offers them, default log');
   assert.ok(docs.includes('## Audit findings'), 'DOCS.md has the section');
   const section = docs.slice(docs.indexOf('## Audit findings'));
   assert.match(section, /"log-it"[\s\S]*`source: <work id> audit`/, 'it logs through log-it with the audit source');
   assert.match(prove, /with no changelog offers to log them as\s+to-dos/, 'prove-it names the home');
+});
+
+test('defects: a surfaced-defects list round-trips and work.mjs set writes it', () => {
+  const s = { ...emptyBlock({ id: 'x', title: 'X', lane: 's' }), defects: ['scan fails at Long.MAX_VALUE', 'range delete skips the end key'] };
+  assert.deepEqual(emptyBlock({ id: 'x', title: 'X', lane: 's' }).defects, []);
+  assert.deepEqual(normalize(parseBlock(writeBlock(s))).defects, s.defects);
+  assert.deepEqual(normalize({ id: 'x', title: 'X', lane: 's' }).defects, [], 'an older plan gains an empty list');
+  const dir = tempRepo();
+  work(dir, 'new', 'feat-d', '--lane', 's', '--title', 'D', '--brief');
+  const r = work(dir, 'set', 'feat-d', 'defects', '["a: one","b: two"]', '--brief');
+  assert.equal(r.status, 0, JSON.stringify(r.out));
+  assert.deepEqual(work(dir, 'show', 'feat-d').out.defects, ['a: one', 'b: two']);
+});
+
+test('skills: surfaced defects are planned, recorded and offered at ship', () => {
+  const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
+  const ship = read('skills/ship-it/SKILL.md');
+  const docs = read('skills/ship-it/DOCS.md');
+  const question = ship.slice(ship.indexOf('## 2. The one question'), ship.indexOf('## 3. After the answer'));
+  assert.match(question, /surfaced `defects:`/, 'the question lists the defects');
+  assert.match(question, /surfaced defects above[\s\S]*default/i, 'question 2 offers to log them');
+  const section = docs.slice(docs.indexOf('## Surfaced defects'));
+  assert.ok(docs.includes('## Surfaced defects'), 'DOCS.md has the section');
+  assert.match(section, /"log-it"[\s\S]*`source: <work id>`/, 'filed through log-it with the work id');
+  assert.match(section, /`shipped <date> <work id>, Verify unmet:\s+<clause>`[\s\S]*issue refs/, 'unmet-verify format'); assert.match(section, /unmet/i, 'a roadmap row is not shipped without the unmet-verify note');
+  assert.match(read('skills/scope-it/PLAN-FORMAT.md'), /surfaced defect[\s\S]*`log-it`/, 'scope-it adds the file-defects step');
+  assert.match(read('skills/scope-it/SKILL.md'), /PLAN-FORMAT\.md/);
+  assert.match(read('skills/build-it/SKILL.md'), /defects/, 'build-it records defects');
+  assert.match(read('skills/do-it/STATE.md'), /`defects`/, 'STATE.md documents the field');
 });
