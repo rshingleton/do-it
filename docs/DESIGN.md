@@ -306,8 +306,12 @@ do-it/
   `providerID` on each `message.updated` assistant message; on 2.x
   `ctx.event.subscribe` yields `session.step.ended` and `session.usage.updated`
   with `cost` and `tokens`, and agent and model come from the `context` hook.
-  Nothing records it there until `work.mjs` has a usage field (the per-step
-  usage issue). On Claude Code the `Stop` and `SubagentStop` hooks already keep
+  The plugin records it into the same ledger (`skills/usage-it/scripts/opencode.mjs`),
+  tokens only, one row per session with reasoning folded into `out`: on 1.x from the `event` hook, on 2.x
+  from `ctx.event.subscribe`, with agent and model from the `context` hook. Limits: 1.x marks
+  a subagent by `parentID` on `session.created`, 2.x has no parent signal so every run is kind
+  `session`; totals live in plugin memory, so a restart mid-session restarts that run. Event
+  shapes are from the research note, run against fixtures, not a live session. On Claude Code the `Stop` and `SubagentStop` hooks already keep
   a per-run usage ledger from the transcripts (`skills/usage-it`, tokens only,
   no dollar estimate since prices change); it is not tied to a work item or step,
   but a step's usage can be read by time window (`usage.mjs --from/--to`).

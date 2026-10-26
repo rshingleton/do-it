@@ -34,10 +34,8 @@ on. What remains is attributing usage to a work item.
   timestamps against the time each phase skill ran. Only if that proves too
   coarse, add a record in the state block written through `work.mjs` (survives
   `normalize()` on older plans) and show it in `ship-it`'s summary.
-- [ ] OpenCode gets the record too, or the gap stays documented
-  (`docs/DESIGN.md`).
-- [ ] Decide whether "cost" is wanted: the ledger is tokens only, since prices
-  change.
+- [x] OpenCode gets the record too (`skills/usage-it/scripts/opencode.mjs`, fed by the plugin's `event` hook and `ctx.event.subscribe`).
+- [x] Decided 2026-10-26 (D1): tokens only, no cost; usage-it can apply a price table when reporting.
 
 ## Notes
 

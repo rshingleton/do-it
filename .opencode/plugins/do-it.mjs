@@ -9,6 +9,8 @@
 // - Before bash `git commit`: the staged diff is scanned the same way.
 // - After write/edit/patch: DO_IT_LINT_CMD output and MEDIUM/LOW hits are
 //   appended to the tool result the model reads.
+// - Token usage from the host's events goes to the shared usage ledger
+//   (skills/usage-it/scripts/opencode.mjs); it never blocks anything.
 //
 // One default export serves both plugin APIs: `server` is the v1 hook object
 // (verified to block by throwing), `setup` is the v2 entry. A build that loads
@@ -28,6 +30,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { decide as realDecide } from '../../hooks/lib/decide.mjs';
+import { createOpenCodeUsage } from '../../skills/usage-it/scripts/opencode.mjs';
 
 // OpenCode's tool names, as the kinds decide() checks. OpenCode 1.x
 // registers its patch tool as apply_patch (arg patchText); 2.x names its shell
@@ -95,7 +98,8 @@ function sessionMemo(decide, cwd) {
 }
 
 // `createPlugin({decide})` and the server's second argument replace the decision module in tests.
-export function createPlugin({ decide: baseDecide = realDecide } = {}) {
+// `usageDir` redirects the usage ledger in tests.
+export function createPlugin({ decide: baseDecide = realDecide, usageDir } = {}) {
   let v1Live = false;
   let v2Live = false;
 
@@ -105,7 +109,11 @@ export function createPlugin({ decide: baseDecide = realDecide } = {}) {
     v1Live = true;
     const cwd = directory || process.cwd();
     const session = sessionMemo(decide, cwd);
+    const usage = createOpenCodeUsage({ cwd, ...(usageDir && { dir: usageDir }) });
     return {
+      // Never throws: the usage module swallows its own errors, and a throw here would only be noise.
+      event: async ({ event } = {}) => usage.event(event),
+
       'experimental.chat.system.transform': failOpen('context', async (_input, output) => {
         const r = report(session());
         if (r.context) output.system.push(r.context);
@@ -134,7 +142,15 @@ export function createPlugin({ decide: baseDecide = realDecide } = {}) {
     v2Live = true;
     const cwd = ctx.location?.directory || process.cwd();
     const session = sessionMemo(decide, cwd);
+    const usage = createOpenCodeUsage({ cwd, ...(usageDir && { dir: usageDir }) });
+    // The step events carry neither agent nor model; the context hook does, on each request.
+    if (typeof ctx.event?.subscribe === 'function') {
+      (async () => {
+        for await (const ev of ctx.event.subscribe({ signal: new AbortController().signal })) usage.event(ev);
+      })().catch((e) => process.stderr.write(`do-it plugin usage failed open: ${e.message}\n`));
+    }
     ctx.session.hook('context', failOpen('context', async (event) => {
+      usage.context(event);
       const r = report(session());
       if (r.context && Array.isArray(event.system)) event.system.push({ type: 'text', text: r.context });
     }));
