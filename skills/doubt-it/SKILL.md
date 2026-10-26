@@ -1,6 +1,6 @@
 ---
 name: doubt-it
-description: Adversarially check a claim before acting on it, using a fresh-context subagent that tries to prove it wrong. Use before a risky or hard-to-reverse step, when a diagnosis or "this is safe" conclusion rests on reasoning rather than evidence, or when the user asks to double-check or sanity-check a conclusion.
+description: Adversarially check a claim before acting on it, using a fresh-context subagent that tries to prove it wrong. Use when about to take a risky or hard-to-reverse step, when a diagnosis or "this is safe" conclusion rests on reasoning rather than evidence, or when the user asks to double-check or sanity-check a conclusion.
 ---
 
 # doubt-it

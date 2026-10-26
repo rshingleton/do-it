@@ -3,7 +3,7 @@
 Nice-to-haves and things to circle back to. Managed by log-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T94
+Next id: T96
 
 ## Open
 
@@ -54,11 +54,11 @@ Next id: T94
 - [ ] T81 Trim passing-test noise from `npm test` and build output before it reaches the model; feasibility first, since Claude Code's PostToolUse hook may not rewrite Bash output (T27 is the related hook) `question` (handoff review 2026-10-25, unproven)
 - [ ] T82 Pre-edit guard against whole-file rewrites of large files (over 300 lines or 25 KB), steering to targeted edits; weigh against generated files and the cost of false blocks `question` (handoff review 2026-10-25, unproven)
 - [ ] T83 Tests read the developer's real environment (HOME, `DO_IT_*`, global git signing and hooks); add one test helper with a temp HOME, cleared `DO_IT_*` and `GIT_CONFIG_GLOBAL=/dev/null` `debt` (reference-audit finding 13, TR-4; not re-checked 2026-10-25)
-- [ ] T84 `npm run check` enforces less than AGENTS.md says: a skill link that leaves `skills/`, a missing "Use when", a non-`-it` name; either enforce or stop claiming `debt` (reference-audit finding 14, TR-9; not re-checked)
-- [ ] T85 One rule in SKILL-MECHANICS.md: only the main context fans out; review-it and look-it-up run inline when already inside a subagent `debt` (reference-audit finding 15; not re-checked)
 - [ ] T86 Concurrent local creates can collide on a slug and a partial remote publish loses its refs; write with `wx` and retry the suffix, return partial publish results so a re-run resumes; local issue writes are also not atomic `debt` (reference-audit finding 16, skills/track-it/scripts/adapters/local.mjs:43)
 - [ ] T89 Small hook and script gaps: `work.mjs show/event/close` skip the id check `new` does, `isMain` is copied 5 times, no test that hooks.json event names match claude.mjs `debt` (reference-audit, "8 smaller findings"; not re-checked)
 - [ ] T90 Test gaps from the audit: install-hooks leaves a commented settings.json byte-identical and `--dry-run` writes nothing, Jira and GitHub adapter request building with a fake fetch, `work.mjs close` from `building` refused, config precedence (env over file) `debt` (reference-audit TR-6, TR-7, TR-8, TR-10; not re-checked)
 - [ ] T91 `npm run check` spawn-cap rule only compares `N words`; an "N in all" cap (review-it: "300 in all") is not compared with the agent's cap `debt` (spawn-caps-carries-voice audit, scripts/check.mjs)
 - [ ] T92 `npm run check` reads only the first `>` paragraph after a spawn paragraph as its brief; a cap in a second one is missed `debt` (spawn-caps-carries-voice audit, scripts/check.mjs)
 - [ ] T93 check.mjs spawn-cap loop re-tests `owner` per pass and the `briefed` ternary restates the old `next.startsWith('>')` test; compute once `nice-to-have` (spawn-caps-carries-voice audit, scripts/check.mjs)
+- [ ] T94 No test runs `scripts/eval-routing.mjs` to show a model-invoked skill with no routing entry exits 1; only `evaluate()` is covered `debt` (check-skill-rules audit, tests/scripts-regressions.test.mjs)
+- [ ] T95 Routing eval has no dedicated unit case for the missing-entry failure; the flipped assertion at tests/codemap-routing.test.mjs:220 covers it `nice-to-have` (check-skill-rules audit)

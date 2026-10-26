@@ -363,3 +363,28 @@ test('check.mjs: a paragraph naming two agents is held to the lower cap', () => 
   const r = checkWith({ 'agents/it-scout.md': AGENT('it-scout'), 'agents/it-reviewer.md': lower, 'skills/zz-it/SKILL.md': para });
   assert.match(r.stdout, /word cap 600 is above the 500 in agents\/it-scout\.md/);
 });
+
+test('check.mjs: a link in a skill that leaves skills/ fails; one inside passes', () => {
+  const out = checkWith({ 'skills/zz-it/SKILL.md': SKILL('[doc](../../docs/DESIGN.md)'), 'skills/zz-it/NOTES.md': 'x' });
+  assert.equal(out.status, 1, out.stdout);
+  assert.match(out.stdout, /skills\/zz-it\/SKILL\.md: link \.\.\/\.\.\/docs\/DESIGN\.md leaves skills\//);
+  const ok = checkWith({ 'skills/zz-it/SKILL.md': SKILL('[n](NOTES.md) [s](../do-it/STATE.md) [u](https://x.dev) [a](#top)'), 'skills/zz-it/NOTES.md': 'x' });
+  assert.equal(ok.status, 0, ok.stdout);
+});
+
+test('check.mjs: a model-invoked skill needs "Use when"; a typed one does not', () => {
+  const skill = (extra, desc) => `---\nname: zz-it\ndescription: ${desc}\n${extra}---\n\nBody.\n`;
+  const bad = checkWith({ 'skills/zz-it/SKILL.md': skill('', 'Does a thing. Use for testing.') });
+  assert.equal(bad.status, 1, bad.stdout);
+  assert.match(bad.stdout, /skills\/zz-it\/SKILL\.md: description of a model-invoked skill lacks "Use when"/);
+  const typed = checkWith({ 'skills/zz-it/SKILL.md': skill('disable-model-invocation: true\n', 'Does a thing.') });
+  assert.equal(typed.status, 0, typed.stdout);
+});
+
+test('check.mjs: a skill name needs an it segment (it-core and look-it-up pass)', () => {
+  const named = (name) => ({ [`skills/${name}/SKILL.md`]: `---\nname: ${name}\ndescription: T. Use when testing.\n---\n\nBody.\n` });
+  const bad = checkWith(named('zz-tool'));
+  assert.equal(bad.status, 1, bad.stdout);
+  assert.match(bad.stdout, /skills\/zz-tool\/SKILL\.md: name "zz-tool" is not an -it name/);
+  for (const n of ['zz-it', 'it-zz', 'look-zz-it-up']) assert.equal(checkWith(named(n)).status, 0, n);
+});

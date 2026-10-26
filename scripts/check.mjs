@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { withVoice } from './lib/voice.mjs';
 import { VOICE_FILE } from '../hooks/lib/context.mjs';
-import { ROOT, agentTools, listSkills, listAgents, userInvoked } from './lib/skills.mjs';
+import { ROOT, SKILLS_DIR, agentTools, listSkills, listAgents, userInvoked } from './lib/skills.mjs';
 import { splitFrontmatter } from '../skills/track-it/scripts/frontmatter.mjs';
 
 const SKILL_LINE_BUDGET = 100;
@@ -46,8 +46,10 @@ for (const s of skills) {
   const where = rel(s.file);
   if (!s.meta.name) errors.push(`${where}: missing name`);
   else if (s.meta.name !== s.dir) errors.push(`${where}: name "${s.meta.name}" does not match directory "${s.dir}"`);
+  if (s.meta.name && !/(^|-)it(-|$)/.test(s.meta.name)) errors.push(`${where}: name "${s.meta.name}" is not an -it name`);
   if (!s.meta.description) errors.push(`${where}: missing description`);
   else if (s.meta.description.length > 1024) errors.push(`${where}: description over 1024 characters`);
+  else if (!userInvoked(s) && !s.meta.description.includes('Use when')) errors.push(`${where}: description of a model-invoked skill lacks "Use when"`);
 
   // Count lines the way wc -l does: a trailing newline does not start a new line.
   const lines = s.text.replace(/\n$/, '').split('\n').length;
@@ -151,7 +153,9 @@ for (const file of docs) {
     const link = raw.replace(/^<|>$/g, '');
     const target = link.split('#')[0];
     if (!target || /^[a-z]+:/.test(target)) continue;
-    if (!fs.existsSync(path.resolve(path.dirname(file), target))) errors.push(`${where}: broken link ${link}`);
+    const resolved = path.resolve(path.dirname(file), target);
+    if (!fs.existsSync(resolved)) errors.push(`${where}: broken link ${link}`);
+    else if (where.startsWith('skills/') && !resolved.startsWith(SKILLS_DIR + path.sep)) errors.push(`${where}: link ${link} leaves skills/`);
   }
 
   if (file.includes(`${path.sep}skills${path.sep}`) && prose.includes('—')) {
