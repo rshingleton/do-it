@@ -75,3 +75,5 @@ Next id: T113
 - [ ] T118 The `runs` Map in `opencode.mjs` is never evicted; a long-lived server keeps every session's messages `nice-to-have` (opencode-usage-ledger audit, skills/usage-it/scripts/opencode.mjs:22)
 - [ ] T119 A late OpenCode message with an earlier stamp can move a run's `day` and leave the old row under the same id `nice-to-have` (opencode-usage-ledger audit, skills/usage-it/scripts/opencode.mjs:46)
 - [ ] T120 The edited OpenCode usage paragraph in DESIGN.md section 8 was not rewrapped, so the diff is noisy `nice-to-have` (opencode-usage-ledger audit, docs/DESIGN.md:309)
+- [ ] T121 The blocking-decision ask is restated in do-it sections 3 and 4 and roadmap-it section 6; keep do-it to links if it drifts `nice-to-have` (open-decisions-asked audit, skills/do-it/SKILL.md:66)
+- [ ] T122 `roadmap.mjs` repeats the shipped-or-dropped test in `blocking` that the `done` helper already holds; share one predicate `nice-to-have` (open-decisions-asked audit, skills/do-it/scripts/roadmap.mjs:119)

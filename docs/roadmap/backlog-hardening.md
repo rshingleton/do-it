@@ -18,6 +18,8 @@ repo's hooks, tracker, flow state and checks do what the docs say.
 - G5: Each rule and each parser lives in one place, and the docs describe the model that ships.
 - G6: OpenCode pays for session context once and can record usage, with token claims measured before anything is optimised.
 - G7: A finding the flow surfaces (an audit's Should and Nice, a product defect a verify slice exposes) is offered to `log-it` at ship, not lost when the plan is deleted, and a slice whose verify clause is unmet says so.
+- G8: An open roadmap decision is asked and settled before the slices it blocks are stranded, never silently skipped by `next` or `/do-it`.
+- G9: The in-hunk dev-null twin of R2 is closed, so a unified hunk cannot steer a scoped rule either.
 
 ## Milestones
 
@@ -89,8 +91,24 @@ Exit: a ship that follows an audit with Should or Nice findings, or a slice that
 | R22 | build | ship-it's one question lists the audit's Should and Nice findings and offers to log them as to-dos (default: log), and prove-it's Route names that home; a repo with a changelog keeps today's behaviour (issue: ship-it should offer to log the audit's findings) | G7 | R14 (ship-it must be under its line budget before it grows) | A fixture audit with two Should findings and no changelog produces the offer and two `log-it` to-dos; `npm run check` reports 0 warnings | low | shipped 2026-10-26 audit-leftovers-at-ship |
 | R23 | build | A work item records surfaced defects (`work.mjs` state field), scope-it adds a file-defects step for a slice whose verify compares or measures, build-it records them as they appear, and ship-it lists them in the same question and states an unmet roadmap verify clause (issue: surfaced product defects) | G7 | R22 (same ship-it question) | A fixture slice with two surfaced defects: the ship question lists both, `log-it` files them with `source: <work id>`, and the roadmap row is not marked shipped without the unmet-verify note | med | shipped 2026-10-26 surfaced-defects-at-ship |
 
+### M8: Decisions are asked, not skipped
+Exit: a roadmap with an open decision that blocks a slice makes `work.mjs roadmap` report it with the slices it blocks, and `/do-it <file>` asks it before it starts any later slice.
+
+| Slice | Kind | Delivers | Covers | Blocked by | Verify | Risk | Status |
+|-------|------|----------|--------|------------|--------|------|--------|
+| R24 | build | `work.mjs roadmap` reports `blocking: [{id, blocks}]` beside `next`; roadmap-it §6 and do-it §1 and §4 ask each blocking decision (a grill-it round with a recommended answer) at roadmap start and at each ship, and settling one removes it from Open decisions with a dated Decisions line (issue: open roadmap decisions are never asked) | G8 | none | A test: a decision blocking two slices appears with both; a pin that roadmap-it and do-it name the ask; `npm test && npm run check` pass | med | shipped 2026-10-26 open-decisions-asked |
+
+### M9: Guard and OpenCode usage leftovers
+Exit: the in-hunk pair is scanned under its old path, and OpenCode v2 usage rows name their agent and prune once a run.
+
+| Slice | Kind | Delivers | Covers | Blocked by | Verify | Risk | Status |
+|-------|------|----------|--------|------------|--------|------|--------|
+| R25 | build | Added lines after an in-hunk `--- <old>` / `+++ /dev/null` pair in `unifiedFiles` are also scanned under `<old>` and `''`, reusing the `applyPatchFiles` flag (issue: unified in-hunk dev-null pair) | G9 | none | A test shows the in-hunk pair cannot exempt a line from a scoped rule or an `exceptFilePattern` | high | |
+| R26 | build | OpenCode v2 usage rows record the context-hook agent name, and `prune` runs once a day change, not per step (T113, T114) | G6 | none | The v2 fixture test asserts agent `build`, and a 200-step stream calls `prune` once | low | |
+| R27 | spike | The paired headless A/B of the terse voice on an isolated, logged-in run, with its quality check and a verdict that replaces the not-proven one; throwaway harness removed (issue: prove or refute token savings) | G6 | D2 (is an API key available) | Results and method in `docs/research/` with a linked verdict | med | |
+
 ## Open decisions
-None.
+- D2: Is an API key available for an isolated, logged-in headless run of the terse-voice A/B? Answer by: grill with the user when R27 is next. Blocks R27. No key: drop R27 and close the issue with the ledger's not-proven verdict.
 
 ## Fog
 - Scoping each work item's fingerprint and audit diff to its own paths (T49): may become a slice once concurrent items are routine.
@@ -98,7 +116,8 @@ None.
 - Usage windows that straddle a reset (T76): label them run-based or split by message time.
 - A tracker doctor and an install doctor (T3, T78): may become one `/setup-it` check slice.
 - Running `/setup-it` on another repo (T2): a user-run check, not a build slice.
-- Issues no slice covers yet: `Unified in-hunk dev-null header pair` (R2's twin in `unifiedFiles`; a guard slice).
+- Confirming the OpenCode v2 `session.step.ended` field names on a live OpenCode 2 (T115): a user-run check; a mismatch becomes a slice.
+- A `work.mjs` per-step usage field (issue: per-step usage record): deferred until the ledger's window attribution proves too coarse.
 
 ## Out of scope
 - The research-derived ideas T13 to T32 and T44, T45, T47, T62: parked 2026-10-25; return through T47 when an audit or retro cites one.
@@ -112,6 +131,8 @@ None.
 - 2026-10-25 Decision: park T13 to T32 until evidence.
 - 2026-10-25 Decision: findings that reach ship (audit leftovers, defects a verify slice surfaces) get their own milestone M7 after M4, since both edit ship-it's question and ship-it must first fit its line budget (R14).
 - 2026-10-26 Decision: D1 settled: the usage ledger records tokens only, never cost (prices change; usage-it can apply a price table when reporting). R21 is unblocked.
+
+- 2026-10-26 Replan: destination moved by two requirements (G8, G9) from the issues still open after M7; M8 comes first because the stranded-decision bug would hide D2 and any later decision.
 
 ## Changes
 - 2026-10-25: charted from the open issues, the backlog and the 2026-10-19 audit.
@@ -139,3 +160,5 @@ None.
 - 2026-10-26: R19 shipped as opencode-context-cache (the OpenCode plugin builds the session context once per plugin instance and rebuilds it when `.git/HEAD`, its reflog or `.git/index` change, on both the 1.x and 2.x hooks; a scripted 10-turn drive measured 153 ms rebuilt every turn against 13 ms cached at 5,022 bytes a turn, so the full text stays each turn to keep the provider prefix cache; DESIGN.md section 8 records it; the source issue closed; T46 stays open for subagent-start reuse and the timeout fallback; audit leftovers filed as T111, T112).
 - 2026-10-26: R20 shipped as setup-it-external-directory (`skills/setup-it/scripts/opencode-check.mjs` reads `opencode.json` or `.jsonc` and flags `allow`, a missing key or a string `permission`; PROPOSAL.md section 6 offers `ask` and shows a snippet instead of rewriting a file with comments; tests in `tests/opencode-check.test.mjs`; T77 closed; audit Nice leftovers not filed).
 - 2026-10-26: R21 shipped as opencode-usage-ledger (`skills/usage-it/scripts/opencode.mjs` turns v1 `message.updated` and `session.created`, and v2 `session.step.ended` plus the `context` hook's agent and model, into the same per-run ledger rows; tokens only per D1; `tests/opencode-usage.test.mjs` drives fixture streams through `usage.mjs`; event shapes not run on a live OpenCode; the issue stays open for the `work.mjs` state field; audit leftovers filed as T113 to T120).
+- 2026-10-26: replan after M1 to M7 shipped: added G8, G9, M8 (R24), M9 (R25 to R27) and D2; the in-hunk issue left Fog; shipped slices untouched.
+- 2026-10-26: R24 shipped as open-decisions-asked (`work.mjs roadmap` reports `blocking: [{id, blocks}]`, ordered by slices blocked; roadmap-it section 6 and do-it sections 1, 3 and 4 ask each blocking decision with a grill-it round at roadmap start and after each ship, and record a settled one with a dated Decisions so far line; `tests/work.test.mjs` covers the output and pins the skill text; the source issue closed; audit leftovers filed as T121, T122). D2 now blocks R27 and is asked next.

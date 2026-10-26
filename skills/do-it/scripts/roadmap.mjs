@@ -115,5 +115,9 @@ export function roadmapSlices(file, { root, planningDir, tracked = (f) => isTrac
         a.blocked_by.length - b.blocked_by.length ||
         Number(a.id.slice(1)) - Number(b.id.slice(1)),
     );
-  return { slices: out, openDecisions, next: ready[0]?.id ?? null };
+  const blocking = openDecisions
+    .map((id) => ({ id, blocks: out.filter((s) => !/^(shipped|dropped)$/.test(s.state) && s.blocked_by.includes(id)).map((s) => s.id) }))
+    .filter((d) => d.blocks.length)
+    .sort((a, b) => b.blocks.length - a.blocks.length || a.id.localeCompare(b.id, undefined, { numeric: true }));
+  return { slices: out, openDecisions, blocking, next: ready[0]?.id ?? null };
 }

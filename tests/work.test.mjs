@@ -219,6 +219,33 @@ test('roadmap: every slice state is derived, a hand-committed plan is stale (bug
   assert.equal(out.next, 'R4');
 });
 
+test('roadmap: an open decision is reported with every unfinished slice it blocks', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-rm-'));
+  const planningDir = path.join(dir, 'docs/planning');
+  fs.mkdirSync(planningDir, { recursive: true });
+  const file = path.join(dir, 'billing.md');
+  const rows = [
+    '| R1 | build | A | G1 | D1 | v | low | |',
+    '| R2 | build | B | G1 | D1, R1 | v | low | |',
+    '| R3 | build | C | G1 | D1 | v | low | shipped 2026-10-20 x |',
+    '| R4 | build | D | G1 | D2 | v | low | shipped 2026-10-21 y |',
+  ];
+  fs.writeFileSync(file, `### M1\n\n| Slice | Kind | Delivers | Covers | Blocked by | Verify | Risk | Status |\n|---|---|---|---|---|---|---|---|\n${rows.join('\n')}\n\n## Open decisions\n- D1: q?\n- D2: r?\n`);
+  const out = roadmapSlices(file, { root: dir, planningDir, tracked: () => false });
+  assert.deepEqual(out.blocking, [{ id: 'D1', blocks: ['R1', 'R2'] }]);
+});
+
+test('skills: roadmap-it and do-it ask the decisions that block slices', () => {
+  const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
+  const next = read('skills/roadmap-it/SKILL.md');
+  const section = next.slice(next.indexOf('## 6. Next'), next.indexOf('## 7. Replan'));
+  assert.match(section, /`blocking`[\s\S]*"grill-it"[\s\S]*recommended answer/, 'roadmap-it asks each blocking decision');
+  assert.match(section, /Decisions so far/, 'a settled decision is recorded');
+  const doIt = read('skills/do-it/SKILL.md');
+  assert.match(doIt, /`blocking`[\s\S]*roadmap-it[\s\S]*§6/, 'do-it names the ask');
+  assert.match(doIt.slice(doIt.indexOf('## 4. Where it stops')), /blocking decision/, 'the stops list has the decision stop');
+});
+
 function tempRepo() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-work-'));
   execFileSync('git', ['init', '-q'], { cwd: dir });
