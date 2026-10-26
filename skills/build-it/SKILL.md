@@ -85,7 +85,7 @@ Other ready phases not depending on a blocked one keep going.
 
 When no phase is left to build (or fix mode has fixed every listed Must and
 `fix:` entry, then passed `verify-phase`; lane M names any phase), `work.mjs event <id> build-done` (status `auditing`) and
-return `done`.
+return `done`. Called by `do-it`, let it continue; run alone, close with:
 
 > Built <id>: <N> phase(s), uncommitted on `<branch>` since `<base_ref>`.
 > Skipped: ... Not checked: ... Risk: ...

@@ -65,7 +65,8 @@ file is how this skill runs them. Resolve each step's own links
 
 Each step ends with an outcome: `done`, `blocked` or `failed`.
 
-- `done`: continue to the next step without asking, except at the stops below.
+- `done`: run the next row at once, asking only at the §4 stops. A step run
+  from here never closes the turn: no closing message or `Next:`; only §6 does.
 - `blocked`: stop and show the question or blocker.
 - `failed` from `prove-it`: route back to `build-it` with the numbered Must
   findings. The third failed round comes back `blocked` instead.
@@ -82,9 +83,8 @@ Only these points wait for the user:
 - `ship-it`: its one question (at most three answers), and after a review,
   one line to commit.
 
-Everything between plan approval and ship runs without asking. At a step
-boundary, decide whether to continue or suggest a fresh session per
-[BOUNDARIES.md](BOUNDARIES.md).
+Everything between plan approval and ship runs without asking. At a boundary,
+continue, or suggest a fresh session per [BOUNDARIES.md](BOUNDARIES.md).
 
 ## 5. Lane XS
 

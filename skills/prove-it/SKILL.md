@@ -71,7 +71,8 @@ A refused event (the script exits 1) is `blocked`.
 
 ## 5. Route
 
-- `PASS`: return `done`. **Next:** `/ship-it <id>`.
+- `PASS`: return `done`. Called by `do-it`, let it continue; run alone, say
+  **Next:** `/ship-it <id>`.
 - `FAIL`, round 1 or 2: return `failed` with the Must numbers. `do-it` sends
   them to `build-it`, which fixes only those (its fix mode) and hands back
   for a full re-audit (every check, every time).

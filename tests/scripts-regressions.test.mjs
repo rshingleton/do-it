@@ -397,3 +397,11 @@ test('check.mjs: a closing line that offers "do it" for a typed skill fails; the
   const ok = checkWith({ 'skills/zz-it/SKILL.md': SKILL('> Done. **Next:** `/ship-it <id>`.\n\nCommit now (say "do it") or leave it.') });
   assert.equal(ok.status, 0, ok.stdout);
 });
+
+test('progression: do-it never lets a step close the turn, and build-it and prove-it defer to it', () => {
+  const read = (name) => fs.readFileSync(path.join(ROOT, 'skills', name, 'SKILL.md'), 'utf8');
+  assert.match(read('do-it'), /never closes the turn: no closing message or `Next:`/);
+  for (const name of ['scope-it', 'build-it', 'prove-it']) {
+    assert.match(read(name), /(Called by|When) `do-it`[^.]*(let it continue|return `done`)/, name);
+  }
+});
