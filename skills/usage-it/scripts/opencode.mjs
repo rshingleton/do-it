@@ -17,15 +17,21 @@ const num = (v) => (Number.isFinite(v) && v > 0 ? v : 0);
 const iso = (ms) => new Date(Number.isFinite(ms) ? ms : Date.now()).toISOString();
 const modelName = (m) => (typeof m === 'string' ? m : (m?.modelID ?? m?.id ?? null));
 
+// shortcut: at most MAX_RUNS runs stay in memory, least recently touched out first, so a long-lived server stays bounded; an evicted session that speaks again restarts its totals. Upgrade to seeding from the existing row if that matters.
+const MAX_RUNS = 256;
+
 // `prune` and `now` are test seams.
 export function createOpenCodeUsage({ dir = usageDir(), cwd = process.cwd(), prune: pruneFn = prune, now = () => new Date() } = {}) {
   const project = path.basename(cwd);
-  const runs = new Map(); // session id -> { parent, agent, hooked, model, messages, first, last }
+  const runs = new Map(); // session id -> { parent, agent, hasContextAgent, model, messages, first, last, day }
   let prunedDay = null;
 
   const run = (id) => {
-    if (!runs.has(id)) runs.set(id, { parent: null, agent: null, hooked: false, model: null, messages: new Map(), first: null, last: null });
-    return runs.get(id);
+    const r = runs.get(id) ?? { parent: null, agent: null, hasContextAgent: false, model: null, messages: new Map(), first: null, last: null, day: null };
+    runs.delete(id);
+    runs.set(id, r); // most recently touched last
+    if (runs.size > MAX_RUNS) runs.delete(runs.keys().next().value);
+    return r;
   };
 
   function write(id, r) {
@@ -46,16 +52,17 @@ export function createOpenCodeUsage({ dir = usageDir(), cwd = process.cwd(), pru
     }
     const subagent = Boolean(r.parent);
     const start = iso(r.first);
+    r.day ??= start.slice(0, 10); // fixed at the first write: a late earlier stamp must not move the row's day
     // shortcut: totals live in plugin memory, so a restart mid-session restarts that run's totals; upgrade to seeding from the existing row if it matters
     // shortcut: v2 events carry no parent link, so every v2 run is kind session under its context-hook agent name; upgrade when the events expose parentID
     record(dir, {
       id,
       kind: subagent ? 'subagent' : 'session',
-      agent: subagent ? (r.agent ?? 'unknown') : r.hooked ? (r.agent ?? 'main') : 'main',
+      agent: subagent ? (r.agent ?? 'unknown') : r.hasContextAgent ? (r.agent ?? 'main') : 'main',
       model: r.model,
       session: id,
       project,
-      day: start.slice(0, 10),
+      day: r.day,
       start,
       at: iso(r.last),
       turns: r.messages.size,
@@ -68,8 +75,8 @@ export function createOpenCodeUsage({ dir = usageDir(), cwd = process.cwd(), pru
     });
     const today = now().toISOString().slice(0, 10);
     if (today !== prunedDay) {
-      prunedDay = today;
       pruneFn(dir, keepDays(), now(), rollupKeepDays());
+      prunedDay = today; // only after prune succeeds, so a throw is retried on the next step
     }
   }
 
@@ -114,14 +121,14 @@ export function createOpenCodeUsage({ dir = usageDir(), cwd = process.cwd(), pru
       try {
         if (!event?.sessionID) return;
         const r = run(event.sessionID);
-        r.hooked = true;
+        r.hasContextAgent = true;
         r.agent = event.agent ?? r.agent;
         r.model = modelName(event.model) ?? r.model;
       } catch {}
     },
     event(ev) {
       try {
-        const p = ev?.properties ?? ev?.data ?? ev ?? {};
+        const p = ev?.properties ?? ev ?? {};
         handlers[ev?.type]?.(p);
       } catch {}
     },
