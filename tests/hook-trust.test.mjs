@@ -880,3 +880,18 @@ test('OpenCode plugin setup hooks fail open and skip an unexpected shape', async
   await h.hooks['execute.after'](odd);
   assert.equal(odd.result.content, 42);
 });
+
+test('OpenCode plugin setup backgrounds subagent calls launched together, not a lone one', async () => {
+  const { createPlugin } = await import('../.opencode/plugins/do-it.mjs');
+  const p = createPlugin({ decide: () => ({}) });
+  const { hooks, ctx } = fakeCtx();
+  await p.setup(ctx);
+  const call = (messageID, background = false) => ({ tool: 'subagent', messageID, input: { agent: 'it-scout', background } });
+  const [a, b, lone, other] = [call('m1'), call('m1'), call('m2'), { tool: 'shell', messageID: 'm1', input: {} }];
+  await Promise.all([a, b, other].map((e) => hooks['execute.before'](e)));
+  assert.equal(a.input.background, true);
+  assert.equal(b.input.background, true);
+  assert.equal(other.input.background, undefined);
+  await hooks['execute.before'](lone);
+  assert.equal(lone.input.background, false);
+});

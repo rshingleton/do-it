@@ -9,6 +9,8 @@
 // - Before bash `git commit`: the staged diff is scanned the same way.
 // - After write/edit/patch: DO_IT_LINT_CMD output and MEDIUM/LOW hits are
 //   appended to the tool result the model reads.
+// - v2 only: subagent calls launched together in one message are forced to
+//   `background: true`, so a parallel batch does not hold the parent.
 // - Token usage from the host's events goes to the shared usage ledger
 //   (skills/usage-it/scripts/opencode.mjs); it never blocks anything.
 //
@@ -97,6 +99,26 @@ function sessionMemo(decide, cwd) {
   };
 }
 
+// A foreground `subagent` call blocks the parent, so one assistant message that
+// launches two or more subagents would hold the session until the slowest ends.
+// The host dispatches a message's tool calls together (their before hooks fire
+// in the same tick), so each call registers under its message id, yields one
+// tick, and a call that then sees a sibling is run in the background.
+// shortcut: a lone call, or a sibling dispatched after the yield, stays
+// foreground; upgrade if the host ever orders a message's calls apart.
+function batchSubagents() {
+  const seen = new Map();
+  return async (event) => {
+    if (!isSubagent(event.tool) || !event.input || !event.messageID) return;
+    seen.set(event.messageID, (seen.get(event.messageID) || 0) + 1);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    if (seen.get(event.messageID) > 1) event.input.background = true;
+    setTimeout(() => seen.delete(event.messageID), 1000).unref();
+  };
+}
+
+const isSubagent = (tool) => String(tool || '').toLowerCase() === 'subagent';
+
 // `createPlugin({decide})` and the server's second argument replace the decision module in tests.
 // `usageDir` redirects the usage ledger in tests.
 export function createPlugin({ decide: baseDecide = realDecide, usageDir } = {}) {
@@ -154,7 +176,9 @@ export function createPlugin({ decide: baseDecide = realDecide, usageDir } = {})
       const r = report(session());
       if (r.context && Array.isArray(event.system)) event.system.push({ type: 'text', text: r.context });
     }));
+    const backgroundBatch = batchSubagents();
     ctx.tool.hook('execute.before', failOpen('before', async (event) => {
+      await backgroundBatch(event);
       return report(decide('before', { kind: kindOf(event.tool), args: event.input || {}, cwd })).block;
     }));
     ctx.tool.hook('execute.after', failOpen('after', async (event) => {
