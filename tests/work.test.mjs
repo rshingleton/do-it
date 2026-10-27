@@ -234,6 +234,24 @@ test('roadmap: an open decision is reported with every unfinished slice it block
   assert.deepEqual(out.blocking, [{ id: 'D1', blocks: ['R1', 'R2'] }]);
 });
 
+test('roadmap: a dependent of an unmet-Verify slice is ready, with the unmet clause listed (T99)', () => {
+  const dir = tmpDir('do-it-rm-');
+  const planningDir = path.join(dir, 'docs/planning');
+  fs.mkdirSync(planningDir, { recursive: true });
+  const file = path.join(dir, 'billing.md');
+  const rows = [
+    '| R1 | build | A | G1 | none | v | low | shipped 2026-10-20 x, Verify unmet: card charge not seen live |',
+    '| R2 | build | B | G1 | R1 | v | low | |',
+    '| R3 | build | C | G1 | none | v | low | |',
+  ];
+  fs.writeFileSync(file, `### M1\n\n| Slice | Kind | Delivers | Covers | Blocked by | Verify | Risk | Status |\n|---|---|---|---|---|---|---|---|\n${rows.join('\n')}\n`);
+  const out = roadmapSlices(file, { root: dir, planningDir, tracked: () => false });
+  const r2 = out.slices.find((s) => s.id === 'R2');
+  assert.equal(r2.state, 'ready');
+  assert.deepEqual(r2.unmet, [{ slice: 'R1', clause: 'card charge not seen live' }]);
+  assert.deepEqual(out.slices.find((s) => s.id === 'R3').unmet, []);
+});
+
 test('skills: roadmap-it and do-it ask the decisions that block slices', () => {
   const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
   const next = read('skills/roadmap-it/SKILL.md');
