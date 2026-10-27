@@ -40,6 +40,9 @@ const recs = readAll(usageDir())
   .filter((r) => (since ? r.at >= since : r.day >= cutoff))
   .map((r) => ({ ...r, runs: r.runs ?? 1, work: (r.in ?? 0) + (r.out ?? 0) + (r.cc ?? 0), family: familyOf(r.model) }));
 
+// The user's own session, not a delegated run; rows from before `kind` existed are told by agent.
+const isMain = (r) => (r.kind ?? (r.agent === 'main' ? 'session' : 'subagent')) === 'session';
+
 // Fixed order, one color per family: the series never repaint.
 const FAMILIES = ['Sonnet', 'Opus', 'Haiku', 'Other'];
 function familyOf(model) {
@@ -136,7 +139,7 @@ function sessionTable(limit = 10) {
   for (const r of recs) {
     if (!r.session) continue;
     const g = m.get(r.session) ?? { id: r.session, project: null, day: r.day, runs: 0, work: 0, cr: 0 };
-    if (r.agent === 'main') g.project = r.project;
+    if (isMain(r)) g.project = r.project;
     g.project ??= r.project;
     g.day = r.day < g.day ? r.day : g.day;
     g.runs += r.runs;
@@ -204,8 +207,8 @@ function notes() {
   const total = sum(recs, 'work');
   const agents = group(recs, (r) => r.agent);
   if (agents[0] && total) out.push(`<b>${esc(agents[0].key)}</b> is the largest consumer: ${pct(agents[0].work, total)} of work tokens over ${agents[0].runs} run(s).`);
-  const mainOpus = recs.filter((r) => r.agent === 'main' && r.family === 'Opus');
-  const mainCr = sum(recs.filter((r) => r.agent === 'main'), 'cr');
+  const mainOpus = recs.filter((r) => isMain(r) && r.family === 'Opus');
+  const mainCr = sum(recs.filter(isMain), 'cr');
   if (mainOpus.length && mainCr) out.push(`Main sessions on Opus account for ${pct(sum(mainOpus, 'cr'), mainCr)} of all main-session cache reads (${mainOpus.length} run(s)). The main model is the biggest lever.`);
   const loose = recs.filter((r) => UNPINNED.has(r.agent) && r.family === 'Opus');
   if (loose.length) out.push(`${loose.length} run(s) of unpinned agent types (${[...new Set(loose.map((r) => r.agent))].map(esc).join(', ')}) ran on Opus because they follow the session model.`);
@@ -217,8 +220,8 @@ function notes() {
 }
 
 const tile = (label, value, sub = '') => `<div class="tile"><div class="k">${esc(label)}</div><div class="v">${esc(value)}</div><div class="sub">${esc(sub)}</div></div>`;
-const mainRuns = recs.filter((r) => r.agent === 'main');
-const subRuns = recs.filter((r) => r.agent !== 'main');
+const mainRuns = recs.filter(isMain);
+const subRuns = recs.filter((r) => !isMain(r));
 
 const html = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">

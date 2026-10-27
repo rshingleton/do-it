@@ -277,6 +277,23 @@ test('report.mjs lists context outliers and says so when no session has a peak',
   assert.match(html, /1 of 4 session\(s\) peaked above 2x/);
 });
 
+test('report.mjs counts a session row as main whatever its agent, and rollup keeps the kind', () => {
+  const dir = tmp();
+  const out = path.join(tmp(), 'r.html');
+  const today = new Date().toISOString().slice(0, 10);
+  const row = { model: 'claude-sonnet-5-5', project: 'p', day: today, turns: 3, in: 1, out: 1, cr: 10, cc: 1 };
+  record(dir, { ...row, id: 'o', kind: 'session', agent: 'build', session: 'o'.repeat(12) });
+  record(dir, { ...row, id: 's', kind: 'subagent', agent: 'it-scout', session: 'o'.repeat(12) });
+  execFileSync('node', [path.join(ROOT, 'skills', 'usage-it', 'scripts', 'report.mjs'), '--days', '30', '--out', out], { env: { ...process.env, DO_IT_USAGE_DIR: dir }, encoding: 'utf8' });
+  assert.match(fs.readFileSync(out, 'utf8'), /1 main, 1 subagent/);
+  const old = tmp();
+  record(old, { ...row, id: 'o', kind: 'session', agent: 'build', day: '2026-09-01' });
+  record(old, { ...row, id: 'm', kind: 'session', agent: 'main', day: '2026-09-01' });
+  prune(old, 30, new Date('2026-10-21T12:00:00Z'), 365);
+  const rolled = readAll(old).filter((r) => r.runs);
+  assert.deepEqual(rolled.map((r) => [r.agent, r.kind]).sort(), [['build', 'session'], ['main', 'session']]);
+});
+
 test('clearLimit reads DO_IT_CLEAR_AT, with 0 meaning off and junk falling back', () => {
   assert.equal(clearLimit({}), 300000);
   assert.equal(clearLimit({ DO_IT_CLEAR_AT: '150000' }), 150000);

@@ -131,9 +131,8 @@ None.
 - 2026-10-25 Decision: park T13 to T32 until evidence.
 - 2026-10-25 Decision: findings that reach ship (audit leftovers, defects a verify slice surfaces) get their own milestone M7 after M4, since both edit ship-it's question and ship-it must first fit its line budget (R14).
 - 2026-10-26 Decision: D1 settled: the usage ledger records tokens only, never cost (prices change; usage-it can apply a price table when reporting). R21 is unblocked.
-- 2026-10-27 Decision: D2 settled: `claude` is logged in on this machine, so R27 runs. The earlier harness failed because an isolated config dir was not logged in, so R27's first step is to find a way to isolate the two arms' agents and hooks that keeps the login (a copied or linked credential, or `--plugin-dir`); if none works, R27 is re-scoped, not dropped. R27 is unblocked.
-
 - 2026-10-26 Replan: destination moved by two requirements (G8, G9) from the issues still open after M7; M8 comes first because the stranded-decision bug would hide D2 and any later decision.
+- 2026-10-27 Decision: D2 settled: `claude` is logged in on this machine, so R27 runs. The earlier harness failed because an isolated config dir was not logged in, so R27's first step is to find a way to isolate the two arms' agents and hooks that keeps the login (a copied or linked credential, or `--plugin-dir`); if none works, R27 is re-scoped, not dropped. R27 is unblocked.
 
 ## Changes
 - 2026-10-25: charted from the open issues, the backlog and the 2026-10-19 audit.
