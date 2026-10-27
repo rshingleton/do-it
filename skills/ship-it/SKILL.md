@@ -59,9 +59,8 @@ to the last alone keeps the defaults:
    that changes nothing: `work.mjs set` the assumptions.
 2. **Docs and closes, before any commit:** write what §2 showed per
    [DOCS.md](DOCS.md), updating an earlier run's; park or file the markers; log
-   the chosen findings (no changelog).
-   Then close everything that lives in the repo, so one commit holds it all
-   (the user's own commit after a review included):
+   the chosen findings (no changelog). Then close everything that lives in the
+   repo, so one commit holds it all (a user commit after review included):
    - the refs to close: `todo`, `roadmap` and `tracker` from
      `work.mjs show <id>`; lane XS: `--todo` and `--ref`;
    - each roadmap slice: Status `shipped <date> <work id>` (unmet Verify: DOCS.md) and a
