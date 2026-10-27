@@ -2,14 +2,112 @@
 
 # do-it
 
-A skills repo for Claude Code and OpenCode: one workflow from issue to ship
-that scales with the size of the work, plus always-on coding standards and
-compliance hooks.
+Agent skills for Claude Code and OpenCode that run one workflow from issue to
+ship, sized to the work: a typo gets three steps, an epic gets a roadmap.
+Always-on coding standards and compliance hooks come with it.
 
 ```text
 /do-it "rate-limit the login endpoint"
   → lane S: plan (one approval) → build → audit → ship (one question)
 ```
+
+## Quick start
+
+1. [Install](#install) (Node 18+): one command links the skills, agents and hooks.
+2. In a repo, run `/setup-it` once. It detects your test and lint commands,
+   tracker and doc paths, and writes only what you accept.
+3. Run `/do-it "<what you want>"` or `/do-it <issue ref>`. It sizes the work
+   and asks only when a decision is yours.
+
+Skills marked *typed* below run only when you type the slash command; the
+rest the model can also pick up from what you say.
+
+## Why this exists
+
+Coding agents fail in a few predictable ways. Each step of the flow answers one.
+
+| What goes wrong | What do-it does about it |
+|-----------------|--------------------------|
+| A one-line fix gets a plan, a review and a report | `/do-it` sizes the work first. Small work skips the ceremony |
+| The agent builds something you did not mean | The plan is grilled with you and approved once, before any code. Each step is written as `step → verify:` |
+| The agent reviews its own work and finds nothing | Audit runs in fresh-context reviewers that see the plan and the diff, never the build transcript |
+| A long session loses the thread | State lives in a file, not the chat. `/clear` and resume any time |
+| A secret or a bad commit slips through | Hooks block secrets and env files before the edit and scan the diff before the commit |
+| The agent commits before you looked | Nothing is committed until you say "do it" at ship |
+
+It does not own your process. Every step is also a skill you can call alone,
+and the plan, ADRs and context files are plain Markdown in your repo.
+
+## What it looks like
+
+These sessions are condensed and illustrative; the wording varies.
+
+**A small fix (lane XS).** One file, no risk area: build, self-review, ship.
+
+```text
+> /do-it #31        (issue: the 404 page says "Pagenotfound")
+
+Lane XS: one string in src/pages/NotFound.tsx, no risk area.
+[edits the string, runs the page's test, reads its own diff]
+Ship: commit "gh-31: fix 404 page title"? Say "do it", or leave it for review.
+```
+
+**A feature (lane S).** One approval on the plan, then it runs.
+
+```text
+> /do-it "rate-limit the login endpoint"
+
+Lane S: auth is a risk area; `RateLimiter` exists in src/middleware/,
+only the login wiring is new.
+
+Plan (docs/planning/rate-limit-login.md)
+  1. Limit login to 5 tries per minute per IP   → verify: 6th request returns 429
+  2. Reset the counter on success               → verify: test passes
+  Assumption: per IP, not per account. Approve?
+
+> yes
+[builds test-first; a fresh-context reviewer audits the diff against the plan]
+Audit PASS. 1 Nice: extract the limit to config.
+Ship: 1. keep all assumptions?  2. log the Nice as a to-do?  3. commit now or leave it?
+```
+
+**Picking it up tomorrow.** The state is in the plan file, so a new session starts where the old one stopped.
+
+```text
+> /clear
+> /do-it rate-limit-login
+Resuming rate-limit-login: build is done and audited, waiting at ship.
+```
+
+**The guard.** An edit that writes a secret is refused before it lands, and the agent is told why. `DO_IT_HOOKS=off` turns the hooks off.
+
+**One-liners you will use**
+
+| Command | When |
+|---------|------|
+| `/do-it #42` or `/do-it ABC-123` | Work an issue from GitHub or Jira |
+| `/log-it "retry flaky upload"` | Park an idea or bug without planning it |
+| `/map-it payments` | Learn an unfamiliar area before changing it |
+| `/sweep-it --hot` | Audit the code that changes most for bugs and debt |
+| `/roadmap-it "move billing to Stripe"` | Chart work too big for one plan, then `/do-it docs/roadmap/billing.md#R1` |
+| `/usage-it` | See what your sessions cost in tokens |
+
+## Does it save tokens?
+
+Not by itself, and the docs should not claim it. do-it spends tokens to buy
+fewer wrong turns and less rework. Here is what is measured and what is not.
+
+| Question | Answer | Evidence |
+|----------|--------|----------|
+| What does it add to every session? | About 3,100 tokens: ~1,250 for the hook block (posture, project docs, code map), ~1,300 for skill descriptions, ~540 for the repo's `CLAUDE.md` and `AGENTS.md` | `usage.mjs --baseline` on this repo, against a median start context of about 53,600 tokens over 437 sessions |
+| Does small work stay cheap? | Lane XS skips the plan and the audit. A lane M run does more work than a bare prompt and costs more | By design; check your own with `/usage-it` |
+| Do the role agents cost less? | Scout runs on the cheap tier, builder and reviewer on the mid tier; only the planner and skeptic use the top tier. Audit reviewers run in their own contexts, so the main session does not carry them | By design; the per-agent split is in `/usage-it` |
+| Does the terse report voice save tokens? | **No evidence of a saving.** Output tokens were not lower in 3 of 4 cases and no dropped finding was detected | [50 paired headless runs](docs/research/terse-voice-ab.md), with its limits stated |
+| Do the `/clear` nudges and file-based state help? | Plausible, not measured. A long session re-reads its whole context every turn | `/usage-it` flags context outliers |
+
+To see your own numbers, run `/usage-it`, or
+`node skills/usage-it/scripts/usage.mjs --baseline` for the per-session cost
+of having do-it installed. Cost in dollars is not estimated; tokens only.
 
 ## The flow
 
@@ -33,9 +131,10 @@ The user is stopped only at: plan approval (for M, the grill rounds, whose
 last round is the approval; for L, the roadmap approval), a build stop
 condition, a third failed audit, and the ship question, plus a one-line
 commit confirmation after reviewing work left uncommitted. Work stays
-uncommitted in the working tree until ship, and ship commits only on a "do it". Risk-area work
-gets a rollback note at ship. Between steps, `/do-it` suggests a fresh
-session when the context is getting long; the state block makes that free.
+uncommitted in the working tree until ship, and ship commits only on a
+"do it". Risk-area work gets a rollback note at ship. Between steps, `/do-it`
+suggests a fresh session when the context is getting long; the state block
+makes that free.
 
 State lives in one YAML block at the top of the plan file
 (`docs/planning/<id>.md` or `docs/planning/<id>/README.md`), so any step
@@ -68,15 +167,12 @@ of starting a build.
 |-------|------|
 | `/roadmap-it` | Charts an extra-large effort as a durable roadmap: destination with numbered requirements, milestones of S/M slices (covers, blocked by, verify, risk), open decisions, fog, out of scope. `next` shows where every slice stands and starts the next one; `replan` re-plans without touching shipped slices |
 
-`/log-it` sorts what it is given: issues worth planning, with acceptance
-criteria, and lighter one-line to-dos.
-
 ## Setting up and improving
 
 | Skill | Does |
 |-------|------|
-| `/setup-it` | One-time per repo: detects commands, tracker and doc paths, proposes `.do-it/config.env`, a starter `checks.json` and an `AGENTS.md` section, writes only what you accept |
-| `/retro-it` | Turns repeated mistakes and audit guardrail candidates into `checks.json` rules, lint config, standards lines or issues |
+| `/setup-it` (typed) | One-time per repo: detects commands, tracker and doc paths, proposes `.do-it/config.env`, a starter `checks.json` and an `AGENTS.md` section, writes only what you accept |
+| `/retro-it` (typed) | Turns repeated mistakes and audit guardrail candidates into `checks.json` rules, lint config, standards lines or issues |
 
 ## Supporting skills
 
@@ -98,8 +194,8 @@ criteria, and lighter one-line to-dos.
 | `usage-it` | HTML report of token usage by agent, model, project and day, context outliers and a plan-meter projection, from the usage ledger (typed) |
 | `skill-it` | Writing skills and agent instructions |
 
-Every name is an `-it` verb so it never collides with another skill repo
-installed beside this one.
+Every name carries an `it` segment (`log-it`, `look-it-up`) so it never
+collides with another skill repo installed beside this one.
 
 ## Install
 
@@ -166,11 +262,17 @@ On by default; `DO_IT_HOOKS=off` turns them off for a user, a repo or a shell.
 | Session start, subagent start | Injects the `it-core` posture, pointers to the repo's standards and compliance rules, its resolved project docs, and a compact code map (`DO_IT_MAP=off` to skip) |
 | Before an edit | Blocks HIGH hits: secrets, env files, rules in `.compliance-rules/checks.json` |
 | After an edit | Reports MEDIUM/LOW hits; runs `DO_IT_LINT_CMD` on the file and feeds failures back |
-| Before `git commit` | Scans the staged diff; blocks on HIGH. A `-m` message without an `<id>: ` prefix gets a warning on Claude Code, never a block |
+| Before `git commit` | Scans the staged diff and any untracked files the commit would add; blocks on HIGH. A `-m` message without an `<id>: ` prefix gets a warning on Claude Code, never a block |
+| Session stop, subagent stop (Claude Code) | Records the run's token usage in a local ledger (see [Token usage](#token-usage)); suggests `/pass-it` then `/clear` when the context passes `DO_IT_CLEAR_AT` |
+
+Hooks fail open: a crash or bad input never blocks the agent, and a hook that
+runs long is cut off at its timeout.
 
 Mechanical rules (a regex decides) live in `checks.json` and run on every
 edit; judgement rules (`.compliance-rules/*.md`) are checked by `prove-it`.
 See [skills/guard-it/SKILL.md](skills/guard-it/SKILL.md).
+
+### Code map
 
 The code map is capped at 1500 characters and takes the first source that
 exists:
@@ -191,6 +293,8 @@ exists:
 It runs at every session and subagent start (every turn under OpenCode).
 `DO_IT_MAP=off` turns it off.
 
+### OpenCode hooks
+
 OpenCode has no subagent-start hook; its plugin injects the posture into
 every turn's system prompt instead. The plugin's default export carries the
 OpenCode 1 hook object (`experimental.chat.system.transform`,
@@ -199,9 +303,12 @@ registers `session` and `tool` hooks, which OpenCode 2 runs (verified on
 2.1.2). Register the plugin as a directory on OpenCode 2 (`plugins`:
 `.opencode/plugins`, which holds an `index.js`); a plugin file path is
 skipped there. `scripts/install-hooks.mjs` picks the form from
-`opencode --version`. The OpenCode 2 `execute` code tool cannot write or run a command by itself on 2.1.2, and a nested tool call reaches the same guards.
+`opencode --version`. The OpenCode 2 `execute` code tool cannot write or run
+a command by itself on 2.1.2, and a nested tool call reaches the same guards.
 
-Token usage (Claude Code): the `Stop` and `SubagentStop` hooks sum each main
+### Token usage
+
+On Claude Code, the `Stop` and `SubagentStop` hooks sum each main
 session's and each subagent's tokens from its transcript and keep one line per
 run in `~/.claude/do-it/usage/<day>.jsonl` (about 50 KB a heavy day) for 30
 days (`DO_IT_USAGE_DAYS`). A line holds the tokens, the run's start and end
@@ -242,8 +349,10 @@ OpenCode notes for repos that use do-it:
   `external_directory` by default; set it to `ask` or `deny` in
   `opencode.json` if the guards should not be sidestepped by paths outside the
   repo. `/setup-it` checks this and offers the fix.
-- Session usage (tokens, cost) is available to an OpenCode plugin (the `event`
-  hook on 1.x, `ctx.event.subscribe` on 2.x), but do-it records none yet; see
+- The OpenCode plugin records the same token usage into the ledger (the
+  `event` hook on 1.x, `ctx.event.subscribe` on 2.x), so `/usage-it` covers
+  both hosts. The event shapes are not yet confirmed on a live OpenCode 2. A
+  per-work-item usage field is deferred; see
   `docs/issues/per-step-usage-record-on-do-it-work-items.md`.
 
 ## Configuration
@@ -293,19 +402,20 @@ Design: [docs/DESIGN.md](docs/DESIGN.md). Decisions: [docs/adr/](docs/adr/).
 
 ## Credits
 
-These skills are this repo's own rewrites of ideas from
-[mattpocock/skills](https://github.com/mattpocock/skills) (MIT), by way of
-[rshingleton/skills](https://github.com/rshingleton/skills):
-`grill-it` (grilling), `name-it` (domain-modeling), `design-it`
-(codebase-design), `test-it` (tdd), `debug-it` (diagnosing-bugs), `review-it`
-(code-review), `look-it-up` (research), `sketch-it` (prototype), `pass-it`
-(handoff), `skill-it` (writing-for-agents), `deepen-it`
-(improve-codebase-architecture), and `retro-it` (retro). Ideas adapted
-from [addyosmani/agent-skills](https://github.com/addyosmani/agent-skills),
-[denyszorinets/ballet](https://github.com/denyszorinets/ballet),
-[dietrichgebert/ponytail](https://github.com/dietrichgebert/ponytail) (the
-band's idea of a usage ledger rebuilt from session transcripts; no code taken),
-[juliusbrussee/caveman](https://github.com/juliusbrussee/caveman) (terse
-voice and fixed report shapes with word caps for internal agent text; its
-proxy, compress and per-turn tools are not used) and
-[multica-ai/andrej-karpathy-skills](https://github.com/multica-ai/andrej-karpathy-skills).
+do-it began as a rewrite of the Doc Cycle in
+[rshingleton/skills](https://github.com/rshingleton/skills) and borrows ideas
+from several other repos. All text here is this repo's own; no code is copied.
+
+| Source | What do-it took from it |
+|--------|-------------------------|
+| [addyosmani/agent-skills](https://github.com/addyosmani/agent-skills) | The lifecycle shape, building every ready phase after one approval, the size-based skip rule behind lane XS, artifact handoff between steps, the routing eval, and the adversarial check behind `doubt-it` |
+| [denyszorinets/ballet](https://github.com/denyszorinets/ballet) | Fresh-context audit stages, the `done`, `blocked`, `failed` outcome that routes the next step, the three-round audit cap, assume-or-ask, and handing out-of-scope finds to the backlog |
+| [dietrichgebert/ponytail](https://github.com/dietrichgebert/ponytail) | Reuse-first coding posture, one always-on core injected into subagents too, the finding format, a drift check, and the idea of a usage ledger rebuilt from session transcripts |
+| [multica-ai/andrej-karpathy-skills](https://github.com/multica-ai/andrej-karpathy-skills) | The four coding principles behind `it-core` and the `step → verify:` plan form |
+| [juliusbrussee/caveman](https://github.com/juliusbrussee/caveman) | Terse voice and fixed report shapes with word caps for internal agent text. Its proxy, compress and per-turn tools are not used |
+| [mattpocock/skills](https://github.com/mattpocock/skills) (MIT) | The starting points for the discipline skills, rewritten here: `grill-it`, `name-it`, `design-it`, `test-it`, `debug-it`, `review-it`, `look-it-up`, `sketch-it`, `pass-it`, `skill-it`, `deepen-it`, `retro-it` |
+
+Where do-it runs on or calls other tools, they keep their own licenses and
+terms: [Claude Code](https://claude.com/claude-code),
+[OpenCode](https://opencode.ai), the [GitHub CLI](https://cli.github.com),
+the Jira REST API and Node.js. do-it has no runtime dependencies of its own.
