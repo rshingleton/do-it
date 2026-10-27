@@ -116,17 +116,19 @@ for (const file of docs) {
     paras.forEach((para, i) => {
       if (!SPAWN.test(para)) return;
       if (!TIER.test(para)) errors.push(`${where}: starts a subagent without naming its model tier ("${para.trim().slice(0, 50)}...")`);
-      // The cap may sit in the quoted brief (a `>` paragraph) that follows.
-      const next = paras[i + 1] ?? '';
-      const briefed = next.startsWith('>') ? `${para}\n${next}` : para;
+      // The cap may sit in the quoted brief: every `>` paragraph that follows.
+      const brief = [para];
+      for (let j = i + 1; paras[j]?.startsWith('>'); j++) brief.push(paras[j]);
+      const briefed = brief.join('\n').replace(/^>\s?/gm, '');
       if (!CAP.test(briefed)) {
         errors.push(`${where}: starts a subagent without a word cap ("${para.trim().slice(0, 50)}...")`);
       }
       // The agent's own cap wins, so a higher number in the spawn text is dead.
       const named = [...para.matchAll(/`(it-[a-z]+)`/g)].map((m) => m[1]).filter((n) => agentCaps.has(n));
       const owner = named.sort((a, b) => agentCaps.get(a) - agentCaps.get(b))[0];
-      for (const m of briefed.matchAll(/\b(\d+)[- ]words?\b/gi)) {
-        if (owner && Number(m[1]) > agentCaps.get(owner)) {
+      if (!owner) return;
+      for (const m of briefed.matchAll(/\b(\d+)(?:[- ]words?|\s+in\s+all)\b/gi)) {
+        if (Number(m[1]) > agentCaps.get(owner)) {
           errors.push(`${where}: word cap ${m[1]} is above the ${agentCaps.get(owner)} in agents/${owner}.md`);
         }
       }
