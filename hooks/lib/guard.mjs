@@ -49,6 +49,14 @@ export function beforeEdit(ctx, input) {
   return { action: 'allow' };
 }
 
+const DEFAULT_HOOK_TIMEOUT = 20;
+// Seconds before the lint command is abandoned: the configured value when it is
+// a positive number, else the default.
+export function hookTimeout(cfg) {
+  const n = Number(cfg.DO_IT_HOOK_TIMEOUT);
+  return Number.isFinite(n) && n > 0 ? n : DEFAULT_HOOK_TIMEOUT;
+}
+
 // After a file edit: run the configured per-file lint command on every file
 // the edit leaves behind, in edit order.
 // shortcut: each file gets its own timeout and there is no total cap, so a
@@ -67,10 +75,10 @@ export function afterEdit(ctx, input, { spawn = spawnSync } = {}) {
       cwd: ctx.root,
       shell: true,
       encoding: 'utf8',
-      timeout: Number(ctx.cfg.DO_IT_HOOK_TIMEOUT || 20) * 1000,
+      timeout: hookTimeout(ctx.cfg) * 1000,
     });
     if (res.error?.code === 'ETIMEDOUT' || res.signal) {
-      messages.push(`do-it lint timed out after ${ctx.cfg.DO_IT_HOOK_TIMEOUT}s: ${cmd}`);
+      messages.push(`do-it lint timed out after ${hookTimeout(ctx.cfg)}s: ${cmd}`);
     } else if (res.status !== 0) {
       const out = `${res.stdout || ''}${res.stderr || ''}`.trim().slice(-3000);
       messages.push(`do-it lint failed for ${path.relative(ctx.root, abs)} (\`${ctx.cfg.DO_IT_LINT_CMD}\`):\n${out}`);
@@ -80,6 +88,9 @@ export function afterEdit(ctx, input, { spawn = spawnSync } = {}) {
   if (!messages.length) return { action: 'allow' };
   return { action: failed ? 'feedback' : 'warn', message: messages.join('\n\n') };
 }
+
+// A commit message starts with its id: a Jira key, gh-<n>, a work id or slug.
+const MESSAGE_ID = /^[\w.-]+: /;
 
 // A word the shell would expand before git sees it.
 const UNEXPANDED = /[$`]|^~/;
@@ -135,7 +146,9 @@ function shellDirs(start, cds) {
 // record scanned: the staged diff, plus the working tree against HEAD for the
 // paths it names, or for every tracked change with commit -a. When a commit
 // cannot be resolved for sure, every tracked change is scanned from the repo
-// root: errors over-scan, never under-scan.
+// root, and every untracked file too when something earlier in the command
+// may have staged one (an unresolved `git add`) or the parser gave up:
+// errors over-scan, never under-scan.
 export function beforeShell(ctx, command) {
   const commits = ctx.enabled ? parseGitCommits(command) : [];
   if (!commits.length) return { action: 'allow' };
@@ -145,7 +158,9 @@ export function beforeShell(ctx, command) {
   const listed = new Set();
   // One time budget for reading binaries across every listing this hook makes.
   const budget = { deadline: Date.now() + BINARY_BUDGET };
-  let rootDone = false;
+  // How much of the root has been listed: 0 nothing, 1 tracked changes, 2 with
+  // untracked files, 3 with ignored ones too (`git add -f`). Each level once.
+  let rootLevel = 0;
   const report = (files) => {
     for (const { file, lines } of files) {
       for (const f of scan(lines.map((l) => l.text).join('\n'), ctx.rules, file)) {
@@ -157,10 +172,11 @@ export function beforeShell(ctx, command) {
       }
     }
   };
-  const fromRoot = () => {
-    if (rootDone) return;
-    rootDone = true;
-    report(listChanges(ctx.root, true, [], { all: false, paths: [], force: false }, budget) || []);
+  const fromRoot = (level = 1) => {
+    if (rootLevel >= level) return;
+    rootLevel = level;
+    const stages = { all: level > 1, paths: [], force: level > 2 };
+    report(listChanges(ctx.root, true, [], stages, budget) || []);
   };
   for (const commit of commits) {
     // The command's paths are relative to the shell's directory (after any cd
@@ -178,7 +194,8 @@ export function beforeShell(ctx, command) {
       commit.cds.some((to) => to === null || UNEXPANDED.test(to)) ||
       [commit.dir ?? '', ...commit.paths, ...stages.paths].some((w) => UNEXPANDED.test(w));
     if (unsure) {
-      fromRoot();
+      const mayStage = commit.bail || commit.stages.some((st) => st.all || st.paths.length);
+      fromRoot(mayStage ? (stages.force ? 3 : 2) : 1);
       continue;
     }
     if (commit.cds.length > CD_SUBSET_MAX) fromRoot();
@@ -192,7 +209,11 @@ export function beforeShell(ctx, command) {
       else fromRoot();
     }
   }
-  if (!findings.length) return { action: 'allow' };
+  if (!findings.length) {
+    const bad = commits.find((c) => c.message !== undefined && c.message !== null && !MESSAGE_ID.test(c.message));
+    if (!bad) return { action: 'allow' };
+    return { action: 'warn', message: `do-it: the commit message "${bad.message.split('\n')[0]}" does not start with \`<id>: \` (the Jira key, gh-<n>, or the work id; it-core Git).` };
+  }
   return {
     action: 'block',
     reason: `do-it compliance blocked the commit:\n${findings.map((f) => format([f], f.file)).join('\n')}\nUnstage or fix these first.`,

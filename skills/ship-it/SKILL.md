@@ -16,26 +16,12 @@ is written before the user answers the one question (§2).
 `work.mjs` below is the work-item script in [STATE.md](../do-it/STATE.md);
 a refused command (exit 1) is `blocked`.
 
-- **Lane XS:** no state block. Run the project's checks; show the diff
-  summary. `--ref` and `--todo` name the issue and to-do item it came from.
-  Nothing uncommitted: the user committed it before this run; do §3 step 2's
-  closes, leave those edits uncommitted and say so, then close the remote
-  tracker (§3 step 4).
+- **Lane XS:** no state block, no id to close; [RESUME.md](RESUME.md).
 - **Otherwise** `work.mjs show <id>` and require `status: shipping` and
   `audit.verdict: PASS`. First run: `work.mjs fingerprint <id>` must equal
   `audit.fingerprint`, else the code moved after the audit:
   `work.mjs event <id> reaudit`, stop, **Next:** `/prove-it <id>`.
-- **Resumed after review** (`ship.prepared` set), no §2 question:
-  - nothing uncommitted outside the plan: the user committed; close the remote
-    tracker and the plan (§3 step 4);
-  - fingerprint equals `ship.fingerprint`: ask one line, "Commit now with
-    this message?" (show it), then §3 step 4;
-  - it differs: the review edited files. Show `work.mjs review-diff <id>`
-    (`files: null`: no snapshot, show `git status --short`) and the commit
-    message, and ask one line: commit as reviewed (default), or re-audit first
-    (default when a changed file is in a risk area,
-    [LANES.md](../do-it/LANES.md)). As reviewed: `event ship-prepared`
-    again, then §3 step 4. Re-audit: `event reaudit`; **Next:** `/prove-it <id>`.
+- **Resumed after review** (`ship.prepared` set): [RESUME.md](RESUME.md).
 
 ## 2. The one question
 
@@ -43,13 +29,15 @@ One turn; write nothing yet. **Show** (information, no answer needed):
 
 - `git status --short`: everything that will be in the change.
 - The docs this will write, per [DOCS.md](DOCS.md): ADRs to accept, the
-  area's `CONTEXT.md` and map row, the changelog entry (lane XS: changelog only, and only
-  when the repo keeps one).
+  area's `CONTEXT.md` and map row, the changelog entry (lane XS: changelog
+  only, when the repo keeps one).
 - Tracker, to-do and roadmap updates: one `close` per ref (state block refs,
   the slice's `Ref` cell, or `--ref`) with a comment drawn from the
-  changelog. **Risk-area work** ([LANES.md](../do-it/LANES.md)): a rollback
-  note (revert, a flag, a down migration, data to restore) for the
-  changelog and commit body; no safe rollback: say so plainly.
+  changelog. Risk-area work also gets a rollback note, per [DOCS.md](DOCS.md).
+- Numbered: the audit's Should and Nice findings (no changelog), surfaced `defects:`,
+  and a roadmap Verify clause they leave unmet ([DOCS.md](DOCS.md)).
+- Guardrail candidates or a failed audit round: one line offering `/retro-it <id>`.
+  `work.mjs close` deletes the candidates, so it runs before "commit now".
 - The commit message: `<id>: <summary>` (the commit id, it-core Git), a
   blank line, one bullet per phase or step; on a protected branch (`main`,
   `master`, `DO_IT_PROTECTED_BRANCHES`), the feature branch to create first.
@@ -59,7 +47,8 @@ to the last alone keeps the defaults:
 
 1. `assumptions:`, numbered: reject any? (default: keep all). Lane XS, no id:
    always asked, no default: the ref to use, or "file one" with `log-it`?
-2. New `shortcut:` markers with no upgrade trigger: file any? (default: none)
+2. To log: new `shortcut:` markers with no upgrade trigger, the audit findings and
+   surfaced defects above (default: findings and defects, no markers)
 3. **Commit now** (say "do it") or **leave it for review**? Recommend leave it
    unless the user asked to commit; `DO_IT_COMMIT=never` makes it the only option.
 
@@ -69,19 +58,19 @@ to the last alone keeps the defaults:
    reject-assumption <n> "<instead>"`; stop. **Next:** `/do-it <id>`. One
    that changes nothing: `work.mjs set` the assumptions.
 2. **Docs and closes, before any commit:** write what §2 showed per
-   [DOCS.md](DOCS.md), updating an earlier run's; park or file the markers.
+   [DOCS.md](DOCS.md), updating an earlier run's; park or file the markers; log
+   the chosen findings (no changelog).
    Then close everything that lives in the repo, so one commit holds it all
    (the user's own commit after a review included):
    - the refs to close: `todo`, `roadmap` and `tracker` from
      `work.mjs show <id>`; lane XS: `--todo` and `--ref`;
-   - each roadmap slice: Status `shipped <date> <work id>` and a dated line in
-     its Changes; each to-do id: call the Skill tool with "log-it" to mark
+   - each roadmap slice: Status `shipped <date> <work id>` (unmet Verify: DOCS.md) and a
+     dated line in its Changes; each to-do id: call the Skill tool with "log-it" to mark
      it done with the work id (lane XS: the commit);
    - a local-tracker ref: `tracker.mjs close <ref>`, which deletes the issue
      file; a ref whose file is already gone was closed by an earlier run;
-   - `event <id> ship-prepared` (not lane XS).
-   Lane XS with no id: "file one" calls `log-it`; the ref given or filed is
-   the commit id and joins `--ref` from here on.
+   - `event <id> ship-prepared` (not lane XS; its no-id case is in
+     [RESUME.md](RESUME.md)).
 3. **Leave it for review:** stop; the plan stays (`status: shipping`), the
    remote tracker stays open. Repeat the commit message and the command that
    finishes, `/ship-it <id>` (lane XS: `--lane xs` with its `--ref` and
@@ -101,8 +90,7 @@ to the last alone keeps the defaults:
 
 "Shipped <id>: committed as abc123 | prepared, left for review", then
 Skipped / Not checked / Risk, then **Next:** (the finish command, push when
-ready, or nothing). Guardrail candidates or a failed round in the audit: one
-line offering `/retro-it <id>` to turn them into checks.
+ready, or nothing). On a roadmap slice, the slash command for the next one, never a script.
 
 ## Rules
 

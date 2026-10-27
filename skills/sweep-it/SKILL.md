@@ -1,6 +1,6 @@
 ---
 name: sweep-it
-description: Audit existing code (the whole repo, a path, or recent hot spots) for pre-existing bugs, security and compliance risks, test gaps, tech debt, doc drift and dead weight, as ranked findings each with a concrete case; then offers to file the chosen ones as issues. Use for "audit this codebase", a tech-debt or health survey, finding gaps before planning work in an area, or inheriting unfamiliar code.
+description: Audit existing code (the whole repo, a path, or recent hot spots) for pre-existing bugs, security and compliance risks, test gaps, tech debt, doc drift and dead weight, as ranked findings each with a concrete case; then offers to file the chosen ones as issues. Use when asked to "audit this codebase", a tech-debt or health survey, finding gaps before planning work in an area, or inheriting unfamiliar code.
 argument-hint: "[path | --hot] [--chat]"
 ---
 

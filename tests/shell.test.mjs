@@ -92,3 +92,28 @@ test('parseGitCommits: rm names no paths and mv names its sources', () => {
   assert.deepEqual(stagesOf('git mv a.js b.js && git commit'), [[{ all: false, paths: ['a.js'] }]]);
   assert.deepEqual(stagesOf('git mv a.js b.js dir && git commit'), [[{ all: false, paths: ['a.js', 'b.js'] }]]);
 });
+
+test('parseGitCommit reads the subject from -m, -am, -mfoo and --message', () => {
+  const msg = (c) => parseGitCommit(c).message;
+  assert.equal(msg('git commit -m "fix: a b"'), 'fix: a b');
+  assert.equal(msg('git commit -am x'), 'x');
+  assert.equal(msg('git commit -mfoo'), 'foo');
+  assert.equal(msg('git commit --message=bar'), 'bar');
+  assert.equal(msg('git commit --message baz'), 'baz');
+  assert.equal(msg('git commit -m first -m second'), 'first');
+});
+
+test('parseGitCommit has no message when it is not in the command or cannot be read', () => {
+  const msg = (c) => parseGitCommit(c).message;
+  assert.equal(msg('git commit'), null);
+  assert.equal(msg('git commit -F msg.txt'), null);
+  assert.equal(msg('git commit -C HEAD'), null);
+  assert.equal(msg('git commit --amend --no-edit'), null);
+  assert.equal(msg('git commit -m "$(cat msg)"'), null);
+  assert.equal(msg('git commit -m `x`'), null);
+  assert.equal(msg('git commit -m "unclosed'), null);
+  assert.equal(msg('git commit -F f -m x'), null);
+  assert.equal(msg('git commit -m x -C HEAD'), null);
+  assert.equal(msg('git commit --fixup=abc -m x'), null);
+  assert.equal(msg('git commit --squash abc -m x'), null);
+});

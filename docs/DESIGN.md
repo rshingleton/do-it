@@ -71,32 +71,17 @@ payments, data migrations, CI or secrets is at least S regardless of size.
 
 ## 4. Work-item state
 
-One frontmatter block, in `docs/planning/<id>.md` (S) or
-`docs/planning/<id>/README.md` (M), owned by whichever step is running:
+One frontmatter block per work item, in `docs/planning/<id>.md` (S) or
+`docs/planning/<id>/README.md` (M), owned by whichever step is running. The
+fields, events and rules are in [STATE.md](../skills/do-it/STATE.md) and the
+plan layout in [PLAN-FORMAT.md](../skills/scope-it/PLAN-FORMAT.md); nothing
+is committed per phase (ADR [0002](adr/0002-no-commits-until-ship.md)).
 
-```yaml
-id: ABC-123            # Jira key, or a slug
-lane: m
-status: building       # planned | building | auditing | shipping | done
-base_ref: 1a2b3c4
-phases:
-  - { n: 1, status: done, commit: 9f8e7d6, verified: "npm test @ 9f8e7d6" }
-  - { n: 2, status: ready, blocked_by: [] }
-assumptions:
-  - "Retry cap of 3 is acceptable (reversible: config)"
-approvals:
-  plan: 2026-10-19
-audit: { verdict: null, at: null, round: 0 }
-jira: { epic: ABC-123, phases: { 1: ABC-124, 2: ABC-125 } }
-```
+Principles behind it:
 
-Rules:
-
-- A recorded verification is a claim about a specific commit; re-run it only if
-  the code moved (addyosmani).
-- Approvals count only when recorded here, never inferred from a past chat.
-- Phase files (`phase-N.md`) exist only in lane M. Sections: Goal, Scope,
-  Seams, Steps (`step -> verify: check`, karpathy), Done when.
+- A recorded verification is a claim about the code at that moment; re-run it
+  only if the code moved (addyosmani).
+- Approvals count only when recorded in the block, never inferred from a past chat.
 - No `jira.md` stub, no `sources/` move, no separate `execution-notes.md`. Jira
   keys and intake links live in the state block.
 
@@ -236,14 +221,14 @@ its savings claims (mostly unproven, research section 7). Effect measured in
 - Stop conditions: ambiguity that fails assume-or-ask, a failure after
   diagnosis, a merge break on the integration branch (revert the phase merge,
   mark `blocked`), anything `git revert` cannot undo.
-- Output: per-phase report in the state block (`done|blocked|failed`,
-  verification command and commit).
+- Output: per-phase report in the state block (`done|blocked|failed`, and
+  the verification command that passed).
 
 ### prove-it
 
 - Fresh-context subagents in parallel, merged in the main context: Spec and
   Standards (`review-it`), Compliance (`.compliance-rules/`, secrets),
-  Architecture (deletion test, seams). Lane S runs Spec+Standards only.
+  Architecture (deletion test, seams). Lane S skips Architecture only.
 - Finding contract (fork + ponytail): concrete case or no finding; recorded
   decisions and `shortcut:` markers are not findings; numbered Must / Should /
   Nice, one line each (`Must|Should|Nice | file:line | claim | case`, with a
@@ -289,7 +274,7 @@ do-it/
     install.sh                # symlinks + hook registration (hooks on by default)
     install-hooks.mjs         # idempotent settings merge, with backups
     gen-opencode.mjs          # skills -> OpenCode commands, agents -> OpenCode agents (--check for drift)
-    check.mjs                 # frontmatter, line budget, skill calls, links, em-dashes, agent files and tools
+    check.mjs                 # frontmatter, -it names, "Use when", line budget, skill calls, spawn caps, links, em-dashes, agent files and tools
   tests/                      # node --test, no dependencies
   docs/DESIGN.md, docs/adr/
 ```
@@ -306,13 +291,27 @@ do-it/
   (frontmatter included), `commands/` and `command/` are all read. No `skills`
   or `instructions` entry is installed: the symlinks already work, and the
   plugin injects the posture each turn.
+- OpenCode context: both hosts ask for the system context on every model
+  request, so the plugin builds it once and reuses it until `.git/HEAD`, its
+  reflog or `.git/index` change (stats, no spawn). A 10-turn scripted drive of
+  the hook in this repo: 5,022 bytes a turn either way; a rebuild each turn
+  cost 153 ms in all (13 ms a turn, a first turn of 34 ms), the cached plugin
+  13 ms in all (the first turn only). The full text stays on every turn rather
+  than a short reminder after turn 1: the repeated prefix is byte-identical so
+  providers cache it, and a changed prefix would bust that cache for a saving
+  of about 1,250 tokens. Not measured: provider cache hits in a live session
+  (no model calls were made).
 - OpenCode usage: on 1.x a plugin's `event` hook sees `cost` and `tokens`
   (input, output, reasoning, cache read/write) with `agent`, `modelID` and
   `providerID` on each `message.updated` assistant message; on 2.x
   `ctx.event.subscribe` yields `session.step.ended` and `session.usage.updated`
   with `cost` and `tokens`, and agent and model come from the `context` hook.
-  Nothing records it there until `work.mjs` has a usage field (the per-step
-  usage issue). On Claude Code the `Stop` and `SubagentStop` hooks already keep
+  The plugin records it into the same ledger (`skills/usage-it/scripts/opencode.mjs`),
+  tokens only, one row per session with reasoning folded into `out`: on 1.x from the `event` hook, on 2.x
+  from `ctx.event.subscribe`, with agent and model from the `context` hook. Limits: 1.x marks
+  a subagent by `parentID` on `session.created`, 2.x has no parent signal so every run is kind
+  `session`; totals live in plugin memory, so a restart mid-session restarts that run. Event
+  shapes are from the research note, run against fixtures, not a live session. On Claude Code the `Stop` and `SubagentStop` hooks already keep
   a per-run usage ledger from the transcripts (`skills/usage-it`, tokens only,
   no dollar estimate since prices change); it is not tied to a work item or step,
   but a step's usage can be read by time window (`usage.mjs --from/--to`).

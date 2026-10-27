@@ -60,8 +60,17 @@ const SCAN_FLAGS = ['--no-renames', '--diff-filter=d', '--no-ext-diff', '--no-te
 // and a 2 MB one takes about 1.6 s, so one hook may spend only the budget on
 // them before the 15 s hook timeout lets the commit through; scan such files
 // in chunks or in the background if they ever need content rules beyond it.
+// Files with a textconv driver share that budget for their driven view; past
+// it they keep their raw lines and path rules.
 const FILE_CAP = 1024 * 1024;
 const FILE_TIME = 2000;
+// shortcut: plain text files are diffed CHUNK names per git call; a chunk over
+// CHUNK_CAP, past CHUNK_TIME, or that fails falls back to one diff per file,
+// with no total cap on those, so a repo whose chunks keep failing is slow; raise
+// the limits, or add a total cap, when a real repo hits it.
+const CHUNK = 500;
+const CHUNK_CAP = 64 * 1024 * 1024;
+const CHUNK_TIME = 3000;
 // How long one hook may spend reading files git treats as binary.
 export const BINARY_BUDGET = 6000;
 
@@ -73,8 +82,9 @@ export const BINARY_BUDGET = 6000;
 // the limits above), so path rules still see it. A file git treats as binary
 // is read as text while `budget` ({ deadline }, ms since epoch; default
 // BINARY_BUDGET from now) lasts, and a file with a textconv driver is read
-// raw and through the driver. `untracked` adds every
-// untracked file in the repo, regular files read whole; an array of pathspecs
+// raw and, while the budget lasts, through the driver. `untracked` adds every
+// untracked file in the repo, regular files read whole (and, with a driver,
+// through it too); an array of pathspecs
 // (relative to `cwd`) adds only the untracked files they match, and with
 // `ignored` those the repo ignores too (what `git add -f` stages). Throws when
 // the listing fails or the base is unknown.
@@ -111,6 +121,16 @@ export function addedLines(cwd, { against = 'HEAD', paths = [], untracked = fals
       return null;
     }
   };
+  // The untracked files to add, listed before the driver lookup so one
+  // check-attr call covers them and the tracked names.
+  let others = [];
+  if (untracked) {
+    const listing = Array.isArray(untracked)
+      ? git(cwd, ['-c', 'core.quotePath=false', 'ls-files', '-z', '--full-name', '--others', ...(ignored ? [] : ['--exclude-standard']), '--', ...untracked])
+      : git(top, ['-c', 'core.quotePath=false', 'ls-files', '-z', '--others', '--exclude-standard', '--', '.']);
+    if (listing.status !== 0) throw new Error(`git ls-files failed: ${listing.stderr}`);
+    others = listing.stdout.split('\0').filter(Boolean);
+  }
   // The files whose diff driver has a textconv command, looked up once, when
   // the first file is read. A failed lookup counts every file as driven:
   // a second diff costs time, a missed driver costs content.
@@ -123,7 +143,7 @@ export function addedLines(cwd, { against = 'HEAD', paths = [], untracked = fals
         const drivers = new Set(cfg.stdout.split('\0').filter(Boolean).map((e) => e.split('\n')[0].slice('diff.'.length, -'.textconv'.length)));
         driven = new Set();
         if (drivers.size) {
-          const attrs = git(top, ['check-attr', '-z', '--stdin', 'diff'], 'utf8', env, { input: names.join('\0') });
+          const attrs = git(top, ['check-attr', '-z', '--stdin', 'diff'], 'utf8', env, { input: [...names, ...others].join('\0') });
           if (attrs.status !== 0) throw new Error(attrs.stderr);
           const t = attrs.stdout.split('\0');
           for (let i = 0; i + 2 < t.length; i += 3) if (drivers.has(t[i + 2])) driven.add(t[i]);
@@ -134,42 +154,89 @@ export function addedLines(cwd, { against = 'HEAD', paths = [], untracked = fals
     }
     return driven.has(file);
   };
+  // The time left for a driven or binary read, or 0 when the budget is spent.
+  const timeLeft = () => Math.max(0, Math.min(FILE_TIME, deadline - Date.now()));
+  // The plain text diffs of every name, one git call per chunk: file ->
+  // output, null when over FILE_CAP. Every line of a hunk starts with + - space
+  // or \, so a line starting `diff --git ` is always a new file's section.
+  // A chunk that cannot be read, or whose sections do not match its names,
+  // is left out and its files are read one by one.
+  const plain = new Map();
+  for (let i = 0; i < names.length; i += CHUNK) {
+    const group = names.slice(i, i + CHUNK);
+    try {
+      const out = diff([], group.map((f) => `:(top,literal)${f}`), { maxBuffer: CHUNK_CAP, timeout: CHUNK_TIME, stdio: ['ignore', 'pipe', 'ignore'] });
+      if (out === null) continue;
+      const sections = sectionsOf(out);
+      // Each section must open with its own name's header: a type change gives
+      // a file two sections and an unmerged path none, so counts alone can line up wrong.
+      if (sections.length !== group.length || sections.some((sec, j) => !sec.startsWith(`diff --git a/${group[j]} b/${group[j]}\n`))) continue;
+      group.forEach((f, j) => plain.set(f, sections[j].length > FILE_CAP ? null : sections[j]));
+    } catch {
+      // Read these one by one below.
+    }
+  }
+  // textconv stays off here so it cannot hide a text file's lines.
+  const merge = (lines, text) => {
+    const seen = new Set(lines.map((l) => `${l.n}\0${l.text}`));
+    for (const l of hunkLines(text)) if (!seen.has(`${l.n}\0${l.text}`)) lines.push(l);
+  };
   const files = names.map((file) => {
-    // textconv stays off here so it cannot hide a text file's lines.
-    let out = own(file, SCAN_FLAGS);
+    let out = plain.has(file) ? plain.get(file) : own(file, SCAN_FLAGS);
     // A binary has no lines until it is read as text, within the budget.
-    const left = deadline - Date.now();
+    const left = timeLeft();
     if (out && !/^@@ /m.test(out) && /^Binary files /m.test(out) && left > 0) {
-      out = own(file, [...SCAN_FLAGS, '--text'], Math.min(FILE_TIME, left)) ?? out;
+      out = own(file, [...SCAN_FLAGS, '--text'], left) ?? out;
     }
     const lines = hunkLines(out ?? '');
-    // A driver may also reveal what the raw view does not: read both.
-    if (hasTextconv(file)) {
-      const seen = new Set(lines.map((l) => `${l.n}\0${l.text}`));
-      for (const l of hunkLines(own(file, SCAN_FLAGS.filter((f) => f !== '--no-textconv')) ?? '')) {
-        if (!seen.has(`${l.n}\0${l.text}`)) lines.push(l);
-      }
+    // A driver may also reveal what the raw view does not: read both, while
+    // the budget lasts.
+    if (hasTextconv(file) && timeLeft() > 0) {
+      merge(lines, own(file, SCAN_FLAGS.filter((f) => f !== '--no-textconv'), timeLeft()) ?? '');
     }
     return { file, lines };
   });
-  if (untracked) {
-    const only = Array.isArray(untracked);
-    const others = only
-      ? git(cwd, ['-c', 'core.quotePath=false', 'ls-files', '-z', '--full-name', '--others', ...(ignored ? [] : ['--exclude-standard']), '--', ...untracked])
-      : git(top, ['-c', 'core.quotePath=false', 'ls-files', '-z', '--others', '--exclude-standard', '--', '.']);
-    if (others.status !== 0) throw new Error(`git ls-files failed: ${others.stderr}`);
-    for (const file of others.stdout.split('\0').filter(Boolean)) {
-      let text = '';
-      try {
-        if (fs.lstatSync(path.join(top, file)).isFile()) text = fs.readFileSync(path.join(top, file), 'utf8');
-      } catch {
-        // Gone since the listing: path rules still apply.
+  for (const file of others) {
+    let text = '';
+    let regular = false;
+    try {
+      if (fs.lstatSync(path.join(top, file)).isFile()) {
+        regular = true;
+        text = fs.readFileSync(path.join(top, file), 'utf8');
       }
-      const lines = text ? text.replace(/\n$/, '').split('\n').map((t, j) => ({ n: j + 1, text: t })) : [];
-      files.push({ file, lines });
+    } catch {
+      // Gone since the listing: path rules still apply.
     }
+    const lines = text ? text.replace(/\n$/, '').split('\n').map((t, j) => ({ n: j + 1, text: t })) : [];
+    // git diff --no-index exits 1 when the files differ, which is the success case here.
+    if (regular && hasTextconv(file) && timeLeft() > 0) {
+      try {
+        const r = git(top, ['-c', 'core.quotePath=false', 'diff', '--no-index', '--textconv', '--no-ext-diff', '--no-color', '-U0', '--', '/dev/null', file], 'utf8', env, { maxBuffer: FILE_CAP, timeout: timeLeft(), stdio: ['ignore', 'pipe', 'ignore'] });
+        if (r.status === 1) merge(lines, r.stdout);
+      } catch {
+        // The raw lines stand.
+      }
+    }
+    files.push({ file, lines });
   }
   return files;
+}
+
+// A multi-file patch cut into one section per `diff --git ` line. Split on \n
+// only: a regex ^ would also cut after \r or U+2028 inside an added line.
+function sectionsOf(patch) {
+  const out = [];
+  let from = -1;
+  for (let at = 0; at < patch.length; ) {
+    if (patch.startsWith('diff --git ', at)) {
+      if (from >= 0) out.push(patch.slice(from, at));
+      from = at;
+    }
+    const nl = patch.indexOf('\n', at);
+    at = nl < 0 ? patch.length : nl + 1;
+  }
+  if (from >= 0) out.push(patch.slice(from));
+  return out;
 }
 
 // The + lines of one file's patch, numbered from each hunk's new start. Each

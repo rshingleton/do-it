@@ -71,7 +71,8 @@ A refused event (the script exits 1) is `blocked`.
 
 ## 5. Route
 
-- `PASS`: return `done`. **Next:** `/ship-it <id>`.
+- `PASS`: return `done`. Called by `do-it`, let it continue; run alone, say
+  **Next:** `/ship-it <id>`.
 - `FAIL`, round 1 or 2: return `failed` with the Must numbers. `do-it` sends
   them to `build-it`, which fixes only those (its fix mode) and hands back
   for a full re-audit (every check, every time).
@@ -82,7 +83,8 @@ A refused event (the script exits 1) is `blocked`.
   `build-done` to re-audit), or re-plan (`replan`, then scope-it).
 
 Should and Nice findings never block. `ship-it` carries them into the
-changelog or ADR notes. Mechanical rules that keep failing are listed as
+changelog or ADR notes, and with no changelog offers to log them as
+to-dos. Mechanical rules that keep failing are listed as
 **Guardrail candidates**: rules for `.compliance-rules/checks.json` or the
 lint config, so the hooks catch them next time. `/retro-it` turns them into
 those rules.

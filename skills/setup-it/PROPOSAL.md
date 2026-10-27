@@ -72,7 +72,23 @@ When missing, a one-line file: `@AGENTS.md`. When present without that
 literal line (a Markdown link to AGENTS.md does not load it), offer to add
 it.
 
-## 6. Next step
+## 6. `opencode.json` `external_directory`
+
+Only when the check reports `applies: true` and a status other than `ok`.
+OpenCode 2 allows paths outside the repo by default, which sidesteps the
+guards. Show the key to add, `ask` (not `deny`, so worktree builds keep
+working):
+
+```json
+{ "permission": { "external_directory": "ask" } }
+```
+
+`allow` is changed in place; `missing` is added, merged into an existing
+`permission` block, or written as a new `opencode.json` when only `.opencode/`
+exists. A file with `comments: true` or status `invalid` is never
+rewritten: show the snippet and let the user add it. `ok` is "no change".
+
+## 7. Next step
 
 Existing repo without `docs/reference/`: offer `/map-it`. New repo: the
 greenfield agenda runs with the first `/do-it`.

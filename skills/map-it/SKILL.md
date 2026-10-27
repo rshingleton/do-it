@@ -1,6 +1,6 @@
 ---
 name: map-it
-description: Map an existing codebase or one area of it, as reference docs under docs/reference/ or as a map in chat, so later planning and review start from facts. Use when onboarding to an unfamiliar repo, when asked how something is structured or where something lives, before planning work in an area nobody has mapped, or when docs/reference/ is stale.
+description: Map an existing codebase or one area of it, as reference docs under docs/reference/ or as a map in chat, so later planning and review start from facts. Use when onboarding to an unfamiliar repo, when asked how something is structured or fits together or where something lives, before planning work in an area nobody has mapped, or when docs/reference/ is stale.
 argument-hint: "[path or area] [--chat]"
 ---
 
@@ -35,7 +35,7 @@ Write files only when the user asked for docs or ran `/map-it` directly.
 
 With a host that has an exploring subagent, send the `it-scout` agent (cheap
 tier) with the scope and [LAYOUT.md](LAYOUT.md) as the brief, very thorough,
-cap its summary at 500 words, and work from its findings; otherwise explore in
+cap its summary at 300 words, and work from its findings; otherwise explore in
 the main context. Find:
 
 - modules and what each is responsible for, with paths;

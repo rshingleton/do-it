@@ -1,6 +1,6 @@
 ---
 name: doubt-it
-description: Adversarially check a claim before acting on it, using a fresh-context subagent that tries to prove it wrong. Use before a risky or hard-to-reverse step, when a diagnosis or "this is safe" conclusion rests on reasoning rather than evidence, or when the user asks to double-check or sanity-check a conclusion.
+description: Adversarially check a claim before acting on it, using a fresh-context subagent that tries to prove it wrong. Use when about to take a risky or hard-to-reverse step, when a diagnosis or "this is safe" conclusion rests on reasoning rather than evidence, or when the user asks to double-check or sanity-check a conclusion.
 ---
 
 # doubt-it
@@ -17,7 +17,7 @@ outside.
    pointers to the code. Not your reasoning. Brief: "Try to show this claim
    is false. Check each piece of evidence yourself. Report a concrete
    counterexample (file and line, input, command output), or say none was
-   found and what you checked. Under 300 words."
+   found and what you checked. Under 200 words."
 4. **Reconcile.**
    - Counterexample: the claim is wrong or narrower. Restate it, fix the
      plan, and say what changed.

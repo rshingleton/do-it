@@ -36,6 +36,8 @@ Read, without writing anything:
   them), and any other workflow already defined there that uses
   `docs/issues/` or `docs/planning/` (flag the overlap in the proposal).
 - **Compliance:** `.compliance-rules/` and any `checks.json`.
+- **OpenCode:** `node <this skill's dir>/scripts/opencode-check.mjs <repo root>`
+  prints whether `external_directory` is safe; `applies: false` means skip it.
 
 ## 2. Propose (one turn, every item with a default)
 

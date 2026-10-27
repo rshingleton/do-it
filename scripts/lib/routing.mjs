@@ -124,7 +124,7 @@ export function evaluate(skills, spec) {
   for (const name of model.names) {
     const entry = spec.skills?.[name];
     if (!entry) {
-      warnings.push(`${name}: no routing entries; add positives and negatives to evals/routing.json`);
+      failures.push(`${name}: no routing entries; add positives and negatives to evals/routing.json`);
       continue;
     }
     const row = { name, positives: 0, first: 0, negatives: 0, negOk: 0 };

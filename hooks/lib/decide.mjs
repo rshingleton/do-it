@@ -40,7 +40,9 @@ function decideOrThrow(event, kind, args, cwd, env, session) {
   if (event === 'before') {
     // Compliance notes wait for the edit to run; only a block stops it here.
     const r = kind === 'edit' ? beforeEdit(ctx, args) : kind === 'shell' ? beforeShell(ctx, args.command) : null;
-    return r?.action === 'block' ? { block: r.reason } : {};
+    if (r?.action === 'block') return { block: r.reason };
+    // A shell warn rides along as context; an edit's notes wait for the edit.
+    return kind === 'shell' && r?.action === 'warn' ? { context: r.message } : {};
   }
 
   if (event === 'after' && kind === 'edit') {

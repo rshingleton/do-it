@@ -1,3 +1,4 @@
+import './env.mjs'; // first: isolates the developer's environment
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -11,29 +12,6 @@ import { roadmapSlices } from '../skills/do-it/scripts/roadmap.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const WORK = path.join(ROOT, 'skills/do-it/scripts/work.mjs');
-
-// The style STATE.md and older plans use: flow maps, one spanning two lines,
-// a scalar todo, trailing comments, a title with a comma in parentheses.
-const FLOW = `id: ABC-123
-title: Rate-limit the login endpoint
-lane: m
-status: building        # draft | planned | building
-tracker: { kind: jira, ref: ABC-123, phases: { 1: ABC-124, 2: ABC-125 } }
-sources: [docs/issues/login-rate-limit.md]
-todo: T5                # promoted from the to-do list
-base_ref: 1a2b3c4
-approvals:
-  plan: 2026-10-19
-phases:
-  - { n: 1, title: Limiter module, blocked_by: [], status: done,
-      verified: "npm test, npm run lint: pass" }
-  - { n: 2, title: Wire into login (rate, lockout), blocked_by: [1], status: ready }
-assumptions:
-  - "Limit is 5 attempts per minute per IP (reversible: config)"
-audit: { verdict: null, round: 0, must: [], fingerprint: null }
-ship: { prepared: null, fingerprint: null }
-blocker: null
-`;
 
 const BLOCK = `id: ABC-123
 title: Rate-limit the login endpoint
@@ -71,8 +49,17 @@ test('state block: block style round-trips byte for byte', () => {
   assert.equal(writeBlock(normalize(parseBlock(once))), once);
 });
 
-test('state block: the old flow style reads the same as its block rewrite', () => {
-  assert.deepEqual(normalize(parseBlock(FLOW)), normalize(parseBlock(BLOCK)));
+test('state block: one-line scalar lists and {} read; the old flow style is refused', () => {
+  const read = (v) => parseBlock(`k: ${v}\n`).k;
+  assert.deepEqual(read('[]'), []);
+  assert.deepEqual(read('{}'), {});
+  assert.deepEqual(read('["x, y", 2]'), ['x, y', 2]);
+  assert.deepEqual(read("['it''s', a (b, c)]"), ["it's", 'a (b, c)']);
+  assert.deepEqual(read('[a, b] # c'), ['a', 'b']);
+  for (const old of ['{ a: 1 }', '[[1]]', '[{ a: 1 }]', '[a,\n  b]']) {
+    assert.throws(() => parseBlock(`k: ${old}\n`), /rewrite in block style/, old);
+  }
+  assert.throws(() => parseBlock('k:\n  - { a: 1 }\n'), /rewrite in block style/);
   const stateDoc = fs.readFileSync(path.join(ROOT, 'skills/do-it/STATE.md'), 'utf8');
   const example = stateDoc.match(/```yaml\n---\n([\s\S]*?)---\n```/)[1];
   const s = normalize(parseBlock(example));
@@ -122,7 +109,8 @@ test('transitions: lane S walks draft to shipping through a failed audit', () =>
   assert.equal(s.audit.round, 1);
   s = walk(s, [['start', { head: 'def' }]]);
   assert.equal(s.base_ref, 'abc', 'a resumed start keeps the base');
-  s = walk(s, [['build-done'], ['audit-pass', { fingerprint: 'f1' }], ['ship-prepared', { fingerprint: 'f2' }]]);
+  assert.throws(() => transition(s, 'build-done'), /since the fix began/, 'fix mode needs its own verify');
+  s = walk(s, [['phase-done', { verified: 'npm test: pass' }], ['build-done'], ['audit-pass', { fingerprint: 'f1' }], ['ship-prepared', { fingerprint: 'f2' }]]);
   assert.equal(s.status, 'shipping');
   assert.deepEqual(s.audit.must, []);
   assert.equal(s.audit.round, 0, 'a pass resets the failed-round count');
@@ -146,14 +134,15 @@ test('transitions: lane M needs every phase done, in dependency order', () => {
 test('transitions: the third failed audit asks the user; fix mode skips phases', () => {
   let s = normalize({ ...emptyBlock({ id: 'm', title: 'M', lane: 'm' }), phases: [{ n: 1 }] });
   s = walk(s, [['approve'], ['start', { head: 'a' }], ['phase-done', { n: 1, verified: 'ok' }], ['build-done']]);
-  for (let r = 1; r <= 3; r++) s = walk(s, [['audit-fail', { must: [`M${r}`] }], ...(r < 3 ? [['build-done']] : [])]);
+  for (let r = 1; r <= 3; r++) s = walk(s, [['audit-fail', { must: [`M${r}`] }], ...(r < 3 ? [['phase-done', { n: 1, verified: 'ok' }], ['build-done']] : [])]);
   assert.equal(s.status, 'blocked');
   assert.equal(s.audit.round, 3);
   assert.match(s.blocker, /fix, accept with a recorded decision, or re-plan/);
   assert.equal(needsUser(s), true);
   s = walk(s, [['unblock']]);
   assert.equal(needsUser(s), false, 'the answer is recorded once; resume does not ask again');
-  s = walk(s, [['build-done']]);
+  assert.throws(() => transition(s, 'build-done'), /since the fix began/);
+  s = walk(s, [['phase-done', { n: 1, verified: 'ok' }], ['build-done']]);
   assert.equal(s.status, 'auditing', 'accepting with a recorded decision re-audits');
 });
 
@@ -174,9 +163,11 @@ test('transitions: a rejected assumption gives build-it work (bug 1)', () => {
   assert.deepEqual(s.fix, ['Rejected assumption: Limit is 5 a minute. Instead: limit is 10']);
   assert.deepEqual(s.assumptions, ['Per IP'], 'a rejected assumption is not asked about again');
   assert.equal(s.ship.prepared, null);
-  s = walk(s, [['build-done']]);
+  assert.throws(() => transition(s, 'build-done'), /since the fix began/);
+  s = walk(s, [['phase-done', { verified: 'ok' }], ['build-done']]);
   assert.equal(s.status, 'auditing');
   assert.deepEqual(s.fix, []);
+  assert.equal('fix_verified' in s, false, 'the record is spent with the fix');
 });
 
 test('transitions: an illegal event names the allowed ones', () => {
@@ -226,6 +217,33 @@ test('roadmap: every slice state is derived, a hand-committed plan is stale (bug
   assert.deepEqual(by, { R1: 'shipped', R2: 'in flight', R3: 'blocked', R4: 'refine', R5: 'blocked', R6: 'stale', R7: 'dropped' });
   assert.match(out.slices.find((s) => s.id === 'R5').note, /R4, D1/);
   assert.equal(out.next, 'R4');
+});
+
+test('roadmap: an open decision is reported with every unfinished slice it blocks', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-rm-'));
+  const planningDir = path.join(dir, 'docs/planning');
+  fs.mkdirSync(planningDir, { recursive: true });
+  const file = path.join(dir, 'billing.md');
+  const rows = [
+    '| R1 | build | A | G1 | D1 | v | low | |',
+    '| R2 | build | B | G1 | D1, R1 | v | low | |',
+    '| R3 | build | C | G1 | D1 | v | low | shipped 2026-10-20 x |',
+    '| R4 | build | D | G1 | D2 | v | low | shipped 2026-10-21 y |',
+  ];
+  fs.writeFileSync(file, `### M1\n\n| Slice | Kind | Delivers | Covers | Blocked by | Verify | Risk | Status |\n|---|---|---|---|---|---|---|---|\n${rows.join('\n')}\n\n## Open decisions\n- D1: q?\n- D2: r?\n`);
+  const out = roadmapSlices(file, { root: dir, planningDir, tracked: () => false });
+  assert.deepEqual(out.blocking, [{ id: 'D1', blocks: ['R1', 'R2'] }]);
+});
+
+test('skills: roadmap-it and do-it ask the decisions that block slices', () => {
+  const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
+  const next = read('skills/roadmap-it/SKILL.md');
+  const section = next.slice(next.indexOf('## 6. Next'), next.indexOf('## 7. Replan'));
+  assert.match(section, /`blocking`[\s\S]*"grill-it"[\s\S]*recommended answer/, 'roadmap-it asks each blocking decision');
+  assert.match(section, /Decisions so far/, 'a settled decision is recorded');
+  const doIt = read('skills/do-it/SKILL.md');
+  assert.match(doIt, /`blocking`[\s\S]*roadmap-it[\s\S]*§6/, 'do-it names the ask');
+  assert.match(doIt.slice(doIt.indexOf('## 4. Where it stops')), /blocking decision/, 'the stops list has the decision stop');
 });
 
 function tempRepo() {
@@ -284,6 +302,17 @@ test('work.mjs: new, set, event, show, list and close on a repo', () => {
   assert.match(work(dir, 'show', 'feat-x').out.error, /no plan for feat-x/);
 });
 
+test('work.mjs: close from building exits 1, names the status and removes nothing', () => {
+  const dir = tempRepo();
+  work(dir, 'new', 'busy', '--lane', 's', '--title', 'Busy');
+  work(dir, 'event', 'busy', 'approve');
+  work(dir, 'event', 'busy', 'start');
+  const r = work(dir, 'close', 'busy');
+  assert.equal(r.status, 1);
+  assert.match(r.out.error, /close needs status shipping; busy is building/);
+  assert.ok(fs.existsSync(path.join(dir, 'docs/planning/busy.md')), 'the plan is still there');
+});
+
 test('work.mjs: verify-phase records only a passing check; audit-pass hashes the change (T21, T8)', () => {
   const dir = tempRepo();
   const git = (...a) => execFileSync('git', a, { cwd: dir, encoding: 'utf8' });
@@ -309,6 +338,26 @@ test('work.mjs: verify-phase records only a passing check; audit-pass hashes the
   work(dir, 'event', 'fix-y', 'build-done');
   r = work(dir, 'event', 'fix-y', 'audit-pass');
   assert.equal(r.out.audit.fingerprint, before);
+});
+
+test('work.mjs: build-done in fix mode needs a passing verify-phase since the fix began', () => {
+  const dir = tempRepo();
+  const git = (...a) => execFileSync('git', a, { cwd: dir, encoding: 'utf8' });
+  git('-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '--allow-empty', '-m', 'base');
+  work(dir, 'new', 'fix-z', '--lane', 's', '--title', 'Fix Z');
+  for (const e of ['approve', 'start']) work(dir, 'event', 'fix-z', e);
+  work(dir, 'verify-phase', 'fix-z', '--', 'node -e "process.exit(0)"');
+  work(dir, 'event', 'fix-z', 'build-done');
+  work(dir, 'event', 'fix-z', 'audit-fail', 'M1 missing test');
+
+  let r = work(dir, 'event', 'fix-z', 'build-done');
+  assert.equal(r.status, 1);
+  assert.match(r.out.error, /since the fix began/, 'the pre-fix verify does not count');
+  r = work(dir, 'verify-phase', 'fix-z', '--', 'node -e "process.exit(3)"');
+  assert.equal(r.status, 1);
+  assert.equal(work(dir, 'event', 'fix-z', 'build-done').status, 1, 'a failing verify records nothing');
+  work(dir, 'verify-phase', 'fix-z', '--', 'node -e "process.exit(0)"');
+  assert.equal(work(dir, 'event', 'fix-z', 'build-done').out.status, 'auditing');
 });
 
 test('work.mjs: review-diff shows edits made after ship prepared, without touching the index', () => {
@@ -341,7 +390,7 @@ test('audit round 1 regressions: replan, parens, empty lane M, comments, CRLF', 
   // Must 1: after a re-plan the new phases are built, not skipped by fix mode.
   let s = normalize({ ...emptyBlock({ id: 'm', title: 'M', lane: 'm' }), phases: [{ n: 1 }] });
   s = walk(s, [['approve'], ['start', { head: 'a' }], ['phase-done', { n: 1, verified: 'ok' }], ['build-done']]);
-  s = walk(s, [['audit-fail', { must: [1] }], ['build-done'], ['audit-fail', { must: [1] }], ['build-done'], ['audit-fail', { must: [1] }], ['replan']]);
+  s = walk(s, [['audit-fail', { must: [1] }], ['phase-done', { n: 1, verified: 'ok' }], ['build-done'], ['audit-fail', { must: [1] }], ['phase-done', { n: 1, verified: 'ok' }], ['build-done'], ['audit-fail', { must: [1] }], ['replan']]);
   assert.deepEqual([s.audit.verdict, s.audit.round, s.fix], [null, 0, []]);
   s = normalize({ ...s, phases: [...s.phases, { n: 2, blocked_by: [1] }] });
   s = walk(s, [['approve'], ['start']]);
@@ -354,9 +403,6 @@ test('audit round 1 regressions: replan, parens, empty lane M, comments, CRLF', 
   // Should 4: lane M with no phases cannot go to audit.
   const empty = walk(emptyBlock({ id: 'e', title: 'E', lane: 'm' }), [['approve'], ['start', { head: 'a' }]]);
   assert.throws(() => transition(empty, 'build-done'), /no phases/);
-
-  // Nice 8: a comment inside a multi-line flow map is dropped.
-  assert.deepEqual(parseBlock('audit: { verdict: null, # c\n  round: 0 }\n').audit, { verdict: null, round: 0 });
 
   // Nice 9: a CRLF plan stays CRLF.
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-crlf-'));
@@ -491,4 +537,78 @@ test('work.mjs: --brief on new, list, event, set and verify-phase prints the sho
   const list = work(dir, 'list', '--brief').out;
   assert.deepEqual(list, [{ id: 'feat-c', lane: 's', status: 'building' }]);
   assert.ok(work(dir, 'show', 'feat-c').out.verified, 'the full form still records and shows the check');
+});
+
+test('transitions: a fix round forgets the last one\'s verify', () => {
+  let s = emptyBlock({ id: 'x', title: 'X', lane: 's' });
+  s = walk(s, [['approve'], ['start', { head: 'a' }], ['phase-done', { verified: 'ok' }], ['build-done'], ['audit-fail', { must: ['M1'] }], ['phase-done', { verified: 'fix1' }], ['build-done'], ['audit-fail', { must: ['M2'] }]]);
+  assert.equal('fix_verified' in s, false);
+  assert.throws(() => transition(s, 'build-done'), /since the fix began/, 'round 1 verify does not cover round 2');
+});
+
+test('ship-it: the retro-it offer sits at the question, before close deletes the candidates', () => {
+  const ship = fs.readFileSync(path.join(ROOT, 'skills/ship-it/SKILL.md'), 'utf8');
+  const question = ship.indexOf('## 2. The one question');
+  const after = ship.indexOf('## 3. After the answer');
+  const offer = ship.indexOf('/retro-it <id>');
+  assert.ok(offer > question && offer < after, 'the offer is in section 2');
+  assert.ok(offer < ship.indexOf('`work.mjs close <id>`'), 'the offer precedes the close step');
+  assert.equal(ship.split('/retro-it <id>').length, 2, 'offered once, not again after close');
+});
+
+test('ship-it: the question offers the audit leftovers, DOCS.md and prove-it name where they go', () => {
+  const ship = fs.readFileSync(path.join(ROOT, 'skills/ship-it/SKILL.md'), 'utf8');
+  const docs = fs.readFileSync(path.join(ROOT, 'skills/ship-it/DOCS.md'), 'utf8');
+  const prove = fs.readFileSync(path.join(ROOT, 'skills/prove-it/SKILL.md'), 'utf8');
+  const question = ship.slice(ship.indexOf('## 2. The one question'), ship.indexOf('## 3. After the answer'));
+  assert.match(question, /the audit's Should and Nice findings \(no changelog\)/, 'the question shows the findings');
+  assert.match(question, /audit findings and\s+surfaced defects above \(default: findings and defects/, 'question 2 offers them, default log');
+  assert.ok(docs.includes('## Audit findings'), 'DOCS.md has the section');
+  const section = docs.slice(docs.indexOf('## Audit findings'));
+  assert.match(section, /"log-it"[\s\S]*`source: <work id> audit`/, 'it logs through log-it with the audit source');
+  assert.match(prove, /with no changelog offers to log them as\s+to-dos/, 'prove-it names the home');
+});
+
+test('closing Next: do-it §6 and ship-it §4 name a slash command, never a script', () => {
+  const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
+  const doIt = read('skills/do-it/SKILL.md');
+  const ship = read('skills/ship-it/SKILL.md');
+  const closing = doIt.slice(doIt.indexOf('## 6. Closing message'));
+  const close = ship.slice(ship.indexOf('## 4. Close'), ship.indexOf('## Rules'));
+  for (const [name, text] of [['do-it §6', closing], ['ship-it §4', close]]) {
+    assert.match(text, /slash command/, `${name} says Next: is a slash command`);
+    assert.match(text, /never a script/, `${name} forbids naming a script`);
+    assert.doesNotMatch(text, /work\.mjs/, `${name} does not name the helper`);
+  }
+  assert.match(closing, /\/do-it <file>#R<n>/, 'do-it §6 shows the roadmap form');
+  assert.match(closing, /no slice is ready/i, 'do-it §6 covers the nothing-ready case');
+});
+
+test('defects: a surfaced-defects list round-trips and work.mjs set writes it', () => {
+  const s = { ...emptyBlock({ id: 'x', title: 'X', lane: 's' }), defects: ['scan fails at Long.MAX_VALUE', 'range delete skips the end key'] };
+  assert.deepEqual(emptyBlock({ id: 'x', title: 'X', lane: 's' }).defects, []);
+  assert.deepEqual(normalize(parseBlock(writeBlock(s))).defects, s.defects);
+  assert.deepEqual(normalize({ id: 'x', title: 'X', lane: 's' }).defects, [], 'an older plan gains an empty list');
+  const dir = tempRepo();
+  work(dir, 'new', 'feat-d', '--lane', 's', '--title', 'D', '--brief');
+  const r = work(dir, 'set', 'feat-d', 'defects', '["a: one","b: two"]', '--brief');
+  assert.equal(r.status, 0, JSON.stringify(r.out));
+  assert.deepEqual(work(dir, 'show', 'feat-d').out.defects, ['a: one', 'b: two']);
+});
+
+test('skills: surfaced defects are planned, recorded and offered at ship', () => {
+  const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
+  const ship = read('skills/ship-it/SKILL.md');
+  const docs = read('skills/ship-it/DOCS.md');
+  const question = ship.slice(ship.indexOf('## 2. The one question'), ship.indexOf('## 3. After the answer'));
+  assert.match(question, /surfaced `defects:`/, 'the question lists the defects');
+  assert.match(question, /surfaced defects above[\s\S]*default/i, 'question 2 offers to log them');
+  const section = docs.slice(docs.indexOf('## Surfaced defects'));
+  assert.ok(docs.includes('## Surfaced defects'), 'DOCS.md has the section');
+  assert.match(section, /"log-it"[\s\S]*`source: <work id>`/, 'filed through log-it with the work id');
+  assert.match(section, /`shipped <date> <work id>, Verify unmet:\s+<clause>`[\s\S]*issue refs/, 'unmet-verify format'); assert.match(section, /unmet/i, 'a roadmap row is not shipped without the unmet-verify note');
+  assert.match(read('skills/scope-it/PLAN-FORMAT.md'), /surfaced defect[\s\S]*`log-it`/, 'scope-it adds the file-defects step');
+  assert.match(read('skills/scope-it/SKILL.md'), /PLAN-FORMAT\.md/);
+  assert.match(read('skills/build-it/SKILL.md'), /defects/, 'build-it records defects');
+  assert.match(read('skills/do-it/STATE.md'), /`defects`/, 'STATE.md documents the field');
 });

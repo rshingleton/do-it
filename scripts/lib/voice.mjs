@@ -1,7 +1,7 @@
 // The voice block (skills/it-core/VOICE.md) copied into each agent file
 // between markers, so a host without hooks still delivers it.
 
-const START = '<!-- voice:start -->';
+export const START = '<!-- voice:start -->';
 const END = '<!-- voice:end -->';
 
 // text with the marked span set to voice: replaced in place, else appended.

@@ -16,7 +16,7 @@ from anywhere in the repo.
 | Command | Does |
 |---------|------|
 | `work.mjs new <id> --lane s\|m --title "<title>"` | Creates the plan file with the full empty block, `status: draft` |
-| `work.mjs set <id> <key> <json>` | Sets a field with no event: `title`, `lane`, `tracker`, `sources`, `roadmap`, `todo`, `blocked_by`, `phases`, `assumptions`. An empty or null value is refused (`[]` clears a list). `phases` takes `n`, `title`, `blocked_by`; a phase's `status` and `verified` are kept across a re-plan and only events change them |
+| `work.mjs set <id> <key> <json>` | Sets a field with no event: `title`, `lane`, `tracker`, `sources`, `roadmap`, `todo`, `blocked_by`, `phases`, `assumptions`, `defects`. An empty or null value is refused (`[]` clears a list). `phases` takes `n`, `title`, `blocked_by`; a phase's `status` and `verified` are kept across a re-plan and only events change them |
 | `work.mjs event <id> <event> [args]` | Moves the item (table below) |
 | `work.mjs show <id> [--brief]` / `work.mjs list` | One item (`--brief`: only `id`, `lane`, `status`, `allowed`, `blocker` and `needs_user`, enough to resume), with `allowed` (the next moves: the events `event` takes, plus `close` from shipping) and `needs_user`; or every open item |
 | `work.mjs fingerprint <id>` | Hash of the change since `base_ref`, planning files excluded |
@@ -30,7 +30,7 @@ shape as `show --brief` (`list`: `id`, `lane`, `status` per item). A step that
 only needs the result of a write passes it and re-reads with `show` when it
 needs more. `fingerprint`, `review-diff`, `roadmap` and `close` already print
 only what the caller reads, so they have no brief form. Free text in the block
-(`blocker`, `assumptions`, `fix`, `verified`) follows
+(`blocker`, `assumptions`, `fix`, `defects`, `verified`) follows
 [VOICE.md](../it-core/VOICE.md): terse, numbers and paths verbatim, negations kept.
 
 ## Events
@@ -42,7 +42,7 @@ only what the caller reads, so they have no brief form. Free text in the block
 | `phase-done` (fired by `verify-phase` only) | building | building | phase `n` done with `verified` (lane S: top-level `verified`); its `blocked_by` phases must be done |
 | `block <why> [--phase n]` | planned, building, auditing, shipping | blocked | `blocker`; with `--phase`, only that phase is blocked and the item keeps building |
 | `unblock [--phase n]` | blocked (phase: building) | building | clears `blocker` |
-| `build-done` | building | auditing | needs every phase done (lane S: `verified`), except in fix mode, where it clears `fix` |
+| `build-done` | building | auditing | needs every phase done (lane S: `verified`); in fix mode it needs a `verify-phase` that passed since the fix began (`fix_verified`, dropped with the fix) and clears `fix` |
 | `audit-pass [fingerprint]` | auditing | shipping | `audit`: PASS, `round` 0, `must` [], `fingerprint` (computed when omitted), `at` |
 | `audit-fail <must...>` | auditing | building; blocked at round 3 or later | `audit`: FAIL, `round` + 1, `must`, `at`; from round 3 a `blocker` asking the user |
 | `ship-prepared [fingerprint]` | shipping | shipping | `ship`: `prepared`, `fingerprint` (computed when omitted), `tree` (a snapshot of the working tree, written through a throwaway index) |
@@ -107,6 +107,7 @@ phases:
 assumptions:
   - "Limit is 5 attempts per minute per IP (reversible: config)"
 fix: []
+defects: []
 audit:
   verdict: null
   round: 0
@@ -120,14 +121,18 @@ blocker: null
 ---
 ```
 
+While in fix mode the block also carries `fix_verified` (the passing
+`verify-phase` text since the fix began); `build-done` drops it.
+
 `roadmap` is set when the item is a roadmap slice, `todo` when it was promoted
 from the to-do list, `tracker` when it was published or the slice has a
 `Ref`. An optional `blocked_by: [<work id>]` names other items this one must
 wait for. Raising lane S to M with `set lane m` moves the file into a
 directory; a lane is never lowered. Phase statuses are
-`ready | done | blocked`. The script also reads the older flow style
-(`audit: { verdict: null, ... }`, a scalar `todo:`), so existing plans keep
-working; its first write converts them.
+`ready | done | blocked`. The script reads block style, one-line
+scalar lists and `{}`, and a scalar `todo:`. It no longer reads the older flow
+maps (`audit: { verdict: null, ... }`) or brackets spanning lines: it stops
+with an error, and the plan is rewritten in block style by hand.
 
 ## Rules
 

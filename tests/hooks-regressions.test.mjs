@@ -1,5 +1,6 @@
 // Regression tests for bugs found in the hooks and the OpenCode plugin.
 
+import './env.mjs'; // first: isolates the developer's environment
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -8,7 +9,7 @@ import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-import { BUILTIN, scan, loadChecks } from '../hooks/lib/checks.mjs';
+import { BUILTIN, scan, loadChecks, editParts } from '../hooks/lib/checks.mjs';
 import { beforeEdit, afterEdit, beforeShell } from '../hooks/lib/guard.mjs';
 import { DEFAULTS } from '../skills/track-it/scripts/config.mjs';
 
@@ -288,6 +289,30 @@ test('lines added after a delete are also scanned past the deleted path (audit 5
   }
 });
 
+test('an in-hunk dev-null pair cannot exempt a line from a scoped rule or an exception (R25)', () => {
+  const rulesFor = (rule) => {
+    const { dir } = repo();
+    fs.mkdirSync(path.join(dir, '.compliance-rules'));
+    fs.writeFileSync(path.join(dir, '.compliance-rules', 'checks.json'), JSON.stringify([{ id: 'no-evil', severity: 'HIGH', pattern: 'EVIL', ...rule }]));
+    return ctxFor(dir);
+  };
+  const patch = (...lines) => ['--- a/a.txt', '+++ b/a.txt', '@@ -0,0 +1,3 @@', ...lines].join('\n');
+  const scoped = rulesFor({ files: ['.py'], exceptFilePattern: '\\.txt$' });
+  assert.match(beforeEdit(scoped, { patch: patch('--- a/x.py', '+++ /dev/null', '+EVIL') }).reason, /no-evil in x\.py/);
+  // The old path is excepted too, so only the empty-path scan can catch it.
+  const excepted = rulesFor({ exceptFilePattern: '\\.txt$' });
+  assert.equal(beforeEdit(excepted, { patch: patch('--- a/y.txt', '+++ /dev/null', '+EVIL') }).action, 'block');
+  assert.equal(beforeEdit(excepted, { patch: patch('--- /dev/null', '+++ /dev/null', '+EVIL') }).action, 'block');
+  // The scan ends at the next file header.
+  const later = ['--- a/a.txt', '+++ b/a.txt', '@@ -0,0 +1,2 @@', '--- a/y.txt', '+++ /dev/null', '+ok', '--- a/b.txt', '+++ b/b.txt', '@@ -0,0 +1 @@', '+EVIL'].join('\n');
+  assert.equal(beforeEdit(excepted, { patch: later }).action, 'allow');
+  const laterScoped = later.replace('a/y.txt', 'a/x.py');
+  assert.equal(beforeEdit(scoped, { patch: laterScoped }).action, 'allow');
+  // A pair with no old path keeps the file an earlier in-hunk pair named.
+  const kept = patch('--- a/x.py', '+++ b/y.py', '--- /dev/null', '+++ /dev/null', '+EVIL').replace('+1,3', '+1,4');
+  assert.match(beforeEdit(scoped, { patch: kept }).reason, /no-evil in y\.py/);
+});
+
 test('diff -u timestamps and git quoting do not hide a header path (audit 4)', () => {
   const ctx = ctxFor(repo().dir);
   for (const header of ['+++ .env\t2024-01-01 00:00:00', '+++ "b/.env"']) {
@@ -320,4 +345,100 @@ test('anchored patterns still match where the old ones did', () => {
     assert.deepEqual(ids(`${before}${key}`), ['openai-anthropic-key'], `key after ${JSON.stringify(before)}`);
     assert.deepEqual(ids(`${before}${jwt}`), ['jwt'], `jwt after ${JSON.stringify(before)}`);
   }
+});
+
+// A textconv driver that decodes a base64 file, so a token can hide in it.
+function b64Driver(dir, git) {
+  fs.writeFileSync(path.join(dir, 'dec.mjs'), "import fs from 'node:fs';\nprocess.stdout.write(Buffer.from(fs.readFileSync(process.argv[2], 'utf8').trim(), 'base64'));\n");
+  fs.writeFileSync(path.join(dir, '.gitattributes'), '*.b64 diff=b64\n');
+  git('config', 'diff.b64.textconv', `node ${path.join(dir, 'dec.mjs')}`);
+}
+
+test('an unresolvable earlier git add may stage an untracked file: its secret blocks the commit', () => {
+  const { dir } = repo();
+  fs.writeFileSync(path.join(dir, 'n.js'), `k = "${KEY}"\n`);
+  const ctx = ctxFor(dir);
+  assert.equal(beforeShell(ctx, 'git add $(ls) && git commit -m x').action, 'block');
+  assert.equal(beforeShell(ctx, 'X=. && cd $X && git add n.js && git commit -m x').action, 'block');
+  // Nothing stages the file, so the commit records nothing of it.
+  assert.equal(beforeShell(ctx, 'cd $X && git commit -m "t: x"').action, 'allow');
+});
+
+test('an untracked file named by an earlier git add is read through its textconv driver', () => {
+  const { dir, git } = repo();
+  b64Driver(dir, git);
+  fs.writeFileSync(path.join(dir, 's.b64'), Buffer.from(`k = "${KEY}"\n`).toString('base64'));
+  const ctx = ctxFor(dir);
+  assert.equal(beforeShell(ctx, 'git add s.b64 && git commit -m x').action, 'block');
+});
+
+test('a 3,000-file staged commit is scanned inside the hook timeout', () => {
+  const { dir, git } = repo();
+  for (let i = 0; i < 3000; i++) fs.writeFileSync(path.join(dir, `f${i}.js`), i === 2990 ? `k = "${KEY}"\n` : `line ${i}\n`);
+  git('add', '-A');
+  const start = Date.now();
+  const res = beforeShell(ctxFor(dir), 'git commit -m x');
+  assert.ok(Date.now() - start < 10000, `took ${Date.now() - start} ms`);
+  assert.equal(res.action, 'block');
+  assert.match(res.reason, /f2990\.js/);
+});
+
+// An apply_patch whose first block is a.txt and which embeds a unified delete of x.py.
+const embeddedDelete = ['*** Begin Patch', '*** Update File: a.txt', '--- a/x.py', '+++ /dev/null', '+EVIL', '*** End Patch'].join('\n');
+
+function repoWithRules(rules) {
+  const { dir } = repo();
+  fs.mkdirSync(path.join(dir, '.compliance-rules'));
+  fs.writeFileSync(path.join(dir, '.compliance-rules', 'checks.json'), JSON.stringify(rules));
+  return ctxFor(dir);
+}
+
+test('an embedded dev-null pair scans its added lines under the old path and the empty path', () => {
+  const parts = editParts({ patchText: embeddedDelete });
+  const under = (file) => parts.find((p) => p.file === file);
+  assert.match(under('a.txt').added, /EVIL/);
+  assert.match(under('x.py').added, /EVIL/);
+  assert.equal(under('x.py').gone, true);
+  assert.match(under('').added, /EVIL/);
+});
+
+test('an embedded dev-null pair cannot steer a line past a scoped rule', () => {
+  const rule = { id: 'no-evil', severity: 'HIGH', pattern: 'EVIL' };
+  const scoped = repoWithRules([{ ...rule, files: ['.py'] }]);
+  assert.equal(beforeEdit(scoped, { patchText: embeddedDelete }).action, 'block');
+  const excepted = repoWithRules([{ ...rule, exceptFilePattern: 'a\\.txt$' }]);
+  assert.equal(beforeEdit(excepted, { patchText: embeddedDelete }).action, 'block');
+});
+
+test('the embedded dev-null scan ends at the next block', () => {
+  const patch = ['*** Begin Patch', '*** Update File: a.txt', '--- a/x.py', '+++ /dev/null', '+one', '*** Update File: b.txt', '+two', '*** End Patch'].join('\n');
+  const parts = editParts({ patchText: patch });
+  assert.doesNotMatch(parts.find((p) => p.file === 'x.py').added, /two/);
+  assert.doesNotMatch(parts.find((p) => p.file === '').added, /two/);
+});
+
+test('an old path the patch also updates stays an existing file', () => {
+  const patch = ['*** Begin Patch', '*** Update File: x.py', '*** Update File: a.txt', '--- a/x.py', '+++ /dev/null', '+EVIL', '*** End Patch'].join('\n');
+  assert.equal(editParts({ patchText: patch }).find((p) => p.file === 'x.py').gone, undefined);
+});
+
+test('path rules match a backslash path (T87)', () => {
+  const ctx = ctxFor(repo().dir);
+  const r = beforeEdit(ctx, { file_path: 'app\\.env', content: '' });
+  assert.equal(r.action, 'block');
+  assert.match(r.reason, /env-file in app\\\.env/);
+  assert.equal(beforeEdit(ctx, { file_path: 'app\\.env.example', content: '' }).action, 'allow');
+});
+
+test('carriesVoice is true only for an agent file that holds the voice marker, and false on a read error', async () => {
+  const { carriesVoice } = await import('../hooks/claude.mjs');
+  const { START } = await import('../scripts/lib/voice.mjs');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-voice-'));
+  fs.writeFileSync(path.join(dir, 'with.md'), `body\n\n${START}\nV\n<!-- voice:end -->\n`);
+  fs.writeFileSync(path.join(dir, 'without.md'), 'body\n');
+  fs.mkdirSync(path.join(dir, 'dir.md'));
+  assert.equal(carriesVoice('with', dir), true);
+  assert.equal(carriesVoice('without', dir), false);
+  assert.equal(carriesVoice('missing', dir), false);
+  assert.equal(carriesVoice('dir', dir), false);
 });

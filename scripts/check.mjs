@@ -6,7 +6,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { withVoice } from './lib/voice.mjs';
 import { VOICE_FILE } from '../hooks/lib/context.mjs';
-import { ROOT, agentTools, listSkills, listAgents, userInvoked } from './lib/skills.mjs';
+import { ROOT, SKILLS_DIR, agentTools, listSkills, listAgents, userInvoked } from './lib/skills.mjs';
+import { splitFrontmatter } from '../skills/track-it/scripts/frontmatter.mjs';
 
 const SKILL_LINE_BUDGET = 100;
 const SKILL_LINE_LIMIT = 150;
@@ -26,6 +27,8 @@ const skills = listSkills();
 const agents = listAgents();
 const agentNames = new Set(agents.map((a) => a.name));
 const TIER = new RegExp(`cheap tier|mid-tier\\s+model|session model|\`(?:${[...agentNames].join('|')})\``, 'i');
+// Each agent's own cap ("Cap: 300 words, or the brief's lower cap."); an agent without one is reported below.
+const agentCaps = new Map(agents.flatMap((a) => { const m = a.text.match(/^Cap: (\d+) words/m); return m ? [[a.name, Number(m[1])]] : []; }));
 const names = new Set(skills.map((s) => s.meta.name));
 const userOnly = new Set(skills.filter(userInvoked).map((s) => s.meta.name));
 
@@ -43,8 +46,10 @@ for (const s of skills) {
   const where = rel(s.file);
   if (!s.meta.name) errors.push(`${where}: missing name`);
   else if (s.meta.name !== s.dir) errors.push(`${where}: name "${s.meta.name}" does not match directory "${s.dir}"`);
+  if (s.meta.name && !/(^|-)it(-|$)/.test(s.meta.name)) errors.push(`${where}: name "${s.meta.name}" is not an -it name`);
   if (!s.meta.description) errors.push(`${where}: missing description`);
   else if (s.meta.description.length > 1024) errors.push(`${where}: description over 1024 characters`);
+  else if (!userInvoked(s) && !s.meta.description.includes('Use when')) errors.push(`${where}: description of a model-invoked skill lacks "Use when"`);
 
   // Count lines the way wc -l does: a trailing newline does not start a new line.
   const lines = s.text.replace(/\n$/, '').split('\n').length;
@@ -93,19 +98,37 @@ for (const file of docs) {
     }
   }
 
+  // A Next line that points at a typed skill gives the slash command to type;
+  // the model cannot start the skill when the user answers "do it".
+  for (const line of text.split('\n')) {
+    if (!/\bNext:/.test(line) || !/\bdo it\b/i.test(line)) continue;
+    for (const m of line.matchAll(/`\/([a-z]+-it)\b/g)) {
+      if (userOnly.has(m[1])) errors.push(`${where}: closing line offers "do it" for user-invoked skill "${m[1]}"; give the slash command alone`);
+    }
+  }
+
   // A paragraph that starts a subagent names its model tier, or the subagent
   // runs on whatever the session uses (SKILL-MECHANICS.md, Subagents), and a
   // word cap on its report.
   if (where.startsWith('skills/') && !TIER_EXEMPT.has(where)) {
-    const body = text.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, '').replace(/^(```|~~~)[\s\S]*?^\1/gm, '');
+    const body = (splitFrontmatter(text)?.body ?? text).replace(/^(```|~~~)[\s\S]*?^\1/gm, '');
     const paras = body.split(/\n\s*\n/);
     paras.forEach((para, i) => {
       if (!SPAWN.test(para)) return;
       if (!TIER.test(para)) errors.push(`${where}: starts a subagent without naming its model tier ("${para.trim().slice(0, 50)}...")`);
       // The cap may sit in the quoted brief (a `>` paragraph) that follows.
       const next = paras[i + 1] ?? '';
-      if (!CAP.test(para) && !(next.startsWith('>') && CAP.test(next))) {
+      const briefed = next.startsWith('>') ? `${para}\n${next}` : para;
+      if (!CAP.test(briefed)) {
         errors.push(`${where}: starts a subagent without a word cap ("${para.trim().slice(0, 50)}...")`);
+      }
+      // The agent's own cap wins, so a higher number in the spawn text is dead.
+      const named = [...para.matchAll(/`(it-[a-z]+)`/g)].map((m) => m[1]).filter((n) => agentCaps.has(n));
+      const owner = named.sort((a, b) => agentCaps.get(a) - agentCaps.get(b))[0];
+      for (const m of briefed.matchAll(/\b(\d+)[- ]words?\b/gi)) {
+        if (owner && Number(m[1]) > agentCaps.get(owner)) {
+          errors.push(`${where}: word cap ${m[1]} is above the ${agentCaps.get(owner)} in agents/${owner}.md`);
+        }
       }
     });
   }
@@ -139,7 +162,9 @@ for (const file of docs) {
     const link = raw.replace(/^<|>$/g, '');
     const target = link.split('#')[0];
     if (!target || /^[a-z]+:/.test(target)) continue;
-    if (!fs.existsSync(path.resolve(path.dirname(file), target))) errors.push(`${where}: broken link ${link}`);
+    const resolved = path.resolve(path.dirname(file), target);
+    if (!fs.existsSync(resolved)) errors.push(`${where}: broken link ${link}`);
+    else if (where.startsWith('skills/') && !resolved.startsWith(SKILLS_DIR + path.sep)) errors.push(`${where}: link ${link} leaves skills/`);
   }
 
   if (file.includes(`${path.sep}skills${path.sep}`) && prose.includes('—')) {

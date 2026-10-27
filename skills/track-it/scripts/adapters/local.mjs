@@ -3,44 +3,46 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { slugify } from '../refs.mjs';
-
-const FRONT = /^---\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/;
-// Values that stay readable bare in YAML; anything else is written JSON-quoted.
-const BARE = /^[A-Za-z0-9_][\w .\/-]*$/;
-
-function readValue(raw) {
-  const v = raw.trim();
-  if (v.startsWith('"')) {
-    try {
-      return JSON.parse(v);
-    } catch {
-      return v;
-    }
-  }
-  if (v.length >= 2 && v.startsWith("'") && v.endsWith("'")) return v.slice(1, -1).replaceAll("''", "'");
-  return v;
-}
+import { splitFrontmatter, joinFrontmatter, parseFlat, writeFlat } from '../frontmatter.mjs';
 
 export function readIssue(file) {
   const text = fs.readFileSync(file, 'utf8');
-  const m = text.match(FRONT);
-  const meta = {};
-  if (m) {
-    for (const line of m[1].split(/\r?\n/)) {
-      const kv = line.match(/^([A-Za-z_][\w-]*):\s*(.*)$/);
-      if (kv) meta[kv[1]] = readValue(kv[2]);
-    }
-  }
-  return { meta, body: m ? text.slice(m[0].length) : text };
+  const parts = splitFrontmatter(text);
+  if (!parts) return { meta: {}, body: text, hasFront: false, skipped: [] };
+  const { meta, skipped, continued } = parseFlat(parts.yaml);
+  // A rewrite writes flat key: value lines only, so a folded or nested line counts as dropped.
+  return { meta, body: parts.body, hasFront: true, skipped: [...skipped, ...continued] };
 }
 
-function writeIssue(file, meta, body) {
-  const front = Object.entries(meta)
-    .filter(([, v]) => v !== undefined && v !== '')
-    .map(([k, v]) => `${k}: ${BARE.test(String(v)) && !/\s$/.test(String(v)) ? v : JSON.stringify(String(v))}`)
-    .join('\n');
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, `---\n${front}\n---\n\n${body.replace(/^(\r?\n)+/, '')}`);
+function issueText(meta, body) {
+  return joinFrontmatter(writeFlat(meta), `\n${body.replace(/^(\r?\n)+/, '')}`);
+}
+
+// Write beside the target and rename over it, so a crash never leaves a
+// half-written issue.
+function rewriteIssue(file, meta, body) {
+  const tmp = path.join(path.dirname(file), `.${path.basename(file)}.${process.pid}.${Math.random().toString(36).slice(2)}.tmp`);
+  try {
+    fs.writeFileSync(tmp, issueText(meta, body));
+    fs.renameSync(tmp, file);
+  } catch (err) {
+    fs.rmSync(tmp, { force: true });
+    throw err;
+  }
+}
+
+// Realpath of the nearest existing ancestor, so a symlink cannot lead out of a
+// directory and /tmp matches /private/tmp.
+function realish(p) {
+  const rest = [];
+  for (let cur = p; ; cur = path.dirname(cur)) {
+    try {
+      return path.join(fs.realpathSync(cur), ...rest);
+    } catch {
+      if (path.dirname(cur) === cur) return p;
+      rest.unshift(path.basename(cur));
+    }
+  }
 }
 
 // Append an entry at the end of the "## Log" section (before the next "## "
@@ -60,14 +62,26 @@ function appendLog(body, line) {
 
 export function localTracker(cfg, { root }) {
   const dir = path.resolve(root, cfg.DO_IT_ISSUES_DIR);
-  const abs = (ref) => path.resolve(root, ref);
   const rel = (file) => path.relative(root, file);
 
+  // A ref names an .md file inside the issues dir; anything else (a plan, a
+  // roadmap, a path that climbs out) is refused before it is read or changed.
+  function issuePath(ref) {
+    const file = path.resolve(root, ref);
+    const inside = path.relative(realish(dir), realish(file));
+    if (!/\.md$/i.test(file) || !inside || inside === '..' || inside.startsWith(`..${path.sep}`) || path.isAbsolute(inside)) {
+      throw new Error(`${ref}: outside the issues dir ${rel(dir)}, refusing`);
+    }
+    return file;
+  }
+
   function update(ref, fn) {
-    const file = abs(ref);
-    const { meta, body } = readIssue(file);
+    const file = issuePath(ref);
+    const { meta, body, hasFront, skipped } = readIssue(file);
+    if (!hasFront) throw new Error(`${ref}: no frontmatter, refusing to rewrite`);
+    if (skipped.length) throw new Error(`${ref}: frontmatter line not flat key: value, refusing to rewrite: "${skipped[0]}"`);
     const next = fn(meta, body);
-    writeIssue(file, next.meta, next.body);
+    rewriteIssue(file, next.meta, next.body);
     return { ref: rel(file), status: next.meta.status };
   }
 
@@ -76,10 +90,18 @@ export function localTracker(cfg, { root }) {
 
     create({ title, type = 'todo', body = '', source = 'user', externalId }) {
       const base = slugify(title);
-      let file = path.join(dir, `${base}.md`);
-      for (let i = 2; fs.existsSync(file); i++) file = path.join(dir, `${base}-${i}.md`);
-      writeIssue(file, { title, type, status: 'open', source, external_id: externalId }, body);
-      return { ref: rel(file), path: rel(file) };
+      const text = issueText({ title, type, status: 'open', source, external_id: externalId }, body);
+      fs.mkdirSync(dir, { recursive: true });
+      for (let i = 1; ; i++) {
+        const file = path.join(dir, i === 1 ? `${base}.md` : `${base}-${i}.md`);
+        try {
+          fs.writeFileSync(file, text, { flag: 'wx' });
+        } catch (err) {
+          if (err.code === 'EEXIST') continue;
+          throw err;
+        }
+        return { ref: rel(file), path: rel(file) };
+      }
     },
 
     // Issues under the issues dir: "open" (the default, so in-progress too),
@@ -98,7 +120,7 @@ export function localTracker(cfg, { root }) {
     },
 
     get(ref) {
-      const { meta, body } = readIssue(abs(ref));
+      const { meta, body } = readIssue(issuePath(ref));
       return { ref, title: meta.title, status: meta.status, type: meta.type, meta, body };
     },
 
@@ -113,7 +135,7 @@ export function localTracker(cfg, { root }) {
     // A closed issue is deleted: the commit and git history keep it, so no
     // closed file stays behind.
     close(ref) {
-      const file = abs(ref);
+      const file = issuePath(ref);
       readIssue(file);
       fs.unlinkSync(file);
       return { ref: rel(file), status: 'closed', removed: true };

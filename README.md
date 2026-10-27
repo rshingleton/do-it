@@ -166,7 +166,7 @@ On by default; `DO_IT_HOOKS=off` turns them off for a user, a repo or a shell.
 | Session start, subagent start | Injects the `it-core` posture, pointers to the repo's standards and compliance rules, its resolved project docs, and a compact code map (`DO_IT_MAP=off` to skip) |
 | Before an edit | Blocks HIGH hits: secrets, env files, rules in `.compliance-rules/checks.json` |
 | After an edit | Reports MEDIUM/LOW hits; runs `DO_IT_LINT_CMD` on the file and feeds failures back |
-| Before `git commit` | Scans the staged diff; blocks on HIGH |
+| Before `git commit` | Scans the staged diff; blocks on HIGH. A `-m` message without an `<id>: ` prefix gets a warning on Claude Code, never a block |
 
 Mechanical rules (a regex decides) live in `checks.json` and run on every
 edit; judgement rules (`.compliance-rules/*.md`) are checked by `prove-it`.
@@ -241,7 +241,7 @@ OpenCode notes for repos that use do-it:
 - OpenCode 2 has no todo tool or LSP by default and allows
   `external_directory` by default; set it to `ask` or `deny` in
   `opencode.json` if the guards should not be sidestepped by paths outside the
-  repo.
+  repo. `/setup-it` checks this and offers the fix.
 - Session usage (tokens, cost) is available to an OpenCode plugin (the `event`
   hook on 1.x, `ctx.event.subscribe` on 2.x), but do-it records none yet; see
   `docs/issues/per-step-usage-record-on-do-it-work-items.md`.
@@ -277,7 +277,7 @@ every session which files are in use.
 
 ```bash
 npm test         # node --test, no dependencies
-npm run check    # frontmatter, line budget, skill calls, agent files and tools, links, OpenCode command drift
+npm run check    # frontmatter, -it names, "Use when", line budget, skill calls, spawn caps, agent files and tools, links (and none leaving skills/), routing entries, OpenCode command drift
 npm run gen      # regenerate .opencode/command/, commands/ and agents/
 npm run eval     # routing eval: does each prompt in evals/routing.json reach the right skill
 ```

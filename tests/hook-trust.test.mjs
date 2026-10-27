@@ -1,3 +1,4 @@
+import { cleanEnv } from './env.mjs'; // first: isolates the developer's environment
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
@@ -22,14 +23,6 @@ function repo() {
   execFileSync('git', ['init', '-q'], { cwd: dir });
   return dir;
 }
-
-// The developer's own do-it config and DO_IT_* variables must not leak in.
-function cleanEnv(extra = {}) {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-home-'));
-  const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^(DO_IT_|JIRA_|GITHUB_)/.test(k)));
-  return { ...env, HOME: home, XDG_CONFIG_HOME: path.join(home, '.config'), ...extra };
-}
-
 
 function writeChecks(root, value) {
   fs.mkdirSync(path.join(root, '.compliance-rules'), { recursive: true });
@@ -196,8 +189,8 @@ test('git commit <path> scans the unstaged working-tree version of that path', (
   assert.match(r.reason, /slack-token in a\.js/);
   // A clean change to another path is not blocked by a.js.
   fs.writeFileSync(path.join(root, 'b.js'), 'ok2\n');
-  assert.equal(beforeShell(ctx, 'git commit -m x b.js').action, 'allow');
-  assert.equal(beforeShell(ctx, 'git commit -m x').action, 'allow');
+  assert.equal(beforeShell(ctx, 'git commit -m "t: x" b.js').action, 'allow');
+  assert.equal(beforeShell(ctx, 'git commit -m "t: x"').action, 'allow');
 });
 
 test('a file an earlier git add in the same command stages is scanned', () => {
@@ -221,8 +214,8 @@ test('a file an earlier git add in the same command stages is scanned', () => {
   assert.equal(beforeShell(ctx, 'git add . && git commit -m x').action, 'block');
   // Another path, or no add at all, is not blocked by new.js.
   fs.writeFileSync(path.join(root, 'ok.js'), 'fine\n');
-  assert.equal(beforeShell(ctx, 'git add ok.js && git commit -m x').action, 'allow');
-  assert.equal(beforeShell(ctx, 'git commit -m x').action, 'allow');
+  assert.equal(beforeShell(ctx, 'git add ok.js && git commit -m "t: x"').action, 'allow');
+  assert.equal(beforeShell(ctx, 'git commit -m "t: x"').action, 'allow');
   // An add in a subshell keeps its last path whole.
   fs.mkdirSync(path.join(root, 'sub'));
   fs.writeFileSync(path.join(root, 'sub/n.js'), `const t = "${FAKE_SLACK}";\n`);
@@ -235,9 +228,9 @@ test('a file an earlier git add in the same command stages is scanned', () => {
   fs.rmSync(path.join(root, 'new.js'));
   assert.equal(beforeShell(ctx, 'git add -f ignored/k.js && git commit -m x').action, 'block');
   assert.equal(beforeShell(ctx, 'git add --force ignored && git commit -m x').action, 'block');
-  assert.equal(beforeShell(ctx, 'git add ignored/k.js && git commit -m x').action, 'allow');
+  assert.equal(beforeShell(ctx, 'git add ignored/k.js && git commit -m "t: x"').action, 'allow');
   // git rm adds no lines and does not widen the scan.
-  assert.equal(beforeShell(ctx, 'git rm -q a.js && git commit -m x').action, 'allow');
+  assert.equal(beforeShell(ctx, 'git rm -q a.js && git commit -m "t: x"').action, 'allow');
 });
 
 test('a commit with no earlier index-changing command makes the same git calls as before', () => {
@@ -442,7 +435,7 @@ test('a commit the scan cannot resolve for sure scans every tracked change from 
   assert.equal(beforeShell(ctx, 'git commit -m x b.js').action, 'block');
   // A plain commit of clean staged work is still allowed.
   git(root, 'add', 'b.js');
-  assert.equal(beforeShell(ctx, 'git commit -m x').action, 'allow');
+  assert.equal(beforeShell(ctx, 'git commit -m "t: x"').action, 'allow');
   // A staged secret behind an unexpanded -C is scanned too.
   fs.writeFileSync(path.join(root, 'sub', 'a.js'), `const t = "${FAKE_SLACK}";\n`);
   git(root, 'add', 'sub/a.js');
@@ -461,7 +454,7 @@ test('a cd before the commit moves where its paths and repo are read', () => {
   const ctx = ctxFor(root);
   assert.equal(beforeShell(ctx, 'cd sub && git commit -m x x.js').action, 'block');
   assert.equal(beforeShell(ctx, 'cd sub; git commit -m x x.js').action, 'block');
-  assert.equal(beforeShell(ctx, 'git commit -m x x.js').action, 'allow');
+  assert.equal(beforeShell(ctx, 'git commit -m "t: x" x.js').action, 'allow');
 
   const other = repo();
   fs.writeFileSync(path.join(other, 'o.js'), 'ok\n');
@@ -744,7 +737,7 @@ test('a secret in the second commit of a chain blocks the command', () => {
     assert.equal(r.action, 'block', JSON.stringify(sep));
     assert.match(r.reason, /slack-token in b\.js/);
   }
-  assert.equal(beforeShell(ctx, 'git commit -m a a.js && git commit -m c a.js').action, 'allow');
+  assert.equal(beforeShell(ctx, 'git commit -m "t: a" a.js && git commit -m "t: c" a.js').action, 'allow');
 });
 
 test('a prefixed or nested commit is scanned', () => {
@@ -770,7 +763,7 @@ test('a relative cd after one that does not persist resolves from the right step
   assert.equal(beforeShell(ctx, 'cd B && (cd C) && cd sub && git commit -m x f.js').action, 'block');
   assert.equal(beforeShell(ctx, 'cd B && (cd C) && cd sub && git commit -m x f.js; git status').action, 'block');
   fs.writeFileSync(path.join(root, 'B/sub/f.js'), 'ok2\n');
-  assert.equal(beforeShell(ctx, 'cd B && (cd C) && cd sub && git commit -m x f.js').action, 'allow');
+  assert.equal(beforeShell(ctx, 'cd B && (cd C) && cd sub && git commit -m "t: x" f.js').action, 'allow');
 });
 
 test('commit scan allows bad input without throwing', () => {
@@ -783,7 +776,7 @@ test('commit scan allows bad input without throwing', () => {
   assert.equal(beforeShell(ctx, '\0\0 git commit \0 && git commit -m $(').action, 'allow');
   assert.equal(beforeShell(ctx, null).action, 'allow');
   assert.equal(beforeShell(ctx, '\0'.repeat(1e5)).action, 'allow');
-  const big = `${'cd sub && '.repeat(20)}${'git commit -m x; '.repeat(50)}echo "${'x'.repeat(95000)}`;
+  const big = `${'cd sub && '.repeat(20)}${'git commit -m "t: x"; '.repeat(50)}echo "${'x'.repeat(95000)}`;
   const start = Date.now();
   assert.equal(beforeShell(ctx, big).action, 'allow');
   assert.ok(Date.now() - start < 3000, `took ${Date.now() - start} ms`);
@@ -886,4 +879,19 @@ test('OpenCode plugin setup hooks fail open and skip an unexpected shape', async
   const odd = { status: 'completed', tool: 'edit', input: {}, result: { content: 42 } };
   await h.hooks['execute.after'](odd);
   assert.equal(odd.result.content, 42);
+});
+
+test('OpenCode plugin setup backgrounds subagent calls launched together, not a lone one', async () => {
+  const { createPlugin } = await import('../.opencode/plugins/do-it.mjs');
+  const p = createPlugin({ decide: () => ({}) });
+  const { hooks, ctx } = fakeCtx();
+  await p.setup(ctx);
+  const call = (messageID, background = false) => ({ tool: 'subagent', messageID, input: { agent: 'it-scout', background } });
+  const [a, b, lone, other] = [call('m1'), call('m1'), call('m2'), { tool: 'shell', messageID: 'm1', input: {} }];
+  await Promise.all([a, b, other].map((e) => hooks['execute.before'](e)));
+  assert.equal(a.input.background, true);
+  assert.equal(b.input.background, true);
+  assert.equal(other.input.background, undefined);
+  await hooks['execute.before'](lone);
+  assert.equal(lone.input.background, false);
 });

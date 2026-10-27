@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resolveDocs, isOn } from '../../skills/track-it/scripts/config.mjs';
+import { splitFrontmatter } from '../../skills/track-it/scripts/frontmatter.mjs';
 import { codeMap } from './codemap.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -51,7 +52,8 @@ export function docsLines(docs) {
 
 export function coreText(file = CORE_FILE) {
   try {
-    return fs.readFileSync(file, 'utf8').replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, '').trim();
+    const text = fs.readFileSync(file, 'utf8');
+    return (splitFrontmatter(text)?.body ?? text).trim();
   } catch {
     return '';
   }

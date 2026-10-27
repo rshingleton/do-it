@@ -55,13 +55,13 @@ Delegated phase: agent items 1, 2, 4 (item 3: it reports `failed`), main item 5.
 2. Follow the `it-core` posture: reuse ladder, scope list, surgical edits,
    `shortcut:` markers.
 3. A failure you cannot explain in one hypothesis, a flaky one, or one still
-   failing after three fix rounds: call the Skill tool with
-   "debug-it", passing the assumption that may be wrong.
+   failing after three fix rounds: call the Skill tool with "debug-it",
+   passing the assumption that may be wrong.
 4. Run the self-check in [STANDARDS.md](STANDARDS.md) §3.
-5. Run the project's checks through `work.mjs verify-phase <id> [n] --brief --
-   "<commands>"` (quoted, so a chain runs whole): it records the phase (lane
-   S: the item) verified only when they exit 0. New assumptions:
-   `work.mjs set <id> assumptions '<json list>' --brief`, old ones included.
+5. Run the checks through `work.mjs verify-phase <id> [n] --brief -- "<commands>"`
+   (quoted, so a chain runs whole): it records the phase (lane S: the item) verified
+   only when they exit 0. New assumptions, or a defect the unit surfaces but does not
+   fix: `work.mjs set <id> assumptions|defects '<json list>' --brief`, old entries kept.
 
 Out-of-scope problems go to `log-it`, not into the diff.
 
@@ -84,8 +84,8 @@ Other ready phases not depending on a blocked one keep going.
 ## 5. Finish
 
 When no phase is left to build (or fix mode has fixed every listed Must and
-`fix:` entry), `work.mjs event <id> build-done` (status `auditing`) and
-return `done`.
+`fix:` entry, then passed `verify-phase`; lane M names any phase), `work.mjs event <id> build-done` (status `auditing`) and
+return `done`. Called by `do-it`, let it continue; run alone, close with:
 
 > Built <id>: <N> phase(s), uncommitted on `<branch>` since `<base_ref>`.
 > Skipped: ... Not checked: ... Risk: ...

@@ -1,3 +1,4 @@
+import './env.mjs'; // first: isolates the developer's environment
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -217,6 +218,6 @@ test('routing eval: ranks, negatives, similarity and missing entries', () => {
     },
   });
   assert.match(r.failures.join('\n'), /too similar: fix-it and same-it/);
-  assert.match(r.warnings.join('\n'), /same-it: no routing entries/);
+  assert.match(r.failures.join('\n'), /same-it: no routing entries/);
   assert.equal(r.rows.find((x) => x.name === 'fix-it').negOk, 1);
 });

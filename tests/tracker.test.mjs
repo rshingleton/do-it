@@ -1,3 +1,4 @@
+import './env.mjs'; // first: isolates the developer's environment
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -249,6 +250,24 @@ test('jira publish: the epic it creates and every child carry the components', a
   assert.equal(bodies[0].fields.parent, undefined);
   assert.deepEqual(bodies[1].fields.components, [{ name: 'UI' }]);
   assert.deepEqual(bodies[1].fields.parent, { key: 'CDS-20' });
+});
+
+test('jira publish that fails partway returns the refs it made', async () => {
+  let n = 20;
+  const post = (fail) => async (url, init) => {
+    if (url.endsWith('/project/CDS')) return { ok: true, status: 200, text: async () => JSON.stringify(PROJECT) };
+    if (fail(n)) return { ok: false, status: 500, text: async () => JSON.stringify({ errorMessages: ['boom'] }) };
+    return { ok: true, status: 201, text: async () => JSON.stringify({ key: `CDS-${n++}` }) };
+  };
+  const spec = { title: 'Plan', components: ['UI'], phases: [{ n: 1, title: 'A' }, { n: 2, title: 'B' }] };
+  const child = await jiraTracker(JIRA, { fetch: post((k) => k === 22) }).publish(spec);
+  assert.equal(child.parent, 'CDS-20');
+  assert.deepEqual(child.phases, { 1: 'CDS-21' });
+  assert.match(child.error, /500/);
+  n = 20;
+  const epic = await jiraTracker(JIRA, { fetch: post(() => true) }).publish(spec);
+  assert.deepEqual({ parent: epic.parent, phases: epic.phases }, { parent: null, phases: {} });
+  assert.match(epic.error, /500/);
 });
 
 test('CLI: create passes project, components, epic and parent to Jira', async () => {

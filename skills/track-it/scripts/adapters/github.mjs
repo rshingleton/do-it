@@ -82,14 +82,20 @@ export function githubTracker(cfg, { run = defaultRunner } = {}) {
       return { ref, status: 'closed' };
     },
 
+    // A failure part way returns what was made, so the caller can record the
+    // refs and the user can finish by hand; it never throws them away.
     publish({ title, body = '', phases = [] }) {
       const children = {};
-      for (const p of phases) {
-        children[p.n] = create({ title: `${title}: phase ${p.n} ${p.title}`, body: p.body || '' }).ref;
+      try {
+        for (const p of phases) {
+          children[p.n] = create({ title: `${title}: phase ${p.n} ${p.title}`, body: p.body || '' }).ref;
+        }
+        const list = phases.map((p) => `- [ ] ${children[p.n]} phase ${p.n}: ${p.title}`).join('\n');
+        const parent = create({ title, body: `${body}\n\n## Phases\n\n${list}\n` });
+        return { parent: parent.ref, url: parent.url, phases: children };
+      } catch (e) {
+        return { parent: null, phases: children, error: String(e.message || e) };
       }
-      const list = phases.map((p) => `- [ ] ${children[p.n]} phase ${p.n}: ${p.title}`).join('\n');
-      const parent = create({ title, body: `${body}\n\n## Phases\n\n${list}\n` });
-      return { parent: parent.ref, url: parent.url, phases: children };
     },
   };
 }

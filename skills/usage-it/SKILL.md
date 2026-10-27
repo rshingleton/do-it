@@ -17,6 +17,7 @@ The `Stop` and `SubagentStop` hooks add one line per agent run to
 days are kept 30 days (`DO_IT_USAGE_DAYS`); older days roll up into
 `rollup.jsonl`, one row per day, agent, model and project, kept 365 days
 (`DO_IT_USAGE_ROLLUP_DAYS`). Tokens only, no dollar estimate: prices change.
+The OpenCode plugin adds the same rows from its events (`scripts/opencode.mjs`).
 `scripts/ledger.mjs` owns reading, writing and pruning; do not edit the files.
 
 ## 1. Fill the ledger if it is empty

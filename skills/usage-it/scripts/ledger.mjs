@@ -161,7 +161,7 @@ export function prune(dir, days, now = new Date(), rollupDays = DEFAULT_ROLLUP_D
   for (const n of old) {
     for (const r of readFile(path.join(dir, n))) {
       const k = rowKey(r);
-      const g = rows.get(k) ?? { day: r.day, agent: r.agent, model: r.model, project: r.project, runs: 0, turns: 0, in: 0, out: 0, cr: 0, cc: 0 };
+      const g = rows.get(k) ?? { day: r.day, kind: r.kind, agent: r.agent, model: r.model, project: r.project, runs: 0, turns: 0, in: 0, out: 0, cr: 0, cc: 0 };
       for (const f of COUNTS) g[f] += f === 'runs' ? (r.runs ?? 1) : (r[f] ?? 0);
       rows.set(k, g);
     }
@@ -183,7 +183,7 @@ export function prune(dir, days, now = new Date(), rollupDays = DEFAULT_ROLLUP_D
   }
 }
 
-const rowKey = (r) => [r.day, r.agent, r.model, r.project].join('|');
+const rowKey = (r) => [r.day, r.kind, r.agent, r.model, r.project].join('|');
 
 function readFile(file) {
   const out = [];

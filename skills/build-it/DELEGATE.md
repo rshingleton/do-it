@@ -9,7 +9,8 @@ Pointers, not pasted content:
 
 - The absolute paths of the phase file, the plan README, `STANDARDS.md` and
   `skills/test-it/SKILL.md` (the agent cannot call a skill, so it reads it).
-- The plan's `assumptions:`, and the cap: report under 150 words.
+- The plan's `assumptions:`, and the cap: report under 150 words, naming any
+  defect surfaced but not fixed.
 - A worktree path when called from [PARALLEL.md](PARALLEL.md); none means
   in place at the checkout root, no commits.
 

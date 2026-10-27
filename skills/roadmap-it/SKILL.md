@@ -74,13 +74,14 @@ outside ship-it: ask whether to mark it shipped or re-scope); in flight (a
 plan names it); blocked (a Blocked-by slice not shipped, or a decision still
 under Open decisions); refine; ready.
 
-Show the slices grouped by state. Its `next` is the first ready or refine
-slice by milestone, then risk (high first), then fewest blocks, then id;
-offer instead an open decision or spike that blocks more slices. Start it by
-reading [do-it](../do-it/SKILL.md) and following it with `<file>#<id>` as
-the input; do-it sizes it, scope-it plans from the slice's Delivers, Covers
-and Verify, and the state block records `roadmap:`. A `refine` slice gets a
-short grill first, then its Status is cleared.
+Show the slices by state. Its `blocking` lists each open decision with the
+slices it blocks. Ask each before starting a slice: call the Skill tool
+with "grill-it", one question with a recommended answer. A settled one
+leaves Open decisions, gets a dated `Decisions so far` line, and is reread.
+Its `next` is the first ready or refine slice by milestone, then risk (high
+first), fewest blocks, id; offer a spike that blocks more slices instead.
+Start it by reading [do-it](../do-it/SKILL.md) with `<file>#<id>`. A
+`refine` slice gets a short grill first, then its Status is cleared.
 
 ## 7. Replan
 
@@ -95,5 +96,5 @@ After a slice ships, a spike or decision answers, or the destination moves:
 ## Rules
 
 - No code here: the roadmap decides what and in which order; scope-it decides
-  how, one slice at a time. Each slice is at most lane M.
+  how. Each slice is at most lane M.
 - ship-it marks a slice `shipped`; the roadmap is never deleted at ship.

@@ -2,12 +2,17 @@
 //
 // - Every turn: the core posture and this repo's standards pointers are added
 //   to the system prompt (OpenCode has no subagent hook; subagents share it).
+//   The text is built once and rebuilt when HEAD or the index moves.
 //   The internal-voice rules (skills/it-core/VOICE.md) are not injected here:
 //   they would reach the main session too.
 // - Before write/edit/patch: HIGH compliance hits throw, which blocks the tool.
 // - Before bash `git commit`: the staged diff is scanned the same way.
 // - After write/edit/patch: DO_IT_LINT_CMD output and MEDIUM/LOW hits are
 //   appended to the tool result the model reads.
+// - v2 only: subagent calls launched together in one message are forced to
+//   `background: true`, so a parallel batch does not hold the parent.
+// - Token usage from the host's events goes to the shared usage ledger
+//   (skills/usage-it/scripts/opencode.mjs); it never blocks anything.
 //
 // One default export serves both plugin APIs: `server` is the v1 hook object
 // (verified to block by throwing), `setup` is the v2 entry. A build that loads
@@ -24,7 +29,10 @@
 // OpenCode 2 loads a plugin directory only through its index.js (which
 // re-exports this file) and skips a plugin file given by path.
 
+import fs from 'node:fs';
+import path from 'node:path';
 import { decide as realDecide } from '../../hooks/lib/decide.mjs';
+import { createOpenCodeUsage } from '../../skills/usage-it/scripts/opencode.mjs';
 
 // OpenCode's tool names, as the kinds decide() checks. OpenCode 1.x
 // registers its patch tool as apply_patch (arg patchText); 2.x names its shell
@@ -61,8 +69,59 @@ function appendContent(result, note) {
   else if (result.content === undefined) result.content = note;
 }
 
+// The session context (posture, project docs, code map) is built once and
+// reused until HEAD or the index moves, so a model request does not pay a
+// `git ls-files` walk. A result with a notice is rebuilt, so a fixed config
+// problem clears.
+// shortcut: the key is stats of `<cwd>/.git` (HEAD, its reflog, the index), so
+// a new untracked file, or an edit to AGENTS.md or the config, shows only after
+// the next git add or commit; outside a repo root (a subdirectory, a
+// worktree) it is built once per plugin instance. Upgrade to `git rev-parse`
+// and a stat of the standards files if either matters.
+function sessionMemo(decide, cwd) {
+  const stamp = (f) => {
+    try {
+      return fs.statSync(path.join(cwd, '.git', f)).mtimeMs;
+    } catch {
+      return 0;
+    }
+  };
+  let key = null;
+  let result = null;
+  return () => {
+    // logs/HEAD moves with every commit, checkout and reset; HEAD itself only on a branch switch.
+    const now = `${stamp('HEAD')}:${stamp('logs/HEAD')}:${stamp('index')}`;
+    if (result && key === now) return result;
+    const r = decide('session', { cwd });
+    result = r.notice ? null : r;
+    key = now;
+    return r;
+  };
+}
+
+// A foreground `subagent` call blocks the parent, so one assistant message that
+// launches two or more subagents would hold the session until the slowest ends.
+// The host dispatches a message's tool calls together (their before hooks fire
+// in the same tick), so each call registers under its message id, yields one
+// tick, and a call that then sees a sibling is run in the background.
+// shortcut: a lone call, or a sibling dispatched after the yield, stays
+// foreground; upgrade if the host ever orders a message's calls apart.
+function batchSubagents() {
+  const seen = new Map();
+  return async (event) => {
+    if (!isSubagent(event.tool) || !event.input || !event.messageID) return;
+    seen.set(event.messageID, (seen.get(event.messageID) || 0) + 1);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    if (seen.get(event.messageID) > 1) event.input.background = true;
+    setTimeout(() => seen.delete(event.messageID), 1000).unref();
+  };
+}
+
+const isSubagent = (tool) => String(tool || '').toLowerCase() === 'subagent';
+
 // `createPlugin({decide})` and the server's second argument replace the decision module in tests.
-export function createPlugin({ decide: baseDecide = realDecide } = {}) {
+// `usageDir` redirects the usage ledger in tests.
+export function createPlugin({ decide: baseDecide = realDecide, usageDir } = {}) {
   let v1Live = false;
   let v2Live = false;
 
@@ -71,12 +130,19 @@ export function createPlugin({ decide: baseDecide = realDecide } = {}) {
     const decide = override || baseDecide;
     v1Live = true;
     const cwd = directory || process.cwd();
+    const session = sessionMemo(decide, cwd);
+    const usage = createOpenCodeUsage({ cwd, ...(usageDir && { dir: usageDir }) });
     return {
+      // Never throws: the usage module swallows its own errors, and a throw here would only be noise.
+      event: async ({ event } = {}) => usage.event(event),
+
       'experimental.chat.system.transform': failOpen('context', async (_input, output) => {
-        const r = report(decide('session', { cwd }));
+        const r = report(session());
         if (r.context) output.system.push(r.context);
       }),
 
+      // shortcut: a commit-message warning (r.context) has no channel here, so
+      // OpenCode only gets blocks; add one when the host exposes a before-note.
       'tool.execute.before': failOpen('before', async (input, output) => {
         return report(decide('before', { kind: kindOf(input.tool), args: output.args || {}, cwd })).block;
       }),
@@ -97,11 +163,22 @@ export function createPlugin({ decide: baseDecide = realDecide } = {}) {
     if (v1Live || !ctx?.session?.hook || !ctx?.tool?.hook) return;
     v2Live = true;
     const cwd = ctx.location?.directory || process.cwd();
+    const session = sessionMemo(decide, cwd);
+    const usage = createOpenCodeUsage({ cwd, ...(usageDir && { dir: usageDir }) });
+    // The step events carry neither agent nor model; the context hook does, on each request.
+    if (typeof ctx.event?.subscribe === 'function') {
+      (async () => {
+        for await (const ev of ctx.event.subscribe({ signal: new AbortController().signal })) usage.event(ev);
+      })().catch((e) => process.stderr.write(`do-it plugin usage failed open: ${e.message}\n`));
+    }
     ctx.session.hook('context', failOpen('context', async (event) => {
-      const r = report(decide('session', { cwd }));
+      usage.context(event);
+      const r = report(session());
       if (r.context && Array.isArray(event.system)) event.system.push({ type: 'text', text: r.context });
     }));
+    const backgroundBatch = batchSubagents();
     ctx.tool.hook('execute.before', failOpen('before', async (event) => {
+      await backgroundBatch(event);
       return report(decide('before', { kind: kindOf(event.tool), args: event.input || {}, cwd })).block;
     }));
     ctx.tool.hook('execute.after', failOpen('after', async (event) => {

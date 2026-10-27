@@ -21,9 +21,9 @@ The area is the one the plan worked in (it-core). In its `CONTEXT.md`:
   deleted. Leave the other sections to `map-it`.
 
 In `CONTEXT-MAP.md`, update the area's row when its Location or Scope moved.
-No context file for the area and the plan introduced domain terms: create it,
-and its map row, as name-it's
-[CONTEXT-FORMAT.md](../name-it/CONTEXT-FORMAT.md) says.
+No context file for the area and the plan introduced domain terms: create
+nothing here; offer "create `<area>/CONTEXT.md` with `/map-it <area>`" in the
+ship question. A plan step the user approved to create it is built as planned.
 
 ## Changelog
 
@@ -32,6 +32,35 @@ Use the repo's resolved changelog (project docs in session context; a
 existing style: what shipped, in user-facing terms.
 With no linked ADR, add the audit's non-blocking notes and the plan's key
 decisions as sub-bullets. No changelog in the repo: skip, do not create one.
+
+## Audit findings
+
+With no changelog (no resolved changelog and no `.changeset/`) to carry them,
+the audit's Should and Nice findings would be lost when the plan is deleted.
+Take them from the plan's `## Audit` section (lane M: `audit-report.md`), in
+the `Must|Should|Nice | file:line | claim` shape. For each one the user chose,
+call the Skill tool with "log-it": one to-do, `source: <work id> audit`, the
+claim and its `file:line`. None chosen, none found, or no plan audit (lane
+XS): skip. With a changelog: log none; they go into its entry as under
+"Changelog".
+
+## Surfaced defects
+
+The state block's `defects:` are product breaks a slice found and did not fix.
+For each one the user chose (default: all), call the Skill tool with
+"log-it": one issue, `source: <work id>`, the defect text. Skip an entry that
+already ends `(issue: <ref>)`; none left: skip.
+
+A roadmap slice whose Verify clause the defects leave unmet is not marked
+plainly `shipped`. Its Status says `shipped <date> <work id>, Verify unmet:
+<clause>` and its Changes line lists the issue refs; the closing message says
+the same, in one line.
+
+## Rollback note
+
+**Risk-area work** ([LANES.md](../do-it/LANES.md)): a rollback note (revert,
+a flag, a down migration, data to restore) for the changelog and commit body;
+no safe rollback: say so plainly.
 
 ## Shortcut markers
 

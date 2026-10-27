@@ -72,7 +72,7 @@ every session.
 | `DO_IT_HOOKS` | `on` | `off` disables every do-it hook for this scope |
 | `DO_IT_COMPLIANCE_DIR` | `.compliance-rules` | Rule files; `checks.json` holds the machine checks |
 | `DO_IT_LINT_CMD` | (none) | Run after each edit; `{file}` is replaced by the edited path, e.g. `npx eslint {file}` |
-| `DO_IT_HOOK_TIMEOUT` | `20` | Seconds before the lint command is abandoned |
+| `DO_IT_HOOK_TIMEOUT` | `20` | Seconds before the lint command is abandoned; a value that is not a positive number uses 20 |
 | `DO_IT_MAP` | `on` | `off` drops the code map from session context. The map is the context map's tables (`CONTEXT-MAP.md`) when it exists, else the reference dir's `module-map.md`, else a directory summary from `git ls-files`; about 1500 characters |
 
 ### GitHub

@@ -1,5 +1,6 @@
 // The change-set module's addedLines: what a change adds, at which lines.
 
+import './env.mjs'; // first: isolates the developer's environment
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
@@ -416,4 +417,41 @@ test('GIT_DIFF_OPTS and diff.suppressBlankEmpty do not lose or shift lines', () 
     if (saved === undefined) delete process.env.GIT_DIFF_OPTS;
     else process.env.GIT_DIFF_OPTS = saved;
   }
+});
+
+function b64Driver({ dir, git, write }, sleepMs = 0) {
+  write('dec.mjs', `import fs from 'node:fs';\nAtomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ${sleepMs});\nprocess.stdout.write(Buffer.from(fs.readFileSync(process.argv[2], 'utf8').trim(), 'base64'));\n`);
+  write('.gitattributes', '*.b64 diff=b64\n');
+  git('config', 'diff.b64.textconv', `node ${path.join(dir, 'dec.mjs')}`);
+}
+
+test('an untracked file with a textconv driver is read raw and through the driver', () => {
+  const r = gitRepo();
+  b64Driver(r);
+  r.write('s.b64', Buffer.from('decoded secret\n').toString('base64'));
+  const lines = byFile(addedLines(r.dir, { untracked: ['s.b64'] }))['s.b64'].map((l) => l.text);
+  assert.ok(lines.includes('decoded secret'));
+  assert.ok(lines.includes(Buffer.from('decoded secret\n').toString('base64')));
+});
+
+test('textconv diffs of driven files share the time budget', () => {
+  const r = gitRepo();
+  b64Driver(r, 1000);
+  for (let i = 0; i < 5; i++) r.write(`s${i}.b64`, Buffer.from(`secret ${i}\n`).toString('base64'));
+  r.git('add', '-A');
+  const start = Date.now();
+  const files = addedLines(r.dir, { against: 'staged', budget: { deadline: Date.now() + 500 } });
+  assert.ok(Date.now() - start < 2500, `took ${Date.now() - start} ms`);
+  const driven = files.filter((f) => f.file.endsWith('.b64'));
+  assert.equal(driven.length, 5);
+  for (const f of driven) assert.ok(f.lines.length >= 1, `${f.file} keeps its raw lines`);
+});
+
+test('three thousand staged files read the same as one at a time', () => {
+  const r = gitRepo();
+  for (let i = 0; i < 3000; i++) r.write(`d/f${i}.js`, `a${i}\nb${i}\n`);
+  r.git('add', '-A');
+  const files = byFile(addedLines(r.dir, { against: 'staged' }));
+  assert.equal(Object.keys(files).length, 3000);
+  for (const i of [0, 1500, 2999]) assert.deepEqual(files[`d/f${i}.js`], [{ n: 1, text: `a${i}` }, { n: 2, text: `b${i}` }]);
 });

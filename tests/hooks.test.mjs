@@ -1,3 +1,4 @@
+import './env.mjs'; // first: isolates the developer's environment
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -266,4 +267,42 @@ test('VOICE.md carries every rule the issue names', () => {
   const v = voiceText();
   for (const re of [/not.*never.*no.*only/is, /numbers, paths, commands and errors/i, /plain/i, /full sentences/i, /security/i, /irreversible|cannot be undone/i, /overrides any other style/i, /replies or questions to the user/i])
     assert.match(v, re);
+});
+
+test('a hook timeout that is not a positive number falls back to 20 seconds', () => {
+  const root = repo();
+  const timeoutFor = (value) => {
+    let seen;
+    const spawn = (_cmd, opts) => ((seen = opts.timeout), { status: 0 });
+    afterEdit(ctxFor(root, { DO_IT_LINT_CMD: 'true {file}', DO_IT_HOOK_TIMEOUT: value }), { file_path: 'a.js' }, { spawn });
+    return seen;
+  };
+  for (const bad of ['abc', '0', '-5', '']) assert.equal(timeoutFor(bad), 20000, bad);
+  assert.equal(timeoutFor('7'), 7000);
+});
+
+test('beforeShell warns on a commit message without an id prefix and never blocks on it', () => {
+  const ctx = ctxFor(repo());
+  const warned = beforeShell(ctx, 'git commit --allow-empty -m "fix thing"');
+  assert.equal(warned.action, 'warn');
+  assert.match(warned.message, /<id>: /);
+  for (const ok of ['git commit --allow-empty -m "abc-1: fix thing"', 'git commit --allow-empty -m "gh-42: x"', 'git commit --allow-empty -F msg.txt', 'git commit --allow-empty']) {
+    assert.equal(beforeShell(ctx, ok).action, 'allow', ok);
+  }
+});
+
+test('beforeShell blocks a secret even when the message also lacks a prefix', () => {
+  const root = repo();
+  fs.writeFileSync(path.join(root, 'a.js'), `k = "${FAKE_AWS}"\n`);
+  execFileSync('git', ['add', 'a.js'], { cwd: root });
+  assert.equal(beforeShell(ctxFor(root), 'git commit -m "fix thing"').action, 'block');
+});
+
+test('claude pre-tool hook returns a bad commit message as PreToolUse context and lets it run', () => {
+  const root = repo();
+  const r = hook('pre-tool', { cwd: root, tool_name: 'Bash', tool_input: { command: 'git commit --allow-empty -m "fix thing"' } });
+  assert.equal(r.status, 0);
+  const out = JSON.parse(r.stdout).hookSpecificOutput;
+  assert.equal(out.hookEventName, 'PreToolUse');
+  assert.match(out.additionalContext, /<id>: /);
 });

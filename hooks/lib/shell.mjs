@@ -25,6 +25,9 @@ const LONG_WITH_VALUE = new Set([
   'template', 'reuse-message', 'reedit-message',
 ]);
 
+// git commit options that name where the message comes from instead of -m.
+const MESSAGE_ELSEWHERE_LONG = new Set(['file', 'reuse-message', 'reedit-message', 'fixup', 'squash']);
+
 // The shell words of one command, up to the first unquoted ; & | or newline,
 // quotes removed and nothing expanded. $(...), backticks and heredocs inside
 // them stay part of their word; redirects and their targets are dropped.
@@ -238,11 +241,19 @@ function stageArgs(sub, args, sure) {
 }
 
 // What `git commit` would record, from the words after it: every tracked
-// change (-a, a pathspec file, unreadable quoting) or the named paths.
+// change (-a, a pathspec file, unreadable quoting) or the named paths, and
+// the subject (the first -m), which is null when the command gives none, takes
+// its message from elsewhere (a file, another commit, --fixup) or it cannot be
+// read: unclosed quoting, or a word the shell would expand.
 function commitArgs(args, sure) {
   // Quoting that never closes cannot be read: scan every tracked change.
   let all = !sure;
   const paths = [];
+  let message = null;
+  let elsewhere = false;
+  const subject = (value) => {
+    if (message === null && sure && value !== undefined && !/[$`]/.test(value)) message = value;
+  };
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
     if (a === '--') {
@@ -254,13 +265,17 @@ function commitArgs(args, sure) {
       if (name === 'all') all = true;
       // Paths listed in a file are not visible here: scan everything.
       else if (name === 'pathspec-from-file') all = true;
+      if (name === 'message') subject(value ?? args[i + 1]);
+      if (MESSAGE_ELSEWHERE_LONG.has(name)) elsewhere = true;
       if (LONG_WITH_VALUE.has(name) && value === undefined) i++;
     } else if (a.startsWith('-') && a.length > 1) {
       // A short cluster (-am): the first value-taking letter ends it, and
       // takes the rest of the cluster or the next word as its value.
       for (let j = 1; j < a.length; j++) {
         if (a[j] === 'a') all = true;
+        if ('FCc'.includes(a[j])) elsewhere = true;
         if (SHORT_WITH_VALUE.includes(a[j])) {
+          if (a[j] === 'm') subject(j === a.length - 1 ? args[i + 1] : a.slice(j + 1));
           if (j === a.length - 1) i++;
           break;
         }
@@ -269,7 +284,7 @@ function commitArgs(args, sure) {
       paths.push(a);
     }
   }
-  return { all, paths };
+  return { all, paths, message: elsewhere ? null : message };
 }
 
 // Every `git commit` in a command, in order: { dir, all, paths, cds, stages },
