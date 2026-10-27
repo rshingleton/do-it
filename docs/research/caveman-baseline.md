@@ -89,6 +89,11 @@ not proven: the only clean comparison (`it-reviewer`, same day) is flat on
 turns and output and within about 10% on cache, and the rest is confounded by
 the work mix.
 
+Final verdict 2026-10-27: [terse-voice-ab.md](terse-voice-ab.md) ran the
+paired A/B (five briefs, five runs a side, isolated and logged in) and
+replaces the not-proven verdicts above: no evidence of a saving, no
+dropped finding detected.
+
 ## Appendix: usage-snapshot
 
 ```js

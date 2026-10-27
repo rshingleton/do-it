@@ -67,6 +67,8 @@ Not proven, and the ledger cannot prove it. Not refuted either.
 
 Kept, as before: the voice block and contracts add no measurable cost and
 guard against long reports. A real answer needs paired runs of the same work
-on both trees, which needs an isolated, logged-in headless run (an API key);
-the issue stays open for that, narrowed to the harness and the planted-defect
-recall check.
+on both trees.
+
+Superseded 2026-10-27: [terse-voice-ab.md](terse-voice-ab.md) ran those paired
+runs and replaces this verdict: no evidence of a saving, no
+dropped finding detected.

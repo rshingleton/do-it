@@ -105,10 +105,10 @@ Exit: the in-hunk pair is scanned under its old path, and OpenCode v2 usage rows
 |-------|------|----------|--------|------------|--------|------|--------|
 | R25 | build | Added lines after an in-hunk `--- <old>` / `+++ /dev/null` pair in `unifiedFiles` are also scanned under `<old>` and `''`, reusing the `applyPatchFiles` flag (issue: unified in-hunk dev-null pair) | G9 | none | A test shows the in-hunk pair cannot exempt a line from a scoped rule or an `exceptFilePattern` | high | shipped 2026-10-26 unified-in-hunk-dev-null |
 | R26 | build | OpenCode v2 usage rows record the context-hook agent name, and `prune` runs once a day change, not per step (T113, T114) | G6 | none | The v2 fixture test asserts agent `build`, and a 200-step stream calls `prune` once | low | shipped 2026-10-26 opencode-usage-agent-prune |
-| R27 | spike | The paired headless A/B of the terse voice on an isolated, logged-in run, with its quality check and a verdict that replaces the not-proven one; throwaway harness removed (issue: prove or refute token savings) | G6 | D2 (is an API key available) | Results and method in `docs/research/` with a linked verdict | med | |
+| R27 | spike | The paired headless A/B of the terse voice on an isolated, logged-in run, with its quality check and a verdict that replaces the not-proven one; throwaway harness removed (issue: prove or refute token savings) | G6 | D2 (is an API key available) | Results and method in `docs/research/` with a linked verdict | med | shipped 2026-10-27 voice-ab-harness |
 
 ## Open decisions
-- D2: Is an API key available for an isolated, logged-in headless run of the terse-voice A/B? Answer by: grill with the user when R27 is next. Blocks R27. No key: drop R27 and close the issue with the ledger's not-proven verdict.
+None.
 
 ## Fog
 - Scoping each work item's fingerprint and audit diff to its own paths (T49): may become a slice once concurrent items are routine.
@@ -131,6 +131,7 @@ Exit: the in-hunk pair is scanned under its old path, and OpenCode v2 usage rows
 - 2026-10-25 Decision: park T13 to T32 until evidence.
 - 2026-10-25 Decision: findings that reach ship (audit leftovers, defects a verify slice surfaces) get their own milestone M7 after M4, since both edit ship-it's question and ship-it must first fit its line budget (R14).
 - 2026-10-26 Decision: D1 settled: the usage ledger records tokens only, never cost (prices change; usage-it can apply a price table when reporting). R21 is unblocked.
+- 2026-10-27 Decision: D2 settled: `claude` is logged in on this machine, so R27 runs. The earlier harness failed because an isolated config dir was not logged in, so R27's first step is to find a way to isolate the two arms' agents and hooks that keeps the login (a copied or linked credential, or `--plugin-dir`); if none works, R27 is re-scoped, not dropped. R27 is unblocked.
 
 - 2026-10-26 Replan: destination moved by two requirements (G8, G9) from the issues still open after M7; M8 comes first because the stranded-decision bug would hide D2 and any later decision.
 
@@ -164,3 +165,4 @@ Exit: the in-hunk pair is scanned under its old path, and OpenCode v2 usage rows
 - 2026-10-26: R24 shipped as open-decisions-asked (`work.mjs roadmap` reports `blocking: [{id, blocks}]`, ordered by slices blocked; roadmap-it section 6 and do-it sections 1, 3 and 4 ask each blocking decision with a grill-it round at roadmap start and after each ship, and record a settled one with a dated Decisions so far line; `tests/work.test.mjs` covers the output and pins the skill text; the source issue closed; audit leftovers filed as T121, T122). D2 now blocks R27 and is asked next.
 - 2026-10-26: R25 shipped as unified-in-hunk-dev-null (`unifiedFiles` scans the added lines after an in-hunk `--- <old>` / `+++ /dev/null` pair under `<old>` and `''` until the next pair or file header; a pair with no old path keeps the file an earlier pair named; the source issue closed; audit leftovers filed as T123 to T126).
 - 2026-10-26: R26 shipped as opencode-usage-agent-prune (a v2 run records the agent its `context` hook reported, a v1 main session still `main`; `createOpenCodeUsage` prunes when the UTC day changes, with `prune` and `now` test options; T113 and T114 closed; audit leftovers filed as T127 to T130, T127 being that `report.mjs` counts only `agent === 'main'` as the user's own session).
+- 2026-10-27: R27 shipped as voice-ab-harness (`docs/research/terse-voice-ab.md`: 50 isolated headless runs, five cases by five runs by two arms, via `--setting-sources project` plus per-worktree settings so the login is kept; no evidence of a saving, output tokens not lower in 3 of 4 cases but ranges overlap, no dropped finding detected by keyword recall of eight planted defects; the arms differ by the whole tree, not the voice block alone; `look-it-up` replaced by a control and main-session growth not measured, so Verify's quality check is met only by keyword scoring; the source issue closed; M9 complete).
