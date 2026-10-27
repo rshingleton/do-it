@@ -67,3 +67,8 @@ test('gen --check reports a missing agents directory file as stale', () => {
   const r = spawnSync('node', ['scripts/gen-opencode.mjs', '--check'], { cwd: ROOT, encoding: 'utf8' });
   assert.equal(r.status, 0, r.stderr);
 });
+
+test('the subagent rules tell OpenCode to background parallel and background-marked agents', () => {
+  const text = fs.readFileSync(path.join(ROOT, 'skills/skill-it/SKILL-MECHANICS.md'), 'utf8');
+  assert.match(text, /`subagent`: pass `background: true`/);
+});

@@ -61,6 +61,14 @@ skipped them) starts a general-purpose subagent on that tier instead. A task
 that needs tools an agent withholds, such as web search for `look-it-up`,
 names the tier and not an agent.
 
+A foreground call blocks the parent until the agent finishes. In OpenCode 2
+that looks like a hung session, and the TUI shows nothing to act on. There the
+tool is `subagent`: pass `background: true` for an agent a skill says runs in
+the background, and for every agent of a parallel batch. The call returns at
+once and the host reports the result when the child finishes; do not poll or
+sleep. Foreground stays right when the next step needs the report and nothing
+else can run meanwhile.
+
 Write the delegation as the tool call ("Call the Agent tool with `it-scout`"),
 not "hands off to" or "a subagent checks": a softer line was read and skipped
 in a headless run.
