@@ -74,16 +74,14 @@ outside ship-it: ask whether to mark it shipped or re-scope); in flight (a
 plan names it); blocked (a Blocked-by slice not shipped, or a decision still
 under Open decisions); refine; ready.
 
-Show the slices by state. A slice's `unmet` lists the unmet Verify clause of
-each slice it depends on that shipped with `Verify unmet`; it does not wait,
-but show the clause beside it. Its `blocking` lists each open decision with the
-slices it blocks. Ask each before starting a slice: call the Skill tool
-with "grill-it", one question with a recommended answer. A settled one
-leaves Open decisions, gets a dated `Decisions so far` line, and is reread.
-Its `next` is the first ready or refine slice by milestone, then risk (high
-first), fewest blocks, id; offer a spike that blocks more slices instead.
-Start it by reading [do-it](../do-it/SKILL.md) with `<file>#<id>`. A
-`refine` slice gets a short grill first, then its Status is cleared.
+Show the slices by state, each with its `unmet` Verify clause. `blocking` lists
+each open decision with the slices it blocks. Ask each before starting a slice:
+call the Skill tool with "grill-it", one question with a recommended answer. A
+settled one leaves Open decisions, gets a dated `Decisions so far` line, and is
+reread. `next` is the first ready or refine slice by milestone, then risk (high
+first), fewest blocks, id; offer a spike that blocks more slices instead. Start
+it by reading [do-it](../do-it/SKILL.md) with `<file>#<id>`. A `refine` slice
+gets a short grill first, then its Status is cleared.
 
 ## 7. Replan
 

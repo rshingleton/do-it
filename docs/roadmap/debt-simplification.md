@@ -37,7 +37,7 @@ Exit: `npm run check` and the routing eval each exit 1 on a fixture for every ru
 
 | Slice | Kind | Delivers | Covers | Blocked by | Verify | Risk | Status |
 |-------|------|----------|--------|------------|--------|------|--------|
-| R3 | build | The spawn-cap rule compares an "N in all" cap, reads every `>` paragraph of a brief, and computes `owner` once (T91, T92, T93) | G1 | none | Fixture skills with an "in all" cap and a cap in a second paragraph make `npm run check` exit 1 | low | |
+| R3 | build | The spawn-cap rule compares an "N in all" cap, reads every `>` paragraph of a brief, and computes `owner` once (T91, T92, T93) | G1 | none | Fixture skills with an "in all" cap and a cap in a second paragraph make `npm run check` exit 1 | low | shipped 2026-10-27 |
 | R4 | build | A test runs `scripts/eval-routing.mjs` on a model-invoked skill with no routing entry and sees exit 1, plus a unit case for the failure (T94, T95) | G1 | R3 (same test file) | The new tests pass and fail when the missing-entry check is removed | low | |
 
 ### M3: Hook and script code carries one copy
@@ -53,16 +53,16 @@ Exit: `npm run check` reports 0 warnings, and a rewrap of ship-it or prove-it br
 
 | Slice | Kind | Delivers | Covers | Blocked by | Verify | Risk | Status |
 |-------|------|----------|--------|------------|--------|------|--------|
-| R7 | build | ship-it DOCS "Surfaced defects" shares one paragraph with "Audit findings", do-it sections 3 and 4 link roadmap-it section 6 for the blocking ask, deepen-it links design-it for the deletion test, and the unasked DOCS.md context sentence is dropped (T97, T98, T106, T108, T121) | G4 | none | `npm run check` reports 0 warnings; ship-it is under 100 lines; a grep finds the deletion test and the blocking ask stated once each | low | |
+| R7 | build | ship-it DOCS "Surfaced defects" shares one paragraph with "Audit findings", do-it sections 3 and 4 link roadmap-it section 6 for the blocking ask, deepen-it links design-it for the deletion test, and the unasked DOCS.md context sentence is dropped (T97, T98, T106, T108, T121) | G4 | none | `npm run check` reports 0 warnings; ship-it is under 100 lines; a grep finds the deletion test and the blocking ask stated once each | low | shipped 2026-10-27 |
 | R8 | build | The R22 and R24 pin tests check positions and counts, not phrasing regexes (T96) | G4 | R7 (it rewrites the text they pin) | A fixture rewrap of ship-it section 2 leaves the pin tests green; deleting the offer turns one red | low | |
-| R9 | build | `DESIGN.md` section 4 gains its phase-file list link and karpathy credit if missing, section 8 labels the 1,250-token figure an estimate or replaces it with a measured count, and the section 8 usage paragraph is rewrapped (T109, T112, T120) | G4 | none | The README credits the idea; section 8 carries no unlabelled bytes-over-4 figure; `npm run check` passes | low | |
+| R9 | build | `DESIGN.md` section 4 gains its phase-file list link and karpathy credit if missing, section 8 labels the 1,250-token figure an estimate or replaces it with a measured count, and the section 8 usage paragraph is rewrapped (T109, T112, T120) | G4 | none | The README credits the idea; section 8 carries no unlabelled bytes-over-4 figure; `npm run check` passes | low | shipped 2026-10-27 |
 
 ### M5: The OpenCode usage path fails safe
 Exit: a long OpenCode session keeps bounded memory, a disposed plugin stops its event loop, and no late message leaves a stale row.
 
 | Slice | Kind | Delivers | Covers | Blocked by | Verify | Risk | Status |
 |-------|------|----------|--------|------------|--------|------|--------|
-| R10 | build | `opencode.mjs` evicts finished runs, keeps a run's `day` when a late message has an earlier stamp, sets `prunedDay` only after `prune` succeeds, renames `hooked`, and drops or cites the `ev.data` shape (T116, T118, T119, T128, T129) | G5 | none | A 1,000-session stream leaves a bounded `runs` map; a late early-stamped message leaves one row per id; a throwing prune is retried on the next step | med | |
+| R10 | build | `opencode.mjs` evicts finished runs, keeps a run's `day` when a late message has an earlier stamp, sets `prunedDay` only after `prune` succeeds, renames `hooked`, and drops or cites the `ev.data` shape (T116, T118, T119, T128, T129) | G5 | none | A 1,000-session stream leaves a bounded `runs` map; a late early-stamped message leaves one row per id; a throwing prune is retried on the next step | med | shipped 2026-10-27 |
 | R11 | build | The v2 `ctx.event.subscribe` loop gets an abort signal that the plugin aborts on dispose (T117) | G5 | none | A fake ctx test shows dispose aborts the signal and the loop ends | low | |
 
 ### M6: Unmet Verify means something
@@ -70,7 +70,7 @@ Exit: `work.mjs roadmap` reports the unmet clause beside a dependent of a `shipp
 
 | Slice | Kind | Delivers | Covers | Blocked by | Verify | Risk | Status |
 |-------|------|----------|--------|------------|--------|------|--------|
-| R12 | build | `roadmap.mjs` lists the unmet Verify clause beside a dependent of an unmet-Verify slice without blocking it, and `blocking` reuses the `done` predicate (T99, T122) | G6 | none | A test with an unmet-Verify slice and a dependent shows the dependent ready with the unmet clause listed; one shipped-or-dropped predicate remains | low | |
+| R12 | build | `roadmap.mjs` lists the unmet Verify clause beside a dependent of an unmet-Verify slice without blocking it, and `blocking` reuses the `done` predicate (T99, T122) | G6 | none | A test with an unmet-Verify slice and a dependent shows the dependent ready with the unmet clause listed; one shipped-or-dropped predicate remains | low | shipped 2026-10-27 |
 
 ## Open decisions
 None.
@@ -98,4 +98,9 @@ None.
 ## Changes
 - 2026-10-27: charted from T89 to T130 after backlog-hardening shipped.
 - 2026-10-27: R1 shipped as T100 (one home helper, `cleanEnv` strips at call time; T100, T101, T102 closed). Verify unmet: `tests/env.test.mjs` keeps one `{ ...process.env, HOME` on purpose, to feed a hostile environment to its probe.
+- 2026-10-27: R3 shipped as T91 (spawn-cap check reads "N in all" caps and every `>` paragraph, owner computed once; T91 to T93 closed).
+- 2026-10-27: R7 shipped as T97 (ship-it DOCS, do-it and deepen-it point at one home for each repeated rule; T97, T98, T106, T108, T121 closed). "Surfaced defects" now references the "Audit findings" wording instead of merging into one paragraph, because the R22 pin test slices on both headings; R8 can revisit.
+- 2026-10-27: R9 shipped as T109 (DESIGN.md section 8 labels the 1,250-token figure an estimate and the usage paragraph is rewrapped; T109 was already fixed; T109, T112, T120 closed).
+- 2026-10-27: R10 shipped as T116 (OpenCode usage `runs` map capped at 256 with LRU eviction, a run's `day` fixed at its first write, `prunedDay` set after a successful prune, `hooked` renamed, `ev.data` dropped; T116, T118, T119, T128, T129 closed). Eviction is a recorded shortcut: an evicted session that speaks again restarts its totals.
+- 2026-10-27: R12 shipped as T99 (`roadmap.mjs` gives each slice an `unmet` list and `blocking` reuses `done`; T99, T122 closed).
 - 2026-10-27: R2 shipped as T100 (shared `tests/fakes.mjs`, self-cleaning `tmpDir`, `config-precedence` split by layer; T104, T105, T111 closed).
