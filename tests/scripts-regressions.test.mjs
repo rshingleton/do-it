@@ -358,6 +358,18 @@ test('check.mjs: a spawn cap above the named agent\'s cap fails; at or below pas
   }
 });
 
+test('check.mjs: an "N in all" cap, wrapped or not, and a cap in a second > paragraph are compared with the agent cap', () => {
+  const agents = { 'agents/it-scout.md': AGENT('it-scout') };
+  const inAll = checkWith({ ...agents, 'skills/zz-it/SKILL.md': SKILL('Start one `it-scout` agent with this brief:\n\n> Find it. Under 40 words a line, 600\n> in all.') });
+  assert.equal(inAll.status, 1, inAll.stdout);
+  assert.match(inAll.stdout, /word cap 600 is above the 500 in agents\/it-scout\.md/);
+  const second = checkWith({ ...agents, 'skills/zz-it/SKILL.md': SKILL('Start one `it-scout` agent with this brief:\n\n> Find it. Under 100 words.\n\n> Also list paths. Under 600 words.') });
+  assert.equal(second.status, 1, second.stdout);
+  assert.match(second.stdout, /word cap 600 is above the 500/);
+  const ok = checkWith({ ...agents, 'skills/zz-it/SKILL.md': SKILL('Start one `it-scout` agent with this brief:\n\n> Find it. Under 40 words a line, 300 in all.\n\n> Also list paths. Under 100 words.') });
+  assert.equal(ok.status, 0, ok.stdout);
+});
+
 test('check.mjs: a paragraph naming two agents is held to the lower cap', () => {
   const para = SKILL('Start `it-scout` and `it-reviewer` agents with this brief:\n\n> Find it. Under 600 words.');
   const lower = AGENT('it-reviewer').replace('Cap: 500 words', 'Cap: 800 words');
