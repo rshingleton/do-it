@@ -29,8 +29,8 @@ Exit: `npm test` passes and no suite builds its own env object, fake fetch or te
 
 | Slice | Kind | Delivers | Covers | Blocked by | Verify | Risk | Status |
 |-------|------|----------|--------|------------|--------|------|--------|
-| R1 | enabler | One home-setup helper in `tests/env.mjs`, `cleanEnv` strips `DO_IT_*` at call time, and `scripts-regressions` uses it (T100, T101, T102) | G2 | none | `npm test` passes; no `{ ...process.env, HOME` remains in `tests/`; a test sets a `DO_IT_*` var in-process and its child does not see it | low | |
-| R2 | enabler | One exported fake fetch and gh runner, one temp-dir cleanup helper, and `config-precedence` split by layer (T104, T105, T111) | G2 | R1 (same helper file) | One fake-fetch definition under `tests/`; a run leaves no new `mkdtemp` dirs in tmp; a broken layer fails a test that names it | low | |
+| R1 | enabler | One home-setup helper in `tests/env.mjs`, `cleanEnv` strips `DO_IT_*` at call time, and `scripts-regressions` uses it (T100, T101, T102) | G2 | none | `npm test` passes; no `{ ...process.env, HOME` remains in `tests/`; a test sets a `DO_IT_*` var in-process and its child does not see it | low | shipped 2026-10-27, Verify unmet: one deliberate hostile-env literal stays in `tests/env.test.mjs` |
+| R2 | enabler | One exported fake fetch and gh runner, one temp-dir cleanup helper, and `config-precedence` split by layer (T104, T105, T111) | G2 | R1 (same helper file) | One fake-fetch definition under `tests/`; a run leaves no new `mkdtemp` dirs in tmp; a broken layer fails a test that names it | low | shipped 2026-10-27 |
 
 ### M2: The check rules are complete
 Exit: `npm run check` and the routing eval each exit 1 on a fixture for every rule they claim.
@@ -66,14 +66,14 @@ Exit: a long OpenCode session keeps bounded memory, a disposed plugin stops its 
 | R11 | build | The v2 `ctx.event.subscribe` loop gets an abort signal that the plugin aborts on dispose (T117) | G5 | none | A fake ctx test shows dispose aborts the signal and the loop ends | low | |
 
 ### M6: Unmet Verify means something
-Exit: `work.mjs roadmap` treats a dependent of a `shipped, Verify unmet` slice the way D1 decided, with one shared done predicate.
+Exit: `work.mjs roadmap` reports the unmet clause beside a dependent of a `shipped, Verify unmet` slice and does not block it, with one shared done predicate.
 
 | Slice | Kind | Delivers | Covers | Blocked by | Verify | Risk | Status |
 |-------|------|----------|--------|------------|--------|------|--------|
-| R12 | build | `roadmap.mjs` applies D1 to dependents of an unmet-Verify slice and `blocking` reuses the `done` predicate (T99, T122) | G6 | D1 (does a dependent wait) | A test with an unmet-Verify slice and a dependent shows the D1 behaviour; one shipped-or-dropped predicate remains | low | |
+| R12 | build | `roadmap.mjs` lists the unmet Verify clause beside a dependent of an unmet-Verify slice without blocking it, and `blocking` reuses the `done` predicate (T99, T122) | G6 | none | A test with an unmet-Verify slice and a dependent shows the dependent ready with the unmet clause listed; one shipped-or-dropped predicate remains | low | |
 
 ## Open decisions
-- D1: Does a slice blocked by one that shipped with Verify unmet wait? Answer by: a grill-it round; recommended: it does not wait (shipped is shipped), and `roadmap` lists the unmet clause beside it. Blocks R12.
+None.
 
 ## Fog
 - Scoping each work item's fingerprint and audit diff to its own paths (T49): may become a slice once concurrent items are routine.
@@ -92,7 +92,10 @@ Exit: `work.mjs roadmap` treats a dependent of a `shipped, Verify unmet` slice t
 
 ## Decisions so far
 - 2026-10-27 Decision: the next destination is removals and tightenings of the audit leftovers, no features (T64).
+- 2026-10-27 Decision: D1 settled: a dependent of a slice shipped with Verify unmet does not wait; `roadmap` lists the unmet clause beside it. R12 is unblocked.
 - 2026-10-27 Decision: T110 and T103 dropped; T107, T130 and T115 sit in Fog.
 
 ## Changes
 - 2026-10-27: charted from T89 to T130 after backlog-hardening shipped.
+- 2026-10-27: R1 shipped as T100 (one home helper, `cleanEnv` strips at call time; T100, T101, T102 closed). Verify unmet: `tests/env.test.mjs` keeps one `{ ...process.env, HOME` on purpose, to feed a hostile environment to its probe.
+- 2026-10-27: R2 shipped as T100 (shared `tests/fakes.mjs`, self-cleaning `tmpDir`, `config-precedence` split by layer; T104, T105, T111 closed).

@@ -1,8 +1,7 @@
-import './env.mjs'; // first: isolates the developer's environment
+import { tmpDir } from './env.mjs'; // first: isolates the developer's environment
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { workItems } from '../skills/do-it/scripts/items.mjs';
 import { writeItem } from '../skills/do-it/scripts/block.mjs';
@@ -11,7 +10,7 @@ const DATE = { date: '2026-10-20' };
 const ok = (text = 'npm test') => () => ({ ok: true, text });
 
 function setup(opts = {}) {
-  const planningDir = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-items-')), 'docs/planning');
+  const planningDir = path.join(tmpDir('do-it-items-'), 'docs/planning');
   return { planningDir, items: workItems({ planningDir, ...opts }) };
 }
 

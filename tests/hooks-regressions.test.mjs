@@ -1,6 +1,6 @@
 // Regression tests for bugs found in the hooks and the OpenCode plugin.
 
-import './env.mjs'; // first: isolates the developer's environment
+import { tmpDir } from './env.mjs'; // first: isolates the developer's environment
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -18,7 +18,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const KEY = ['AKIA', 'ABCDEFGHIJKLMNOP'].join('');
 
 function repo() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-hreg-'));
+  const dir = tmpDir('do-it-hreg-');
   const git = (...a) => execFileSync('git', a, { cwd: dir, encoding: 'utf8' });
   git('init', '-q');
   git('-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '--allow-empty', '-m', 'base');
@@ -131,7 +131,7 @@ test('claude.mjs can be imported when argv[1] is not a file (bug 10)', () => {
 
 test('the it-core header is stripped from a CRLF file (bug 10)', async () => {
   const { coreText } = await import('../hooks/lib/context.mjs');
-  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-crlf-')), 'SKILL.md');
+  const file = path.join(tmpDir('do-it-crlf-'), 'SKILL.md');
   fs.writeFileSync(file, '---\r\nname: it-core\r\ndescription: x\r\n---\r\n# Posture\r\nbody\r\n');
   const text = coreText(file);
   assert.doesNotMatch(text, /name: it-core/);
@@ -433,7 +433,7 @@ test('path rules match a backslash path (T87)', () => {
 test('carriesVoice is true only for an agent file that holds the voice marker, and false on a read error', async () => {
   const { carriesVoice } = await import('../hooks/claude.mjs');
   const { START } = await import('../scripts/lib/voice.mjs');
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-voice-'));
+  const dir = tmpDir('do-it-voice-');
   fs.writeFileSync(path.join(dir, 'with.md'), `body\n\n${START}\nV\n<!-- voice:end -->\n`);
   fs.writeFileSync(path.join(dir, 'without.md'), 'body\n');
   fs.mkdirSync(path.join(dir, 'dir.md'));

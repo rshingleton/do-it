@@ -5,6 +5,7 @@ import './env.mjs'; // first: isolates the developer's environment
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
+import { fakeFetch, fakeGh } from './fakes.mjs';
 import { DEFAULTS } from '../skills/track-it/scripts/config.mjs';
 import { jiraTracker } from '../skills/track-it/scripts/adapters/jira.mjs';
 import { githubTracker } from '../skills/track-it/scripts/adapters/github.mjs';
@@ -22,21 +23,17 @@ const BASIC = `Basic ${Buffer.from('me@example.com:tok-123').toString('base64')}
 
 // A Jira that answers the calls an adapter makes and records each request.
 function fakeJira({ transitions = [{ id: '31', name: 'Done', to: { name: 'Done' } }] } = {}) {
-  const calls = [];
-  const fetch = async (url, init) => {
+  const fetch = fakeFetch((url, init) => {
     const path = url.replace('https://j.example', '');
-    const body = init.body === undefined ? undefined : JSON.parse(init.body);
-    calls.push({ method: init.method, path, auth: init.headers.Authorization, body });
-    const reply = (data) => ({ ok: true, status: 200, text: async () => JSON.stringify(data) });
-    if (init.method === 'GET' && path.startsWith('/rest/api/2/project/')) return reply({ components: [{ name: 'Core' }] });
-    if (init.method === 'POST' && path === '/rest/api/2/issue') return reply({ key: 'PR-9' });
-    if (init.method === 'GET' && path.endsWith('/transitions')) return reply({ transitions });
+    if (init.method === 'GET' && path.startsWith('/rest/api/2/project/')) return { components: [{ name: 'Core' }] };
+    if (init.method === 'POST' && path === '/rest/api/2/issue') return { key: 'PR-9' };
+    if (init.method === 'GET' && path.endsWith('/transitions')) return { transitions };
     if (init.method === 'GET') {
-      return reply({ fields: { summary: 'S', description: 'D', status: { name: 'Open' }, issuetype: { name: 'Bug' }, assignee: null, comment: { comments: [] } } });
+      return { fields: { summary: 'S', description: 'D', status: { name: 'Open' }, issuetype: { name: 'Bug' }, assignee: null, comment: { comments: [] } } };
     }
-    return reply({});
-  };
-  return { fetch, calls };
+    return {};
+  });
+  return { fetch, calls: fetch.calls };
 }
 
 test('Jira create posts one issue with the project, summary, type, component and epic parent', async () => {
@@ -92,15 +89,6 @@ test('Jira close with no matching transition posts nothing and says which exist'
   assert.match(r.skipped, /no transition "Done"; available: Resolve/);
 });
 
-// A gh that records its arguments and the text piped to it.
-function fakeGh(reply = () => '') {
-  const calls = [];
-  const run = (args, input) => {
-    calls.push({ args, input });
-    return reply(args);
-  };
-  return { run, calls };
-}
 const GH = { ...DEFAULTS, DO_IT_GITHUB_REPO: 'o/r' };
 
 test('GitHub create passes the title, the body on stdin and one --label per label', () => {

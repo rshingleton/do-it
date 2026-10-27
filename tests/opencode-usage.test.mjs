@@ -1,10 +1,9 @@
 // OpenCode events become ledger rows that usage.mjs reports.
 
-import './env.mjs'; // first: isolates the developer's environment
+import { tmpDir } from './env.mjs'; // first: isolates the developer's environment
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -14,7 +13,7 @@ import { createOpenCodeUsage } from '../skills/usage-it/scripts/opencode.mjs';
 import { readAll } from '../skills/usage-it/scripts/ledger.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-ocusage-'));
+const tmp = () => tmpDir('do-it-ocusage-');
 const NOW = Date.now();
 
 const tokens = (input, output, reasoning = 0, read = 0, write = 0) => ({ total: 0, input, output, reasoning, cache: { read, write } });

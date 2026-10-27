@@ -1,15 +1,15 @@
 // Regression tests for bugs found in the track-it scripts. Each test reproduces
 // the reported failure; see the commit that added this file for the hunt.
 
-import './env.mjs'; // first: isolates the developer's environment
+import { tmpDir } from './env.mjs'; // first: isolates the developer's environment
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
+import { fakeFetch, fakeGh } from './fakes.mjs';
 import { parseEnv, resolveDocs, redact, DEFAULTS } from '../skills/track-it/scripts/config.mjs';
 import { parseRef } from '../skills/track-it/scripts/refs.mjs';
 import { markdownToWiki } from '../skills/track-it/scripts/wiki.mjs';
@@ -21,7 +21,7 @@ import { parseArgs } from '../skills/track-it/scripts/tracker.mjs';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 function tmpRepo() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-reg-'));
+  const dir = tmpDir('do-it-reg-');
   fs.mkdirSync(path.join(dir, '.git'));
   return dir;
 }
@@ -32,7 +32,7 @@ test('quoted dotenv value with an inline comment loses its quotes', () => {
 
 test('absolute doc and issue paths are used as given', () => {
   const root = tmpRepo();
-  const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-abs-'));
+  const outside = tmpDir('do-it-abs-');
   fs.writeFileSync(path.join(outside, 'gloss.md'), '# g');
   assert.equal(resolveDocs(root, { ...DEFAULTS, DO_IT_CONTEXT: path.join(outside, 'gloss.md') }).context.exists, true);
 
@@ -157,20 +157,18 @@ test('parseRef keeps a GitHub Enterprise host and drops github.com', () => {
 });
 
 test('GitHub calls for a GHE ref pass -R host/owner/repo and refs keep the host', () => {
-  const calls = [];
-  const run = (args) => {
-    calls.push(args);
+  const { run, calls } = fakeGh((args) => {
     if (args[1] === 'view') return JSON.stringify({ number: 5, title: 't', body: '', state: 'OPEN', url: 'https://ghe.example/o/r/issues/5' });
     if (args[1] === 'create') return 'https://ghe.example/o/r/issues/6\n';
     return '';
-  };
+  });
   const t = githubTracker(DEFAULTS, { run });
   assert.equal(t.get('https://ghe.example/o/r/issues/5').ref, 'ghe.example/o/r#5');
-  assert.deepEqual(calls.at(-1).slice(0, 5), ['issue', 'view', '5', '-R', 'ghe.example/o/r']);
+  assert.deepEqual(calls.at(-1).args.slice(0, 5), ['issue', 'view', '5', '-R', 'ghe.example/o/r']);
   t.comment('ghe.example/o/r#5', 'hi');
-  assert.deepEqual(calls.at(-1).slice(0, 5), ['issue', 'comment', '5', '-R', 'ghe.example/o/r']);
+  assert.deepEqual(calls.at(-1).args.slice(0, 5), ['issue', 'comment', '5', '-R', 'ghe.example/o/r']);
   t.close('https://ghe.example/o/r/issues/5');
-  assert.deepEqual(calls.at(-1).slice(0, 5), ['issue', 'close', '5', '-R', 'ghe.example/o/r']);
+  assert.deepEqual(calls.at(-1).args.slice(0, 5), ['issue', 'close', '5', '-R', 'ghe.example/o/r']);
   assert.equal(t.create({ title: 'T' }).ref, 'ghe.example/o/r#6');
 });
 
@@ -189,7 +187,7 @@ test('GitHub publish that fails partway returns the refs it made', () => {
 
 test('CLI: a publish that fails partway prints the refs made and exits 1', () => {
   const root = tmpRepo();
-  const bin = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-gh-'));
+  const bin = tmpDir('do-it-gh-');
   const gh = path.join(bin, 'gh');
   fs.writeFileSync(gh, `#!/bin/sh\nc="${bin}/count"\nn=$(cat "$c" 2>/dev/null || echo 0)\nn=$((n+1))\necho $n > "$c"\n[ "$n" = 2 ] && { echo boom >&2; exit 1; }\necho "https://github.com/o/r/issues/$n"\n`, { mode: 0o755 });
   const spec = path.join(bin, 'spec.json');
@@ -215,15 +213,7 @@ test('a hand-written double-quoted issue title decodes its escapes and rewrites 
   assert.equal(t.get('docs/issues/q.md').title, 'Tab\there \u00e9');
 });
 
-function capture() {
-  const calls = [];
-  const fetch = async (url, init) => {
-    calls.push({ url, auth: init.headers.Authorization });
-    return { ok: true, status: 200, text: async () => JSON.stringify({ fields: {} }) };
-  };
-  fetch.calls = calls;
-  return fetch;
-}
+const capture = () => fakeFetch(() => ({ fields: {} }));
 
 const JIRA = { ...DEFAULTS, JIRA_BASE_URL: 'https://j.x', JIRA_API_TOKEN: 'SECRET', JIRA_PROJECT_KEY: 'P' };
 
@@ -256,16 +246,11 @@ test('parseRef accepts lowercase Jira keys, GitHub Enterprise URLs and .MD paths
 });
 
 test('GitHub refs keep their repo, bad output throws, only label errors drop labels', () => {
-  const calls = [];
-  const run = (args) => {
-    calls.push(args);
-    if (args[1] === 'view') return JSON.stringify({ number: 3, title: 't', body: '', state: 'OPEN', url: 'u' });
-    return '';
-  };
+  const { run, calls } = fakeGh((args) => (args[1] === 'view' ? JSON.stringify({ number: 3, title: 't', body: '', state: 'OPEN', url: 'u' }) : ''));
   const t = githubTracker(DEFAULTS, { run });
   assert.equal(t.get('https://github.com/other/r/issues/3').ref, 'other/r#3');
   t.comment('other/r#3', 'hi');
-  assert.deepEqual(calls.at(-1).slice(0, 5), ['issue', 'comment', '3', '-R', 'other/r']);
+  assert.deepEqual(calls.at(-1).args.slice(0, 5), ['issue', 'comment', '3', '-R', 'other/r']);
 
   assert.throws(() => githubTracker(DEFAULTS, { run: () => 'no url here' }).create({ title: 't' }), /no issue URL/);
 

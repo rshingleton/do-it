@@ -1,8 +1,7 @@
-import './env.mjs';
+import { tmpDir } from './env.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -40,7 +39,7 @@ test('invalid JSON or a string permission is reported, not thrown', () => {
 });
 
 test('repo discovery: no OpenCode skips, .opencode alone is missing, file is read', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-oc-'));
+  const dir = tmpDir('do-it-oc-');
   assert.equal(checkRepo(dir).applies, false);
   fs.mkdirSync(path.join(dir, '.opencode'));
   assert.deepEqual([checkRepo(dir).applies, checkRepo(dir).status], [true, 'missing']);

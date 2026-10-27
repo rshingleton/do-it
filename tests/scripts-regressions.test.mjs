@@ -1,10 +1,9 @@
 // Regression tests for bugs found in the install, check and helper scripts.
 
-import './env.mjs'; // first: isolates the developer's environment
+import { cleanEnv, tmpDir } from './env.mjs'; // first: isolates the developer's environment
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -14,7 +13,7 @@ import { fingerprint as fp } from '../skills/do-it/scripts/changeset.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const KEY = ['AKIA', 'ABCDEFGHIJKLMNOP'].join('');
-const tmp = (p) => fs.mkdtempSync(path.join(os.tmpdir(), p));
+const tmp = tmpDir;
 
 function copyRepo(dest) {
   fs.cpSync(ROOT, dest, { recursive: true, filter: (src) => !src.includes(`${path.sep}.git${path.sep}`) && !src.endsWith(`${path.sep}.git`) });
@@ -34,7 +33,7 @@ test('install-hooks works from a checkout path with a space', () => {
   const home = path.join(base, 'home');
   const r = spawnSync('node', [path.join(repo, 'scripts/install-hooks.mjs'), 'claude'], {
     encoding: 'utf8',
-    env: { ...process.env, HOME: home },
+    env: cleanEnv({}, home),
   });
   assert.equal(r.status, 0, r.stderr);
   assert.match(fs.readFileSync(path.join(home, '.claude/settings.json'), 'utf8'), /claude\.mjs/);
@@ -42,7 +41,7 @@ test('install-hooks works from a checkout path with a space', () => {
 
 test('uninstall on a clean home writes nothing; re-install keeps the first backup', () => {
   const home = tmp('do-it-home-');
-  const env = { ...process.env, HOME: home, XDG_CONFIG_HOME: path.join(home, '.config') };
+  const env = cleanEnv({}, home);
   const hooks = (...a) => spawnSync('node', [path.join(ROOT, 'scripts/install-hooks.mjs'), ...a], { encoding: 'utf8', env });
   hooks('claude', '--remove');
   hooks('opencode', '--remove');
@@ -58,7 +57,7 @@ test('uninstall on a clean home writes nothing; re-install keeps the first backu
 
 test('uninstall removes every link into this checkout, including renamed skills', () => {
   const home = tmp('do-it-home-');
-  const env = { ...process.env, HOME: home, XDG_CONFIG_HOME: path.join(home, '.config') };
+  const env = cleanEnv({}, home);
   fs.mkdirSync(path.join(home, '.claude/skills'), { recursive: true });
   const stale = path.join(home, '.claude/skills/diagnosing-bugs');
   fs.symlinkSync(path.join(ROOT, 'skills/diagnosing-bugs'), stale);
@@ -79,7 +78,7 @@ test('install.sh run from a pipe clones the repo, installs from the clone, and p
   git('commit', '-q', '-m', 'source');
   const home = tmp('do-it-home-');
   const clone = path.join(home, 'share/do-it');
-  const env = { ...process.env, HOME: home, XDG_CONFIG_HOME: path.join(home, '.config'), DO_IT_REPO: source, DO_IT_HOME: clone };
+  const env = cleanEnv({ DO_IT_REPO: source, DO_IT_HOME: clone }, home);
   const piped = (...args) =>
     spawnSync('bash', ['-s', '--', ...args], { cwd: home, input: fs.readFileSync(path.join(ROOT, 'scripts/install.sh')), encoding: 'utf8', env });
 
@@ -250,7 +249,7 @@ test('check.mjs validates agent files: name, model; tools may be a list', () => 
 
 test('install.sh links agents into ~/.claude/agents and uninstall removes only ours', () => {
   const home = tmp('do-it-home-');
-  const env = { ...process.env, HOME: home, XDG_CONFIG_HOME: path.join(home, '.config') };
+  const env = cleanEnv({}, home);
   const run = (...a) => spawnSync('bash', [path.join(ROOT, 'scripts/install.sh'), ...a], { encoding: 'utf8', env });
   assert.equal(run('--no-hooks').status, 0);
   const link = path.join(home, '.claude/agents/it-scout.md');
@@ -265,7 +264,7 @@ test('install.sh links agents into ~/.claude/agents and uninstall removes only o
 
 test('install.sh links OpenCode commands (both dirs) and agents, and uninstall removes only ours', () => {
   const home = tmp('do-it-home-');
-  const env = { ...process.env, HOME: home, XDG_CONFIG_HOME: path.join(home, '.config') };
+  const env = cleanEnv({}, home);
   const run = (...a) => spawnSync('bash', [path.join(ROOT, 'scripts/install.sh'), ...a], { encoding: 'utf8', env });
   assert.equal(run('--no-hooks').status, 0);
   const oc = path.join(home, '.config/opencode');

@@ -1,8 +1,7 @@
-import './env.mjs'; // first: isolates the developer's environment
+import { tmpDir } from './env.mjs'; // first: isolates the developer's environment
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -202,7 +201,7 @@ title: Billing
 `;
 
 test('roadmap: every slice state is derived, a hand-committed plan is stale (bugs 6, 7)', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-rm-'));
+  const dir = tmpDir('do-it-rm-');
   const planningDir = path.join(dir, 'docs/planning');
   fs.mkdirSync(planningDir, { recursive: true });
   fs.mkdirSync(path.join(dir, 'docs/roadmap'));
@@ -220,7 +219,7 @@ test('roadmap: every slice state is derived, a hand-committed plan is stale (bug
 });
 
 test('roadmap: an open decision is reported with every unfinished slice it blocks', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-rm-'));
+  const dir = tmpDir('do-it-rm-');
   const planningDir = path.join(dir, 'docs/planning');
   fs.mkdirSync(planningDir, { recursive: true });
   const file = path.join(dir, 'billing.md');
@@ -247,7 +246,7 @@ test('skills: roadmap-it and do-it ask the decisions that block slices', () => {
 });
 
 function tempRepo() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-work-'));
+  const dir = tmpDir('do-it-work-');
   execFileSync('git', ['init', '-q'], { cwd: dir });
   return dir;
 }
@@ -405,7 +404,7 @@ test('audit round 1 regressions: replan, parens, empty lane M, comments, CRLF', 
   assert.throws(() => transition(empty, 'build-done'), /no phases/);
 
   // Nice 9: a CRLF plan stays CRLF.
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-crlf-'));
+  const dir = tmpDir('do-it-crlf-');
   const file = path.join(dir, 'c.md');
   fs.writeFileSync(file, '---\r\nid: c\r\ntitle: C\r\nlane: s\r\nstatus: draft\r\n---\r\n\r\n# C\r\n');
   const item = readItem(file);
@@ -414,7 +413,7 @@ test('audit round 1 regressions: replan, parens, empty lane M, comments, CRLF', 
 });
 
 test('a failed plan write leaves the old plan whole and no temp file (T53)', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-atomic-'));
+  const dir = tmpDir('do-it-atomic-');
   const file = path.join(dir, 'a.md');
   const before = `---\n${writeBlock(emptyBlock({ id: 'a', title: 'A', lane: 's' }))}---\n\n# A\n`;
   fs.writeFileSync(file, before);
@@ -469,7 +468,7 @@ test('work.mjs: verify-phase keeps separate arguments intact (audit round 2)', (
 
 test('work.mjs: verify-phase --in runs the checks in another directory and records here (T55)', () => {
   const dir = tempRepo();
-  const int = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-int-'));
+  const int = tmpDir('do-it-int-');
   fs.writeFileSync(path.join(int, 'marker'), '');
   work(dir, 'new', 'par', '--lane', 'm', '--title', 'Par');
   work(dir, 'set', 'par', 'phases', '[{"n":1,"title":"One"}]');
