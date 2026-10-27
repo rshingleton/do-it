@@ -82,6 +82,9 @@ export function roadmapSlices(file, { root, planningDir, tracked = (f) => isTrac
   }
   const status = new Map(slices.map((s) => [s.id, s.status.toLowerCase()]));
   const done = (id) => /^(shipped|dropped)\b/.test(status.get(id) ?? '');
+  // A slice shipped with `Verify unmet: <clause>` still counts as done (D1):
+  // its dependents do not wait, the clause is listed beside them.
+  const unmetClause = (id) => (status.get(id) ?? '').match(/verify unmet\s*:?\s*(.*)$/)?.[1].trim() || null;
 
   const out = slices.map((s) => {
     const st = s.status.toLowerCase();
@@ -103,7 +106,8 @@ export function roadmapSlices(file, { root, planningDir, tracked = (f) => isTrac
         note = `waiting on ${waiting.join(', ')}`;
       } else state = st === 'refine' ? 'refine' : 'ready';
     }
-    return { ...s, state, note, plan: plan?.id ?? null };
+    const unmet = s.blocked_by.filter((b) => unmetClause(b) !== null).map((b) => ({ slice: b, clause: unmetClause(b) }));
+    return { ...s, state, note, unmet, plan: plan?.id ?? null };
   });
 
   const ready = out
@@ -116,7 +120,7 @@ export function roadmapSlices(file, { root, planningDir, tracked = (f) => isTrac
         Number(a.id.slice(1)) - Number(b.id.slice(1)),
     );
   const blocking = openDecisions
-    .map((id) => ({ id, blocks: out.filter((s) => !/^(shipped|dropped)$/.test(s.state) && s.blocked_by.includes(id)).map((s) => s.id) }))
+    .map((id) => ({ id, blocks: out.filter((s) => !done(s.id) && s.blocked_by.includes(id)).map((s) => s.id) }))
     .filter((d) => d.blocks.length)
     .sort((a, b) => b.blocks.length - a.blocks.length || a.id.localeCompare(b.id, undefined, { numeric: true }));
   return { slices: out, openDecisions, blocking, next: ready[0]?.id ?? null };

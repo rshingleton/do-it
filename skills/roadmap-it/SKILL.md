@@ -74,7 +74,9 @@ outside ship-it: ask whether to mark it shipped or re-scope); in flight (a
 plan names it); blocked (a Blocked-by slice not shipped, or a decision still
 under Open decisions); refine; ready.
 
-Show the slices by state. Its `blocking` lists each open decision with the
+Show the slices by state. A slice's `unmet` lists the unmet Verify clause of
+each slice it depends on that shipped with `Verify unmet`; it does not wait,
+but show the clause beside it. Its `blocking` lists each open decision with the
 slices it blocks. Ask each before starting a slice: call the Skill tool
 with "grill-it", one question with a recommended answer. A settled one
 leaves Open decisions, gets a dated `Decisions so far` line, and is reread.
