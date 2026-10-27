@@ -90,7 +90,7 @@ to the last alone keeps the defaults:
 
 "Shipped <id>: committed as abc123 | prepared, left for review", then
 Skipped / Not checked / Risk, then **Next:** (the finish command, push when
-ready, or nothing).
+ready, or nothing). On a roadmap slice, the slash command for the next one, never a script.
 
 ## Rules
 

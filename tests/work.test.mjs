@@ -569,6 +569,21 @@ test('ship-it: the question offers the audit leftovers, DOCS.md and prove-it nam
   assert.match(prove, /with no changelog offers to log them as\s+to-dos/, 'prove-it names the home');
 });
 
+test('closing Next: do-it §6 and ship-it §4 name a slash command, never a script', () => {
+  const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
+  const doIt = read('skills/do-it/SKILL.md');
+  const ship = read('skills/ship-it/SKILL.md');
+  const closing = doIt.slice(doIt.indexOf('## 6. Closing message'));
+  const close = ship.slice(ship.indexOf('## 4. Close'), ship.indexOf('## Rules'));
+  for (const [name, text] of [['do-it §6', closing], ['ship-it §4', close]]) {
+    assert.match(text, /slash command/, `${name} says Next: is a slash command`);
+    assert.match(text, /never a script/, `${name} forbids naming a script`);
+    assert.doesNotMatch(text, /work\.mjs/, `${name} does not name the helper`);
+  }
+  assert.match(closing, /\/do-it <file>#R<n>/, 'do-it §6 shows the roadmap form');
+  assert.match(closing, /no slice is ready/i, 'do-it §6 covers the nothing-ready case');
+});
+
 test('defects: a surfaced-defects list round-trips and work.mjs set writes it', () => {
   const s = { ...emptyBlock({ id: 'x', title: 'X', lane: 's' }), defects: ['scan fails at Long.MAX_VALUE', 'range delete skips the end key'] };
   assert.deepEqual(emptyBlock({ id: 'x', title: 'X', lane: 's' }).defects, []);

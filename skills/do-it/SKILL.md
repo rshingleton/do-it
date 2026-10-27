@@ -64,7 +64,7 @@ file is how this skill runs them. Resolve each step's own links
 Each step ends with an outcome: `done`, `blocked` or `failed`.
 
 - `done`: run the next row at once, asking only at the §4 stops; after
-  `ship-it` on a roadmap slice, reread `work.mjs roadmap` and ask any `blocking`
+  `ship-it` on a roadmap slice, reread the roadmap's state and ask any `blocking`
   decision. A step run from here never closes the turn: no closing message or `Next:`; only §6 does.
 - `blocked`: stop and show the question or blocker.
 - `failed` from `prove-it`: route back to `build-it` with the numbered Must
@@ -97,4 +97,4 @@ half-done). Then follow [ship-it](../ship-it/SKILL.md) with `--lane xs`, plus
 ## 6. Closing message
 
 First line: the lane and where the work stands. Then `Skipped / Not checked /
-Risk`. Last line: the next step, or the stop waiting for the user.
+Risk`. Last line, `Next:` a slash command, never a script: `/do-it <file>#R<n>` for the slice the roadmap reports next, or `/roadmap-it <file> next`; if no slice is ready, say why and the command that settles it.
