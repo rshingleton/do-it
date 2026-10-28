@@ -166,9 +166,10 @@ export function createPlugin({ decide: baseDecide = realDecide, usageDir } = {})
     const session = sessionMemo(decide, cwd);
     const usage = createOpenCodeUsage({ cwd, ...(usageDir && { dir: usageDir }) });
     // The step events carry neither agent nor model; the context hook does, on each request.
+    const stop = new AbortController();
     if (typeof ctx.event?.subscribe === 'function') {
       (async () => {
-        for await (const ev of ctx.event.subscribe({ signal: new AbortController().signal })) usage.event(ev);
+        for await (const ev of ctx.event.subscribe({ signal: stop.signal })) usage.event(ev);
       })().catch((e) => process.stderr.write(`do-it plugin usage failed open: ${e.message}\n`));
     }
     ctx.session.hook('context', failOpen('context', async (event) => {
@@ -186,6 +187,8 @@ export function createPlugin({ decide: baseDecide = realDecide, usageDir } = {})
       const r = report(decide('after', { kind: kindOf(event.tool), args: event.input || {}, cwd }));
       if (r.context && event.result) appendContent(event.result, r.context);
     }));
+    // The v2 docs let setup return a cleanup; it ends the usage loop on dispose.
+    return () => stop.abort();
   };
 
   return { id: 'do-it', server, setup };

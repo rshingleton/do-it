@@ -63,7 +63,7 @@ Exit: a long OpenCode session keeps bounded memory, a disposed plugin stops its 
 | Slice | Kind | Delivers | Covers | Blocked by | Verify | Risk | Status |
 |-------|------|----------|--------|------------|--------|------|--------|
 | R10 | build | `opencode.mjs` evicts finished runs, keeps a run's `day` when a late message has an earlier stamp, sets `prunedDay` only after `prune` succeeds, renames `hooked`, and drops or cites the `ev.data` shape (T116, T118, T119, T128, T129) | G5 | none | A 1,000-session stream leaves a bounded `runs` map; a late early-stamped message leaves one row per id; a throwing prune is retried on the next step | med | shipped 2026-10-27 |
-| R11 | build | The v2 `ctx.event.subscribe` loop gets an abort signal that the plugin aborts on dispose (T117) | G5 | none | A fake ctx test shows dispose aborts the signal and the loop ends | low | |
+| R11 | build | The v2 `ctx.event.subscribe` loop gets an abort signal that the plugin aborts on dispose (T117) | G5 | none | A fake ctx test shows dispose aborts the signal and the loop ends | low | shipped 2026-10-28, Verify unmet: the cleanup-return hook is from the v2 docs, not run on a live OpenCode 2 |
 
 ### M6: Unmet Verify means something
 Exit: `work.mjs roadmap` reports the unmet clause beside a dependent of a `shipped, Verify unmet` slice and does not block it, with one shared done predicate.

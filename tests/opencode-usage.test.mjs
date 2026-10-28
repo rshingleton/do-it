@@ -173,6 +173,33 @@ test('the v2 plugin feeds the ledger from ctx.event.subscribe and the context ho
   assert.deepEqual([r.model, r.turns, r.in, r.out, r.cr], ['m9', 2, 8, 5, 1]);
 });
 
+test('the cleanup setup returns aborts the subscribe signal and ends the loop', async () => {
+  let signal;
+  let ended = false;
+  const ctx = {
+    location: { directory: '/x/proj' },
+    session: { hook: () => {} },
+    tool: { hook: () => {} },
+    event: {
+      subscribe: async function* (opts) {
+        signal = opts.signal;
+        try {
+          await new Promise((_, rej) => signal.addEventListener('abort', () => rej(new Error('aborted'))));
+        } finally {
+          ended = true;
+        }
+      },
+    },
+  };
+  const cleanup = await createPlugin({ decide: () => ({}), usageDir: tmp() }).setup(ctx);
+  assert.equal(typeof cleanup, 'function');
+  assert.equal(signal.aborted, false);
+  cleanup();
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(signal.aborted, true);
+  assert.equal(ended, true);
+});
+
 test('a subscribe stream that throws fails open', async () => {
   const hooks = {};
   const ctx = {
