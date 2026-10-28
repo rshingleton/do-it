@@ -54,7 +54,7 @@ Exit: `npm run check` reports 0 warnings, and a rewrap of ship-it or prove-it br
 | Slice | Kind | Delivers | Covers | Blocked by | Verify | Risk | Status |
 |-------|------|----------|--------|------------|--------|------|--------|
 | R7 | build | ship-it DOCS "Surfaced defects" shares one paragraph with "Audit findings", do-it sections 3 and 4 link roadmap-it section 6 for the blocking ask, deepen-it links design-it for the deletion test, and the unasked DOCS.md context sentence is dropped (T97, T98, T106, T108, T121) | G4 | none | `npm run check` reports 0 warnings; ship-it is under 100 lines; a grep finds the deletion test and the blocking ask stated once each | low | shipped 2026-10-27 |
-| R8 | build | The R22 and R24 pin tests check positions and counts, not phrasing regexes (T96) | G4 | R7 (it rewrites the text they pin) | A fixture rewrap of ship-it section 2 leaves the pin tests green; deleting the offer turns one red | low | |
+| R8 | build | The R22 and R24 pin tests check positions and counts, not phrasing regexes (T96) | G4 | R7 (it rewrites the text they pin) | A fixture rewrap of ship-it section 2 leaves the pin tests green; deleting the offer turns one red | low | shipped 2026-10-28 |
 | R9 | build | `DESIGN.md` section 4 gains its phase-file list link and karpathy credit if missing, section 8 labels the 1,250-token figure an estimate or replaces it with a measured count, and the section 8 usage paragraph is rewrapped (T109, T112, T120) | G4 | none | The README credits the idea; section 8 carries no unlabelled bytes-over-4 figure; `npm run check` passes | low | shipped 2026-10-27 |
 
 ### M5: The OpenCode usage path fails safe
@@ -106,3 +106,4 @@ None.
 - 2026-10-27: R4 shipped as routing-missing-entry (a dedicated `evaluate()` case and an `eval-routing.mjs` CLI test for a skill with no routing entry; T94, T95 closed; T131, T132 logged).
 - 2026-10-28: R5 shipped as unified-files-state (`unifiedFiles` keeps one `embed` state object, computes the old path once, folds the `''` scan into `addLine` and scans an in-hunk dev-null pair's own line under the old path; T123 to T126 closed; T133, T134 logged).
 - 2026-10-27: R2 shipped as T100 (shared `tests/fakes.mjs`, self-cleaning `tmpDir`, `config-precedence` split by layer; T104, T105, T111 closed).
+- 2026-10-28: R8 shipped as T96 (the R22 and R24 pin tests flatten whitespace before matching, so a rewrap of ship-it section 2 keeps them green and deleting the offer turns one red; T96 closed).
