@@ -63,7 +63,7 @@ Exit: a long OpenCode session keeps bounded memory, a disposed plugin stops its 
 | Slice | Kind | Delivers | Covers | Blocked by | Verify | Risk | Status |
 |-------|------|----------|--------|------------|--------|------|--------|
 | R10 | build | `opencode.mjs` evicts finished runs, keeps a run's `day` when a late message has an earlier stamp, sets `prunedDay` only after `prune` succeeds, renames `hooked`, and drops or cites the `ev.data` shape (T116, T118, T119, T128, T129) | G5 | none | A 1,000-session stream leaves a bounded `runs` map; a late early-stamped message leaves one row per id; a throwing prune is retried on the next step | med | shipped 2026-10-27 |
-| R11 | build | The v2 `ctx.event.subscribe` loop gets an abort signal that the plugin aborts on dispose (T117) | G5 | none | A fake ctx test shows dispose aborts the signal and the loop ends | low | shipped 2026-10-28, Verify unmet: the cleanup-return hook is from the v2 docs, not run on a live OpenCode 2 |
+| R11 | build | The v2 `ctx.event.subscribe` loop gets an abort signal that the plugin aborts on dispose (T117) | G5 | none | A fake ctx test shows dispose aborts the signal and the loop ends | low | shipped 2026-10-28 |
 
 ### M6: Unmet Verify means something
 Exit: `work.mjs roadmap` reports the unmet clause beside a dependent of a `shipped, Verify unmet` slice and does not block it, with one shared done predicate.
@@ -107,3 +107,4 @@ None.
 - 2026-10-28: R5 shipped as unified-files-state (`unifiedFiles` keeps one `embed` state object, computes the old path once, folds the `''` scan into `addLine` and scans an in-hunk dev-null pair's own line under the old path; T123 to T126 closed; T133, T134 logged).
 - 2026-10-27: R2 shipped as T100 (shared `tests/fakes.mjs`, self-cleaning `tmpDir`, `config-precedence` split by layer; T104, T105, T111 closed).
 - 2026-10-28: R8 shipped as T96 (the R22 and R24 pin tests flatten whitespace before matching, so a rewrap of ship-it section 2 keeps them green and deleting the offer turns one red; T96 closed).
+- 2026-10-28: R11 shipped as R11 (`setup` returns a cleanup that aborts the `ctx.event.subscribe` signal; T117 closed). Run on OpenCode 2.1.2 through a probe plugin wrapping the real one: the host called the cleanup on plugin reload and the signal aborted, so no Verify is left unmet.
