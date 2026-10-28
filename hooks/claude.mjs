@@ -13,10 +13,11 @@
 //
 // Fails open: a crash or bad input never blocks the agent.
 
-import fs, { realpathSync } from 'node:fs';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { decide } from './lib/decide.mjs';
+import { isMain } from '../skills/it-core/scripts/is-main.mjs';
 import { START } from '../scripts/lib/voice.mjs';
 import { autoSnapshot, trackUsage, clearLimit, usageDir } from '../skills/usage-it/scripts/ledger.mjs';
 
@@ -39,7 +40,7 @@ export function carriesVoice(name, dir = AGENTS_DIR) {
 // Claude Code's tool names, as the kinds decide() checks.
 const KINDS = { Write: 'edit', Edit: 'edit', MultiEdit: 'edit', NotebookEdit: 'edit', Bash: 'shell' };
 
-const EVENTS = {
+export const EVENTS = {
   'session-start': ['session', 'SessionStart'],
   'subagent-start': ['session', 'SubagentStart'],
   'pre-tool': ['before', 'PreToolUse'],
@@ -120,14 +121,4 @@ async function main() {
   process.exit(result.exit);
 }
 
-// Compare real paths: Node resolves symlinks for import.meta.url but not argv[1].
-// argv[1] may not be a file at all (node -e ... arg), which is not "main".
-function isMain() {
-  try {
-    return Boolean(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
-  } catch {
-    return false;
-  }
-}
-
-if (isMain()) main();
+if (isMain(import.meta.url)) main();

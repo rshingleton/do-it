@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 
 import { BUILTIN, scan, loadChecks, editParts } from '../hooks/lib/checks.mjs';
 import { beforeEdit, afterEdit, beforeShell } from '../hooks/lib/guard.mjs';
+import { EVENTS } from '../hooks/claude.mjs';
 import { DEFAULTS } from '../skills/track-it/scripts/config.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -449,4 +450,20 @@ test('carriesVoice is true only for an agent file that holds the voice marker, a
   assert.equal(carriesVoice('without', dir), false);
   assert.equal(carriesVoice('missing', dir), false);
   assert.equal(carriesVoice('dir', dir), false);
+});
+
+test('hooks.json event names and commands match the events claude.mjs handles', () => {
+  const handled = { ...Object.fromEntries(Object.entries(EVENTS).map(([arg, [, name]]) => [arg, name])), stop: 'Stop', 'subagent-stop': 'SubagentStop' };
+  const { hooks } = JSON.parse(fs.readFileSync(path.join(ROOT, 'hooks/hooks.json'), 'utf8'));
+  const wired = {};
+  for (const [name, groups] of Object.entries(hooks)) {
+    for (const { hooks: list } of groups) {
+      for (const { command } of list) {
+        const arg = command.match(/claude\.mjs"? (\S+)$/)?.[1];
+        assert.equal(handled[arg], name, `${name} runs "${command}"`);
+        wired[arg] = name;
+      }
+    }
+  }
+  assert.deepEqual(wired, handled);
 });

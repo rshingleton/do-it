@@ -34,6 +34,15 @@ test('items: create lays out the plan by lane and refuses bad ids and duplicates
   assert.deepEqual(items.list().map((i) => [i.id, i.lane]), [['feat-x', 'm'], ['fix-y', 's']]);
 });
 
+test('items: every id-taking move refuses an id that is not a slug', () => {
+  const { items } = setup();
+  for (const bad of ['../x', 'a/b', '.hidden', '']) {
+    assert.throws(() => items.get(bad), /id/, `get ${bad}`);
+    assert.throws(() => items.fire(bad, 'approve', DATE), /id/, `fire ${bad}`);
+    assert.throws(() => items.close(bad), /id/, `close ${bad}`);
+  }
+});
+
 test('items: set takes only the settable keys; status changes go through fire', () => {
   const { items } = setup();
   items.create('x', { lane: 's', title: 'X' });

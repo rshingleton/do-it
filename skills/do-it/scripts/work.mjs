@@ -19,8 +19,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
 import { loadConfig } from '../../track-it/scripts/config.mjs';
+import { isMain } from '../../it-core/scripts/is-main.mjs';
 import { EMPTY_TREE, fingerprint, hasObject, snapshot, treeDiff } from './changeset.mjs';
 import { needsUser } from './state.mjs';
 import { allowedMoves, firableEvents, workItems } from './items.mjs';
@@ -202,15 +202,7 @@ export async function run(argv, { cwd = process.cwd() } = {}) {
   }
 }
 
-function isMain() {
-  try {
-    return Boolean(process.argv[1]) && fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url));
-  } catch {
-    return false;
-  }
-}
-
-if (isMain()) {
+if (isMain(import.meta.url)) {
   run(process.argv.slice(2))
     .then((out) => process.stdout.write(`${JSON.stringify(out, null, 2)}\n`))
     .catch((e) => {

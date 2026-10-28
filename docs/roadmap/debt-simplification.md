@@ -46,7 +46,7 @@ Exit: `unifiedFiles` holds one state object, and the script gaps the audit named
 | Slice | Kind | Delivers | Covers | Blocked by | Verify | Risk | Status |
 |-------|------|----------|--------|------------|--------|------|--------|
 | R5 | build | `unifiedFiles` folds `also` and `embeddedDelete` into one state object, computes `oldPath` once, and scans the in-hunk pair's own `+++ /dev/null` line under the old path (T123, T124, T125, T126) | G3 | none | The R2 and R25 guard tests pass unchanged; a test scans the pair's own line under `<old>`; `unifiedFiles` is shorter | high | shipped 2026-10-28 unified-files-state |
-| R6 | build | `work.mjs show`, `event` and `close` run the id check `new` does, `isMain` lives in one place, and a test pins `hooks.json` event names to `claude.mjs` (T89). Reproduce each first: drop any already fixed | G3 | none | A bad id is refused by each of the three commands in a test; one `isMain` definition; a renamed event in `hooks.json` fails a test | med | |
+| R6 | build | `work.mjs show`, `event` and `close` run the id check `new` does, `isMain` lives in one place, and a test pins `hooks.json` event names to `claude.mjs` (T89). Reproduce each first: drop any already fixed | G3 | none | A bad id is refused by each of the three commands in a test; one `isMain` definition; a renamed event in `hooks.json` fails a test | med | shipped 2026-10-28 |
 
 ### M4: Docs and skills state each rule once
 Exit: `npm run check` reports 0 warnings, and a rewrap of ship-it or prove-it breaks no pin test.

@@ -10,8 +10,8 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { ROOT, listSkills, listAgents, agentTools, userInvoked } from './lib/skills.mjs';
+import { isMain } from '../skills/it-core/scripts/is-main.mjs';
 
 const OUT = path.join(ROOT, '.opencode');
 
@@ -116,12 +116,4 @@ function main() {
   }
 }
 
-function isMain() {
-  try {
-    return Boolean(process.argv[1]) && fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url));
-  } catch {
-    return false;
-  }
-}
-
-if (isMain()) main();
+if (isMain(import.meta.url)) main();

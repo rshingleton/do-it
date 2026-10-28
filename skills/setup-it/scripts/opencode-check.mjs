@@ -7,7 +7,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { isMain } from '../../it-core/scripts/is-main.mjs';
 
 const FILES = ['opencode.json', 'opencode.jsonc'];
 
@@ -61,6 +61,6 @@ export function checkRepo(dir) {
   return { applies: true, file, ...checkExternalDirectory(fs.readFileSync(path.join(dir, file), 'utf8')) };
 }
 
-if (process.argv[1] && fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url))) {
+if (isMain(import.meta.url)) {
   console.log(JSON.stringify(checkRepo(path.resolve(process.argv[2] || '.')), null, 2));
 }

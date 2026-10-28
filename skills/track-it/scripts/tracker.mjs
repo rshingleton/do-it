@@ -21,8 +21,8 @@
 // so it reaches the tracker it came from whatever DO_IT_TRACKER says.
 
 import fs from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import { loadConfig, redact, resolveDocs, maskUrlCredentials, trust } from './config.mjs';
+import { isMain } from '../../it-core/scripts/is-main.mjs';
 import { parseRef } from './refs.mjs';
 import { localTracker } from './adapters/local.mjs';
 import { githubTracker } from './adapters/github.mjs';
@@ -136,18 +136,7 @@ export async function run(argv, { config = loadConfig(), deps = {} } = {}) {
   }
 }
 
-// Compare real paths: Node resolves symlinks for import.meta.url but not
-// argv[1]. argv[1] may not be a file at all (stdin, -e), so a failure means
-// "imported, not run".
-function isMain() {
-  try {
-    return Boolean(process.argv[1]) && fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url));
-  } catch {
-    return false;
-  }
-}
-
-if (isMain()) {
+if (isMain(import.meta.url)) {
   run(process.argv.slice(2))
     .then((out) => {
       // A partial publish still prints the refs it made, then fails the command.

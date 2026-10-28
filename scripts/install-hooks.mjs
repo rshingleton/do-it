@@ -12,8 +12,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
 import { ROOT } from './lib/skills.mjs';
+import { isMain } from '../skills/it-core/scripts/is-main.mjs';
 
 const [host, ...flags] = process.argv.slice(2);
 const remove = flags.includes('--remove');
@@ -117,16 +117,7 @@ function main() {
   }
 }
 
-// fileURLToPath, not URL.pathname: the latter keeps %20 for spaces in the path.
-function isMain() {
-  try {
-    return Boolean(process.argv[1]) && fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url));
-  } catch {
-    return false;
-  }
-}
-
-if (isMain()) {
+if (isMain(import.meta.url)) {
   try {
     main();
   } catch (e) {
