@@ -45,7 +45,7 @@ Exit: `unifiedFiles` holds one state object, and the script gaps the audit named
 
 | Slice | Kind | Delivers | Covers | Blocked by | Verify | Risk | Status |
 |-------|------|----------|--------|------------|--------|------|--------|
-| R5 | build | `unifiedFiles` folds `also` and `embeddedDelete` into one state object, computes `oldPath` once, and scans the in-hunk pair's own `+++ /dev/null` line under the old path (T123, T124, T125, T126) | G3 | none | The R2 and R25 guard tests pass unchanged; a test scans the pair's own line under `<old>`; `unifiedFiles` is shorter | high | |
+| R5 | build | `unifiedFiles` folds `also` and `embeddedDelete` into one state object, computes `oldPath` once, and scans the in-hunk pair's own `+++ /dev/null` line under the old path (T123, T124, T125, T126) | G3 | none | The R2 and R25 guard tests pass unchanged; a test scans the pair's own line under `<old>`; `unifiedFiles` is shorter | high | shipped 2026-10-28 unified-files-state |
 | R6 | build | `work.mjs show`, `event` and `close` run the id check `new` does, `isMain` lives in one place, and a test pins `hooks.json` event names to `claude.mjs` (T89). Reproduce each first: drop any already fixed | G3 | none | A bad id is refused by each of the three commands in a test; one `isMain` definition; a renamed event in `hooks.json` fails a test | med | |
 
 ### M4: Docs and skills state each rule once
@@ -104,4 +104,5 @@ None.
 - 2026-10-27: R10 shipped as T116 (OpenCode usage `runs` map capped at 256 with LRU eviction, a run's `day` fixed at its first write, `prunedDay` set after a successful prune, `hooked` renamed, `ev.data` dropped; T116, T118, T119, T128, T129 closed). Eviction is a recorded shortcut: an evicted session that speaks again restarts its totals.
 - 2026-10-27: R12 shipped as T99 (`roadmap.mjs` gives each slice an `unmet` list and `blocking` reuses `done`; T99, T122 closed).
 - 2026-10-27: R4 shipped as routing-missing-entry (a dedicated `evaluate()` case and an `eval-routing.mjs` CLI test for a skill with no routing entry; T94, T95 closed; T131, T132 logged).
+- 2026-10-28: R5 shipped as unified-files-state (`unifiedFiles` keeps one `embed` state object, computes the old path once, folds the `''` scan into `addLine` and scans an in-hunk dev-null pair's own line under the old path; T123 to T126 closed; T133, T134 logged).
 - 2026-10-27: R2 shipped as T100 (shared `tests/fakes.mjs`, self-cleaning `tmpDir`, `config-precedence` split by layer; T104, T105, T111 closed).

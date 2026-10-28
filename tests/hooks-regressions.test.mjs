@@ -313,6 +313,14 @@ test('an in-hunk dev-null pair cannot exempt a line from a scoped rule or an exc
   assert.match(beforeEdit(scoped, { patch: kept }).reason, /no-evil in y\.py/);
 });
 
+test('an in-hunk dev-null pair scans its own +++ line under the old path', () => {
+  const { dir } = repo();
+  fs.mkdirSync(path.join(dir, '.compliance-rules'));
+  fs.writeFileSync(path.join(dir, '.compliance-rules', 'checks.json'), JSON.stringify([{ id: 'no-null', severity: 'HIGH', pattern: 'dev/null', files: ['.py'] }]));
+  const patch = ['--- a/a.txt', '+++ b/a.txt', '@@ -0,0 +1,3 @@', '--- a/x.py', '+++ /dev/null', '+ok'].join('\n');
+  assert.match(beforeEdit(ctxFor(dir), { patch }).reason, /no-null in x\.py/);
+});
+
 test('diff -u timestamps and git quoting do not hide a header path (audit 4)', () => {
   const ctx = ctxFor(repo().dir);
   for (const header of ['+++ .env\t2024-01-01 00:00:00', '+++ "b/.env"']) {
