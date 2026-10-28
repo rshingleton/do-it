@@ -94,4 +94,7 @@ Skipped: <...or none>. Not checked: <...or none>. Risk: <...or none>.
 
 Last line: the next step. A stop waiting on the user asks them to say "do it",
 which counts as yes. A typed skill (`do-it`, `ship-it`, any user-invoked one)
-cannot be started by the model: give its slash command, not "do it".
+cannot be loaded by the model: give its slash command, not "do it". This
+does not apply while `/do-it` is running the flow: it runs each step by
+reading the step's file, so a step that finishes returns to it and the
+flow continues; only `do-it`'s own close ends the turn.
