@@ -38,7 +38,7 @@ Exit: `npm run check` and the routing eval each exit 1 on a fixture for every ru
 | Slice | Kind | Delivers | Covers | Blocked by | Verify | Risk | Status |
 |-------|------|----------|--------|------------|--------|------|--------|
 | R3 | build | The spawn-cap rule compares an "N in all" cap, reads every `>` paragraph of a brief, and computes `owner` once (T91, T92, T93) | G1 | none | Fixture skills with an "in all" cap and a cap in a second paragraph make `npm run check` exit 1 | low | shipped 2026-10-27 |
-| R4 | build | A test runs `scripts/eval-routing.mjs` on a model-invoked skill with no routing entry and sees exit 1, plus a unit case for the failure (T94, T95) | G1 | R3 (same test file) | The new tests pass and fail when the missing-entry check is removed | low | |
+| R4 | build | A test runs `scripts/eval-routing.mjs` on a model-invoked skill with no routing entry and sees exit 1, plus a unit case for the failure (T94, T95) | G1 | R3 (same test file) | The new tests pass and fail when the missing-entry check is removed | low | shipped 2026-10-27 routing-missing-entry |
 
 ### M3: Hook and script code carries one copy
 Exit: `unifiedFiles` holds one state object, and the script gaps the audit named are closed or shown already fixed.
@@ -103,4 +103,5 @@ None.
 - 2026-10-27: R9 shipped as T109 (DESIGN.md section 8 labels the 1,250-token figure an estimate and the usage paragraph is rewrapped; T109 was already fixed; T109, T112, T120 closed).
 - 2026-10-27: R10 shipped as T116 (OpenCode usage `runs` map capped at 256 with LRU eviction, a run's `day` fixed at its first write, `prunedDay` set after a successful prune, `hooked` renamed, `ev.data` dropped; T116, T118, T119, T128, T129 closed). Eviction is a recorded shortcut: an evicted session that speaks again restarts its totals.
 - 2026-10-27: R12 shipped as T99 (`roadmap.mjs` gives each slice an `unmet` list and `blocking` reuses `done`; T99, T122 closed).
+- 2026-10-27: R4 shipped as routing-missing-entry (a dedicated `evaluate()` case and an `eval-routing.mjs` CLI test for a skill with no routing entry; T94, T95 closed; T131, T132 logged).
 - 2026-10-27: R2 shipped as T100 (shared `tests/fakes.mjs`, self-cleaning `tmpDir`, `config-precedence` split by layer; T104, T105, T111 closed).

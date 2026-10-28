@@ -393,6 +393,18 @@ test('check.mjs: a model-invoked skill needs "Use when"; a typed one does not', 
   assert.equal(typed.status, 0, typed.stdout);
 });
 
+test('eval-routing.mjs: a model-invoked skill with no routing entry exits 1; the shipped repo exits 0', () => {
+  const repo = copyRepo(path.join(tmp('do-it-rte-'), 'r'));
+  const run = () => spawnSync('node', [path.join(repo, 'scripts/eval-routing.mjs')], { encoding: 'utf8' });
+  const ok = run();
+  assert.equal(ok.status, 0, ok.stdout);
+  fs.mkdirSync(path.join(repo, 'skills/zz-it'));
+  fs.writeFileSync(path.join(repo, 'skills/zz-it/SKILL.md'), SKILL('Body.'));
+  const bad = run();
+  assert.equal(bad.status, 1, bad.stdout);
+  assert.match(bad.stdout, /error zz-it: no routing entries/);
+});
+
 test('check.mjs: a skill name needs an it segment (it-core and look-it-up pass)', () => {
   const named = (name) => ({ [`skills/${name}/SKILL.md`]: `---\nname: ${name}\ndescription: T. Use when testing.\n---\n\nBody.\n` });
   const bad = checkWith(named('zz-tool'));
