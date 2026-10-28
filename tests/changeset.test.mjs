@@ -1,18 +1,17 @@
 // The change-set module's addedLines: what a change adds, at which lines.
 
-import './env.mjs'; // first: isolates the developer's environment
+import { tmpDir } from './env.mjs'; // first: isolates the developer's environment
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 
 import { addedLines } from '../skills/do-it/scripts/changeset.mjs';
 
 function gitRepo() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-cs-'));
+  const dir = tmpDir('do-it-cs-');
   // An identity on every call: merge needs one too, and CI runners have none.
   const git = (...a) => execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', ...a], { cwd: dir, encoding: 'utf8' });
   git('init', '-q');
@@ -268,7 +267,7 @@ test('works with a git that predates --no-relative', () => {
   write('a.js', 'a\n');
   git('add', 'a.js');
   // A git on PATH that rejects --no-relative the way git before 2.28 does.
-  const bin = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-oldgit-'));
+  const bin = tmpDir('do-it-oldgit-');
   const real = execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
   fs.writeFileSync(path.join(bin, 'git'), `#!/bin/sh\nfor a in "$@"; do [ "$a" = --no-relative ] && exit 129; done\nexec "${real}" "$@"\n`, { mode: 0o755 });
   const saved = process.env.PATH;
@@ -379,7 +378,7 @@ test('a binary costs two diffs: the listing view, then as text', () => {
   for (let i = 0; i < 20; i++) write(`b${i}.bin`, `c\0${i}\n`);
   git('add', '-A');
   // A git on PATH that counts its calls.
-  const bin = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-countgit-'));
+  const bin = tmpDir('do-it-countgit-');
   const real = execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
   const log = path.join(bin, 'calls');
   fs.writeFileSync(path.join(bin, 'git'), `#!/bin/sh\necho x >> "${log}"\nexec "${real}" "$@"\n`, { mode: 0o755 });

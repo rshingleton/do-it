@@ -1,17 +1,16 @@
 // The OpenCode plugin builds the session context once, not on every model request.
 
-import './env.mjs'; // first: isolates the developer's environment
+import { tmpDir } from './env.mjs'; // first: isolates the developer's environment
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 
 import { createPlugin } from '../.opencode/plugins/do-it.mjs';
 
 function repo() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-ctx-'));
+  const dir = tmpDir('do-it-ctx-');
   const git = (...a) => execFileSync('git', a, { cwd: dir, encoding: 'utf8' });
   git('init', '-q');
   git('-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '--allow-empty', '-m', 'base');
@@ -96,7 +95,7 @@ test('a session result that carries a notice is not cached', async () => {
 });
 
 test('outside a git directory the context is still built once per plugin instance', async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-ctx-plain-'));
+  const dir = tmpDir('do-it-ctx-plain-');
   const { decide, calls } = counting();
   const hooks = await createPlugin({ decide }).server({ directory: dir });
   await hooks['experimental.chat.system.transform']({}, { system: [] });

@@ -1,10 +1,9 @@
 // The host decision module: what every hook event decides, whatever the host.
 
-import { cleanEnv } from './env.mjs'; // first: isolates the developer's environment
+import { cleanEnv, tmpDir } from './env.mjs'; // first: isolates the developer's environment
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 
@@ -15,7 +14,7 @@ const FAKE_AWS = ['AKIA', 'ABCDEFGHIJKLMNOP'].join('');
 const PLACEHOLDER = ['// TODO: insert', 'API key here'].join(' '); // do-it: allow (fixture)
 
 function repo() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-decide-'));
+  const dir = tmpDir('do-it-decide-');
   const git = (...a) => execFileSync('git', a, { cwd: dir, encoding: 'utf8' });
   git('init', '-q');
   git('-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '--allow-empty', '-m', 'base');

@@ -65,7 +65,7 @@ Each step ends with an outcome: `done`, `blocked` or `failed`.
 
 - `done`: run the next row at once, asking only at the §4 stops; after
   `ship-it` on a roadmap slice, reread the roadmap's state and ask any `blocking`
-  decision. A step run from here never closes the turn: no closing message or `Next:`; only §6 does.
+  decision ([roadmap-it](../roadmap-it/SKILL.md) §6). A step run from here never closes the turn: no closing message or `Next:`; only §6 does.
 - `blocked`: stop and show the question or blocker.
 - `failed` from `prove-it`: route back to `build-it` with the numbered Must
   findings. The third failed round comes back `blocked` instead.
@@ -76,7 +76,7 @@ Only these points wait for the user:
 
 - `scope-it`: lane S's 0-3 questions (skipped when nothing is open) and its
   plan approval; lane M's grill rounds, the last of which approves the plan.
-- A roadmap's blocking decision, before its slice starts and after each ship.
+- A roadmap's blocking decision (§3), before a slice starts and after a ship.
 - Lane L: roadmap approval in `roadmap-it`.
 - `build-it`: a stop condition it reports as `blocked`.
 - `prove-it`: round 3 of a failing audit.

@@ -1,11 +1,10 @@
 // Which layer wins when the same key is set more than once, per loadConfig:
 // default, then the user file, the project file, the local file, then the environment.
 
-import { cleanEnv } from './env.mjs'; // first: isolates the developer's environment
+import { cleanEnv, tmpDir } from './env.mjs'; // first: isolates the developer's environment
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 
@@ -13,7 +12,7 @@ import { configFiles, loadConfig, DEFAULTS } from '../skills/track-it/scripts/co
 
 // A temp repo and user config dir, with each layer's file written when given.
 function layers({ user, project, local } = {}) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-prec-'));
+  const root = tmpDir('do-it-prec-');
   execFileSync('git', ['init', '-q'], { cwd: root });
   const env = cleanEnv();
   const files = Object.fromEntries(configFiles(root, env).map((f) => [f.scope, f.file]));
@@ -35,22 +34,32 @@ test('the default applies when nothing sets the key', () => {
   assert.equal(c.sources[KEY], 'default');
 });
 
-test('each later layer beats the one before it: user, project, local, then env', () => {
+test('the user file sets the key when it is the only layer', () => {
+  const l = layers({ user: `${KEY}=user\n` });
+  const c = loadConfig({ cwd: l.root, env: l.env });
+  assert.equal(c.values[KEY], 'user');
+  assert.equal(c.sources[KEY], l.files.user);
+});
+
+test('the project file beats the user file', () => {
+  const l = layers({ user: `${KEY}=user\n`, project: `${KEY}=project\n` });
+  const c = loadConfig({ cwd: l.root, env: l.env });
+  assert.equal(c.values[KEY], 'project');
+  assert.equal(c.sources[KEY], l.files.project);
+});
+
+test('the local file beats the project and user files', () => {
   const l = layers({ user: `${KEY}=user\n`, project: `${KEY}=project\n`, local: `${KEY}=local\n` });
-  const at = (env) => loadConfig({ cwd: l.root, env });
+  const c = loadConfig({ cwd: l.root, env: l.env });
+  assert.equal(c.values[KEY], 'local');
+  assert.equal(c.sources[KEY], l.files.local);
+});
 
-  assert.equal(at(l.env).values[KEY], 'local');
-  assert.equal(at(l.env).sources[KEY], l.files.local);
-
-  const noLocal = layers({ user: `${KEY}=user\n`, project: `${KEY}=project\n` });
-  assert.equal(loadConfig({ cwd: noLocal.root, env: noLocal.env }).values[KEY], 'project');
-
-  const userOnly = layers({ user: `${KEY}=user\n` });
-  assert.equal(loadConfig({ cwd: userOnly.root, env: userOnly.env }).values[KEY], 'user');
-
-  const viaEnv = at({ ...l.env, [KEY]: 'env' });
-  assert.equal(viaEnv.values[KEY], 'env');
-  assert.equal(viaEnv.sources[KEY], 'env');
+test('the environment beats every file', () => {
+  const l = layers({ user: `${KEY}=user\n`, project: `${KEY}=project\n`, local: `${KEY}=local\n` });
+  const c = loadConfig({ cwd: l.root, env: { ...l.env, [KEY]: 'env' } });
+  assert.equal(c.values[KEY], 'env');
+  assert.equal(c.sources[KEY], 'env');
 });
 
 test('an empty value in the environment still overrides a file', () => {

@@ -1,8 +1,7 @@
-import './env.mjs'; // first: isolates the developer's environment
+import { tmpDir } from './env.mjs'; // first: isolates the developer's environment
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 
@@ -12,7 +11,7 @@ import { DEFAULTS } from '../skills/track-it/scripts/config.mjs';
 import { buildModel, evaluate, stem, tokenize } from '../scripts/lib/routing.mjs';
 
 function repoWith(files) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-map-'));
+  const dir = tmpDir('do-it-map-');
   execFileSync('git', ['init', '-q'], { cwd: dir });
   for (const f of files) {
     fs.mkdirSync(path.dirname(path.join(dir, f)), { recursive: true });
@@ -220,4 +219,17 @@ test('routing eval: ranks, negatives, similarity and missing entries', () => {
   assert.match(r.failures.join('\n'), /too similar: fix-it and same-it/);
   assert.match(r.failures.join('\n'), /same-it: no routing entries/);
   assert.equal(r.rows.find((x) => x.name === 'fix-it').negOk, 1);
+});
+
+test('routing eval: a skill with no spec entry fails; one entry per skill passes', () => {
+  const skills = [
+    { name: 'fix-it', description: 'Diagnose and fix bugs, crashes and failing code.' },
+    { name: 'note-it', description: 'File an issue in the tracker for later.' },
+  ];
+  const entry = { 'fix-it': { positive: ['diagnose this crash'] }, 'note-it': { positive: ['file an issue in the tracker'] } };
+  const missing = evaluate(skills, { threshold: 0.5, skills: { 'fix-it': entry['fix-it'] } });
+  assert.equal(missing.ok, false);
+  assert.deepEqual(missing.failures.filter((f) => /no routing entries/.test(f)), ['note-it: no routing entries; add positives and negatives to evals/routing.json']);
+  const full = evaluate(skills, { threshold: 0.5, skills: entry });
+  assert.equal(full.ok, true, full.failures.join('\n'));
 });

@@ -1,8 +1,7 @@
-import './env.mjs'; // first: isolates the developer's environment
+import { tmpDir } from './env.mjs'; // first: isolates the developer's environment
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -21,7 +20,7 @@ test('OpenCode commands are generated from the skills', () => {
 });
 
 test('fingerprint changes with tracked and untracked edits, ignores planning', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-fp-'));
+  const dir = tmpDir('do-it-fp-');
   const git = (...a) => execFileSync('git', a, { cwd: dir, encoding: 'utf8' });
   git('init', '-q');
   git('-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '--allow-empty', '-m', 'base');
@@ -39,7 +38,7 @@ test('fingerprint changes with tracked and untracked edits, ignores planning', (
 });
 
 test('tracker CLI runs through a symlink and prints JSON', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-cli-'));
+  const dir = tmpDir('do-it-cli-');
   fs.mkdirSync(path.join(dir, '.git'));
   const link = path.join(dir, 'tracker-link');
   fs.symlinkSync(path.join(ROOT, 'skills/track-it'), link);

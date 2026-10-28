@@ -1,8 +1,7 @@
-import './env.mjs'; // first: isolates the developer's environment
+import { tmpDir } from './env.mjs'; // first: isolates the developer's environment
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { workItems } from '../skills/do-it/scripts/items.mjs';
 import { writeItem } from '../skills/do-it/scripts/block.mjs';
@@ -11,7 +10,7 @@ const DATE = { date: '2026-10-20' };
 const ok = (text = 'npm test') => () => ({ ok: true, text });
 
 function setup(opts = {}) {
-  const planningDir = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-items-')), 'docs/planning');
+  const planningDir = path.join(tmpDir('do-it-items-'), 'docs/planning');
   return { planningDir, items: workItems({ planningDir, ...opts }) };
 }
 
@@ -33,6 +32,15 @@ test('items: create lays out the plan by lane and refuses bad ids and duplicates
   assert.throws(() => items.create('z', { lane: 'l' }), /lane s or/);
   assert.throws(() => items.get('nope'), /no plan for nope/);
   assert.deepEqual(items.list().map((i) => [i.id, i.lane]), [['feat-x', 'm'], ['fix-y', 's']]);
+});
+
+test('items: every id-taking move refuses an id that is not a slug', () => {
+  const { items } = setup();
+  for (const bad of ['../x', 'a/b', '.hidden', '']) {
+    assert.throws(() => items.get(bad), /id/, `get ${bad}`);
+    assert.throws(() => items.fire(bad, 'approve', DATE), /id/, `fire ${bad}`);
+    assert.throws(() => items.close(bad), /id/, `close ${bad}`);
+  }
 });
 
 test('items: set takes only the settable keys; status changes go through fire', () => {

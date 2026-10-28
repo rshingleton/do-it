@@ -1,10 +1,9 @@
 // OpenCode events become ledger rows that usage.mjs reports.
 
-import './env.mjs'; // first: isolates the developer's environment
+import { tmpDir } from './env.mjs'; // first: isolates the developer's environment
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -14,7 +13,7 @@ import { createOpenCodeUsage } from '../skills/usage-it/scripts/opencode.mjs';
 import { readAll } from '../skills/usage-it/scripts/ledger.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-ocusage-'));
+const tmp = () => tmpDir('do-it-ocusage-');
 const NOW = Date.now();
 
 const tokens = (input, output, reasoning = 0, read = 0, write = 0) => ({ total: 0, input, output, reasoning, cache: { read, write } });
@@ -92,6 +91,40 @@ test('a prune that throws still leaves the row recorded', () => {
   assert.equal(readAll(dir).length, 1);
 });
 
+test('a 1,000-session stream keeps a bounded run map: an old session restarts, a recent one keeps its totals', () => {
+  const dir = tmp();
+  const usage = createOpenCodeUsage({ dir, cwd: '/x/proj' });
+  const step = (sid, i) => usage.event({ type: 'session.step.ended', sessionID: sid, assistantMessageID: `m${i}`, tokens: { input: 1, output: 1 } });
+  for (let i = 0; i < 1000; i++) step(`s${i}`, 0);
+  step('s999', 1);
+  step('s0', 1);
+  const rows = rowsOf(dir);
+  assert.equal(rows.s999.turns, 2);
+  assert.equal(rows.s0.turns, 1); // evicted, so the late message starts a fresh total
+});
+
+test('a late message with an earlier stamp keeps the run day and leaves one row per id', () => {
+  const dir = tmp();
+  const usage = createOpenCodeUsage({ dir, cwd: '/x/proj' });
+  const day = (d) => Date.parse(`2026-10-${d}T12:00:00Z`);
+  usage.event(msg('a1', 's5', tokens(1, 1), { time: { completed: day(26) } }));
+  usage.event(msg('a2', 's5', tokens(1, 1), { time: { completed: day(25) } }));
+  const rows = readAll(dir).filter((r) => r.id === 's5');
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].day, '2026-10-26');
+  assert.equal(rows[0].turns, 2);
+});
+
+test('a prune that throws is retried on the next step', () => {
+  let calls = 0;
+  const usage = createOpenCodeUsage({ dir: tmp(), prune: () => { if (++calls === 1) throw new Error('boom'); } });
+  const step = (i) => usage.event({ type: 'session.step.ended', sessionID: 's6', assistantMessageID: `m${i}`, tokens: { input: 1, output: 1 } });
+  step(1);
+  step(2);
+  step(3);
+  assert.equal(calls, 2); // failed once, retried, then done for the day
+});
+
 test('malformed payloads record nothing and never throw', () => {
   const dir = tmp();
   const usage = createOpenCodeUsage({ dir });
@@ -138,6 +171,33 @@ test('the v2 plugin feeds the ledger from ctx.event.subscribe and the context ho
   await new Promise((r) => setTimeout(r, 20));
   const r = rowsOf(dir).s9;
   assert.deepEqual([r.model, r.turns, r.in, r.out, r.cr], ['m9', 2, 8, 5, 1]);
+});
+
+test('the cleanup setup returns aborts the subscribe signal and ends the loop', async () => {
+  let signal;
+  let ended = false;
+  const ctx = {
+    location: { directory: '/x/proj' },
+    session: { hook: () => {} },
+    tool: { hook: () => {} },
+    event: {
+      subscribe: async function* (opts) {
+        signal = opts.signal;
+        try {
+          await new Promise((_, rej) => signal.addEventListener('abort', () => rej(new Error('aborted'))));
+        } finally {
+          ended = true;
+        }
+      },
+    },
+  };
+  const cleanup = await createPlugin({ decide: () => ({}), usageDir: tmp() }).setup(ctx);
+  assert.equal(typeof cleanup, 'function');
+  assert.equal(signal.aborted, false);
+  cleanup();
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(signal.aborted, true);
+  assert.equal(ended, true);
 });
 
 test('a subscribe stream that throws fails open', async () => {

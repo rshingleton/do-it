@@ -1,9 +1,8 @@
-import { cleanEnv } from './env.mjs'; // first: isolates the developer's environment
+import { cleanEnv, tmpDir } from './env.mjs'; // first: isolates the developer's environment
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -19,7 +18,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FAKE_AWS = ['AKIA', 'ABCDEFGHIJKLMNOP'].join('');
 
 function repo() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-trust-'));
+  const dir = tmpDir('do-it-trust-');
   execFileSync('git', ['init', '-q'], { cwd: dir });
   return dir;
 }
@@ -239,7 +238,7 @@ test('a commit with no earlier index-changing command makes the same git calls a
   git(root, 'add', '.');
   git(root, 'commit', '-qm', 'init');
   fs.writeFileSync(path.join(root, 'a.js'), 'ok2\n');
-  const bin = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-shim-'));
+  const bin = tmpDir('do-it-shim-');
   const log = path.join(bin, 'log');
   const real = execFileSync('which', ['git'], { encoding: 'utf8' }).trim();
   fs.writeFileSync(path.join(bin, 'git'), `#!/bin/sh\necho x >> '${log}'\nexec '${real}' "$@"\n`, { mode: 0o755 });

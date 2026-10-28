@@ -23,8 +23,7 @@ The area is the one the plan worked in (it-core). In its `CONTEXT.md`:
 In `CONTEXT-MAP.md`, update the area's row when its Location or Scope moved.
 No context file for the area and the plan introduced domain terms: create
 nothing here; offer "create `<area>/CONTEXT.md` with `/map-it <area>`" in the
-ship question. A plan step the user approved to create it is built as planned.
-
+ship question.
 ## Changelog
 
 Use the repo's resolved changelog (project docs in session context; a
@@ -47,9 +46,9 @@ XS): skip. With a changelog: log none; they go into its entry as under
 ## Surfaced defects
 
 The state block's `defects:` are product breaks a slice found and did not fix.
-For each one the user chose (default: all), call the Skill tool with
-"log-it": one issue, `source: <work id>`, the defect text. Skip an entry that
-already ends `(issue: <ref>)`; none left: skip.
+Each one the user chose (default: all) goes to "log-it" as under "Audit
+findings", but as one issue: `source: <work id>`, the defect text. Skip an
+entry that already ends `(issue: <ref>)`; none left: skip.
 
 A roadmap slice whose Verify clause the defects leave unmet is not marked
 plainly `shipped`. Its Status says `shipped <date> <work id>, Verify unmet:

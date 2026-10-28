@@ -252,35 +252,28 @@ function applyPatchFiles(lines, { add, exists }) {
 // until the next pair or file header.
 function unifiedFiles(lines, { add, exists }) {
   let current = '';
-  let also = null;
   let from = null;
   let deleted = false;
-  let embeddedDelete = false;
+  let embed = null; // an in-hunk pair: { path: the file it names, or null; gone: it was a dev-null pair }
   let oldLeft = 0;
   let newLeft = 0;
-  const addLine = (text) => {
+  const addLine = (text, pair = false) => {
     add(current, text);
-    if (deleted && current) add('', text);
+    if (embed?.path) add(embed.path, text);
+    if ((deleted && current) || (embed?.gone && !pair)) add('', text);
   };
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const c = line[0];
     if ((oldLeft > 0 || newLeft > 0) && (c === '+' || c === '-' || c === ' ' || c === '\\' || line === '')) {
-      const named = headerPath(lines[i - 1], '---') !== null && headerPath(line, '+++');
-      if (named === '/dev/null') {
-        const old = headerPath(lines[i - 1], '---');
-        if (old && old !== '/dev/null') also = old;
-        embeddedDelete = true;
-        if (also) add(also);
-      } else if (named) {
-        also = named;
-        embeddedDelete = false;
-        add(also);
-      } else if (c === '+' && also) {
-        add(also, line.slice(1));
+      const old = headerPath(lines[i - 1], '---');
+      const named = old !== null && headerPath(line, '+++');
+      if (named) {
+        const oldPath = old && old !== '/dev/null' ? old : null;
+        embed = named === '/dev/null' ? { path: oldPath || embed?.path || null, gone: true } : { path: named, gone: false };
+        if (embed.path) add(embed.path);
       }
-      if (c === '+') addLine(line.slice(1));
-      if (c === '+' && embeddedDelete && !named) add('', line.slice(1));
+      if (c === '+') addLine(line.slice(1), Boolean(named));
       if (c === '+' || c === ' ' || line === '') newLeft--;
       if (c === '-' || c === ' ' || line === '') oldLeft--;
       continue;
@@ -297,14 +290,12 @@ function unifiedFiles(lines, { add, exists }) {
       from = old;
     } else if (to === '/dev/null') {
       current = from && from !== '/dev/null' ? from : '';
-      also = null;
-      embeddedDelete = false;
+      embed = null;
       deleted = true;
       exists.delete(current);
     } else if (to !== null) {
       current = to;
-      also = null;
-      embeddedDelete = false;
+      embed = null;
       deleted = false;
       exists.add(current);
       add(current);

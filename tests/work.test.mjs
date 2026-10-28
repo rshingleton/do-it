@@ -1,8 +1,7 @@
-import './env.mjs'; // first: isolates the developer's environment
+import { tmpDir } from './env.mjs'; // first: isolates the developer's environment
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -202,7 +201,7 @@ title: Billing
 `;
 
 test('roadmap: every slice state is derived, a hand-committed plan is stale (bugs 6, 7)', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-rm-'));
+  const dir = tmpDir('do-it-rm-');
   const planningDir = path.join(dir, 'docs/planning');
   fs.mkdirSync(planningDir, { recursive: true });
   fs.mkdirSync(path.join(dir, 'docs/roadmap'));
@@ -220,7 +219,7 @@ test('roadmap: every slice state is derived, a hand-committed plan is stale (bug
 });
 
 test('roadmap: an open decision is reported with every unfinished slice it blocks', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-rm-'));
+  const dir = tmpDir('do-it-rm-');
   const planningDir = path.join(dir, 'docs/planning');
   fs.mkdirSync(planningDir, { recursive: true });
   const file = path.join(dir, 'billing.md');
@@ -235,6 +234,24 @@ test('roadmap: an open decision is reported with every unfinished slice it block
   assert.deepEqual(out.blocking, [{ id: 'D1', blocks: ['R1', 'R2'] }]);
 });
 
+test('roadmap: a dependent of an unmet-Verify slice is ready, with the unmet clause listed (T99)', () => {
+  const dir = tmpDir('do-it-rm-');
+  const planningDir = path.join(dir, 'docs/planning');
+  fs.mkdirSync(planningDir, { recursive: true });
+  const file = path.join(dir, 'billing.md');
+  const rows = [
+    '| R1 | build | A | G1 | none | v | low | shipped 2026-10-20 x, Verify unmet: card charge not seen live |',
+    '| R2 | build | B | G1 | R1 | v | low | |',
+    '| R3 | build | C | G1 | none | v | low | |',
+  ];
+  fs.writeFileSync(file, `### M1\n\n| Slice | Kind | Delivers | Covers | Blocked by | Verify | Risk | Status |\n|---|---|---|---|---|---|---|---|\n${rows.join('\n')}\n`);
+  const out = roadmapSlices(file, { root: dir, planningDir, tracked: () => false });
+  const r2 = out.slices.find((s) => s.id === 'R2');
+  assert.equal(r2.state, 'ready');
+  assert.deepEqual(r2.unmet, [{ slice: 'R1', clause: 'card charge not seen live' }]);
+  assert.deepEqual(out.slices.find((s) => s.id === 'R3').unmet, []);
+});
+
 test('skills: roadmap-it and do-it ask the decisions that block slices', () => {
   const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
   const next = read('skills/roadmap-it/SKILL.md');
@@ -247,7 +264,7 @@ test('skills: roadmap-it and do-it ask the decisions that block slices', () => {
 });
 
 function tempRepo() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-work-'));
+  const dir = tmpDir('do-it-work-');
   execFileSync('git', ['init', '-q'], { cwd: dir });
   return dir;
 }
@@ -405,7 +422,7 @@ test('audit round 1 regressions: replan, parens, empty lane M, comments, CRLF', 
   assert.throws(() => transition(empty, 'build-done'), /no phases/);
 
   // Nice 9: a CRLF plan stays CRLF.
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-crlf-'));
+  const dir = tmpDir('do-it-crlf-');
   const file = path.join(dir, 'c.md');
   fs.writeFileSync(file, '---\r\nid: c\r\ntitle: C\r\nlane: s\r\nstatus: draft\r\n---\r\n\r\n# C\r\n');
   const item = readItem(file);
@@ -414,7 +431,7 @@ test('audit round 1 regressions: replan, parens, empty lane M, comments, CRLF', 
 });
 
 test('a failed plan write leaves the old plan whole and no temp file (T53)', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-atomic-'));
+  const dir = tmpDir('do-it-atomic-');
   const file = path.join(dir, 'a.md');
   const before = `---\n${writeBlock(emptyBlock({ id: 'a', title: 'A', lane: 's' }))}---\n\n# A\n`;
   fs.writeFileSync(file, before);
@@ -469,7 +486,7 @@ test('work.mjs: verify-phase keeps separate arguments intact (audit round 2)', (
 
 test('work.mjs: verify-phase --in runs the checks in another directory and records here (T55)', () => {
   const dir = tempRepo();
-  const int = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-int-'));
+  const int = tmpDir('do-it-int-');
   fs.writeFileSync(path.join(int, 'marker'), '');
   work(dir, 'new', 'par', '--lane', 'm', '--title', 'Par');
   work(dir, 'set', 'par', 'phases', '[{"n":1,"title":"One"}]');
@@ -556,17 +573,23 @@ test('ship-it: the retro-it offer sits at the question, before close deletes the
   assert.equal(ship.split('/retro-it <id>').length, 2, 'offered once, not again after close');
 });
 
+const flat = (text) => text.replace(/\s+/g, ' ');
+
+test('flat: a rewrap of a pinned passage leaves the flattened text unchanged', () => {
+  assert.equal(flat('audit findings and\n   surfaced defects above'), flat('audit findings  and surfaced\ndefects above'));
+});
+
 test('ship-it: the question offers the audit leftovers, DOCS.md and prove-it name where they go', () => {
   const ship = fs.readFileSync(path.join(ROOT, 'skills/ship-it/SKILL.md'), 'utf8');
   const docs = fs.readFileSync(path.join(ROOT, 'skills/ship-it/DOCS.md'), 'utf8');
   const prove = fs.readFileSync(path.join(ROOT, 'skills/prove-it/SKILL.md'), 'utf8');
   const question = ship.slice(ship.indexOf('## 2. The one question'), ship.indexOf('## 3. After the answer'));
   assert.match(question, /the audit's Should and Nice findings \(no changelog\)/, 'the question shows the findings');
-  assert.match(question, /audit findings and\s+surfaced defects above \(default: findings and defects/, 'question 2 offers them, default log');
+  assert.ok(flat(question).includes('audit findings and surfaced defects above (default: findings and defects'), 'question 2 offers them, default log');
   assert.ok(docs.includes('## Audit findings'), 'DOCS.md has the section');
   const section = docs.slice(docs.indexOf('## Audit findings'));
   assert.match(section, /"log-it"[\s\S]*`source: <work id> audit`/, 'it logs through log-it with the audit source');
-  assert.match(prove, /with no changelog offers to log them as\s+to-dos/, 'prove-it names the home');
+  assert.ok(flat(prove).includes('with no changelog offers to log them as to-dos'), 'prove-it names the home');
 });
 
 test('closing Next: do-it §6 and ship-it §4 name a slash command, never a script', () => {
@@ -601,12 +624,13 @@ test('skills: surfaced defects are planned, recorded and offered at ship', () =>
   const ship = read('skills/ship-it/SKILL.md');
   const docs = read('skills/ship-it/DOCS.md');
   const question = ship.slice(ship.indexOf('## 2. The one question'), ship.indexOf('## 3. After the answer'));
-  assert.match(question, /surfaced `defects:`/, 'the question lists the defects');
-  assert.match(question, /surfaced defects above[\s\S]*default/i, 'question 2 offers to log them');
+  assert.match(flat(question), /surfaced `defects:`/, 'the question lists the defects');
+  assert.match(flat(question), /surfaced defects above.*default/i, 'question 2 offers to log them');
   const section = docs.slice(docs.indexOf('## Surfaced defects'));
   assert.ok(docs.includes('## Surfaced defects'), 'DOCS.md has the section');
   assert.match(section, /"log-it"[\s\S]*`source: <work id>`/, 'filed through log-it with the work id');
-  assert.match(section, /`shipped <date> <work id>, Verify unmet:\s+<clause>`[\s\S]*issue refs/, 'unmet-verify format'); assert.match(section, /unmet/i, 'a roadmap row is not shipped without the unmet-verify note');
+  const unmetAt = flat(section).indexOf('`shipped <date> <work id>, Verify unmet: <clause>`');
+  assert.ok(unmetAt >= 0 && flat(section).indexOf('issue refs', unmetAt) > unmetAt, 'unmet-verify format'); assert.match(section, /unmet/i, 'a roadmap row is not shipped without the unmet-verify note');
   assert.match(read('skills/scope-it/PLAN-FORMAT.md'), /surfaced defect[\s\S]*`log-it`/, 'scope-it adds the file-defects step');
   assert.match(read('skills/scope-it/SKILL.md'), /PLAN-FORMAT\.md/);
   assert.match(read('skills/build-it/SKILL.md'), /defects/, 'build-it records defects');

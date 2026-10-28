@@ -1,10 +1,10 @@
-import './env.mjs'; // first: isolates the developer's environment
+import { tmpDir } from './env.mjs'; // first: isolates the developer's environment
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 
+import { fakeFetch as recordingFetch, fakeGh, reply } from './fakes.mjs';
 import { parseEnv, loadConfig, redact } from '../skills/track-it/scripts/config.mjs';
 import { parseRef, slugify } from '../skills/track-it/scripts/refs.mjs';
 import { markdownToWiki } from '../skills/track-it/scripts/wiki.mjs';
@@ -15,7 +15,7 @@ import { run } from '../skills/track-it/scripts/tracker.mjs';
 import { DEFAULTS, resolveDocs } from '../skills/track-it/scripts/config.mjs';
 
 function tmpRepo() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-'));
+  const dir = tmpDir('do-it-');
   fs.mkdirSync(path.join(dir, '.git'));
   return dir;
 }
@@ -27,7 +27,7 @@ test('parseEnv handles comments, export, quotes', () => {
 
 test('loadConfig layers user < project < local < env and warns on committed secrets', () => {
   const root = tmpRepo();
-  const xdg = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-xdg-'));
+  const xdg = tmpDir('do-it-xdg-');
   fs.mkdirSync(path.join(xdg, 'do-it'));
   fs.writeFileSync(path.join(xdg, 'do-it', 'config.env'), 'DO_IT_TRACKER=github\nJIRA_PROJECT_KEY=USR\n');
   fs.mkdirSync(path.join(root, '.do-it'));
@@ -116,15 +116,13 @@ test('local tracker: create, start, comment, close round trip', () => {
 });
 
 test('github tracker builds gh calls and retries create without labels', () => {
-  const calls = [];
-  const runner = (args, input) => {
-    calls.push({ args, input });
+  const { run, calls } = fakeGh((args) => {
     if (args[1] === 'create' && args.includes('--label')) throw new Error('label not found');
     if (args[1] === 'create') return 'https://github.com/o/r/issues/12\n';
     if (args[1] === 'view') return JSON.stringify({ number: 12, title: 'T', body: 'B', state: 'OPEN', url: 'u', labels: [], comments: [] });
     return '';
-  };
-  const t = githubTracker({ ...DEFAULTS, DO_IT_GITHUB_REPO: 'o/r' }, { run: runner });
+  });
+  const t = githubTracker({ ...DEFAULTS, DO_IT_GITHUB_REPO: 'o/r' }, { run });
   assert.deepEqual(t.create({ title: 'T', type: 'bug', body: 'B' }), {
     ref: 'o/r#12',
     number: 12,
@@ -138,17 +136,9 @@ test('github tracker builds gh calls and retries create without labels', () => {
   assert.deepEqual(t.start('#12'), { ref: '#12', skipped: 'no DO_IT_GITHUB_START_LABEL' });
 });
 
+// A Jira that serves `routes` ("METHOD /path" to the reply data) and 404s the rest.
 function fakeFetch(routes) {
-  const calls = [];
-  const fn = async (url, init) => {
-    calls.push({ url, method: init.method, body: init.body ? JSON.parse(init.body) : undefined, auth: init.headers.Authorization });
-    const key = `${init.method} ${url.replace(/^.*\/rest\/api\/2/, '')}`;
-    const body = routes[key];
-    if (body === undefined) return { ok: false, status: 404, text: async () => 'not found' };
-    return { ok: true, status: 200, text: async () => (body === '' ? '' : JSON.stringify(body)) };
-  };
-  fn.calls = calls;
-  return fn;
+  return recordingFetch((url, init) => routes[`${init.method} ${url.replace(/^.*\/rest\/api\/2/, '')}`] ?? reply('not found', 404));
 }
 
 const JIRA = { ...DEFAULTS, JIRA_BASE_URL: 'https://jira.x.org/', JIRA_API_TOKEN: 'pat', JIRA_PROJECT_KEY: 'CDS' };
@@ -179,14 +169,12 @@ test('jira tracker: missing transition is skipped, not guessed', async () => {
 
 test('jira publish: epic link field on Data Center, default epic skips epic creation', async () => {
   let n = 10;
-  const fetch = async (url, init) => ({ ok: true, status: 201, text: async () => JSON.stringify({ key: `CDS-${n++}` }) });
-  const calls = [];
-  const spy = async (url, init) => (calls.push(init.body && JSON.parse(init.body)), fetch(url, init));
-  const t = jiraTracker({ ...JIRA, JIRA_DEFAULT_EPIC: 'CDS-5', JIRA_EPIC_LINK_FIELD: 'customfield_10008' }, { fetch: spy });
+  const fetch = recordingFetch(() => reply({ key: `CDS-${n++}` }, 201));
+  const t = jiraTracker({ ...JIRA, JIRA_DEFAULT_EPIC: 'CDS-5', JIRA_EPIC_LINK_FIELD: 'customfield_10008' }, { fetch });
   const r = await t.publish({ title: 'Plan', components: ['none'], phases: [{ n: 1, title: 'A' }, { n: 2, title: 'B' }] });
   assert.equal(r.parent, 'CDS-5');
   assert.deepEqual(r.phases, { 1: 'CDS-11', 2: 'CDS-12' });
-  assert.equal(calls.find((c) => c?.fields).fields.customfield_10008, 'CDS-5');
+  assert.equal(fetch.calls.find((c) => c.body?.fields).body.fields.customfield_10008, 'CDS-5');
 });
 
 test('jira create: components and epic from flags or config, sent as Jira spells them', async () => {
@@ -237,13 +225,9 @@ test('jira create: none skips the component and epic checks', async () => {
 
 test('jira publish: the epic it creates and every child carry the components', async () => {
   let n = 20;
-  const bodies = [];
-  const fetch = async (url, init) => {
-    if (url.endsWith('/project/CDS')) return { ok: true, status: 200, text: async () => JSON.stringify(PROJECT) };
-    bodies.push(JSON.parse(init.body));
-    return { ok: true, status: 201, text: async () => JSON.stringify({ key: `CDS-${n++}` }) };
-  };
+  const fetch = recordingFetch((url) => (url.endsWith('/project/CDS') ? PROJECT : reply({ key: `CDS-${n++}` }, 201)));
   const r = await jiraTracker(JIRA, { fetch }).publish({ title: 'Plan', components: ['UI'], phases: [{ n: 1, title: 'A' }] });
+  const bodies = fetch.calls.filter((c) => c.method === 'POST').map((c) => c.body);
   assert.equal(r.parent, 'CDS-20');
   assert.equal(bodies[0].fields.issuetype.name, 'Epic');
   assert.deepEqual(bodies[0].fields.components, [{ name: 'UI' }]);
@@ -320,7 +304,7 @@ test('jira: --parent none and an epic of none file with no parent; publish with 
 
 test('jira: an error page that echoes the auth header does not leak the token', async () => {
   const token = ['pa', 't-SECRET-123'].join('');
-  const fetch = async (url, init) => ({ ok: false, status: 403, text: async () => `denied for ${init.headers.Authorization}` });
+  const fetch = recordingFetch((url, init) => reply(`denied for ${init.headers.Authorization}`, 403));
   const err = await jiraTracker({ ...JIRA, JIRA_API_TOKEN: token }, { fetch }).get('CDS-1').catch((e) => e);
   assert.doesNotMatch(err.message, /SECRET-123/);
   const basic = await jiraTracker({ ...JIRA, JIRA_API_TOKEN: token, JIRA_EMAIL: 'a@b.c' }, { fetch }).get('CDS-1').catch((e) => e);
@@ -370,9 +354,9 @@ test('jira: a blank JIRA_DEFAULT_EPIC is unset for create and publish', async ()
 
 test('jira: a fetch that throws quoting the auth header does not leak the token', async () => {
   const token = ['fa', 'ke\nmid'].join('');
-  const fetch = async (url, init) => {
+  const fetch = recordingFetch((url, init) => {
     throw new TypeError(`Headers.append: "${init.headers.Authorization}" is an invalid header value.`);
-  };
+  });
   const err = await jiraTracker({ ...JIRA, JIRA_API_TOKEN: token }, { fetch }).get('CDS-1').catch((e) => e);
   assert.match(err.message, /request failed/);
   assert.doesNotMatch(err.message, /mid/);

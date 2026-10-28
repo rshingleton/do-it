@@ -1,6 +1,6 @@
 // Regression tests for bugs found in the hooks and the OpenCode plugin.
 
-import './env.mjs'; // first: isolates the developer's environment
+import { tmpDir } from './env.mjs'; // first: isolates the developer's environment
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 
 import { BUILTIN, scan, loadChecks, editParts } from '../hooks/lib/checks.mjs';
 import { beforeEdit, afterEdit, beforeShell } from '../hooks/lib/guard.mjs';
+import { EVENTS } from '../hooks/claude.mjs';
 import { DEFAULTS } from '../skills/track-it/scripts/config.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -18,7 +19,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const KEY = ['AKIA', 'ABCDEFGHIJKLMNOP'].join('');
 
 function repo() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-hreg-'));
+  const dir = tmpDir('do-it-hreg-');
   const git = (...a) => execFileSync('git', a, { cwd: dir, encoding: 'utf8' });
   git('init', '-q');
   git('-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '--allow-empty', '-m', 'base');
@@ -131,7 +132,7 @@ test('claude.mjs can be imported when argv[1] is not a file (bug 10)', () => {
 
 test('the it-core header is stripped from a CRLF file (bug 10)', async () => {
   const { coreText } = await import('../hooks/lib/context.mjs');
-  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-crlf-')), 'SKILL.md');
+  const file = path.join(tmpDir('do-it-crlf-'), 'SKILL.md');
   fs.writeFileSync(file, '---\r\nname: it-core\r\ndescription: x\r\n---\r\n# Posture\r\nbody\r\n');
   const text = coreText(file);
   assert.doesNotMatch(text, /name: it-core/);
@@ -313,6 +314,14 @@ test('an in-hunk dev-null pair cannot exempt a line from a scoped rule or an exc
   assert.match(beforeEdit(scoped, { patch: kept }).reason, /no-evil in y\.py/);
 });
 
+test('an in-hunk dev-null pair scans its own +++ line under the old path', () => {
+  const { dir } = repo();
+  fs.mkdirSync(path.join(dir, '.compliance-rules'));
+  fs.writeFileSync(path.join(dir, '.compliance-rules', 'checks.json'), JSON.stringify([{ id: 'no-null', severity: 'HIGH', pattern: 'dev/null', files: ['.py'] }]));
+  const patch = ['--- a/a.txt', '+++ b/a.txt', '@@ -0,0 +1,3 @@', '--- a/x.py', '+++ /dev/null', '+ok'].join('\n');
+  assert.match(beforeEdit(ctxFor(dir), { patch }).reason, /no-null in x\.py/);
+});
+
 test('diff -u timestamps and git quoting do not hide a header path (audit 4)', () => {
   const ctx = ctxFor(repo().dir);
   for (const header of ['+++ .env\t2024-01-01 00:00:00', '+++ "b/.env"']) {
@@ -433,7 +442,7 @@ test('path rules match a backslash path (T87)', () => {
 test('carriesVoice is true only for an agent file that holds the voice marker, and false on a read error', async () => {
   const { carriesVoice } = await import('../hooks/claude.mjs');
   const { START } = await import('../scripts/lib/voice.mjs');
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-voice-'));
+  const dir = tmpDir('do-it-voice-');
   fs.writeFileSync(path.join(dir, 'with.md'), `body\n\n${START}\nV\n<!-- voice:end -->\n`);
   fs.writeFileSync(path.join(dir, 'without.md'), 'body\n');
   fs.mkdirSync(path.join(dir, 'dir.md'));
@@ -441,4 +450,20 @@ test('carriesVoice is true only for an agent file that holds the voice marker, a
   assert.equal(carriesVoice('without', dir), false);
   assert.equal(carriesVoice('missing', dir), false);
   assert.equal(carriesVoice('dir', dir), false);
+});
+
+test('hooks.json event names and commands match the events claude.mjs handles', () => {
+  const handled = { ...Object.fromEntries(Object.entries(EVENTS).map(([arg, [, name]]) => [arg, name])), stop: 'Stop', 'subagent-stop': 'SubagentStop' };
+  const { hooks } = JSON.parse(fs.readFileSync(path.join(ROOT, 'hooks/hooks.json'), 'utf8'));
+  const wired = {};
+  for (const [name, groups] of Object.entries(hooks)) {
+    for (const { hooks: list } of groups) {
+      for (const { command } of list) {
+        const arg = command.match(/claude\.mjs"? (\S+)$/)?.[1];
+        assert.equal(handled[arg], name, `${name} runs "${command}"`);
+        wired[arg] = name;
+      }
+    }
+  }
+  assert.deepEqual(wired, handled);
 });

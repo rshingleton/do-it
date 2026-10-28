@@ -41,9 +41,8 @@ friction, not fixes:
 - callers reach past a seam into internals;
 - the behaviour that matters most cannot be tested through any interface.
 
-Run the **deletion test** on each suspect: delete it in your head. If its
-complexity reappears in every caller, it was earning its place. If the
-complexity simply moves, it is a pass-through and a candidate.
+Run the **deletion test** ([design-it](../design-it/SKILL.md)) on each
+suspect; a pass-through is a candidate.
 
 ## 3. Report
 

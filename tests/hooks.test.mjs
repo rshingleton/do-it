@@ -1,8 +1,7 @@
-import './env.mjs'; // first: isolates the developer's environment
+import { tmpDir } from './env.mjs'; // first: isolates the developer's environment
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -16,7 +15,7 @@ import { mergeClaude, mergeOpencode } from '../scripts/install-hooks.mjs';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 function repo() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-hooks-'));
+  const dir = tmpDir('do-it-hooks-');
   execFileSync('git', ['init', '-q'], { cwd: dir });
   return dir;
 }

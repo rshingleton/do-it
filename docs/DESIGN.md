@@ -299,19 +299,23 @@ do-it/
   13 ms in all (the first turn only). The full text stays on every turn rather
   than a short reminder after turn 1: the repeated prefix is byte-identical so
   providers cache it, and a changed prefix would bust that cache for a saving
-  of about 1,250 tokens. Not measured: provider cache hits in a live session
+  of roughly 1,250 tokens (an estimate, the bytes divided by 4, not a
+  tokenizer count). Not measured: provider cache hits in a live session
   (no model calls were made).
 - OpenCode usage: on 1.x a plugin's `event` hook sees `cost` and `tokens`
   (input, output, reasoning, cache read/write) with `agent`, `modelID` and
   `providerID` on each `message.updated` assistant message; on 2.x
   `ctx.event.subscribe` yields `session.step.ended` and `session.usage.updated`
   with `cost` and `tokens`, and agent and model come from the `context` hook.
-  The plugin records it into the same ledger (`skills/usage-it/scripts/opencode.mjs`),
-  tokens only, one row per session with reasoning folded into `out`: on 1.x from the `event` hook, on 2.x
-  from `ctx.event.subscribe`, with agent and model from the `context` hook. Limits: 1.x marks
-  a subagent by `parentID` on `session.created`, 2.x has no parent signal so every run is kind
-  `session`; totals live in plugin memory, so a restart mid-session restarts that run. Event
-  shapes are from the research note, run against fixtures, not a live session. On Claude Code the `Stop` and `SubagentStop` hooks already keep
+  The plugin records it into the same ledger
+  (`skills/usage-it/scripts/opencode.mjs`), tokens only, one row per session
+  with reasoning folded into `out`: on 1.x from the `event` hook, on 2.x from
+  `ctx.event.subscribe`, with agent and model from the `context` hook. Limits:
+  1.x marks a subagent by `parentID` on `session.created`, 2.x has no parent
+  signal so every run is kind `session`; totals live in plugin memory, so a
+  restart mid-session restarts that run. Event shapes are from the research
+  note, run against fixtures, not a live session. On Claude Code the `Stop` and
+  `SubagentStop` hooks already keep
   a per-run usage ledger from the transcripts (`skills/usage-it`, tokens only,
   no dollar estimate since prices change); it is not tied to a work item or step,
   but a step's usage can be read by time window (`usage.mjs --from/--to`).

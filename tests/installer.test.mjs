@@ -1,10 +1,9 @@
 // install-hooks.mjs as a user runs it: what it refuses to touch and what a dry run leaves alone.
 
-import { cleanEnv } from './env.mjs'; // first: isolates the developer's environment
+import { cleanEnv, tmpDir } from './env.mjs'; // first: isolates the developer's environment
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -13,7 +12,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const INSTALL = path.join(ROOT, 'scripts', 'install-hooks.mjs');
 
 function setup(settings) {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-inst-'));
+  const home = tmpDir('do-it-inst-');
   const file = path.join(home, '.claude', 'settings.json');
   if (settings !== undefined) {
     fs.mkdirSync(path.dirname(file), { recursive: true });

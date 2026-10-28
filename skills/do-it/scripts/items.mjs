@@ -23,6 +23,11 @@ function layout(planningDir, id, lane) {
 }
 
 // The directory first: after an interrupted lane move it holds the newer plan.
+// An id names a file under the planning directory, so it may not carry a path.
+function checkId(id) {
+  if (!id || !/^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(id)) throw new Error('needs an id (kebab-case slug or tracker ref)');
+}
+
 export function planPath(planningDir, id) {
   return [layout(planningDir, id, 'm'), layout(planningDir, id, 's')].find((f) => fs.existsSync(f)) ?? null;
 }
@@ -79,6 +84,7 @@ function mergePhases(current, next) {
 export function workItems({ planningDir, write = writeItem }) {
   function get(id) {
     if (!id) throw new Error('missing work id');
+    checkId(id);
     const file = planPath(planningDir, id);
     if (!file) throw new Error(`no plan for ${id} under ${path.relative(process.cwd(), planningDir) || '.'}`);
     return readItem(file);
@@ -98,7 +104,8 @@ export function workItems({ planningDir, write = writeItem }) {
     create(id, { lane, title } = {}) {
       lane = String(lane ?? '').toLowerCase();
       if (!LANE_RANK[lane]) throw new Error('new needs --lane s or --lane m');
-      if (!id || !/^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(id)) throw new Error('new needs an id (kebab-case slug or tracker ref)');
+      if (!id) throw new Error('new needs an id (kebab-case slug or tracker ref)');
+      checkId(id);
       if (planPath(planningDir, id)) throw new Error(`${id} already has a plan`);
       title ??= id;
       const item = { path: layout(planningDir, id, lane), state: emptyBlock({ id, title, lane }), body: `\n# ${title}\n` };

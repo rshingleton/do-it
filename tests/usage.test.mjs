@@ -1,8 +1,7 @@
-import './env.mjs'; // first: isolates the developer's environment
+import { tmpDir } from './env.mjs'; // first: isolates the developer's environment
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -13,7 +12,7 @@ import { contextOutliers } from '../skills/usage-it/scripts/outliers.mjs';
 import { handle } from '../hooks/claude.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-usage-'));
+const tmp = () => tmpDir('do-it-usage-');
 // Keep these tests off the real ~/.claude.json: its cached /usage numbers would leak into the temp ledgers.
 process.env.CLAUDE_CONFIG_DIR = tmp();
 process.env.DO_IT_USAGE_REFRESH = '0'; // never start a real claude from a test
