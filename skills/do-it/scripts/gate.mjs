@@ -20,6 +20,8 @@ export function startSlice(planningDir, slug, id, { work, at }) {
   return updateRun(planningDir, slug, (r) => {
     const g = entry(r, id);
     g.work = work;
+    // A slice resumed under a new work item keeps the old ones, so the digest still lists their phase tags.
+    g.works = [...new Set([...(g.works ?? []), work])];
     g.started ??= at;
   });
 }

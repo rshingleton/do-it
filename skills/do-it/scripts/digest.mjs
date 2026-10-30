@@ -2,7 +2,10 @@
 // Pure: work.mjs gathers the git tags and the optional inputs. No estimates of
 // time or money; every figure is a count or a value read from the record.
 
-import { splitKey } from './run.mjs';
+import { ID, splitKey } from './run.mjs';
+
+// The only tag the digest prints: `do-it/<work id>/phase-<n>`, as the run commit makes it.
+const TAG = new RegExp(`^do-it/${ID}/phase-\\d+$`);
 
 const RETRO = ['Worked', 'Failed', 'Change', 'Next'];
 const bullets = (items, none = 'none') => (items.length ? items.map((x) => `- ${x}`) : [`- ${none}`]);
@@ -23,16 +26,19 @@ export function ledger(limits) {
 // `tags`: the do-it/<id>/phase-N tags, `usage`: {input, output} from usage-it or null.
 export function buildDigest({ record, tags = [], usage = null, findings = [], retro = [] }) {
   const by = (s) => record.slices.filter((x) => x.status === s);
-  const why = (x) => `${x.id}${x.reason ? `: ${x.reason}` : ''}${x.needs ? ` (needs ${x.needs})` : ''}`;
+  // A reason is free text from the agent or the user: one line, so it cannot open a heading or a bullet.
+  const oneLine = (s) => String(s).replace(/\s+/g, ' ').trim();
+  const why = (x) => `${x.id}${x.reason ? `: ${oneLine(x.reason)}` : ''}${x.needs ? ` (needs ${x.needs})` : ''}`;
   const marks = ledger(record.limits);
-  // Only this run's rollback: tags of the work items its slices started, not every run's in the repo.
-  const mine = new Set((record.gates ?? []).map((g) => g.work).filter(Boolean));
-  const runTags = tags.filter((t) => mine.has(t.split('/')[1]));
+  // Only this run's rollback: tags of every work item its slices started (a resumed slice may have had
+  // several), and only a well-formed phase tag, since the tag is printed into a command line.
+  const mine = new Set((record.gates ?? []).flatMap((g) => [g.work, ...(g.works ?? [])]).filter(Boolean));
+  const runTags = tags.filter((t) => TAG.test(t) && mine.has(t.split('/')[1]));
   const now = (id) => {
     const s = record.slices.find((x) => x.id === id);
-    return s ? (s.status === 'shipped' ? 'shipped' : `${s.status}${s.reason ? ` (${s.reason})` : ''}`) : 'not run again yet';
+    return s ? `${s.status}${s.reason ? ` (${oneLine(s.reason)})` : ''}` : 'not run again yet';
   };
-  const retried = (record.retries ?? []).map((r) => `${r.id}: was ${r.was}${r.reason ? ` (${r.reason})` : ''}, now ${now(r.id)}`);
+  const retried = (record.retries ?? []).map((r) => `${r.id}: was ${r.was}${r.reason ? ` (${oneLine(r.reason)})` : ''}, now ${now(r.id)}`);
   const limits = record.limits.filter((l) => !l.startsWith('marker:'));
   const out = [`# Run digest: ${record.id}`, '', `Level ${record.level}, commit ${record.commit}, started ${record.started}.`, ''];
   const sec = (title, lines) => out.push(`## ${title}`, '', ...lines, '');
