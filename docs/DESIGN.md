@@ -64,7 +64,13 @@ never lowered silently.
 | XS | 1-2 files, < ~30 lines, no public API, auth, data, schema or config | build -> self-review -> commit | none |
 | S | one coherent change, one session | grill (0-3 Qs) -> plan (single file) -> build -> audit (1 reviewer) -> ship | `docs/planning/<id>.md` |
 | M | several phases or seams, may span sessions | grill -> phased plan -> build auto -> audit (fan-out) -> ship | `docs/planning/<id>/` |
-| L | bundled or epic-sized | roadmap (roadmap-it) -> one S/M item per slice | `docs/roadmap/<slug>.md` (kept) + one plan per slice |
+| L | bundled or epic-sized | roadmap (roadmap-it) -> one S/M item per slice; `--complete`: finish-it chains them | `docs/roadmap/<slug>.md` (kept) + one plan per slice; a run adds `docs/planning/<slug>.run/RUN.md` |
+
+`/do-it <roadmap> --complete [lite|full|ultra]` runs lane L unattended: one
+sweep settles every decision (answered, accepted default, or deferred), then
+`finish-it` chains the slices, parks what cannot proceed and stops for the
+user only at plan approval and the final review. Hard stops, caps and the
+digest are in `skills/finish-it/`.
 
 The XS signal mirrors addyosmani's `/ship` skip rule. Anything touching auth,
 payments, data migrations, CI or secrets is at least S regardless of size.
@@ -75,7 +81,9 @@ One frontmatter block per work item, in `docs/planning/<id>.md` (S) or
 `docs/planning/<id>/README.md` (M), owned by whichever step is running. The
 fields, events and rules are in [STATE.md](../skills/do-it/STATE.md) and the
 plan layout in [PLAN-FORMAT.md](../skills/scope-it/PLAN-FORMAT.md); nothing
-is committed per phase (ADR [0002](adr/0002-no-commits-until-ship.md)).
+is committed per phase unless a `--complete` run opted in (ADR
+[0002](adr/0002-no-commits-until-ship.md), [0008](adr/0008-opt-in-run-commits.md)).
+A run keeps its own record, `<slug>.run/RUN.md`, written only by `work.mjs run`.
 
 Principles behind it:
 
@@ -213,7 +221,7 @@ its savings claims (mostly unproven, research section 7). Effect measured in
 - Inputs: state block, phase file (M) or plan (S), repo standards.
 - Per phase: `test-it` at agreed seams; after 3 failed fix rounds call
   `debug-it`. No commits: the change stays in the working tree
-  (ADR-0002).
+  (ADR-0002), except run commits in a `--complete` run (ADR-0008).
 - Frontier from the state block; parallel phases run on scratch branches in
   worktrees and land with `git merge --squash` + `git reset`, so the user's
   branch only ever sees an uncommitted change. Subagents inherit `it-core` via

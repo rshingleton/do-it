@@ -10,6 +10,15 @@
 //   work.mjs review-diff <id>
 //   work.mjs verify-phase <id> [n] [--in dir] -- <command...>
 //   work.mjs roadmap <file>
+//   work.mjs run new <slug> [--level --commit --max-slices --slice-cap-min --audit-cap]
+//   work.mjs run show <slug> | set <slug> <key> <json> | slice <slug> <id> <status> [--reason --needs]
+//   work.mjs run add-assumptions <slug> <work id> <json array>   (merges; kept as <id>#<n>: text)
+//   work.mjs run reject-assumption <slug> <id>#<n> <instead...>   (by key; reopens the item if its plan is still auditing or shipping)
+//   work.mjs run next <slug> <roadmap file>   (slice ready|parked|blocked|shipped; ready un-parks)
+//   work.mjs run commit <slug> <id> [--phase n | --docs] --paths a,b [--limits <json>]
+//   work.mjs run digest <slug> [--usage <json>] [--findings <json>] [--retro <json>]   (markdown, saved uncommitted)
+//   work.mjs run start <slug> <slice> --work <id> [--at iso] | audit <slug> | gate <slug> <slice>
+//   work.mjs run verify <slug> <slice> [--phase n] [--in dir] -- <command...>   (reruns a failure once)
 //   work.mjs close <id>
 //
 // The rules live in items.mjs and state.mjs (../STATE.md documents them);
@@ -25,9 +34,13 @@ import { EMPTY_TREE, fingerprint, hasObject, snapshot, treeDiff } from './change
 import { needsUser } from './state.mjs';
 import { allowedMoves, firableEvents, workItems } from './items.mjs';
 import { roadmapSlices } from './roadmap.mjs';
+import { commitSlice } from './commit.mjs';
+import { buildDigest } from './digest.mjs';
+import { addAssumptions, createRun, nextSlice, rejectAssumption, runPath, setRun, showRun, sliceRun } from './run.mjs';
+import { checkWithRerun, countAudit, gate, recordVerified, startSlice } from './gate.mjs';
 
 // Flags that take no value.
-const FLAGS = new Set(['brief']);
+const FLAGS = new Set(['brief', 'docs']);
 
 function parseArgs(argv) {
   const pos = [];
@@ -49,7 +62,7 @@ function parseArgs(argv) {
 function context(cwd) {
   const { root, values } = loadConfig({ cwd });
   const planningDir = path.resolve(root, values.DO_IT_PLANNING_DIR);
-  return { root, planningDir, items: workItems({ planningDir }) };
+  return { root, planningDir, config: values, items: workItems({ planningDir }) };
 }
 
 function view(ctx, item) {
@@ -126,6 +139,12 @@ function eventArgs(ctx, item, event, rest, opts) {
   return a;
 }
 
+// HEAD's commit, or null outside a git repo or before the first commit.
+function baseRef(root) {
+  const r = spawnSync('git', ['rev-parse', '--verify', '--quiet', 'HEAD'], { cwd: root, encoding: 'utf8' });
+  return r.status === 0 ? r.stdout.trim() : null;
+}
+
 export async function run(argv, { cwd = process.cwd() } = {}) {
   const { pos, opts } = parseArgs(argv);
   const [cmd, id, ...rest] = pos;
@@ -192,19 +211,113 @@ export async function run(argv, { cwd = process.cwd() } = {}) {
       const file = path.resolve(cwd, id);
       return { file: path.relative(ctx.root, file), ...roadmapSlices(file, ctx) };
     }
+    case 'run': {
+      // A complete run's record: id is the subcommand here, rest[0] the roadmap slug.
+      const [slug, ...args] = rest;
+      switch (id) {
+        case 'new':
+          return createRun(ctx.planningDir, slug, { ...opts, base: baseRef(ctx.root) }, ctx.config);
+        case 'show':
+          return showRun(ctx.planningDir, slug);
+        case 'set':
+          return setRun(ctx.planningDir, slug, args[0], args[1] === undefined ? undefined : json(args[1]));
+        case 'add-assumptions':
+          return addAssumptions(ctx.planningDir, slug, args[0], args[1] === undefined ? undefined : json(args[1]));
+        case 'reject-assumption': {
+          const key = args[0] ?? '';
+          const m = /^(.+)#(\d+)$/.exec(key);
+          if (!m) throw new Error('run reject-assumption needs <work id>#<n>');
+          const instead = args.slice(1).join(' ');
+          if (!instead) throw new Error('run reject-assumption needs what replaces the assumption');
+          const { record, text } = rejectAssumption(ctx.planningDir, slug, key, instead);
+          // A plan still auditing or shipping reopens; a closed item's plan is gone, so the record is the whole trace.
+          let plan = null;
+          try {
+            plan = items.get(m[1]);
+          } catch {
+            plan = null;
+          }
+          const at = plan ? plan.state.assumptions.indexOf(text) : -1;
+          const live = at >= 0 && ['auditing', 'shipping'].includes(plan.state.status);
+          if (live) items.fire(m[1], 'reject-assumption', { n: at + 1, text: instead, date: opts.date });
+          return { rejected: key, reopened: live, followup: live ? null : 'item closed: the user files a fix: or log-it entry', record };
+        }
+        case 'slice':
+          return sliceRun(ctx.planningDir, slug, args[0], args[1], { reason: opts.reason, needs: opts.needs });
+        case 'next': {
+          if (!args[0]) throw new Error('run next needs a roadmap file');
+          const file = path.resolve(cwd, args[0]);
+          return nextSlice(roadmapSlices(file, ctx), showRun(ctx.planningDir, slug));
+        }
+        case 'start':
+          return startSlice(ctx.planningDir, slug, args[0], { work: opts.work, at: opts.at });
+        case 'audit':
+          return countAudit(ctx.planningDir, slug);
+        case 'gate': {
+          const g = (showRun(ctx.planningDir, slug).gates ?? []).find((x) => x.id === args[0]);
+          const current = g?.work ? itemFingerprint(ctx, items.get(g.work)) : null;
+          return gate(showRun(ctx.planningDir, slug), args[0], { current });
+        }
+        case 'verify': {
+          const g = (showRun(ctx.planningDir, slug).gates ?? []).find((x) => x.id === args[0]);
+          if (!g?.work) throw new Error(`run verify: ${args[0]} has no work id; run start first`);
+          const command = opts['--'] ?? [];
+          if (!command.length) throw new Error('run verify needs the checks after --');
+          const where = opts.in === undefined ? ctx.root : path.resolve(cwd, opts.in);
+          const text = command.length === 1 ? command[0] : command.map(shellQuote).join(' ');
+          let flaky = false;
+          const attempt = () => {
+            const r = spawnSync(text, { cwd: where, shell: true, stdio: ['ignore', 2, 2] });
+            if (r.error) return { ok: false, why: `${text}: ${r.error.message}` };
+            return r.status === 0 ? { ok: true, text } : { ok: false, why: `${text} exited ${r.status ?? r.signal}` };
+          };
+          const check = () => {
+            const r = checkWithRerun(attempt);
+            flaky = Boolean(r.flaky);
+            return r;
+          };
+          const phase = opts.phase === undefined ? undefined : Number(opts.phase);
+          try {
+            items.verifyPhase(g.work, phase, check, { date: opts.date });
+          } catch (e) {
+            if (flaky) sliceRun(ctx.planningDir, slug, args[0], 'parked', { reason: e.message.replace(/^verify-phase: /, ''), needs: 'user' });
+            throw e;
+          }
+          recordVerified(ctx.planningDir, slug, args[0], itemFingerprint(ctx, items.get(g.work)));
+          return showRun(ctx.planningDir, slug);
+        }
+        case 'commit': {
+          if (!args[0]) throw new Error('run commit needs a work id');
+          const limits = opts.limits === undefined ? [] : json(opts.limits);
+          return commitSlice({
+            ...ctx, slug, id: args[0], phase: opts.phase === undefined ? undefined : Number(opts.phase), docs: opts.docs === true,
+            paths: String(opts.paths ?? '').split(',').filter(Boolean), limits,
+          });
+        }
+        case 'digest': {
+          const tags = spawnSync('git', ['tag', '-l', 'do-it/*/phase-*'], { cwd: ctx.root, encoding: 'utf8' }).stdout.split('\n').filter(Boolean).sort();
+          const arg = (k, d) => (opts[k] === undefined ? d : json(opts[k]));
+          const text = buildDigest({ record: showRun(ctx.planningDir, slug), tags, usage: arg('usage', null), findings: arg('findings', []), retro: arg('retro', []) });
+          fs.writeFileSync(path.join(path.dirname(runPath(ctx.planningDir, slug)), 'DIGEST.md'), text);
+          return text;
+        }
+        default:
+          throw new Error('usage: work.mjs run new|show|set|add-assumptions|reject-assumption|slice|next|commit|digest <slug> ...');
+      }
+    }
     case 'close': {
       const item = items.close(id);
       const s = item.state;
       return { closed: s.id, removed: path.relative(ctx.root, item.path), todo: s.todo, roadmap: s.roadmap, tracker: s.tracker, sources: s.sources };
     }
     default:
-      throw new Error('usage: work.mjs new|show|list|event|set|fingerprint|review-diff|verify-phase|roadmap|close ...');
+      throw new Error('usage: work.mjs new|show|list|event|set|fingerprint|review-diff|verify-phase|roadmap|run|close ...');
   }
 }
 
 if (isMain(import.meta.url)) {
   run(process.argv.slice(2))
-    .then((out) => process.stdout.write(`${JSON.stringify(out, null, 2)}\n`))
+    .then((out) => process.stdout.write(typeof out === 'string' ? out : `${JSON.stringify(out, null, 2)}\n`))
     .catch((e) => {
       process.stdout.write(`${JSON.stringify({ error: e.message })}\n`);
       process.exit(1);

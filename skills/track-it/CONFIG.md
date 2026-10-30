@@ -45,7 +45,15 @@ the repo's ADR 0006 (repo files are untrusted for commands).
 | `DO_IT_PLANNING_DIR` | `docs/planning` | Work items |
 | `DO_IT_PUBLISH_PLANS` | `false` | `scope-it` publishes lane M plans to the tracker without `--publish` |
 | `DO_IT_COMMIT` | `ask` | `ask`: ship-it offers to commit. `never`: ship-it only proposes the message |
-| `DO_IT_PROTECTED_BRANCHES` | `main,master` | ship-it offers a feature branch before committing here |
+| `DO_IT_PROTECTED_BRANCHES` | `main,master` | ship-it, and a run's phase commits, move to a feature branch before committing here |
+| `DO_IT_MAX_SLICES` | empty (no cap) | A complete run stops after this many slices; `work.mjs run new --max-slices` overrides |
+| `DO_IT_SLICE_CAP_MIN` | `120` | Wall-clock minutes one slice may take in a complete run; `--slice-cap-min` overrides |
+| `DO_IT_AUDIT_CAP` | `5` | Audit rounds across a complete run; `--audit-cap` overrides |
+
+A complete run's `--commit phase|slice|none` sets that run's commit mode
+(default `phase`; `slice` is one commit per lane S slice, `none` commits
+nothing). The flag is the explicit ask, so it wins over `DO_IT_COMMIT=never`
+for that run. With `never` and no flag the run's mode is `none`.
 
 ### Project docs
 

@@ -262,26 +262,17 @@ function hunkLines(patch) {
   return out;
 }
 
-// Hash of the change: the binary diff, then each untracked file's name and
-// content (symlinks by target, directories such as nested repos by name),
-// as a git blob id. Matches the shell version it replaced byte for byte.
-export function fingerprint(cwd, base, opts) {
-  const { top, diff, untracked } = changeset(cwd, base, opts);
-  const parts = [diff];
-  for (const name of untracked) {
-    parts.push(Buffer.from(`${name}\n`));
-    const file = path.join(top, name);
-    let st;
-    try {
-      st = fs.lstatSync(file);
-    } catch {
-      continue;
-    }
-    if (st.isSymbolicLink()) parts.push(Buffer.from(`${fs.readlinkSync(file)}\n`));
-    else if (st.isFile()) parts.push(fs.readFileSync(file));
-  }
-  const data = Buffer.concat(parts);
-  return crypto.createHash('sha1').update(`blob ${data.length}\0`).update(data).digest('hex');
+// Hash of the change since `base`: the binary diff from the base tree to a
+// snapshot of the working tree, as a git blob id. Untracked files are in the
+// snapshot, so committing a file after `base` (a run's phase commits) never
+// moves the hash, and only a change in content does.
+export function fingerprint(cwd, base, { exclude = [] } = {}) {
+  const { top, base: resolved } = changeset(cwd, base, { exclude });
+  const tree = snapshot(top, { exclude });
+  const spec = ['--', '.', ...exclude.map((p) => `:(exclude)${p}`)];
+  const diff = git(top, ['diff', '--binary', '--no-ext-diff', '--no-textconv', '--no-color', '--no-renames', resolved, tree, ...spec], 'buffer');
+  if (diff.status !== 0) throw new Error(`git diff failed: ${diff.stderr}`);
+  return crypto.createHash('sha1').update(`blob ${diff.stdout.length}\0`).update(diff.stdout).digest('hex');
 }
 
 // The working tree as a git tree object, untracked files included, written
@@ -305,7 +296,15 @@ export function snapshot(cwd, { exclude = [] } = {}) {
       fs.rmSync(index, { force: true });
       if (git(top, ['rev-parse', '--verify', '--quiet', 'HEAD']).status === 0) run(['read-tree', 'HEAD']);
     };
-    const add = () => run(['add', '-A', '--', '.', ...exclude.map((p) => `:(exclude)${p}`)]);
+    // A nested repo with no commit cannot be indexed; --ignore-errors adds the
+    // rest, and that one failure is the only one let through.
+    const add = () => {
+      const args = ['-c', 'core.splitIndex=false', 'add', '-A', '--ignore-errors', '--', '.', ...exclude.map((p) => `:(exclude)${p}`)];
+      const r = git(top, args, 'utf8', env);
+      if (r.status === 0) return;
+      const failures = r.stderr.split('\n').filter((l) => l.startsWith('error:') && !/does not have a commit checked out|unable to index file '[^']*\/'$/.test(l));
+      if (r.status !== 1 || failures.length) throw new Error(`git add failed: ${r.stderr}`);
+    };
     const real = path.resolve(top, git(top, ['rev-parse', '--git-path', 'index']).stdout.trim());
     if (fs.existsSync(real)) {
       fs.copyFileSync(real, index);

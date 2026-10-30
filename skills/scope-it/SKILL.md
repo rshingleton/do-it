@@ -14,13 +14,14 @@ Read-only for code. Produces the plan and its state block
 
 - An issue ref or path: fetch it with the `track-it` skill and list it under
   `sources:`. Several issues can feed one plan; merge overlapping ones.
-- Free text: plan from it directly. No intake file is required.
+- Free text: plan from it directly.
 - A roadmap slice: its Delivers is the goal, its Verify becomes the plan's
   done-when, its Covers names the requirements to satisfy; it is recorded as
   `roadmap: <file>#<id>` (§3), and its `Ref` cell, if any, as `tracker`, so
-  build-it starts and ship-it closes it. A slice that turns out bigger than lane M goes back
-  to `/roadmap-it <file> replan`, not into a bigger plan.
+  build-it starts and ship-it closes it. A slice bigger than lane M goes back to
+  `/roadmap-it <file> replan`.
 - The lane from `do-it`, else size it with [LANES.md](../do-it/LANES.md).
+- A run record exists (full or ultra): [NONINTERACTIVE.md](NONINTERACTIVE.md), no grill.
 
 ## 2. Grill, scaled to the lane
 
@@ -29,8 +30,7 @@ Read-only for code. Produces the plan and its state block
 | S | 0-3 questions in one turn, each with a recommended answer. Zero when the issue already has acceptance criteria and the code answers the rest. |
 | M | Call the Skill tool with "grill-it", then with "name-it". Add the agenda in [GRILL.md](GRILL.md). End the turn after each round. |
 
-A new project (no source yet; see the do-it scout) adds the agenda in
-[GREENFIELD.md](GREENFIELD.md) at either lane.
+A new project (no source yet) adds [GREENFIELD.md](GREENFIELD.md) at either lane.
 
 Find facts yourself (code, ADRs, the area's context per it-core,
 `docs/reference/`); ask only for decisions. A library, API or standard fact
@@ -49,11 +49,11 @@ state block, `status: draft`. Then fill the block with `work.mjs set`:
 the input carried one. Write the body per [PLAN-FORMAT.md](PLAN-FORMAT.md):
 
 - Lane S: below the block in `docs/planning/<id>.md`.
-- Lane M: below the block in `docs/planning/<id>/README.md`, plus one
-  `phase-N.md` per phase.
+- Lane M: below it in `docs/planning/<id>/README.md`, plus a `phase-N.md` each.
 
 Every step or phase states how it is verified (`step → verify: check`). A slice that
-compares or measures adds a last step ([PLAN-FORMAT.md](PLAN-FORMAT.md)). Risk-area lane S, or a top-tier plan: [PLANNER.md](PLANNER.md).
+compares or measures adds a last step ([PLAN-FORMAT.md](PLAN-FORMAT.md)).
+Risk-area lane S, or top-tier: [PLANNER.md](PLANNER.md).
 
 Then run the two passes in [CHECKS.md](CHECKS.md) before showing anything:
 an analyze pass (coverage both ways, verify checks, names, blocks, rules)

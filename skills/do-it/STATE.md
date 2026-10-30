@@ -23,6 +23,7 @@ from anywhere in the repo.
 | `work.mjs review-diff <id>` | Files changed since ship-it prepared the commit (the user's review edits), with a diffstat |
 | `work.mjs verify-phase <id> [n] [--in <dir>] -- "<checks>"` | Runs the checks (in `<dir>` with `--in`, the plan staying this checkout's); records the phase (lane S: the item) as verified only on exit 0. The only way a phase is recorded. Quote a chain (`"npm test && npm run lint"`) so the script runs all of it |
 | `work.mjs roadmap <file>` | Every slice's derived state and the next one to start |
+| `work.mjs run <sub> <slug> ...` | The run record of a `--complete` run, at `<planning dir>/<slug>.run/RUN.md`. `new` (flags `--level --commit --max-slices --slice-cap-min --audit-cap`), `show`, `set`, `slice <id> shipped\|parked\|blocked\|ready [--reason --needs user\|decision]`, `next <roadmap file>`, `start`, `verify` (reruns a failure once; a pass on the rerun is a failure), `audit`, `gate` (prints `allow` and a stop reason), `commit` (stages the named paths, commits, tags), `digest` (saved uncommitted). [finish-it](../finish-it/SKILL.md) is its caller |
 | `work.mjs close <id>` | Deletes the plan and prints the to-do ids, roadmap slice and tracker refs to close |
 
 `new`, `set`, `event`, `verify-phase` and `list` take `--brief`: the same short
@@ -150,5 +151,6 @@ with an error, and the plan is rewritten in block style by hand.
   the code moved since the audit.
 - **No `done` status.** `work.mjs close` deletes the plan when ship-it
   commits; the ADRs, changelog and commit hold what is worth keeping.
-- **No commits until ship.** Steps leave their work in the working tree.
+- **No commits until ship.** Steps leave their work in the working tree,
+  except in a `--complete` run that names a commit mode (ADR 0008).
   `base_ref` plus the working tree is the whole change.

@@ -43,3 +43,20 @@ Lane S runs the builder check only when the plan has more than three steps or
 touches a risk area ([LANES.md](../do-it/LANES.md)). A host without
 subagents: re-read the plan once as the builder yourself, and say the check
 was done in the same context.
+
+## 3. Roadmap check (complete runs)
+
+Once per roadmap, in the up-front sweep ([SWEEP.md](../roadmap-it/SWEEP.md)),
+before the approval turn. Start one `it-reviewer` agent (mid-tier model) with
+only the roadmap file and its decision log (`Decisions so far`, Open
+decisions), never the grill conversation. Brief:
+
+> You will build every slice of this roadmap in order and cannot ask anyone.
+> List the questions that would come up across slices (a decision two slices
+> read differently, a hidden order dependency, an unnamed shared interface),
+> most blocking first, each with the slices it touches and your best guess.
+> Under 300 words.
+
+Sort each question with the three-way table in section 2. Cross-slice
+questions a per-plan builder check cannot see are the point; a question about
+one slice's internals waits for that slice's own check.

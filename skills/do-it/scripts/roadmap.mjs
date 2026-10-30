@@ -123,5 +123,5 @@ export function roadmapSlices(file, { root, planningDir, tracked = (f) => isTrac
     .map((id) => ({ id, blocks: out.filter((s) => !done(s.id) && s.blocked_by.includes(id)).map((s) => s.id) }))
     .filter((d) => d.blocks.length)
     .sort((a, b) => b.blocks.length - a.blocks.length || a.id.localeCompare(b.id, undefined, { numeric: true }));
-  return { slices: out, openDecisions, blocking, next: ready[0]?.id ?? null };
+  return { slices: out, openDecisions, blocking, next: ready[0]?.id ?? null, ready: ready.map((s) => s.id) };
 }

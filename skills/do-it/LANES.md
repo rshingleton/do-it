@@ -7,7 +7,7 @@ Size the work by its blast radius and risk, not by how easy it sounds.
 | **XS** | 1-2 files, roughly 30 changed lines or fewer, no new public API, no risk area | build → self-review → `ship-it` |
 | **S** | One coherent change that fits one session; may touch a few modules | `scope-it` (single file, 0-3 questions) → `build-it` → `prove-it` → `ship-it` |
 | **M** | Several vertical slices, a new seam or interface, or more than one session | `scope-it` (grill, phases) → `build-it` (frontier, parallel when ready) → `prove-it` (full fan-out) → `ship-it` |
-| **L** | Bundled requests, an epic, or work whose shape is still unclear | A roadmap first ([roadmap-it](../roadmap-it/SKILL.md)), then one S or M work item per slice |
+| **L** | Bundled requests, an epic, or work whose shape is still unclear | A roadmap first ([roadmap-it](../roadmap-it/SKILL.md)), then one S or M work item per slice; with `--complete`, [finish-it](../finish-it/SKILL.md) chains the slices |
 
 ## Risk areas
 
@@ -27,6 +27,17 @@ slices in the repo's roadmap directory. Each slice is then built as normal
 work with `/do-it <roadmap file>#R<n>`, and ship-it marks it shipped. An L
 item already planned under the old capability map (`docs/planning/<id>/MAP.md`)
 is finished as it is.
+
+## Lane L: complete run
+
+`/do-it <roadmap file> --complete [lite|full|ultra]` reads
+[finish-it](../finish-it/SKILL.md). Every decision is settled in one sweep
+first, then the run chains slices with no user turn: scope, build, prove and
+ship for each, until none can go on. A slice that cannot proceed is parked
+with its reason; independent slices continue. The run waits on the user only
+at plan approval and at the final review. `lite` keeps a human gate after each
+slice. Without the flag lane L is unchanged: one slice per `/do-it`. A
+`--complete` run commits locally, per phase by default (`--commit phase|slice|none`) (ADR 0008); a run never pushes or opens a PR.
 
 ## Raising the lane
 

@@ -93,8 +93,8 @@ return `done`. Called by `do-it`, let it continue; run alone, close with:
 
 ## Rules
 
-- No commits, no pushes, no stashes on the user's branch. Parallel scratch
-  branches are the only commits, and they never reach the user's branch.
+- No commits, no pushes, no stashes on the user's branch, unless a run record
+  exists for the item: then [COMMITS.md](COMMITS.md). Scratch branches never merge.
 - No edits to ADR status, a `CONTEXT.md`, the context map or the changelog;
   `ship-it` owns them.
 - Do not change the plan's scope. Raise it with the user instead.

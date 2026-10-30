@@ -30,8 +30,7 @@ The destination fixes the scope; everything else follows from it.
 ## 2. See the ground
 
 - Existing code: read `docs/reference/` if mapped, else call the Skill tool
-  with "map-it" in chat mode for the areas involved. A health check of a risky
-  area: call the Skill tool with "sweep-it".
+  with "map-it" in chat mode. A risky area's health: "sweep-it".
 - External facts the effort depends on: one subagent per question, on the
   mid-tier model, each calling the Skill tool with "look-it-up", in parallel, each reply
   `done`, `blocked` or `failed` plus one line, under 100 words.
@@ -44,7 +43,8 @@ Grill breadth-first across the whole destination, then cut slices per
 [SLICING.md](SLICING.md): vertical, shippable, lane S or M, each with what it
 delivers, covers, is blocked by, and the check that verifies it. What cannot
 be cut yet goes to Open decisions (sharp) or Fog (not yet sharp). Decisions
-that are hard to reverse get an ADR through name-it.
+that are hard to reverse get an ADR through name-it. For a `--complete`
+run, settle every decision now: [SWEEP.md](SWEEP.md).
 
 ## 4. Sequence
 
