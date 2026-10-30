@@ -6,7 +6,7 @@ import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { STOPS } from '../skills/do-it/scripts/stops.mjs';
-import { gate as gateRule, runGate, runVerify } from '../skills/do-it/scripts/gate.mjs';
+import { gate as gateRule, runGate, runRejectAssumption, runVerify } from '../skills/do-it/scripts/gate.mjs';
 import { nextSlice, showRun } from '../skills/do-it/scripts/run.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -254,4 +254,68 @@ test('the finish-it resume text names the slice id that `run slice ... ready` ne
   const resume = section(fs.readFileSync(path.join(ROOT, 'skills/finish-it/SKILL.md'), 'utf8'), '3. Resume');
   assert.match(resume, /work\.mjs run slice <slug> <slice> ready/);
   assert.doesNotMatch(resume, /no id/);
+});
+
+// A run record "road" whose item "feat" has two assumptions with the same text, and a stub
+// work item that records the plan events fired at it.
+function rejectFixture(planStatus = 'shipping') {
+  const dir = fixture();
+  ok(work(dir, 'run', 'add-assumptions', 'road', 'feat', '["same","same"]'));
+  const fired = [];
+  const plan = { state: { status: planStatus, assumptions: ['same', 'same'] } };
+  const items = {
+    get: () => plan,
+    fire: (id, event, args) => {
+      fired.push([id, event, args.n, args.text]);
+      if (items.fail) throw new Error('plan event refused');
+    },
+  };
+  return { ...unit(dir), items, fired, plan };
+}
+
+test('reject-assumption: two assumptions with equal text reject by n, not by the first text match', () => {
+  const t = rejectFixture();
+  const out = runRejectAssumption({ ...t, key: 'feat#2', instead: 'different' });
+  assert.deepEqual(t.fired, [['feat', 'reject-assumption', 2, 'different']]);
+  assert.equal(out.reopened, true);
+  const rec = showRun(t.planningDir, 'road');
+  assert.ok(rec.assumptions.includes('feat#1: same') && !rec.assumptions.includes('feat#2: same'), 'the other keeps its number');
+  assert.deepEqual(rec.rejected, ['feat#2: same (instead: different)']);
+});
+
+test('reject-assumption: an earlier rejection shifts the plan position, not the key', () => {
+  const t = rejectFixture();
+  runRejectAssumption({ ...t, key: 'feat#1', instead: 'a' });
+  t.plan.state.assumptions = ['same']; // the plan event removed the first
+  runRejectAssumption({ ...t, key: 'feat#2', instead: 'b' });
+  assert.deepEqual(t.fired.map((f) => f[2]), [1, 1], 'feat#2 is now the plan\'s first');
+});
+
+test('reject-assumption: a refused plan event leaves the record exactly as it was', () => {
+  const t = rejectFixture();
+  t.items.fail = true;
+  const before = JSON.stringify(showRun(t.planningDir, 'road'));
+  assert.throws(() => runRejectAssumption({ ...t, key: 'feat#1', instead: 'x' }), /plan event refused/);
+  assert.equal(JSON.stringify(showRun(t.planningDir, 'road')), before);
+});
+
+test('reject-assumption: a plan that no longer matches is refused before anything is written', () => {
+  const t = rejectFixture();
+  t.plan.state.assumptions = ['same', 'edited by hand'];
+  const before = JSON.stringify(showRun(t.planningDir, 'road'));
+  assert.throws(() => runRejectAssumption({ ...t, key: 'feat#2', instead: 'x' }), /no longer matches/);
+  assert.equal(JSON.stringify(showRun(t.planningDir, 'road')), before);
+  assert.deepEqual(t.fired, []);
+});
+
+test('reject-assumption: a closed item has no plan to reopen, so only the record changes', () => {
+  const t = rejectFixture();
+  t.items.get = () => {
+    throw new Error('no such item');
+  };
+  const out = runRejectAssumption({ ...t, key: 'feat#1', instead: 'x' });
+  assert.equal(out.reopened, false);
+  assert.deepEqual(t.fired, []);
+  assert.equal(showRun(t.planningDir, 'road').rejected.length, 1);
+  assert.throws(() => runRejectAssumption({ ...t, key: 'feat#9', instead: 'x' }), /no recorded assumption/);
 });

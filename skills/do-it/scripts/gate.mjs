@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { snapshot, treeDiff } from './changeset.mjs';
 import { dirtyHashes } from './commit.mjs';
-import { read, runPath, showRun, sliceRun, write } from './run.mjs';
+import { read, rejectAssumption, runPath, showRun, sliceRun, write } from './run.mjs';
 
 function entry(record, id) {
   record.gates = Array.isArray(record.gates) ? record.gates : [];
@@ -138,4 +138,39 @@ export function runReviewChange({ planningDir, root, slug, exclude }) {
   if (commit === 'none' || dirty) return { base, mode: 'worktree', ...treeDiff(root, base, snapshot(root, { exclude }), { exclude }) };
   const from = git(['merge-base', base, 'HEAD']).stdout.trim() || base;
   return { base, mode: 'range', ...treeDiff(root, from, 'HEAD', { exclude }) };
+}
+
+// `run reject-assumption`: the plan's event fires first, so a plan that refuses leaves the record
+// untouched, and the plan entry is found by the key's number, not by its text. A recorded number
+// is fixed when the assumption is added, while the plan's list closes up after each rejection,
+// so earlier rejections of the same item are subtracted. A closed item has no plan to reopen:
+// the record is the whole trace.
+export function runRejectAssumption({ planningDir, slug, key, instead, items, date }) {
+  const m = /^(.+)#(\d+)$/.exec(key ?? '');
+  if (!m) throw new Error('run reject-assumption needs <work id>#<n>');
+  if (!instead) throw new Error('run reject-assumption needs what replaces the assumption');
+  const record = showRun(planningDir, slug);
+  const entry = record.assumptions.find((a) => a.startsWith(`${key}: `));
+  if (!entry) throw new Error(`no recorded assumption ${key}`);
+  let plan = null;
+  try {
+    plan = items.get(m[1]);
+  } catch {
+    plan = null;
+  }
+  const live = Boolean(plan) && ['auditing', 'shipping'].includes(plan.state.status);
+  if (live) {
+    const n = Number(m[2]);
+    const earlier = record.rejected.filter((r) => {
+      const k = /^(.+)#(\d+): /.exec(r);
+      return k && k[1] === m[1] && Number(k[2]) < n;
+    }).length;
+    const at = n - earlier;
+    if (plan.state.assumptions[at - 1] !== entry.slice(key.length + 2)) {
+      throw new Error(`plan ${m[1]} assumption ${at} no longer matches ${key}; nothing rejected`);
+    }
+    items.fire(m[1], 'reject-assumption', { n: at, text: instead, date });
+  }
+  const { record: next } = rejectAssumption(planningDir, slug, key, instead);
+  return { rejected: key, reopened: live, followup: live ? null : 'item closed: the user files a fix: or log-it entry', record: next };
 }

@@ -37,8 +37,8 @@ import { allowedMoves, firableEvents, workItems } from './items.mjs';
 import { roadmapSlices } from './roadmap.mjs';
 import { commitSlice } from './commit.mjs';
 import { buildDigest } from './digest.mjs';
-import { addAssumptions, createRun, nextSlice, rejectAssumption, runPath, setRun, showRun, sliceRun } from './run.mjs';
-import { countAudit, runGate, runReviewChange, runVerify, startSlice } from './gate.mjs';
+import { addAssumptions, createRun, nextSlice, runPath, setRun, showRun, sliceRun } from './run.mjs';
+import { countAudit, runGate, runRejectAssumption, runReviewChange, runVerify, startSlice } from './gate.mjs';
 
 // Flags that take no value.
 const FLAGS = new Set(['brief', 'docs']);
@@ -224,25 +224,8 @@ export async function run(argv, { cwd = process.cwd() } = {}) {
           return setRun(ctx.planningDir, slug, args[0], args[1] === undefined ? undefined : json(args[1]));
         case 'add-assumptions':
           return addAssumptions(ctx.planningDir, slug, args[0], args[1] === undefined ? undefined : json(args[1]));
-        case 'reject-assumption': {
-          const key = args[0] ?? '';
-          const m = /^(.+)#(\d+)$/.exec(key);
-          if (!m) throw new Error('run reject-assumption needs <work id>#<n>');
-          const instead = args.slice(1).join(' ');
-          if (!instead) throw new Error('run reject-assumption needs what replaces the assumption');
-          const { record, text } = rejectAssumption(ctx.planningDir, slug, key, instead);
-          // A plan still auditing or shipping reopens; a closed item's plan is gone, so the record is the whole trace.
-          let plan = null;
-          try {
-            plan = items.get(m[1]);
-          } catch {
-            plan = null;
-          }
-          const at = plan ? plan.state.assumptions.indexOf(text) : -1;
-          const live = at >= 0 && ['auditing', 'shipping'].includes(plan.state.status);
-          if (live) items.fire(m[1], 'reject-assumption', { n: at + 1, text: instead, date: opts.date });
-          return { rejected: key, reopened: live, followup: live ? null : 'item closed: the user files a fix: or log-it entry', record };
-        }
+        case 'reject-assumption':
+          return runRejectAssumption({ planningDir: ctx.planningDir, slug, key: args[0], instead: args.slice(1).join(' '), items, date: opts.date });
         case 'slice':
           return sliceRun(ctx.planningDir, slug, args[0], args[1], { reason: opts.reason, needs: opts.needs });
         case 'next': {
