@@ -14,6 +14,10 @@ Level full, commit phase, started 2026-10-30.
 
 - R3: waits on R2
 
+## Retried (0)
+
+- none
+
 ## Assumptions taken (2)
 
 - Retry once on timeout

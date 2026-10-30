@@ -177,6 +177,8 @@ export function sliceRun(planningDir, slug, id, status, { reason, needs } = {}) 
   if (prior?.status === 'shipped') throw new Error(`slice ${id} is shipped; a shipped slice does not move`);
   if (status === 'ready') {
     // Resume: the user settled what parked it, so the slice rejoins the queue.
+    // What it was is kept in `retries`, so the digest can say how the retry ended.
+    if (prior) cur.record.retries = [...(cur.record.retries ?? []), { id, was: prior.status, reason: prior.reason ?? null }];
     cur.record.slices = cur.record.slices.filter((s) => s.id !== id);
     write(file, cur);
     return cur.record;

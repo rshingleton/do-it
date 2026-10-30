@@ -28,9 +28,10 @@ working tree.
 3. It prints the digest and saves `<planning dir>/<slug>.run/DIGEST.md`,
    uncommitted. Never commit it.
 
-It lists slices shipped, parked and blocked with reasons, assumptions,
-verification limits, findings filed, the `shortcut:` ledger (`no-trigger`
-flagged), tokens, rollback commands per phase tag and four retro lines.
+It lists slices shipped, parked and blocked with reasons, retried slices and
+how each retry ended, assumptions, verification limits, findings filed, the
+`shortcut:` ledger (`no-trigger` flagged), tokens, rollback commands per phase
+tag of this run's work items only, and four retro lines.
 
 ## 3. Assumption review
 
