@@ -5,12 +5,18 @@
 // attribution line (the user's commit rule), so the commit guard allows it.
 
 import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
 import { showRun, setRun } from './run.mjs';
 
 export const ATTRIBUTION = 'Build assistance with do-it: https://github.com/rshingleton/do-it';
 
+// Literal pathspecs: a named path is a file name, never a glob, so `src/*`
+// cannot stage what the slice did not map.
+const ENV = { ...process.env, GIT_LITERAL_PATHSPECS: '1' };
+
 function git(cwd, args, input) {
-  const r = spawnSync('git', args, { cwd, encoding: 'utf8', input });
+  const r = spawnSync('git', args, { cwd, encoding: 'utf8', input, env: ENV });
   if (r.status !== 0) throw new Error(`git ${args[0]} failed: ${(r.stderr || r.stdout).trim()}`);
   return r.stdout.trim();
 }
@@ -66,6 +72,26 @@ export function commitSlice({ root, planningDir, config, items, slug, id, phase,
   if (!Array.isArray(paths) || !paths.length) throw new Error('commit needs the mapped paths (--paths a,b); never everything');
   if (paths.some((p) => p === '.' || p === '-A' || p === '--all' || p.startsWith('-') || p.startsWith(':'))) {
     throw new Error(`commit stages named files only, got ${paths.join(',')}`);
+  }
+  // A directory, even one deleted from disk, would stage every edit under it, other slices' included.
+  for (const p of paths) {
+    const onDisk = fs.statSync(path.resolve(root, p), { throwIfNoEntry: false })?.isDirectory();
+    if (onDisk || lines(git(root, ['ls-files', '--', p])).some((f) => f !== path.normalize(p))) throw new Error(`commit stages named files only, ${p} is a directory`);
+  }
+  // A phase retried after its commit landed: the commit is HEAD, so nothing is left to stage and the tag may be the
+  // only thing missing. Anything else under that tag (a new edit, another commit) is refused, never skipped.
+  if (phase !== undefined) {
+    const tag = `do-it/${id}/phase-${phase}`;
+    const head = spawnSync('git', ['rev-parse', '-q', '--verify', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim();
+    const tagged = spawnSync('git', ['rev-parse', '-q', '--verify', `refs/tags/${tag}^{commit}`], { cwd: root, encoding: 'utf8' }).stdout.trim();
+    const landed =
+      head && git(root, ['log', '-1', '--format=%s']) === subject && git(root, ['log', '-1', '--format=%B']).endsWith(ATTRIBUTION) &&
+      !git(root, ['status', '--porcelain', '--', ...paths]);
+    if (landed && (!tagged || tagged === head)) {
+      if (!tagged) git(root, ['tag', tag, head]);
+      return { commit: head, branch: currentBranch(root), tag, subject, limits: run.limits };
+    }
+    if (tagged) throw new Error(`phase ${phase} is already committed as ${tag}; nothing committed`);
   }
   if (lines(git(root, ['diff', '--cached', '--name-only'])).length) throw new Error('the index already holds staged files; unstage them first');
   for (const p of paths) {

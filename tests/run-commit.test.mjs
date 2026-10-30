@@ -119,6 +119,77 @@ test('the commit step refuses everything-staging and a dirty index', () => {
   assert.equal(git(dir, 'rev-parse', 'HEAD'), head);
 });
 
+test('a directory path is refused, so another slice\'s edit in it stays unstaged', () => {
+  const { dir } = fixture();
+  ok(work(dir, 'run', 'new', 'road'));
+  verify(dir);
+  write(dir, 'src/mine.js', 'mine\n');
+  write(dir, 'src/theirs.js', 'theirs\n');
+  const head = git(dir, 'rev-parse', 'HEAD');
+  assert.match(work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'src').out.error, /directory/);
+  assert.equal(git(dir, 'rev-parse', 'HEAD'), head);
+  assert.equal(git(dir, 'diff', '--cached', '--name-only'), '', 'nothing was staged');
+});
+
+test('a retried phase commit after the commit landed returns the same sha and tag', () => {
+  const { dir } = fixture();
+  ok(work(dir, 'run', 'new', 'road'));
+  verify(dir);
+  // ./a.js is a file, not a directory, whatever form it is spelled in.
+  const first = ok(work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', './a.js,b.js'));
+  const again = ok(work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'a.js,b.js'));
+  assert.equal(again.commit, first.commit);
+  assert.equal(again.tag, first.tag);
+  assert.equal(git(dir, 'rev-parse', 'HEAD'), first.commit, 'no second commit');
+  // The commit landed but the tag did not (a crash between them): the retry tags it.
+  git(dir, 'tag', '-d', first.tag);
+  assert.equal(ok(work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'a.js,b.js')).tag, first.tag);
+  assert.equal(git(dir, 'rev-parse', `${first.tag}^{commit}`), first.commit);
+});
+
+test('a glob or deleted-directory path cannot stage another slice\'s edits', () => {
+  const { dir } = fixture();
+  ok(work(dir, 'run', 'new', 'road'));
+  verify(dir);
+  write(dir, 'src/mine.js', 'mine\n');
+  write(dir, 'src/theirs.js', 'theirs\n');
+  git(dir, 'add', 'src');
+  git(dir, 'commit', '-qm', 'add src');
+  write(dir, 'src/mine.js', 'mine2\n');
+  write(dir, 'src/theirs.js', 'theirs2\n');
+  const head = git(dir, 'rev-parse', 'HEAD');
+  assert.equal(work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'src/*').status, 1);
+  assert.equal(git(dir, 'diff', '--cached', '--name-only'), '');
+  fs.rmSync(path.join(dir, 'src'), { recursive: true });
+  assert.match(work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'src').out.error, /directory/);
+  assert.equal(git(dir, 'rev-parse', 'HEAD'), head);
+});
+
+test('the first phase commit works in a repo with no commits yet', () => {
+  const { dir } = fixture();
+  ok(work(dir, 'run', 'new', 'road'));
+  verify(dir);
+  fs.rmSync(path.join(dir, '.git'), { recursive: true });
+  git(dir, 'init', '-q', '-b', 'work');
+  git(dir, 'config', 'user.name', 't');
+  git(dir, 'config', 'user.email', 't@t');
+  git(dir, 'config', 'commit.gpgsign', 'false');
+  assert.ok(ok(work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'a.js')).commit);
+});
+
+test('a phase retry with a new edit, or onto a different tag, is refused rather than skipped', () => {
+  const { dir } = fixture();
+  ok(work(dir, 'run', 'new', 'road'));
+  verify(dir);
+  const first = ok(work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'a.js,b.js'));
+  write(dir, 'a.js', 'three\n');
+  assert.match(work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'a.js').out.error, /already committed/);
+  assert.equal(git(dir, 'rev-parse', 'HEAD'), first.commit);
+  git(dir, 'checkout', '-q', 'a.js');
+  git(dir, 'tag', '-f', first.tag, 'HEAD~1');
+  assert.match(work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'a.js,b.js').out.error, /already committed/);
+});
+
 test('verification limits go to the run record and the commit body, not a trailer', () => {
   const { dir } = fixture();
   ok(work(dir, 'run', 'new', 'road'));
