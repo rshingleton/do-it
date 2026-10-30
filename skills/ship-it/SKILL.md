@@ -95,5 +95,6 @@ ready, or nothing). On a roadmap slice, the slash command for the next one, neve
 
 - Never commit, push, amend or squash without an explicit "do it" in this
   run; push or open a PR only when the user asks.
+- A run record exists for the item: [RUNMODE.md](RUNMODE.md) replaces §2's question.
 - One commit for code and docs together unless the user asks for two; hooks
   still run on it, and a compliance block stops it.

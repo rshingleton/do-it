@@ -12,6 +12,7 @@
 //   work.mjs roadmap <file>
 //   work.mjs run new <slug> [--level --commit --max-slices --slice-cap-min --audit-cap]
 //   work.mjs run show <slug> | set <slug> <key> <json> | slice <slug> <id> <status> [--reason --needs]
+//   work.mjs run next <slug> <roadmap file>   (slice ready|parked|blocked|shipped; ready un-parks)
 //   work.mjs run commit <slug> <id> [--phase n] --paths a,b [--limits <json>]
 //   work.mjs close <id>
 //
@@ -29,7 +30,7 @@ import { needsUser } from './state.mjs';
 import { allowedMoves, firableEvents, workItems } from './items.mjs';
 import { roadmapSlices } from './roadmap.mjs';
 import { commitSlice } from './commit.mjs';
-import { createRun, setRun, showRun, sliceRun } from './run.mjs';
+import { createRun, nextSlice, setRun, showRun, sliceRun } from './run.mjs';
 
 // Flags that take no value.
 const FLAGS = new Set(['brief']);
@@ -209,6 +210,11 @@ export async function run(argv, { cwd = process.cwd() } = {}) {
           return setRun(ctx.planningDir, slug, args[0], args[1] === undefined ? undefined : json(args[1]));
         case 'slice':
           return sliceRun(ctx.planningDir, slug, args[0], args[1], { reason: opts.reason, needs: opts.needs });
+        case 'next': {
+          if (!args[0]) throw new Error('run next needs a roadmap file');
+          const file = path.resolve(cwd, args[0]);
+          return nextSlice(roadmapSlices(file, ctx), showRun(ctx.planningDir, slug));
+        }
         case 'commit': {
           if (!args[0]) throw new Error('run commit needs a work id');
           const limits = opts.limits === undefined ? [] : json(opts.limits);
@@ -218,7 +224,7 @@ export async function run(argv, { cwd = process.cwd() } = {}) {
           });
         }
         default:
-          throw new Error('usage: work.mjs run new|show|set|slice|commit <slug> ...');
+          throw new Error('usage: work.mjs run new|show|set|slice|next|commit <slug> ...');
       }
     }
     case 'close': {

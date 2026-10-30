@@ -138,11 +138,17 @@ export function setRun(planningDir, slug, key, value) {
 export function sliceRun(planningDir, slug, id, status, { reason, needs } = {}) {
   checkSlug(slug);
   if (!id) throw new Error('run slice needs a slice id');
-  oneOf('status', status, SLICE_STATUSES);
+  oneOf('status', status, [...SLICE_STATUSES, 'ready']);
   const file = runPath(planningDir, slug);
   const cur = read(file, slug);
   const prior = cur.record.slices.find((s) => s.id === id);
   if (prior?.status === 'shipped') throw new Error(`slice ${id} is shipped; a shipped slice does not move`);
+  if (status === 'ready') {
+    // Resume: the user settled what parked it, so the slice rejoins the queue.
+    cur.record.slices = cur.record.slices.filter((s) => s.id !== id);
+    write(file, cur);
+    return cur.record;
+  }
   const entry = { id, status };
   if (status === 'parked') {
     if (!reason || !String(reason).trim()) throw new Error('a parked slice needs --reason');
@@ -152,4 +158,26 @@ export function sliceRun(planningDir, slug, id, status, { reason, needs } = {}) 
   cur.record.slices = prior ? cur.record.slices.map((s) => (s.id === id ? entry : s)) : [...cur.record.slices, entry];
   write(file, cur);
   return cur.record;
+}
+
+// The slice a run builds next. `road` is roadmapSlices' result, `record` the run
+// record. A parked or blocked slice is skipped, and so is anything that waits on
+// one (through any chain of Blocked-by); every other slice goes on. A slice
+// already in flight resumes before a new one starts.
+export function nextSlice(road, record) {
+  const held = new Set(record.slices.filter((s) => s.status === 'parked' || s.status === 'blocked').map((s) => s.id));
+  const byId = new Map(road.slices.map((s) => [s.id, s]));
+  const waitsOnHeld = (s, seen = new Set()) =>
+    s.blocked_by.some((b) => {
+      if (held.has(b)) return true;
+      if (seen.has(b) || !byId.has(b)) return false;
+      seen.add(b);
+      return waitsOnHeld(byId.get(b), seen);
+    });
+  const open = road.slices.filter((s) => !['shipped', 'dropped'].includes(s.state));
+  const waiting = open.filter((s) => !held.has(s.id) && waitsOnHeld(s)).map((s) => s.id);
+  const free = (id) => !held.has(id) && !waiting.includes(id);
+  const flying = open.find((s) => s.state === 'in flight' && free(s.id));
+  const next = flying?.id ?? road.ready.find(free) ?? null;
+  return { next, parked: [...held], waiting };
 }

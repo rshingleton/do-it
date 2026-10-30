@@ -2,7 +2,7 @@
 name: do-it
 description: Size a piece of work and carry it from request to ship, running only the steps its size needs; also resumes an existing work item.
 disable-model-invocation: true
-argument-hint: "[request | issue path | tracker ref | work id] [--lane xs|s|m|l]"
+argument-hint: "[request | issue path | tracker ref | work id] [--lane xs|s|m|l] [--complete [lite|full|ultra] --commit phase|slice|none --max-slices N]"
 ---
 
 # do-it
@@ -19,6 +19,7 @@ decides which ones the work needs and runs them in order.
 | `docs/issues/<slug>.md`, `#42`, `ABC-123`, an issue URL | New work from an issue. Fetch it with the `track-it` skill, then scout and size it. |
 | `<roadmap file>#R<n>` | A roadmap slice. `work.mjs roadmap <file>` gives its state: ask each `blocking` decision first ([roadmap-it](../roadmap-it/SKILL.md) §6), then only `ready` or `refine` may start. Scout and size it (S or M); scope-it records `roadmap:`. |
 | A request with `todo: <id>` | New work promoted by log-it from the to-do list. scope-it records `todo:`; lane XS passes `--todo <id>` to ship-it. |
+| A roadmap file with `--complete` | Read [finish-it](../finish-it/SKILL.md) and follow it; the flags go with it. |
 | A work id, or nothing | Resume. `work.mjs show <id> --brief`; with no argument, `work.mjs list` (every plan there is open) and pick the only one, or ask which. |
 | Free text asking to understand or examine, not change | Explore instead: hand off per [EXPLORE.md](EXPLORE.md). |
 
@@ -76,15 +77,14 @@ Only these points wait for the user:
 
 - `scope-it`: lane S's 0-3 questions (skipped when nothing is open) and its
   plan approval; lane M's grill rounds, the last of which approves the plan.
-- A roadmap's blocking decision (§3), before a slice starts and after a ship.
-- Lane L: roadmap approval in `roadmap-it`.
+- Lane L: roadmap approval in `roadmap-it`, and a blocking decision (§3) before a slice and after a ship. `--complete`: only finish-it's two turns.
 - `build-it`: a stop condition it reports as `blocked`.
 - `prove-it`: round 3 of a failing audit.
 - `ship-it`: its one question (at most three answers), and after a review,
   one line to commit.
 
-Everything between plan approval and ship runs without asking. At a boundary,
-continue, or suggest a fresh session per [BOUNDARIES.md](BOUNDARIES.md).
+Between plan approval and ship nothing asks. At a boundary, continue, or suggest
+a fresh session per [BOUNDARIES.md](BOUNDARIES.md).
 
 ## 5. Lane XS
 
