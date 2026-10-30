@@ -1,6 +1,7 @@
 // A complete run's record: level, commit mode, branch, caps, per-slice state,
 // assumptions taken and verification limits. It lives at
-// <planning dir>/<roadmap-slug>.run/RUN.md and work.mjs is its only writer.
+// <planning dir>/<roadmap-slug>.run/RUN.md. Every write goes through `updateRun`
+// here, whoever calls it (gate.mjs keeps its per-slice facts the same way).
 // The directory has no README.md, so items.mjs never lists it as a work item.
 
 import fs from 'node:fs';
@@ -21,8 +22,19 @@ export function runPath(planningDir, slug) {
   return path.join(planningDir, `${slug}.run`, 'RUN.md');
 }
 
+// A slug or a work id: letters, digits, `_`, `.` and `-`, starting with a letter or digit.
+export const ID = '[A-Za-z0-9][A-Za-z0-9_.-]*';
+const ID_ONLY = new RegExp(`^${ID}$`);
+export const isId = (s) => typeof s === 'string' && ID_ONLY.test(s);
+
+// A recorded assumption or rejection, `<work id>#<n>` with an optional `: text`.
+export function splitKey(s) {
+  const m = new RegExp(`^(${ID})#(\\d+)(?:: (.*))?$`, 's').exec(s ?? '');
+  return m ? { id: m[1], n: Number(m[2]), text: m[3] } : null;
+}
+
 function checkSlug(slug) {
-  if (!slug || !/^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(slug)) throw new Error('run needs a roadmap slug (kebab-case)');
+  if (!slug || !ID_ONLY.test(slug)) throw new Error('run needs a roadmap slug (kebab-case)');
 }
 
 // A positive whole number, or null where the cap is optional and unset.
@@ -101,6 +113,16 @@ export function write(file, { record, body, eol }) {
   }
 }
 
+// The one read-modify-write of a record: `change(record)` edits it in place, and a throw leaves the file as it was.
+export function updateRun(planningDir, slug, change) {
+  checkSlug(slug);
+  const file = runPath(planningDir, slug);
+  const cur = read(file, slug);
+  change(cur.record);
+  write(file, cur);
+  return cur.record;
+}
+
 // `defaults` carries the config's caps; a flag in `opts` wins over it.
 export function createRun(planningDir, slug, opts, defaults, { now = () => new Date().toISOString() } = {}) {
   checkSlug(slug);
@@ -145,78 +167,74 @@ function clearRefusals(r) {
 }
 
 export function setRun(planningDir, slug, key, value) {
-  checkSlug(slug);
   if (!SETTABLE.includes(key)) throw new Error(`run set takes one of: ${SETTABLE.join(', ')}`);
   if (value === undefined) throw new Error(`run set ${key} needs a value`);
-  const file = runPath(planningDir, slug);
-  const cur = read(file, slug);
-  cur.record[key] = validate(key, value);
-  if (CAPS.includes(key)) clearRefusals(cur.record);
-  write(file, cur);
-  return cur.record;
+  return updateRun(planningDir, slug, (r) => {
+    r[key] = validate(key, value);
+    if (CAPS.includes(key)) clearRefusals(r);
+  });
 }
 
 // Merge one work item's plan assumptions into the record, each stored as
 // `<id>#<n>: text` (n = its place in the item's own list, what reject-assumption
 // takes). Re-adding an id replaces that id's entries; other entries stay.
 export function addAssumptions(planningDir, slug, id, items) {
-  checkSlug(slug);
-  if (!id || !/^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(id)) throw new Error('run add-assumptions needs the work id');
+  if (!id || !ID_ONLY.test(id)) throw new Error('run add-assumptions needs the work id');
   list('assumptions', items);
-  const file = runPath(planningDir, slug);
-  const cur = read(file, slug);
-  cur.record.assumptions = [...cur.record.assumptions.filter((a) => !a.startsWith(`${id}#`)), ...items.map((t, i) => `${id}#${i + 1}: ${t}`)];
-  write(file, cur);
-  return cur.record;
+  return updateRun(planningDir, slug, (r) => {
+    r.assumptions = [...r.assumptions.filter((a) => !a.startsWith(`${id}#`)), ...items.map((t, i) => `${id}#${i + 1}: ${t}`)];
+  });
 }
 
 // Remove one recorded assumption by its `<id>#<n>` key (never by index, so the
 // other keys keep their numbers) and keep it under `rejected` with what replaces it.
 export function rejectAssumption(planningDir, slug, key, instead) {
-  checkSlug(slug);
-  const file = runPath(planningDir, slug);
-  const cur = read(file, slug);
-  const entry = cur.record.assumptions.find((a) => a.startsWith(`${key}: `));
-  if (!entry) throw new Error(`no recorded assumption ${key}`);
-  cur.record.assumptions = cur.record.assumptions.filter((a) => a !== entry);
-  cur.record.rejected = [...cur.record.rejected, instead ? `${entry} (instead: ${instead})` : entry];
-  write(file, cur);
-  return { record: cur.record, text: entry.slice(key.length + 2) };
+  if (!instead) throw new Error('run reject-assumption needs what replaces the assumption');
+  let text;
+  const record = updateRun(planningDir, slug, (r) => {
+    const entry = r.assumptions.find((a) => a.startsWith(`${key}: `));
+    if (!entry) throw new Error(`no recorded assumption ${key}`);
+    r.assumptions = r.assumptions.filter((a) => a !== entry);
+    r.rejected = [...r.rejected, `${entry} (instead: ${instead})`];
+    text = entry.slice(key.length + 2);
+  });
+  return { record, text };
 }
 
 // A slice moves to shipped, parked (with a reason and who must act) or
 // blocked (waiting on a parked slice). A shipped slice never moves again.
 export function sliceRun(planningDir, slug, id, status, { reason, needs } = {}) {
-  checkSlug(slug);
   if (!id) throw new Error('run slice needs a slice id');
-  oneOf('status', status, [...SLICE_STATUSES, 'ready']);
-  const file = runPath(planningDir, slug);
-  const cur = read(file, slug);
-  const prior = cur.record.slices.find((s) => s.id === id);
-  if (prior?.status === 'shipped') throw new Error(`slice ${id} is shipped; a shipped slice does not move`);
-  if (status === 'ready') {
-    // Resume: the user settled what parked it, so the slice rejoins the queue.
-    // What it was is kept in `retries`, so the digest can say how the retry ended.
-    if (prior) cur.record.retries = [...(cur.record.retries ?? []), { id, was: prior.status, reason: prior.reason ?? null }];
-    cur.record.slices = cur.record.slices.filter((s) => s.id !== id);
-    // A resumed slice starts its audit rounds again: what stopped it is settled.
-    const g = (cur.record.gates ?? []).find((x) => x.id === id);
-    if (g) {
-      delete g.audit_rounds;
-      delete g.audit_refused;
-    }
-    write(file, cur);
-    return cur.record;
-  }
+  oneOf('status', status, SLICE_STATUSES);
   const entry = { id, status };
   if (status === 'parked') {
     if (!reason || !String(reason).trim()) throw new Error('a parked slice needs --reason');
     entry.reason = String(reason);
     entry.needs = oneOf('needs', needs, NEEDS);
   } else if (reason) entry.reason = String(reason);
-  cur.record.slices = prior ? cur.record.slices.map((s) => (s.id === id ? entry : s)) : [...cur.record.slices, entry];
-  write(file, cur);
-  return cur.record;
+  return updateRun(planningDir, slug, (r) => {
+    const prior = r.slices.find((s) => s.id === id);
+    if (prior?.status === 'shipped') throw new Error(`slice ${id} is shipped; a shipped slice does not move`);
+    r.slices = prior ? r.slices.map((s) => (s.id === id ? entry : s)) : [...r.slices, entry];
+  });
+}
+
+// Resume (`run slice <id> ready`): the user settled what parked the slice, so it rejoins the queue.
+// What it was is kept in `retries`, so the digest can say how the retry ended, and its audit rounds
+// start again: what stopped it is settled.
+export function resumeSlice(planningDir, slug, id) {
+  if (!id) throw new Error('run slice needs a slice id');
+  return updateRun(planningDir, slug, (r) => {
+    const prior = r.slices.find((s) => s.id === id);
+    if (prior?.status === 'shipped') throw new Error(`slice ${id} is shipped; a shipped slice does not move`);
+    if (prior) r.retries = [...(r.retries ?? []), { id, was: prior.status, reason: prior.reason ?? null }];
+    r.slices = r.slices.filter((s) => s.id !== id);
+    const g = (r.gates ?? []).find((x) => x.id === id);
+    if (g) {
+      delete g.audit_rounds;
+      delete g.audit_refused;
+    }
+  });
 }
 
 // The slice a run builds next. `road` is roadmapSlices' result, `record` the run

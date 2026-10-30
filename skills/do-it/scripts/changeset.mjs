@@ -8,18 +8,12 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { git } from './git.mjs';
 
 export const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
 
 export function hasObject(cwd, id) {
   return git(cwd, ['cat-file', '-e', id]).status === 0;
-}
-
-function git(cwd, args, encoding = 'utf8', env = process.env, limits = {}) {
-  const r = spawnSync('git', args, { cwd, encoding, env, maxBuffer: 512 * 1024 * 1024, ...limits });
-  if (r.error) throw r.error;
-  return r;
 }
 
 // Resolve the base to a commit, or the empty tree before the first commit.

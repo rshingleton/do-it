@@ -3,7 +3,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { git } from './git.mjs';
 import { listItems } from './items.mjs';
 import { splitFrontmatter, parseFlat } from '../../track-it/scripts/frontmatter.mjs';
 
@@ -65,7 +65,7 @@ export function parseRoadmap(text) {
 }
 
 function isTracked(root, file) {
-  const r = spawnSync('git', ['ls-files', '--error-unmatch', '--', path.relative(root, file)], { cwd: root, encoding: 'utf8' });
+  const r = git(root, ['ls-files', '--error-unmatch', '--', path.relative(root, file)]);
   return r.status === 0;
 }
 

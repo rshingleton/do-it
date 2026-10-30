@@ -40,8 +40,9 @@ import { needsUser } from './state.mjs';
 import { allowedMoves, firableEvents, workItems } from './items.mjs';
 import { roadmapSlices } from './roadmap.mjs';
 import { commitSlice } from './commit.mjs';
+import { git } from './git.mjs';
 import { buildDigest } from './digest.mjs';
-import { addAssumptions, createRun, nextSlice, runPath, setRun, showRun, sliceRun } from './run.mjs';
+import { addAssumptions, createRun, nextSlice, resumeSlice, runPath, setRun, showRun, sliceRun } from './run.mjs';
 import { countAudit, startSlice } from './gate.mjs';
 import { runGate, runRejectAssumption, runReviewChange, runVerify } from './runs.mjs';
 
@@ -87,8 +88,7 @@ function brief(item) {
 }
 
 function head(root) {
-  const r = spawnSync('git', ['rev-parse', '--verify', '--quiet', 'HEAD'], { cwd: root, encoding: 'utf8' });
-  return r.status === 0 ? r.stdout.trim() : EMPTY_TREE;
+  return baseRef(root) ?? EMPTY_TREE;
 }
 
 // Hash of the change since the item's base, planning files excluded.
@@ -147,7 +147,7 @@ function eventArgs(ctx, item, event, rest, opts) {
 
 // HEAD's commit, or null outside a git repo or before the first commit.
 function baseRef(root) {
-  const r = spawnSync('git', ['rev-parse', '--verify', '--quiet', 'HEAD'], { cwd: root, encoding: 'utf8' });
+  const r = git(root, ['rev-parse', '--verify', '--quiet', 'HEAD']);
   return r.status === 0 ? r.stdout.trim() : null;
 }
 
@@ -232,6 +232,7 @@ export async function run(argv, { cwd = process.cwd() } = {}) {
         case 'reject-assumption':
           return runRejectAssumption({ planningDir: ctx.planningDir, slug, key: args[0], instead: args.slice(1).join(' '), items, date: opts.date });
         case 'slice':
+          if (args[1] === 'ready') return resumeSlice(ctx.planningDir, slug, args[0]);
           return sliceRun(ctx.planningDir, slug, args[0], args[1], { reason: opts.reason, needs: opts.needs });
         case 'next': {
           if (!args[0]) throw new Error('run next needs a roadmap file');
@@ -239,7 +240,7 @@ export async function run(argv, { cwd = process.cwd() } = {}) {
           return nextSlice(roadmapSlices(file, ctx), showRun(ctx.planningDir, slug));
         }
         case 'start':
-          return startSlice(ctx.planningDir, slug, args[0], { work: opts.work, at: opts.at });
+          return startSlice(ctx.planningDir, slug, args[0], { work: opts.work, at: opts.at ?? new Date().toISOString() });
         case 'audit':
           return countAudit(ctx.planningDir, slug, { id: args[0], final: opts.final === true });
         case 'gate':
@@ -260,7 +261,7 @@ export async function run(argv, { cwd = process.cwd() } = {}) {
           });
         }
         case 'digest': {
-          const tags = spawnSync('git', ['tag', '-l', 'do-it/*/phase-*'], { cwd: ctx.root, encoding: 'utf8' }).stdout.split('\n').filter(Boolean).sort();
+          const tags = git(ctx.root, ['tag', '-l', 'do-it/*/phase-*']).stdout.split('\n').filter(Boolean).sort();
           const arg = (k, d) => (opts[k] === undefined ? d : json(opts[k]));
           const text = buildDigest({ record: showRun(ctx.planningDir, slug), tags, usage: arg('usage', null), findings: arg('findings', []), retro: arg('retro', []) });
           fs.writeFileSync(path.join(path.dirname(runPath(ctx.planningDir, slug)), 'DIGEST.md'), text);

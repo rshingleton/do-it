@@ -2,14 +2,16 @@
 // Pure: work.mjs gathers the git tags and the optional inputs. No estimates of
 // time or money; every figure is a count or a value read from the record.
 
+import { splitKey } from './run.mjs';
+
 const RETRO = ['Worked', 'Failed', 'Change', 'Next'];
 const bullets = (items, none = 'none') => (items.length ? items.map((x) => `- ${x}`) : [`- ${none}`]);
 
 // An assumption from a work item is stored `<id>#<n>: text`; show the id and the
 // item-local n that `work.mjs run reject-assumption <slug> <id>#<n>` takes.
 const origin = (a) => {
-  const m = /^([A-Za-z0-9][A-Za-z0-9_.-]*)#(\d+): (.*)$/s.exec(a);
-  return m ? `${m[1]} #${m[2]}: ${m[3]}` : a;
+  const k = splitKey(a);
+  return k?.text === undefined ? a : `${k.id} #${k.n}: ${k.text}`;
 };
 
 // A marker is `marker: <path> <text>`, the text being `shortcut: <limit>, <upgrade trigger>`.

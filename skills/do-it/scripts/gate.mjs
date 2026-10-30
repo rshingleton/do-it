@@ -5,7 +5,7 @@
 // record writers; the `run <sub>` handlers that call them are in runs.mjs.
 // work.mjs is the only caller.
 
-import { read, runPath, write } from './run.mjs';
+import { updateRun } from './run.mjs';
 
 function entry(record, id) {
   record.gates = Array.isArray(record.gates) ? record.gates : [];
@@ -14,26 +14,21 @@ function entry(record, id) {
   return g;
 }
 
-function update(planningDir, slug, change) {
-  const file = runPath(planningDir, slug);
-  const cur = read(file, slug);
-  change(cur.record);
-  write(file, cur);
-  return cur.record;
-}
-
-// Start the slice's clock and name its work item. A restart keeps the first time.
+// Start the slice's clock (`at`, an ISO time) and name its work item. A restart keeps the first time.
 export function startSlice(planningDir, slug, id, { work, at }) {
-  if (!id || !work) throw new Error('run start needs a slice id and --work <id>');
-  return update(planningDir, slug, (r) => {
+  if (!id || !work || !at) throw new Error('run start needs a slice id, --work <id> and a start time');
+  return updateRun(planningDir, slug, (r) => {
     const g = entry(r, id);
     g.work = work;
-    g.started ??= at ?? new Date().toISOString();
+    g.started ??= at;
   });
 }
 
+// What `run verify` saw: the slice's `verified_fingerprint` (its work item's change now) and
+// `verified_files`, `{<repo-relative name>: <mode>:<blob hash> | 'gone' | 'dir'}` from commit.mjs
+// `dirtyHashes`, which the lane M code commit compares its named paths against.
 export function recordVerified(planningDir, slug, id, fingerprint, files) {
-  return update(planningDir, slug, (r) => {
+  return updateRun(planningDir, slug, (r) => {
     entry(r, id).verified_fingerprint = fingerprint;
     if (files) entry(r, id).verified_files = files;
   });
@@ -69,7 +64,7 @@ const exhausted = (l) => spent(l) > l.cap || (l.at[l.refused] === spent(l) && sp
 export function countAudit(planningDir, slug, { id, final = false } = {}) {
   if (!final && !id) throw new Error('run audit needs a slice id, or --final for the final review');
   let refused = null;
-  const record = update(planningDir, slug, (r) => {
+  const record = updateRun(planningDir, slug, (r) => {
     const limits = auditLimits(r, id, final);
     const hit = limits.find((l) => spent(l) >= l.cap);
     if (hit) {

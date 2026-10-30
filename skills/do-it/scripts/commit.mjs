@@ -4,22 +4,19 @@
 // commit locally, and never pushes. The message ends with the single do-it
 // attribution line (the user's commit rule), so the commit guard allows it.
 
-import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { git as spawnGit, gitOut, LITERAL } from './git.mjs';
 import { showRun, setRun } from './run.mjs';
 
 export const ATTRIBUTION = 'Build assistance with do-it: https://github.com/rshingleton/do-it';
 
-// Literal pathspecs: a named path is a file name, never a glob, so `src/*`
-// cannot stage what the slice did not map.
-const ENV = { ...process.env, GIT_LITERAL_PATHSPECS: '1' };
-
-function git(cwd, args, input) {
-  const r = spawnSync('git', args, { cwd, encoding: 'utf8', input, env: ENV });
-  if (r.status !== 0) throw new Error(`git ${args[0]} failed: ${(r.stderr || r.stdout).trim()}`);
-  return r.stdout.trim();
-}
+// Every git call here runs with literal pathspecs: a named path is a file name, never a glob, so `src/*`
+// cannot stage what the slice did not map. `gitRun` is the shared wrapper's result, `git` its trimmed stdout
+// of a call that must succeed, `gitRaw` the same untrimmed (NUL-separated lists, megabytes of status).
+const gitRun = (cwd, args, input) => spawnGit(cwd, args, 'utf8', LITERAL, { input });
+const git = (cwd, args, input) => gitOut(cwd, args, LITERAL, input).trim();
+const gitRaw = (cwd, args, input) => gitOut(cwd, args, LITERAL, input);
 
 const lines = (s) => s.split('\n').filter(Boolean);
 
@@ -27,12 +24,12 @@ const lines = (s) => s.split('\n').filter(Boolean);
 const relative = (root, p) => path.relative(root, path.resolve(root, p));
 
 function currentBranch(cwd) {
-  const r = spawnSync('git', ['symbolic-ref', '--quiet', '--short', 'HEAD'], { cwd, encoding: 'utf8' });
+  const r = gitRun(cwd, ['symbolic-ref', '--quiet', '--short', 'HEAD']);
   return r.status === 0 ? r.stdout.trim() : null;
 }
 
 function branchExists(cwd, name) {
-  return spawnSync('git', ['show-ref', '--verify', '--quiet', `refs/heads/${name}`], { cwd }).status === 0;
+  return gitRun(cwd, ['show-ref', '--verify', '--quiet', `refs/heads/${name}`]).status === 0;
 }
 
 // The current branch when it is unprotected, else do-it/<roadmap-slug>,
@@ -47,33 +44,23 @@ function safeBranch(cwd, slug, protectedList) {
   if (now === name) return { name, undo: () => '' };
   const made = !branchExists(cwd, name);
   // Empty with no commit yet: then there is no branch tip to compare, and a detached start cannot exist.
-  const start = spawnSync('git', ['rev-parse', '-q', '--verify', 'HEAD'], { cwd, encoding: 'utf8', env: ENV }).stdout.trim();
+  const start = gitRun(cwd, ['rev-parse', '-q', '--verify', 'HEAD']).stdout.trim();
   const from = now || start;
   git(cwd, made ? ['switch', '-q', '-c', name] : ['switch', '-q', name]);
   return {
     name,
     undo() {
-      const back = spawnSync('git', ['switch', '-q', '--no-guess', ...(now ? [] : ['--detach']), from], { cwd, encoding: 'utf8', env: ENV });
+      const back = gitRun(cwd, ['switch', '-q', '--no-guess', ...(now ? [] : ['--detach']), from]);
       // Still on the scratch branch: it cannot be deleted, and the caller is told where the repo is.
       if (back.status !== 0) return ` (could not switch back to ${now ?? from}, still on ${name}: ${back.stderr.trim()})`;
       if (!made) return '';
       // A hook that committed on the branch it was given leaves work there; only an untouched branch is removed.
-      const tip = spawnSync('git', ['rev-parse', '-q', '--verify', `refs/heads/${name}`], { cwd, encoding: 'utf8', env: ENV }).stdout.trim();
+      const tip = gitRun(cwd, ['rev-parse', '-q', '--verify', `refs/heads/${name}`]).stdout.trim();
       if (tip !== start) return ` (${name} gained commits and was kept)`;
-      spawnSync('git', ['branch', '-q', '-D', name], { cwd, env: ENV });
+      gitRun(cwd, ['branch', '-q', '-D', name]);
       return '';
     },
   };
-}
-
-// Output of `git status` and `hash-object` can run to megabytes: a full buffer must fail the call,
-// never read as a clean tree.
-const MAX_OUT = 512 * 1024 * 1024;
-
-function gitRaw(cwd, args, input) {
-  const r = spawnSync('git', args, { cwd, encoding: 'utf8', input, env: ENV, maxBuffer: MAX_OUT });
-  if (r.error || r.status !== 0) throw new Error(`git ${args[0]} failed: ${(r.error?.message || r.stderr || r.stdout).trim()}`);
-  return r.stdout;
 }
 
 // Every file the working tree changes, each as `<mode>:<blob hash>` ('gone' when it is deleted, 'dir'
@@ -175,7 +162,7 @@ function assertCommittable({ root, run, slug, items, id, phase, docs, paths }) {
 // missing. Returns its result then, null when this is a first commit; anything else under that tag (a new
 // edit, another commit) throws, never skipped.
 function phaseAlreadyLanded({ root, run, tag, phase, subject, paths }) {
-  const rev = (ref) => spawnSync('git', ['rev-parse', '-q', '--verify', ref], { cwd: root, encoding: 'utf8', env: ENV }).stdout.trim();
+  const rev = (ref) => gitRun(root, ['rev-parse', '-q', '--verify', ref]).stdout.trim();
   const head = rev('HEAD');
   const tagged = tag && rev(`refs/tags/${tag}^{commit}`);
   const landed =
@@ -209,7 +196,7 @@ export function commitSlice({ root, planningDir, config, items, slug, id, phase,
     git(root, ['add', '--', ...paths]);
     git(root, ['commit', '-q', '-F', '-'], message);
   } catch (e) {
-    spawnSync('git', ['reset', '-q', '--', ...paths], { cwd: root, env: ENV });
+    gitRun(root, ['reset', '-q', '--', ...paths]);
     throw new Error(`${e.message}${onto.undo()}`);
   }
   // The run record follows the commit, so a rejected commit leaves it as it was.

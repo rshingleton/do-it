@@ -465,3 +465,12 @@ test('gate.mjs holds the rule and counters only: the run handlers live in runs.m
   const body = /^export function commitSlice[\s\S]*?^}/m.exec(commit)[0];
   assert.ok(body.split('\n').length < 60, 'commitSlice is under 60 lines');
 });
+
+test('the run scripts carry one id pattern, one git spawn and one record writer', () => {
+  const dir = path.join(ROOT, 'skills/do-it/scripts');
+  const sources = Object.fromEntries(fs.readdirSync(dir).filter((f) => f.endsWith('.mjs')).map((f) => [f, fs.readFileSync(path.join(dir, f), 'utf8')]));
+  const files = (re) => Object.keys(sources).filter((f) => re.test(sources[f]));
+  assert.deepEqual(files(/\[A-Za-z0-9\]\[A-Za-z0-9_\.-\]/), ['run.mjs'], 'the id pattern is written once');
+  assert.deepEqual(files(/spawnSync\('git'/), ['git.mjs'], 'git is spawned in one place');
+  assert.deepEqual(files(/\bwrite\(file, /), ['run.mjs'], 'only run.mjs writes the record');
+});

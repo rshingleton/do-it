@@ -7,7 +7,8 @@ import path from 'node:path';
 import { snapshot, treeDiff } from './changeset.mjs';
 import { dirtyHashes } from './commit.mjs';
 import { checkWithRerun, gate, recordVerified } from './gate.mjs';
-import { rejectAssumption, showRun, sliceRun } from './run.mjs';
+import { git as spawnGit } from './git.mjs';
+import { rejectAssumption, showRun, sliceRun, splitKey } from './run.mjs';
 
 // `run gate`: the slice's gate result against the fingerprint of its work item now.
 // `fingerprintOf(item)` is the item's change since its base, planning files excluded.
@@ -57,7 +58,7 @@ export function runVerify({ planningDir, root, cwd, slug, id, opts, items, finge
 export function runReviewChange({ planningDir, root, slug, exclude }) {
   const { base, commit } = showRun(planningDir, slug);
   if (!base) return { base: null, mode: 'worktree', files: null, note: 'no base recorded: review the working tree' };
-  const git = (args) => spawnSync('git', args, { cwd: root, encoding: 'utf8' });
+  const git = (args) => spawnGit(root, args);
   // A git that failed says nothing about the tree: it is an error, never "clean" or "no merge base".
   const must = (r, what) => {
     if (r.error || r.status !== 0) throw new Error(`${what} failed: ${(r.error?.message || r.stderr).trim()}`);
@@ -77,30 +78,29 @@ export function runReviewChange({ planningDir, root, slug, exclude }) {
 // so earlier rejections of the same item are subtracted. A closed item has no plan to reopen:
 // the record is the whole trace.
 export function runRejectAssumption({ planningDir, slug, key, instead, items, date }) {
-  const m = /^(.+)#(\d+)$/.exec(key ?? '');
-  if (!m) throw new Error('run reject-assumption needs <work id>#<n>');
+  const want = splitKey(key);
+  if (!want || want.text !== undefined) throw new Error('run reject-assumption needs <work id>#<n>');
   if (!instead) throw new Error('run reject-assumption needs what replaces the assumption');
   const record = showRun(planningDir, slug);
   const entry = record.assumptions.find((a) => a.startsWith(`${key}: `));
   if (!entry) throw new Error(`no recorded assumption ${key}`);
   let plan = null;
   try {
-    plan = items.get(m[1]);
+    plan = items.get(want.id);
   } catch {
     plan = null;
   }
   const live = Boolean(plan) && ['auditing', 'shipping'].includes(plan.state.status);
   if (live) {
-    const n = Number(m[2]);
     const earlier = record.rejected.filter((r) => {
-      const k = /^(.+)#(\d+): /.exec(r);
-      return k && k[1] === m[1] && Number(k[2]) < n;
+      const k = splitKey(r.split(' (instead: ')[0]);
+      return k && k.id === want.id && k.n < want.n;
     }).length;
-    const at = n - earlier;
+    const at = want.n - earlier;
     if (plan.state.assumptions[at - 1] !== entry.slice(key.length + 2)) {
-      throw new Error(`plan ${m[1]} assumption ${at} no longer matches ${key}; nothing rejected`);
+      throw new Error(`plan ${want.id} assumption ${at} no longer matches ${key}; nothing rejected`);
     }
-    items.fire(m[1], 'reject-assumption', { n: at, text: instead, date });
+    items.fire(want.id, 'reject-assumption', { n: at, text: instead, date });
   }
   const { record: next } = rejectAssumption(planningDir, slug, key, instead);
   return { rejected: key, reopened: live, followup: live ? null : 'item closed: the user files a fix: or log-it entry', record: next };

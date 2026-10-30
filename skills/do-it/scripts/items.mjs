@@ -13,6 +13,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { allowedEvents, emptyBlock, normalize, transition } from './state.mjs';
 import { readItem, writeItem } from './block.mjs';
+import { isId } from './run.mjs';
 
 const SETTABLE = ['title', 'lane', 'tracker', 'sources', 'roadmap', 'todo', 'blocked_by', 'phases', 'assumptions', 'defects'];
 const LANE_RANK = { s: 1, m: 2 };
@@ -25,7 +26,7 @@ function layout(planningDir, id, lane) {
 // The directory first: after an interrupted lane move it holds the newer plan.
 // An id names a file under the planning directory, so it may not carry a path.
 function checkId(id) {
-  if (!id || !/^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(id)) throw new Error('needs an id (kebab-case slug or tracker ref)');
+  if (!isId(id)) throw new Error('needs an id (kebab-case slug or tracker ref)');
 }
 
 export function planPath(planningDir, id) {
