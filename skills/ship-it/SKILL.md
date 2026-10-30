@@ -33,7 +33,7 @@ One turn; write nothing yet. **Show** (information, no answer needed):
   area's `CONTEXT.md` and map row, the changelog entry (lane XS: changelog
   only, when the repo keeps one), a risk-area rollback note.
 - Tracker, to-do and roadmap updates: one `close` per ref (state block refs,
-  the slice's `Ref` cell, or `--ref`) with a comment drawn from the changelog.
+  the slice's `Ref` cell, or `--ref`) with a comment drawn from the changelog; a roadmap's last slice also shows what finalize offers a to e will write ([FINALIZE.md](FINALIZE.md)).
 - Numbered: the audit's Should and Nice findings (no changelog), surfaced
   `defects:`, a roadmap Verify clause they leave unmet ([DOCS.md](DOCS.md)).
 - Guardrail candidates or a failed audit round: one line offering `/retro-it <id>`;
@@ -46,9 +46,8 @@ One turn; write nothing yet. **Show** (information, no answer needed):
 to the last alone keeps the defaults:
 
 1. `assumptions:`, numbered: reject any? (default: keep all). Lane XS, no id: [RESUME.md](RESUME.md).
-2. To log: new `shortcut:` markers with no upgrade trigger, the audit findings and
-   surfaced defects above (default: findings and defects, no markers); a
-   roadmap's last slice adds finalize offers a to e ([FINALIZE.md](FINALIZE.md)), all by default
+2. To log, and to finalize: new `shortcut:` markers with no upgrade trigger, the audit findings and
+   surfaced defects above (default: findings and defects, no markers); a roadmap's last slice adds finalize offers a to e ([FINALIZE.md](FINALIZE.md)), every one taken by default
 3. **Commit now** (say "do it") or **leave it for review**? Recommend leave it
    unless the user asked to commit; `DO_IT_COMMIT=never` makes it the only option.
 

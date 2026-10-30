@@ -22,6 +22,8 @@ Take §1 as written; a stale fingerprint still stops. In place of §2's question
    commit the closing docs and roadmap edits from §3 step 2 with
    `work.mjs run commit <slug> <id> --docs --paths a,b` (lane M, after every
    phase passed; lane S: the same, after its own code commit), never a push.
+   A finalize adds the roadmap, new ADRs and the to-do list to `--paths`
+   ([FINALIZE.md](FINALIZE.md) Paths).
 
 Then run §3 steps 1 and 2 (a finished roadmap finalizes there with every
 default and no question, [FINALIZE.md](FINALIZE.md)), and the commit step when

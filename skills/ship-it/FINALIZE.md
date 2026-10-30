@@ -13,10 +13,18 @@ file in `docs/roadmap`; this turns it into a lasting record.
   id and no state block: skip `event ship-prepared` and `work.mjs close`. The
   commit id is `roadmap-<slug>` (the file name without `.md`), the message
   `roadmap-<slug>: finalize <title>`. "Commit now" stages by path only the
-  roadmap, ADR and to-do edits; "leave it for review" leaves them uncommitted.
+  paths below; "leave it for review" leaves them uncommitted.
 - Or `/ship-it --roadmap <file>` again after that review: a `completed`
-  roadmap with uncommitted edits asks one line, "Commit now?", and commits
-  those paths as above. Nothing else is written.
+  roadmap with uncommitted edits asks one line, "Commit now?", and commits the
+  paths below; with none it says it was finalized on the `completed` date.
+  Either way offer e is asked again for a milestone still open (a remote one
+  needs its yes). Nothing else is written.
+
+## Paths
+
+The roadmap file, each ADR a created, and `docs/TODO.md` when b added to-dos
+(the repo's configured paths, not these defaults). "Commit now" stages exactly
+these, and so does a run's `work.mjs run commit <slug> <id> --docs --paths`.
 
 ## Offers
 

@@ -661,7 +661,7 @@ test('ship-it: FINALIZE.md holds the trigger, five offers and never-list, and sh
   ]) assert.ok(fin.includes(want), `FINALIZE.md names: ${want}`);
   for (const [letter, title] of [['a', 'ADRs'], ['b', 'Fog'], ['c', 'Shipped'], ['d', 'Completed'], ['e', 'Milestones']])
     assert.match(read('skills/ship-it/FINALIZE.md'), new RegExp(`^${letter}\\. \\*\\*${title}:\\*\\*`, 'm'), `offer ${letter}`);
-  assert.match(flat(ship), /2\. To log:.*finalize offers a to e/, 'the offers ride in the Ask list item 2, inside the three-ask cap');
+  assert.match(flat(ship), /2\. To log, and to finalize:.*finalize offers a to e/, 'the offers ride in the Ask list item 2, inside the three-ask cap');
   assert.ok(flat(read('skills/ship-it/RUNMODE.md')).includes('FINALIZE.md'), 'run mode names it');
   assert.ok(read('skills/finish-it/SKILL.md').includes('FINALIZE.md'), 'finish-it close names it');
   assert.ok(flat(read('skills/roadmap-it/SKILL.md')).includes('ship-it finalizes a finished roadmap'), 'roadmap-it names it');
@@ -851,4 +851,16 @@ test('work.mjs run: a run record never shows in list', () => {
   ok(work(dir, 'run', 'new', 'other'));
   assert.deepEqual(ok(work(dir, 'list')), without);
   assert.equal(without.length, 1);
+});
+
+test('ship-it: FINALIZE.md covers a completed roadmap with no edits, offer e on a second run, and the paths to stage', () => {
+  const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
+  const fin = read('skills/ship-it/FINALIZE.md');
+  const when = flat(fin.slice(fin.indexOf('## When'), fin.indexOf('## Paths')));
+  assert.match(when, /with none it says it was finalized/, 'a completed roadmap with no edits has a case');
+  assert.match(when, /offer e is asked again/, 'a second run asks offer e again');
+  const paths = flat(fin.slice(fin.indexOf('## Paths'), fin.indexOf('## Offers')));
+  for (const want of ['roadmap file', 'ADR', 'docs/TODO.md']) assert.ok(paths.includes(want), `Paths names ${want}`);
+  assert.ok(flat(read('skills/ship-it/RUNMODE.md')).includes('FINALIZE.md](FINALIZE.md) Paths'), 'run mode points a run\'s --paths at it');
+  assert.ok(flat(read('skills/ship-it/SKILL.md')).includes('what finalize offers a to e will write'), 'the question shows what the offers write');
 });
