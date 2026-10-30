@@ -55,7 +55,7 @@ Exit: `gate.mjs` holds no `run*` handler, no helper has a second copy, and `npm 
 | R10 | enabler | One record read-modify-write (owned by `run.mjs`), one id regex, one git wrapper with consistent `env`, one `verified_files` shape, and the dead `instead ?` branch, `ready` pseudo-status and in-writer timestamp gone (T147) | G4 | R9 (same files) | `rg` finds one id regex and one git wrapper; `npm test` passes | low | shipped 2026-10-30 r10-one-copy |
 | R11 | build | Digest sanitizes `--reason` and tag names (only `^do-it/<id>/phase-<n>$`), keeps a works list across a resumed slice, drops the redundant `now()` branch, and tests repeated retries (T168) | G4 | R10 (same files) | A multi-line reason cannot render a heading; a tag with shell text is not printed; a resumed slice keeps its old tag in Rollback | med | shipped 2026-10-30 r11-digest-safe |
 | R12 | build | Run assumption bookkeeping: `run set assumptions` refused, rejection matched by text among remaining plan entries, sweep-origin assumptions rejectable, greedy regex fixed, `instead` whitespace-collapsed, `building` and `items.get` errors no longer read as closed (T146) | G4 | R11 (same files), D3 (reject semantics) | Tests for a ship-it plan-side rejection, a re-add, `feat#1: see x#2: y` and a plan in `building` | high | shipped 2026-10-30 r12-assumption-bookkeeping |
-| R13 | build | Text accuracy: the do-it line named a constant in COMMITS.md and `commit.mjs`, wrap fixed, the long `do-it/SKILL.md` bullet split, the level flag mapped to `run new --level` (T148) | G2 | R2 (same finish-it text), R10 | `npm run check` passes; no "from the user's rules" text remains for the do-it line | low | |
+| R13 | build | Text accuracy: the do-it line named a constant in COMMITS.md and `commit.mjs`, wrap fixed, the long `do-it/SKILL.md` bullet split, the level flag mapped to `run new --level` (T148) | G2 | R2 (same finish-it text), R10 | `npm run check` passes; no "from the user's rules" text remains for the do-it line | low | shipped 2026-10-30 r13-text-accuracy |
 
 ### M4: The roadmap lifecycle is whole
 Exit: a finalized roadmap is described, reported and finalized as documented, and the FINALIZE pin test survives a rewrap.
@@ -115,3 +115,4 @@ Exit: every remaining audit case has a test or a decision, and nothing on the to
 - 2026-10-30: R11 shipped (r11-digest-safe).
 - 2026-10-30: D1, D2 and D3 moved from Open decisions to Decisions so far: the run sweep had settled them as assumptions, and an open entry held R12, R16 and R22 back.
 - 2026-10-30: R12 shipped (r12-assumption-bookkeeping).
+- 2026-10-30: R13 shipped (r13-text-accuracy).
