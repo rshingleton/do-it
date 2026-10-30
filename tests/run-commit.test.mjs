@@ -119,6 +119,144 @@ test('the commit step refuses everything-staging and a dirty index', () => {
   assert.equal(git(dir, 'rev-parse', 'HEAD'), head);
 });
 
+test('a directory path is refused, so another slice\'s edit in it stays unstaged', () => {
+  const { dir } = fixture();
+  ok(work(dir, 'run', 'new', 'road'));
+  verify(dir);
+  write(dir, 'src/mine.js', 'mine\n');
+  write(dir, 'src/theirs.js', 'theirs\n');
+  const head = git(dir, 'rev-parse', 'HEAD');
+  assert.match(work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'src').out.error, /directory/);
+  assert.equal(git(dir, 'rev-parse', 'HEAD'), head);
+  assert.equal(git(dir, 'diff', '--cached', '--name-only'), '', 'nothing was staged');
+});
+
+test('a retried phase commit after the commit landed returns the same sha and tag', () => {
+  const { dir } = fixture();
+  ok(work(dir, 'run', 'new', 'road'));
+  verify(dir);
+  // ./a.js is a file, not a directory, whatever form it is spelled in.
+  const first = ok(work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', './a.js,b.js'));
+  const again = ok(work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'a.js,b.js'));
+  assert.equal(again.commit, first.commit);
+  assert.equal(again.tag, first.tag);
+  assert.equal(git(dir, 'rev-parse', 'HEAD'), first.commit, 'no second commit');
+  // The commit landed but the tag did not (a crash between them): the retry tags it.
+  git(dir, 'tag', '-d', first.tag);
+  assert.equal(ok(work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'a.js,b.js')).tag, first.tag);
+  assert.equal(git(dir, 'rev-parse', `${first.tag}^{commit}`), first.commit);
+});
+
+test('a glob or deleted-directory path cannot stage another slice\'s edits', () => {
+  const { dir } = fixture();
+  ok(work(dir, 'run', 'new', 'road'));
+  verify(dir);
+  write(dir, 'src/mine.js', 'mine\n');
+  write(dir, 'src/theirs.js', 'theirs\n');
+  git(dir, 'add', 'src');
+  git(dir, 'commit', '-qm', 'add src');
+  write(dir, 'src/mine.js', 'mine2\n');
+  write(dir, 'src/theirs.js', 'theirs2\n');
+  const head = git(dir, 'rev-parse', 'HEAD');
+  assert.equal(work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'src/*').status, 1);
+  assert.equal(git(dir, 'diff', '--cached', '--name-only'), '');
+  fs.rmSync(path.join(dir, 'src'), { recursive: true });
+  assert.match(work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'src').out.error, /directory/);
+  assert.equal(git(dir, 'rev-parse', 'HEAD'), head);
+});
+
+test('the first phase commit works in a repo with no commits yet', () => {
+  const { dir } = fixture();
+  ok(work(dir, 'run', 'new', 'road'));
+  verify(dir);
+  fs.rmSync(path.join(dir, '.git'), { recursive: true });
+  git(dir, 'init', '-q', '-b', 'work');
+  git(dir, 'config', 'user.name', 't');
+  git(dir, 'config', 'user.email', 't@t');
+  git(dir, 'config', 'commit.gpgsign', 'false');
+  assert.ok(ok(work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'a.js')).commit);
+});
+
+test('a phase retry with a new edit, or onto a different tag, is refused rather than skipped', () => {
+  const { dir } = fixture();
+  ok(work(dir, 'run', 'new', 'road'));
+  verify(dir);
+  const first = ok(work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'a.js,b.js'));
+  write(dir, 'a.js', 'three\n');
+  assert.match(work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'a.js').out.error, /already committed/);
+  assert.equal(git(dir, 'rev-parse', 'HEAD'), first.commit);
+  git(dir, 'checkout', '-q', 'a.js');
+  git(dir, 'tag', '-f', first.tag, 'HEAD~1');
+  assert.match(work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'a.js,b.js').out.error, /already committed/);
+});
+
+test('a rejecting pre-commit hook leaves the branch, the index and the run record as they were', () => {
+  const { dir } = fixture();
+  ok(work(dir, 'run', 'new', 'road'));
+  verify(dir);
+  write(dir, '.git/hooks/pre-commit', '#!/bin/sh\nexit 1\n');
+  fs.chmodSync(path.join(dir, '.git/hooks/pre-commit'), 0o755);
+  const before = ok(work(dir, 'run', 'show', 'road'));
+  const head = git(dir, 'rev-parse', 'HEAD');
+  const r = work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'a.js', '--limits', '["no browser"]');
+  assert.equal(r.status, 1);
+  assert.equal(git(dir, 'branch', '--show-current'), 'main', 'back on the protected branch');
+  assert.equal(git(dir, 'branch', '--list', 'do-it/road'), '', 'the branch it made is gone');
+  assert.equal(git(dir, 'diff', '--cached', '--name-only'), '');
+  assert.equal(git(dir, 'rev-parse', 'HEAD'), head);
+  const after = ok(work(dir, 'run', 'show', 'road'));
+  assert.equal(after.branch, before.branch);
+  assert.deepEqual(after.limits, before.limits);
+  // With the hook gone the same call commits on do-it/road and records both.
+  fs.rmSync(path.join(dir, '.git/hooks/pre-commit'));
+  const done = ok(work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'a.js', '--limits', '["no browser"]'));
+  assert.equal(done.branch, 'do-it/road');
+  const rec = ok(work(dir, 'run', 'show', 'road'));
+  assert.equal(rec.branch, 'do-it/road');
+  assert.deepEqual(rec.limits, ['no browser']);
+});
+
+test('lane M in slice mode commits its code once after the last phase verifies, then its closing docs', () => {
+  const { dir } = fixture();
+  // unrelated.txt is dirty at verify time and never named: it must not matter.
+  ok(work(dir, 'run', 'new', 'road', '--commit', 'slice'));
+  ok(work(dir, 'run', 'start', 'road', 'R1', '--work', 'feat'));
+  ok(work(dir, 'run', 'verify', 'road', 'R1', '--phase', '1', '--', 'true'));
+  assert.match(work(dir, 'run', 'commit', 'road', 'feat', '--paths', 'a.js,b.js').out.error, /phase 2|not verified/, 'a phase is still open');
+  write(dir, 'c.js', 'phase two\n');
+  ok(work(dir, 'run', 'verify', 'road', 'R1', '--phase', '2', '--', 'true'));
+  // Closing docs are written before the code commit; they are not code.
+  write(dir, 'notes.md', 'closing docs\n');
+  // Code changed after its verify is refused, and nothing is committed.
+  write(dir, 'b.js', 'edited after verify\n');
+  const head = git(dir, 'rev-parse', 'HEAD');
+  assert.match(work(dir, 'run', 'commit', 'road', 'feat', '--paths', 'a.js,b.js,c.js').out.error, /changed since/);
+  assert.equal(git(dir, 'rev-parse', 'HEAD'), head);
+  // A glob-named dirty file hides nothing: an unverified file named on the line is still refused.
+  write(dir, '*.js', 'decoy\n');
+  write(dir, 'evil.js', 'never verified\n');
+  assert.match(work(dir, 'run', 'commit', 'road', 'feat', '--paths', 'a.js,b.js,c.js,evil.js').out.error, /changed since/);
+  fs.rmSync(path.join(dir, '*.js'));
+  fs.rmSync(path.join(dir, 'evil.js'));
+  write(dir, 'b.js', 'new file\n');
+  const code = ok(work(dir, 'run', 'commit', 'road', 'feat', '--paths', 'a.js,b.js,c.js'));
+  assert.equal(code.subject, 'feat: Feature');
+  assert.equal(code.tag, null);
+  assert.deepEqual(git(dir, 'show', '--name-only', '--format=', 'HEAD').split('\n').sort(), ['a.js', 'b.js', 'c.js']);
+  const docs = ok(work(dir, 'run', 'commit', 'road', 'feat', '--docs', '--paths', 'notes.md'));
+  assert.equal(docs.subject, 'feat: closing docs');
+  assert.equal(git(dir, 'show', '--name-only', '--format=', 'HEAD'), 'notes.md');
+});
+
+test('lane M in slice mode refuses a code commit whose phases were verified without run verify', () => {
+  const { dir } = fixture();
+  ok(work(dir, 'run', 'new', 'road', '--commit', 'slice'));
+  verify(dir, 1);
+  write(dir, 'c.js', 'phase two\n');
+  verify(dir, 2);
+  assert.match(work(dir, 'run', 'commit', 'road', 'feat', '--paths', 'a.js,b.js,c.js').out.error, /run verify/);
+});
+
 test('verification limits go to the run record and the commit body, not a trailer', () => {
   const { dir } = fixture();
   ok(work(dir, 'run', 'new', 'road'));

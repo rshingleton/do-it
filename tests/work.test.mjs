@@ -664,6 +664,29 @@ test('work.mjs: fingerprint and review-diff stay correct across commits after ba
   assert.notEqual(work(dir, 'fingerprint', 'cm').out.fingerprint, before);
 });
 
+test('work.mjs: review-diff leaves out docs/planning whether or not those files are committed', () => {
+  const dir = tempRepo();
+  const git = (...a) => execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', ...a], { cwd: dir, encoding: 'utf8' });
+  fs.writeFileSync(path.join(dir, 'a.js'), 'one\n');
+  git('add', 'a.js');
+  git('commit', '-q', '-m', 'base');
+  work(dir, 'new', 'pl', '--lane', 's', '--title', 'Pl');
+  for (const e of ['approve', 'start']) work(dir, 'event', 'pl', e);
+  fs.writeFileSync(path.join(dir, 'a.js'), 'two\n');
+  work(dir, 'verify-phase', 'pl', '--', 'node -e "process.exit(0)"');
+  for (const e of ['build-done', 'audit-pass', 'ship-prepared']) work(dir, 'event', 'pl', e);
+  assert.deepEqual(work(dir, 'review-diff', 'pl').out.files, []);
+  // The plan, a note and a new planning file are committed after the prepare: still not a change.
+  fs.writeFileSync(path.join(dir, 'docs/planning/note.md'), 'closing notes\n');
+  git('add', '-f', 'docs/planning');
+  git('commit', '-q', '-m', 'closing docs');
+  assert.deepEqual(work(dir, 'review-diff', 'pl').out.files, [], 'a committed plan file is absent');
+  fs.writeFileSync(path.join(dir, 'docs/planning/note.md'), 'edited after the commit\n');
+  assert.deepEqual(work(dir, 'review-diff', 'pl').out.files, [], 'and so is an edit to it');
+  fs.writeFileSync(path.join(dir, 'b.js'), 'new\n');
+  assert.deepEqual(work(dir, 'review-diff', 'pl').out.files, [{ status: 'A', path: 'b.js' }]);
+});
+
 const ok = (r) => {
   assert.equal(r.status, 0, JSON.stringify(r.out));
   return r.out;

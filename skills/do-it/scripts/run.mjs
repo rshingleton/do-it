@@ -177,6 +177,8 @@ export function sliceRun(planningDir, slug, id, status, { reason, needs } = {}) 
   if (prior?.status === 'shipped') throw new Error(`slice ${id} is shipped; a shipped slice does not move`);
   if (status === 'ready') {
     // Resume: the user settled what parked it, so the slice rejoins the queue.
+    // What it was is kept in `retries`, so the digest can say how the retry ended.
+    if (prior) cur.record.retries = [...(cur.record.retries ?? []), { id, was: prior.status, reason: prior.reason ?? null }];
     cur.record.slices = cur.record.slices.filter((s) => s.id !== id);
     write(file, cur);
     return cur.record;
@@ -210,6 +212,11 @@ export function nextSlice(road, record) {
   const waiting = open.filter((s) => !held.has(s.id) && waitsOnHeld(s)).map((s) => s.id);
   const free = (id) => !held.has(id) && !waiting.includes(id);
   const flying = open.find((s) => s.state === 'in flight' && free(s.id));
+  // The slice cap is checked before a slice is built, not when it comes to ship.
+  const shipped = record.slices.filter((s) => s.status === 'shipped').length;
+  if (record.max_slices != null && shipped >= record.max_slices) {
+    return { next: null, parked: [...held], waiting, stop: { reason: 'MAX_SLICES', detail: `${shipped} shipped, cap ${record.max_slices}` } };
+  }
   const next = flying?.id ?? road.ready.find(free) ?? null;
   return { next, parked: [...held], waiting };
 }

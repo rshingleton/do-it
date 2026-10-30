@@ -14,12 +14,12 @@ Before chaining a slice to ship, `work.mjs run gate <slug> <slice>` prints
 - `UNVERIFIED` (park): no passing verify recorded. Run `work.mjs run verify`.
 - `FLAKY` (park): `run verify` reran a failing check once and it passed. Never rerun again.
 - `SLICE_CAP` (park): the slice ran past `slice_cap_min`.
-- `MAX_SLICES` (stop): shipped slices reached `max_slices`.
-- `AUDIT_CAP` (stop): audit rounds reached `audit_cap`.
+- `MAX_SLICES` (stop): shipped slices reached `max_slices`. `run next` returns no slice and a `stop` with this code.
+- `AUDIT_CAP` (stop): `run audit` is refused (`allow` false) because the run already spent `audit_cap` rounds. A slice whose last allowed round passed still ships.
 
 Calls: `run start <slug> <slice> --work <id>` when a slice begins,
 `run verify <slug> <slice> -- <checks>` instead of `verify-phase`,
-`run audit <slug>` after each audit round.
+`run audit <slug>` before each audit round; a refusal stops the run.
 
 ## Judgment (no script sees these)
 

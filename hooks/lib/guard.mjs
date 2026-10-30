@@ -109,7 +109,8 @@ function listChanges(cwd, all, paths, stages, budget) {
     if (all) return staged.concat(addedLines(cwd, { untracked, ignored, budget }));
     const spec = [...paths, ...stages.paths];
     if (!spec.length) return staged;
-    const named = addedLines(cwd, { paths: spec, untracked, ignored, budget });
+    // A run commit stages by path, so a new file named on the line counts too.
+    const named = addedLines(cwd, { paths: spec, untracked: spec, ignored, budget });
     return named.length || !paths.length ? staged.concat(named) : null;
   } catch {
     return null;

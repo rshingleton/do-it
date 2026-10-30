@@ -16,6 +16,7 @@
 //   work.mjs run reject-assumption <slug> <id>#<n> <instead...>   (by key; reopens the item if its plan is still auditing or shipping)
 //   work.mjs run next <slug> <roadmap file>   (slice ready|parked|blocked|shipped; ready un-parks)
 //   work.mjs run commit <slug> <id> [--phase n | --docs] --paths a,b [--limits <json>]
+//   work.mjs run review-change <slug>   (the final review's change: <base>...HEAD, or the working tree against base)
 //   work.mjs run digest <slug> [--usage <json>] [--findings <json>] [--retro <json>]   (markdown, saved uncommitted)
 //   work.mjs run start <slug> <slice> --work <id> [--at iso] | audit <slug> | gate <slug> <slice>
 //   work.mjs run verify <slug> <slice> [--phase n] [--in dir] -- <command...>   (reruns a failure once)
@@ -36,8 +37,8 @@ import { allowedMoves, firableEvents, workItems } from './items.mjs';
 import { roadmapSlices } from './roadmap.mjs';
 import { commitSlice } from './commit.mjs';
 import { buildDigest } from './digest.mjs';
-import { addAssumptions, createRun, nextSlice, rejectAssumption, runPath, setRun, showRun, sliceRun } from './run.mjs';
-import { checkWithRerun, countAudit, gate, recordVerified, startSlice } from './gate.mjs';
+import { addAssumptions, createRun, nextSlice, runPath, setRun, showRun, sliceRun } from './run.mjs';
+import { countAudit, runGate, runRejectAssumption, runReviewChange, runVerify, startSlice } from './gate.mjs';
 
 // Flags that take no value.
 const FLAGS = new Set(['brief', 'docs']);
@@ -223,25 +224,8 @@ export async function run(argv, { cwd = process.cwd() } = {}) {
           return setRun(ctx.planningDir, slug, args[0], args[1] === undefined ? undefined : json(args[1]));
         case 'add-assumptions':
           return addAssumptions(ctx.planningDir, slug, args[0], args[1] === undefined ? undefined : json(args[1]));
-        case 'reject-assumption': {
-          const key = args[0] ?? '';
-          const m = /^(.+)#(\d+)$/.exec(key);
-          if (!m) throw new Error('run reject-assumption needs <work id>#<n>');
-          const instead = args.slice(1).join(' ');
-          if (!instead) throw new Error('run reject-assumption needs what replaces the assumption');
-          const { record, text } = rejectAssumption(ctx.planningDir, slug, key, instead);
-          // A plan still auditing or shipping reopens; a closed item's plan is gone, so the record is the whole trace.
-          let plan = null;
-          try {
-            plan = items.get(m[1]);
-          } catch {
-            plan = null;
-          }
-          const at = plan ? plan.state.assumptions.indexOf(text) : -1;
-          const live = at >= 0 && ['auditing', 'shipping'].includes(plan.state.status);
-          if (live) items.fire(m[1], 'reject-assumption', { n: at + 1, text: instead, date: opts.date });
-          return { rejected: key, reopened: live, followup: live ? null : 'item closed: the user files a fix: or log-it entry', record };
-        }
+        case 'reject-assumption':
+          return runRejectAssumption({ planningDir: ctx.planningDir, slug, key: args[0], instead: args.slice(1).join(' '), items, date: opts.date });
         case 'slice':
           return sliceRun(ctx.planningDir, slug, args[0], args[1], { reason: opts.reason, needs: opts.needs });
         case 'next': {
@@ -253,39 +237,15 @@ export async function run(argv, { cwd = process.cwd() } = {}) {
           return startSlice(ctx.planningDir, slug, args[0], { work: opts.work, at: opts.at });
         case 'audit':
           return countAudit(ctx.planningDir, slug);
-        case 'gate': {
-          const g = (showRun(ctx.planningDir, slug).gates ?? []).find((x) => x.id === args[0]);
-          const current = g?.work ? itemFingerprint(ctx, items.get(g.work)) : null;
-          return gate(showRun(ctx.planningDir, slug), args[0], { current });
-        }
-        case 'verify': {
-          const g = (showRun(ctx.planningDir, slug).gates ?? []).find((x) => x.id === args[0]);
-          if (!g?.work) throw new Error(`run verify: ${args[0]} has no work id; run start first`);
-          const command = opts['--'] ?? [];
-          if (!command.length) throw new Error('run verify needs the checks after --');
-          const where = opts.in === undefined ? ctx.root : path.resolve(cwd, opts.in);
-          const text = command.length === 1 ? command[0] : command.map(shellQuote).join(' ');
-          let flaky = false;
-          const attempt = () => {
-            const r = spawnSync(text, { cwd: where, shell: true, stdio: ['ignore', 2, 2] });
-            if (r.error) return { ok: false, why: `${text}: ${r.error.message}` };
-            return r.status === 0 ? { ok: true, text } : { ok: false, why: `${text} exited ${r.status ?? r.signal}` };
-          };
-          const check = () => {
-            const r = checkWithRerun(attempt);
-            flaky = Boolean(r.flaky);
-            return r;
-          };
-          const phase = opts.phase === undefined ? undefined : Number(opts.phase);
-          try {
-            items.verifyPhase(g.work, phase, check, { date: opts.date });
-          } catch (e) {
-            if (flaky) sliceRun(ctx.planningDir, slug, args[0], 'parked', { reason: e.message.replace(/^verify-phase: /, ''), needs: 'user' });
-            throw e;
-          }
-          recordVerified(ctx.planningDir, slug, args[0], itemFingerprint(ctx, items.get(g.work)));
-          return showRun(ctx.planningDir, slug);
-        }
+        case 'gate':
+          return runGate({ planningDir: ctx.planningDir, slug, id: args[0], items, fingerprintOf: (item) => itemFingerprint(ctx, item) });
+        case 'verify':
+          return runVerify({
+            planningDir: ctx.planningDir, root: ctx.root, cwd, slug, id: args[0], opts, items,
+            fingerprintOf: (item) => itemFingerprint(ctx, item), quote: shellQuote,
+          });
+        case 'review-change':
+          return runReviewChange({ planningDir: ctx.planningDir, root: ctx.root, slug, exclude: planningExclude(ctx) });
         case 'commit': {
           if (!args[0]) throw new Error('run commit needs a work id');
           const limits = opts.limits === undefined ? [] : json(opts.limits);
@@ -302,7 +262,7 @@ export async function run(argv, { cwd = process.cwd() } = {}) {
           return text;
         }
         default:
-          throw new Error('usage: work.mjs run new|show|set|add-assumptions|reject-assumption|slice|next|commit|digest <slug> ...');
+          throw new Error('usage: work.mjs run new|show|set|add-assumptions|reject-assumption|slice|next|start|audit|gate|verify|review-change|commit|digest <slug> ...');
       }
     }
     case 'close': {

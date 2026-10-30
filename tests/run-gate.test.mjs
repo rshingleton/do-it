@@ -6,6 +6,8 @@ import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { STOPS } from '../skills/do-it/scripts/stops.mjs';
+import { gate as gateRule, runGate, runRejectAssumption, runVerify } from '../skills/do-it/scripts/gate.mjs';
+import { nextSlice, showRun } from '../skills/do-it/scripts/run.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const WORK = path.join(ROOT, 'skills/do-it/scripts/work.mjs');
@@ -112,15 +114,47 @@ test('max-slices: stops once that many slices shipped; unset means no cap', () =
   assert.equal(gate(free).allow, true);
 });
 
-test('audit cap: rounds across the run stop at audit_cap; the default is 5', () => {
+test('audit cap: the round after the cap is refused and uncounted; a slice whose last allowed round passed ships', () => {
   const dir = fixture(['--audit-cap', '2']);
   ok(verify(dir));
-  ok(work(dir, 'run', 'audit', 'road'));
+  assert.equal(ok(work(dir, 'run', 'audit', 'road')).audit_rounds, 1);
+  assert.equal(ok(work(dir, 'run', 'audit', 'road')).allow, true);
+  assert.equal(gate(dir).allow, true, 'the 2nd of 2 rounds passed: the slice ships');
+  const over = ok(work(dir, 'run', 'audit', 'road'));
+  assert.deepEqual([over.allow, over.reason, over.audit_rounds], [false, 'AUDIT_CAP', 2]);
+  // A caller that ignores the refusal is still stopped at the gate; a raised cap clears it.
+  assert.equal(gate(dir).reason, 'AUDIT_CAP');
+  ok(work(dir, 'run', 'set', 'road', 'audit_cap', '3'));
   assert.equal(gate(dir).allow, true);
-  assert.equal(ok(work(dir, 'run', 'audit', 'road')).audit_rounds, 2);
-  const g = gate(dir);
-  assert.deepEqual([g.allow, g.reason], [false, 'AUDIT_CAP']);
+  // The raised cap's last allowed round passes: the refusal from before does not stop that slice.
+  assert.equal(ok(work(dir, 'run', 'audit', 'road')).allow, true);
+  assert.equal(gate(dir).allow, true, 'the 3rd of 3 rounds passed: the slice ships');
+  ok(work(dir, 'run', 'set', 'road', 'audit_cap', '1'));
+  assert.equal(gate(dir).reason, 'AUDIT_CAP', 'a cap lowered below the rounds spent stops the gate');
   assert.equal(ok(work(tmpRepo(), 'run', 'new', 'x')).audit_cap, 5);
+});
+
+test('audit cap: a record already past the cap still stops the gate', () => {
+  const dir = fixture(['--audit-cap', '2']);
+  ok(verify(dir));
+  ok(work(dir, 'run', 'set', 'road', 'audit_cap', '1'));
+  ok(work(dir, 'run', 'audit', 'road'));
+  const rec = ok(work(dir, 'run', 'show', 'road'));
+  assert.equal(rec.audit_cap, 1);
+  assert.equal(gate(dir).allow, true, 'one round at a cap of one is not over it');
+  const rec2 = JSON.parse(JSON.stringify(rec));
+  rec2.audit_rounds = 2;
+  assert.equal(gateRule(rec2, 'R1', { current: 'fp' }).reason, 'AUDIT_CAP');
+});
+
+test('run next: stops handing out slices once max_slices shipped, and says why', () => {
+  const road = { slices: [{ id: 'R1', blocked_by: [], state: 'shipped' }, { id: 'R2', blocked_by: [], state: 'ready' }], ready: ['R2'] };
+  const rec = (shipped, max) => ({ max_slices: max, slices: shipped.map((id) => ({ id, status: 'shipped' })) });
+  assert.equal(nextSlice(road, rec(['R1'], 2)).next, 'R2');
+  assert.equal(nextSlice(road, rec(['R1'], null)).next, 'R2', 'no cap, no stop');
+  const stopped = nextSlice(road, rec(['R1'], 1));
+  assert.equal(stopped.next, null);
+  assert.equal(stopped.stop.reason, 'MAX_SLICES');
 });
 
 test('STOPS.md names exactly the shared reason codes, and judgment codes are named as judgment', () => {
@@ -131,4 +165,157 @@ test('STOPS.md names exactly the shared reason codes, and judgment codes are nam
   const judgment = doc.slice(doc.indexOf('## Judgment'));
   for (const [code, s] of Object.entries(STOPS)) assert.equal(judgment.includes(`\`${code}\``), s.how === 'judgment', code);
   assert.match(fs.readFileSync(path.join(ROOT, 'skills/finish-it/SKILL.md'), 'utf8'), /STOPS\.md/);
+});
+
+// The two orchestrators called in-process, with the work item stubbed: what they decide
+// and record is checked without going through work.mjs.
+const unit = (dir) => ({ planningDir: path.join(dir, 'docs/planning'), slug: 'road', id: 'R1' });
+const stub = (calls = []) => ({
+  get: (id) => ({ id }),
+  verifyPhase: (id, phase, check) => {
+    calls.push([id, phase]);
+    const r = check();
+    if (!r.ok) throw new Error(`verify-phase: ${r.why}`);
+  },
+});
+
+test('runGate: no verify, a matching fingerprint and a moved one give UNVERIFIED, allow and STALE_VERIFY', () => {
+  const dir = fixture();
+  const base = { ...unit(dir), items: stub() };
+  assert.equal(runGate({ ...base, fingerprintOf: () => 'fp' }).reason, 'UNVERIFIED');
+  runVerify({ ...base, root: dir, cwd: dir, opts: { '--': ['true'] }, fingerprintOf: () => 'fp', quote: String });
+  assert.equal(runGate({ ...base, fingerprintOf: () => 'fp' }).allow, true);
+  assert.equal(runGate({ ...base, fingerprintOf: () => 'moved' }).reason, 'STALE_VERIFY');
+  assert.equal(runGate({ ...base, id: 'R9', fingerprintOf: () => 'fp' }).reason, 'UNVERIFIED', 'an unknown slice has no verify');
+});
+
+test('runVerify: a pass records the fingerprint and file hashes, a failure records neither', () => {
+  const dir = fixture();
+  const calls = [];
+  const base = { ...unit(dir), items: stub(calls), root: dir, cwd: dir, fingerprintOf: () => 'fp', quote: String };
+  assert.throws(() => runVerify({ ...base, opts: { '--': ['false'] } }), /exited 1/);
+  assert.equal(showRun(base.planningDir, 'road').gates[0].verified_fingerprint, undefined);
+  const rec = runVerify({ ...base, opts: { '--': ['true'], phase: '2' } });
+  assert.deepEqual(calls.at(-1), ['feat', 2]);
+  assert.equal(rec.gates[0].verified_fingerprint, 'fp');
+  assert.ok(rec.gates[0].verified_files['a.js'], 'the dirty file is hashed');
+  assert.throws(() => runVerify({ ...base, id: 'R9', opts: { '--': ['true'] } }), /run start first/);
+  assert.throws(() => runVerify({ ...base, opts: {} }), /needs the checks/);
+});
+
+test('the run usage error lists every subcommand the loop calls', () => {
+  const dir = fixture();
+  const r = spawnSync('node', [WORK, 'run', 'bogus', 'road'], { cwd: dir, encoding: 'utf8' });
+  for (const sub of ['start', 'audit', 'gate', 'verify', 'reject-assumption']) assert.match(r.stdout + r.stderr, new RegExp(`\\b${sub}\\b`));
+});
+
+// The finish-it loop is text an agent follows, so a stop is only as live as its call
+// site there. Each shared stop code names the `work.mjs run` call that surfaces it.
+const CALL_SITE = {
+  STALE_VERIFY: 'gate',
+  UNVERIFIED: 'gate',
+  SLICE_CAP: 'gate',
+  FLAKY: 'verify',
+  MAX_SLICES: 'next',
+  AUDIT_CAP: 'audit',
+};
+const section = (doc, title) => doc.slice(doc.indexOf(`## ${title}`)).split(/\n## /)[0];
+
+test('every stop code has a call site in the finish-it loop, in the order the stops need', () => {
+  const doc = fs.readFileSync(path.join(ROOT, 'skills/finish-it/SKILL.md'), 'utf8');
+  const loop = section(doc, '2. Loop');
+  for (const [code, s] of Object.entries(STOPS)) {
+    if (s.how === 'gate') {
+      assert.ok(CALL_SITE[code], `${code} has no entry in CALL_SITE`);
+      assert.match(loop, new RegExp(`work\\.mjs run ${CALL_SITE[code]} <slug>`), `${code}: the loop never calls run ${CALL_SITE[code]}`);
+    }
+  }
+  // The clock starts once the work item exists and before build; verify records, audit counts
+  // before each round, the gate runs before ship-it, and only then is the slice marked shipped.
+  const at = (re) => {
+    const m = re.exec(loop);
+    assert.ok(m, `${re} is missing from the loop`);
+    return m.index;
+  };
+  const order = [
+    /work\.mjs run start <slug> <slice> --work/,
+    /work\.mjs run verify <slug> <slice>/,
+    /work\.mjs run audit <slug>/,
+    /work\.mjs run gate <slug> <slice>/,
+    /work\.mjs run slice <slug> <slice> shipped/,
+  ].map(at);
+  assert.deepEqual(order, [...order].sort((x, y) => x - y), 'start, verify, audit, gate, shipped in that order');
+  assert.match(loop, /stop code first in `--reason`/, 'a park puts the stop code first');
+  // A `run next` stop is reported where the run closes.
+  assert.match(section(doc, '4. Close'), /`stop`/);
+});
+
+test('the finish-it resume text names the slice id that `run slice ... ready` needs', () => {
+  const resume = section(fs.readFileSync(path.join(ROOT, 'skills/finish-it/SKILL.md'), 'utf8'), '3. Resume');
+  assert.match(resume, /work\.mjs run slice <slug> <slice> ready/);
+  assert.doesNotMatch(resume, /no id/);
+});
+
+// A run record "road" whose item "feat" has two assumptions with the same text, and a stub
+// work item that records the plan events fired at it.
+function rejectFixture(planStatus = 'shipping') {
+  const dir = fixture();
+  ok(work(dir, 'run', 'add-assumptions', 'road', 'feat', '["same","same"]'));
+  const fired = [];
+  const plan = { state: { status: planStatus, assumptions: ['same', 'same'] } };
+  const items = {
+    get: () => plan,
+    fire: (id, event, args) => {
+      fired.push([id, event, args.n, args.text]);
+      if (items.fail) throw new Error('plan event refused');
+    },
+  };
+  return { ...unit(dir), items, fired, plan };
+}
+
+test('reject-assumption: two assumptions with equal text reject by n, not by the first text match', () => {
+  const t = rejectFixture();
+  const out = runRejectAssumption({ ...t, key: 'feat#2', instead: 'different' });
+  assert.deepEqual(t.fired, [['feat', 'reject-assumption', 2, 'different']]);
+  assert.equal(out.reopened, true);
+  const rec = showRun(t.planningDir, 'road');
+  assert.ok(rec.assumptions.includes('feat#1: same') && !rec.assumptions.includes('feat#2: same'), 'the other keeps its number');
+  assert.deepEqual(rec.rejected, ['feat#2: same (instead: different)']);
+});
+
+test('reject-assumption: an earlier rejection shifts the plan position, not the key', () => {
+  const t = rejectFixture();
+  runRejectAssumption({ ...t, key: 'feat#1', instead: 'a' });
+  t.plan.state.assumptions = ['same']; // the plan event removed the first
+  runRejectAssumption({ ...t, key: 'feat#2', instead: 'b' });
+  assert.deepEqual(t.fired.map((f) => f[2]), [1, 1], 'feat#2 is now the plan\'s first');
+});
+
+test('reject-assumption: a refused plan event leaves the record exactly as it was', () => {
+  const t = rejectFixture();
+  t.items.fail = true;
+  const before = JSON.stringify(showRun(t.planningDir, 'road'));
+  assert.throws(() => runRejectAssumption({ ...t, key: 'feat#1', instead: 'x' }), /plan event refused/);
+  assert.equal(JSON.stringify(showRun(t.planningDir, 'road')), before);
+});
+
+test('reject-assumption: a plan that no longer matches is refused before anything is written', () => {
+  const t = rejectFixture();
+  t.plan.state.assumptions = ['same', 'edited by hand'];
+  const before = JSON.stringify(showRun(t.planningDir, 'road'));
+  assert.throws(() => runRejectAssumption({ ...t, key: 'feat#2', instead: 'x' }), /no longer matches/);
+  assert.equal(JSON.stringify(showRun(t.planningDir, 'road')), before);
+  assert.deepEqual(t.fired, []);
+});
+
+test('reject-assumption: a closed item has no plan to reopen, so only the record changes', () => {
+  const t = rejectFixture();
+  t.items.get = () => {
+    throw new Error('no such item');
+  };
+  const out = runRejectAssumption({ ...t, key: 'feat#1', instead: 'x' });
+  assert.equal(out.reopened, false);
+  assert.deepEqual(t.fired, []);
+  assert.equal(showRun(t.planningDir, 'road').rejected.length, 1);
+  assert.throws(() => runRejectAssumption({ ...t, key: 'feat#9', instead: 'x' }), /no recorded assumption/);
 });

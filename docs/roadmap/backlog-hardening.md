@@ -117,7 +117,7 @@ None.
 - A tracker doctor and an install doctor (T3, T78): may become one `/setup-it` check slice.
 - Running `/setup-it` on another repo (T2): a user-run check, not a build slice.
 - Confirming the OpenCode v2 `session.step.ended` field names on a live OpenCode 2 (T115): a user-run check; a mismatch becomes a slice.
-- A `work.mjs` per-step usage field (issue: per-step usage record): deferred until the ledger's window attribution proves too coarse.
+- A `work.mjs` per-step usage field (closed per-step usage issue, state field only): deferred until the ledger's window attribution proves too coarse.
 
 ## Out of scope
 - The research-derived ideas T13 to T32 and T44, T45, T47, T62: parked 2026-10-25; return through T47 when an audit or retro cites one.

@@ -28,7 +28,10 @@ function fixture() {
   git(dir, 'config', 'commit.gpgsign', 'false');
   git(dir, 'commit', '-q', '--allow-empty', '-m', 'init');
   git(dir, 'tag', 'do-it/feat/phase-1');
+  // Another run's phase tag sits in the same repo: it is not this run's rollback.
+  git(dir, 'tag', 'do-it/other/phase-1');
   ok(work(dir, 'run', 'new', 'road', '--level', 'full'));
+  ok(work(dir, 'run', 'start', 'road', 'R1', '--work', 'feat'));
   ok(work(dir, 'run', 'slice', 'road', 'R1', 'shipped'));
   ok(work(dir, 'run', 'slice', 'road', 'R2', 'parked', '--needs', 'decision', '--reason', 'storage engine unanswered'));
   ok(work(dir, 'run', 'slice', 'road', 'R3', 'blocked', '--reason', 'waits on R2'));
@@ -114,4 +117,69 @@ test('rejecting an assumption after the item closed works through the run record
   assert.equal(out.reopened, false);
   assert.match(out.followup, /fix:/);
   assert.ok(out.record.rejected.some((r) => r.startsWith('gone#1: Use utc')));
+});
+
+// A repo whose run base is its first commit, with one change made after it.
+function reviewFixture(commitMode, { commitChange }) {
+  const dir = tmpDir('do-it-review-');
+  git(dir, 'init', '-q', '-b', 'dev');
+  git(dir, 'config', 'user.name', 't');
+  git(dir, 'config', 'user.email', 't@t');
+  git(dir, 'config', 'commit.gpgsign', 'false');
+  fs.writeFileSync(path.join(dir, 'a.js'), 'one\n');
+  git(dir, 'add', '-A');
+  git(dir, 'commit', '-qm', 'init');
+  ok(work(dir, 'run', 'new', 'road', '--commit', commitMode));
+  fs.writeFileSync(path.join(dir, 'a.js'), 'two\n');
+  fs.writeFileSync(path.join(dir, 'b.js'), 'new\n');
+  fs.mkdirSync(path.join(dir, 'docs/planning'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'docs/planning/plan.md'), 'a plan\n');
+  if (commitChange) {
+    git(dir, 'add', '-f', '-A');
+    git(dir, 'commit', '-qm', 'run commit');
+  }
+  return dir;
+}
+const review = (dir) => JSON.parse(ok(work(dir, 'run', 'review-change', 'road')));
+
+test('final review: --commit none reads the working tree against base, so its change set is not empty', () => {
+  const r = review(reviewFixture('none', { commitChange: false }));
+  assert.equal(r.mode, 'worktree');
+  assert.deepEqual(r.files.map((f) => f.path).sort(), ['a.js', 'b.js'], 'untracked files count, planning files do not');
+});
+
+test('final review: committed work with a clean tree reads <base>...HEAD, planning files left out', () => {
+  const r = review(reviewFixture('phase', { commitChange: true }));
+  assert.equal(r.mode, 'range');
+  assert.deepEqual(r.files.map((f) => f.path).sort(), ['a.js', 'b.js']);
+});
+
+test('final review: uncommitted closing docs in a committed run read the working tree', () => {
+  const dir = reviewFixture('phase', { commitChange: true });
+  fs.writeFileSync(path.join(dir, 'TODO.md'), 'closing docs, not committed yet\n');
+  const r = review(dir);
+  assert.equal(r.mode, 'worktree');
+  assert.deepEqual(r.files.map((f) => f.path).sort(), ['TODO.md', 'a.js', 'b.js']);
+});
+
+test('digest rollback lists only this run\'s phase tags', () => {
+  const text = ok(work(fixture(), 'run', 'digest', 'road', ...ARGS));
+  assert.match(text, /## Rollback \(1\)/);
+  assert.doesNotMatch(text, /do-it\/other\/phase-1/);
+});
+
+test('digest shows what became of each retried slice', () => {
+  const dir = fixture();
+  // R2 was parked, resumed and shipped; R3 was blocked, resumed and parked again; R4 never ran again.
+  ok(work(dir, 'run', 'slice', 'road', 'R2', 'ready'));
+  ok(work(dir, 'run', 'slice', 'road', 'R2', 'shipped'));
+  ok(work(dir, 'run', 'slice', 'road', 'R3', 'ready'));
+  ok(work(dir, 'run', 'slice', 'road', 'R3', 'parked', '--needs', 'user', '--reason', 'FLAKY: check passed on rerun'));
+  ok(work(dir, 'run', 'slice', 'road', 'R4', 'parked', '--needs', 'user', '--reason', 'IRREVERSIBLE'));
+  ok(work(dir, 'run', 'slice', 'road', 'R4', 'ready'));
+  const text = ok(work(dir, 'run', 'digest', 'road', ...ARGS));
+  assert.match(text, /## Retried \(3\)/);
+  assert.match(text, /- R2: was parked \(storage engine unanswered\), now shipped/);
+  assert.match(text, /- R3: was blocked \(waits on R2\), now parked \(FLAKY: check passed on rerun\)/);
+  assert.match(text, /- R4: was parked \(IRREVERSIBLE\), now not run again yet/);
 });

@@ -323,17 +323,22 @@ export function snapshot(cwd, { exclude = [] } = {}) {
       fromHead();
       add();
     }
+    // The index started from HEAD or the real index, so excluded paths that are committed or staged are
+    // still in it: take them out, or a committed plan file shows up as a change between two snapshots.
+    if (exclude.length) run(['rm', '--cached', '-r', '-q', '--ignore-unmatch', '--', ...exclude.map((p) => `:(literal)${p}`)]);
     return run(['write-tree']);
   } finally {
     fs.rmSync(path.dirname(index), { recursive: true, force: true });
   }
 }
 
-// Files that differ between two snapshots, with a diffstat.
-export function treeDiff(cwd, from, to) {
-  const names = git(cwd, ['diff', '--name-status', from, to]);
+// Files that differ between two snapshots (or commits), with a diffstat;
+// `exclude` paths are left out.
+export function treeDiff(cwd, from, to, { exclude = [] } = {}) {
+  const spec = exclude.length ? ['--', '.', ...exclude.map((p) => `:(exclude,literal)${p}`)] : [];
+  const names = git(cwd, ['diff', '--name-status', from, to, ...spec]);
   if (names.status !== 0) throw new Error(`git diff failed: ${names.stderr}`);
-  const stat = git(cwd, ['diff', '--stat', from, to]).stdout.trim();
+  const stat = git(cwd, ['diff', '--stat', from, to, ...spec]).stdout.trim();
   const files = names.stdout.split('\n').filter(Boolean).map((l) => {
     const [status, ...rest] = l.split('\t');
     return { status, path: rest.join(' -> ') };

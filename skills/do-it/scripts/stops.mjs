@@ -10,7 +10,7 @@ export const STOPS = {
   FLAKY: { how: 'gate', action: 'park', note: 'a check failed, then passed on its one rerun' },
   SLICE_CAP: { how: 'gate', action: 'park', note: 'the slice ran past its wall-clock cap' },
   MAX_SLICES: { how: 'gate', action: 'stop', note: 'the run shipped its slice cap' },
-  AUDIT_CAP: { how: 'gate', action: 'stop', note: 'audit rounds across the run reached the cap' },
+  AUDIT_CAP: { how: 'gate', action: 'stop', note: 'the run spent every audit round its cap allows' },
   OUTCOME_CONFLICT: { how: 'judgment', action: 'park', note: 'the slice conflicts with the outcome or a non-goal' },
   IRREVERSIBLE: { how: 'judgment', action: 'park', note: 'the next step cannot be undone' },
   AUDIT_FAILED_3: { how: 'judgment', action: 'park', note: 'third failed audit in a row' },
