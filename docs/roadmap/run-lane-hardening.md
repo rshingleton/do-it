@@ -45,7 +45,7 @@ Exit: a fixture run hits the audit-round cap, the slice cap and a stale verify, 
 
 | Slice | Kind | Delivers | Covers | Blocked by | Verify | Risk | Status |
 |-------|------|----------|--------|------------|--------|------|--------|
-| R5 | enabler | `run gate` and `run verify` orchestration moves from the `work.mjs` dispatcher into `gate.mjs`, and the `run` usage error lists start, audit, gate, verify and reject-assumption (T144) | G5 | none | `gate.mjs` exports the two functions with unit tests; `work.mjs` only dispatches; `npm test` passes unchanged | low |  shipped 2026-10-30 gate-orchestration |
+| R5 | enabler | `run gate` and `run verify` orchestration moves from the `work.mjs` dispatcher into `gate.mjs`, and the `run` usage error lists start, audit, gate, verify and reject-assumption (T144) | G5 | none | `gate.mjs` exports the two functions with unit tests; `work.mjs` only dispatches; `npm test` passes unchanged | low | shipped 2026-10-30 gate-orchestration |
 | R6 | build | The audit-round cap and `max_slices` are checked before another round or slice is built, so a slice whose 5th round passed is not stopped and slice 2 is not built over the cap (T139) | G3 | R5 (the gate code it edits) | A test: 5th round passes, slice ships; `max_slices` 1 stops before slice 2 | med | shipped 2026-10-30 cap-checks |
 | R7 | build | The finish-it loop text calls `run start`, `run verify` and `run audit` at the steps STOPS.md names, `--resume` names the id `run slice ... ready` needs, and a test fails if a stop code has no call site (T145, T135) | G3 | R6 (stop semantics settled) | The test fails when a stop code's call is removed from the loop text; the resume line names an id | med | shipped 2026-10-30 loop-call-sites |
 
