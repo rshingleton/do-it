@@ -3,7 +3,7 @@
 Nice-to-haves and things to circle back to. Managed by log-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T167
+Next id: T168
 
 ## Open
 
@@ -50,7 +50,6 @@ Next id: T167
 - [ ] T133 `addLine` in `unifiedFiles` takes a boolean `pair` flag that decides whether the `''` scan runs; a reader must trace the caller `nice-to-have` (unified-files-state audit, hooks/lib/checks.mjs:262)
 - [ ] T134 An in-hunk `+++ <path>` line (not dev-null) is now scanned under its own pair path, and no test pins it `nice-to-have` (unified-files-state audit, tests/hooks-regressions.test.mjs:316)
 - [ ] T140 Digest rollback lists every `do-it/*/phase-*` tag in the repo, not this run's, and has no retry-result section `should` (complete-run-lane audit, skills/do-it/scripts/digest.mjs:25, work.mjs:272)
-- [ ] T141 Final review `<base>...HEAD` sees nothing with `--commit none` or uncommitted closing docs; review the working tree against `base` then `should` (complete-run-lane audit, skills/finish-it/DIGEST.md:12)
 - [ ] T143 `run reject-assumption` writes the record before firing the plan event and finds the plan entry by text (`indexOf`), ignoring `n` `should` (complete-run-lane audit, skills/do-it/scripts/work.mjs:232-244)
 - [ ] T146 Run assumption bookkeeping: raw `run set assumptions` still allowed, SWEEP.md overwrites with it, numbers reset on re-add, sweep-origin assumptions cannot be rejected by a script, record copy goes stale after a plan-side reject `nice-to-have` (complete-run-lane audit, skills/do-it/scripts/run.mjs:137, skills/roadmap-it/SWEEP.md:38)
 - [ ] T147 Run script cleanups: `gate.mjs` re-implements the record read-modify-write `run.mjs` owns; id regex written three times; `sliceRun` `ready` pseudo-status; dead `instead ?` branch; `startSlice` stamps time inside the writer; `run.mjs` header says work.mjs is the only writer `nice-to-have` (complete-run-lane audit, skills/do-it/scripts/gate.mjs, run.mjs, digest.mjs)
@@ -72,3 +71,4 @@ Next id: T167
 - [ ] T164 Run caps, leftovers of cap-checks: `run next` returns a MAX_SLICES `stop` even when no slice is left to build and drops an in-flight slice at the cap silently; the `run audit` return shape (`audit_rounds`, `allow`, `reason`, `detail`) is not in the work.mjs header; `update()` has no lock, so two processes can undercount rounds; a refusal marker revives if the cap is lowered back to its refusal value `nice-to-have` (cap-checks audit, skills/do-it/scripts/run.mjs nextSlice, gate.mjs countAudit)
 - [ ] T165 finish-it loop leftovers: steps 4 to 6 say "back to 1" next to a nested 1 to 7; step 3.3 says "flaky parks" with no FLAKY pointer to step 5; the call-site tests match the call string anywhere in §2 and §4 only needs a backticked `stop` (anchor each call to its allow-false line, match MAX_SLICES and AUDIT_CAP); build-it, COMMITS, DELEGATE and PARALLEL still say `verify-phase`; prove-it round counting vs `run audit`, the lane M `--phase` rule and `<id>` vs `<slice>` placeholders in other skills are undocumented `nice-to-have` (loop-call-sites audit, skills/finish-it/SKILL.md, tests/run-gate.test.mjs)
 - [ ] T166 finish-it can ship a slice on a reviewer's first hand-back while that agent is still running (its completion notice reads "waiting on its own background work", or it says it did not see its test result): R7 shipped with its round-2 compliance agent not yet finished; the loop should wait for each reviewer's final completion notice before `run gate` and ship-it, and say so in step 3.5 to 3.6 `should` (user report during the run-lane-hardening run, skills/finish-it/SKILL.md)
+- [ ] T167 `runReviewChange` reads a failed `git status` or `merge-base` as clean or as no merge-base without checking `.status`; it has no test for a null base or a tracked file modified under the planning dir; after a rebase the worktree mode shows upstream commits `nice-to-have` (final-review-change audit, skills/do-it/scripts/gate.mjs runReviewChange)

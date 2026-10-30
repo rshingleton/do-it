@@ -55,7 +55,7 @@ Exit: a fixture run with `--commit none` and one with phase commits produce a fi
 | Slice | Kind | Delivers | Covers | Blocked by | Verify | Risk | Status |
 |-------|------|----------|--------|------------|--------|------|--------|
 | R8 | build | `review-diff` omits `docs/planning/` whether or not those files are committed (issue: review-diff reports a committed plan file) | G4 | none | A test commits a plan file after `base_ref` and asserts it is absent | low | shipped 2026-10-30 review-diff-planning |
-| R9 | build | The final review reads the working tree against `base` when the run has `--commit none` or uncommitted closing docs, else `<base>...HEAD` (T141) | G4 | R8 (same diff code) | A `--commit none` fixture gives a non-empty final-review change set | med | |
+| R9 | build | The final review reads the working tree against `base` when the run has `--commit none` or uncommitted closing docs, else `<base>...HEAD` (T141) | G4 | R8 (same diff code) | A `--commit none` fixture gives a non-empty final-review change set | med | shipped 2026-10-30 final-review-change |
 | R10 | build | Digest rollback lists only this run's `do-it/<id>/phase-*` tags and gains a retry-result section (T140) | G4 | none | A fixture repo with another run's tags lists only this run's; the digest shows a retried slice's result | low | |
 | R11 | build | `run reject-assumption` fires the plan event before writing the record and finds the plan entry by `n`, not `indexOf` text (T143) | G4 | R5 (same dispatcher code) | Two assumptions with equal text reject by `n`; a failing event leaves the record unchanged | low | |
 
@@ -87,3 +87,4 @@ None.
 - 2026-10-30: R6 shipped (cap-checks): the audit cap refuses the round after it and a slice whose last allowed round passed ships; `run next` stops at `max_slices`; a refusal is remembered so an ignored one still stops the gate; finding T164. The finish-it loop text that calls `run audit` before each round is R7.
 - 2026-10-30: R7 shipped (loop-call-sites): the finish-it loop is one ordered lane sequence calling `run start`, `run verify`, `run audit` and `run gate`, section 4 reports a `run next` stop, `--resume` names the slice id, and tests check each stop code's call and the order; finding T165.
 - 2026-10-30: R8 shipped (review-diff-planning): the snapshot drops excluded planning paths from its index, so `review-diff` never lists a committed plan file; no findings.
+- 2026-10-30: R9 shipped (final-review-change): `work.mjs run review-change` gives the final review the working tree against base under `--commit none` or uncommitted closing docs, else `<base>...HEAD`, planning files never in it; finding T167.
