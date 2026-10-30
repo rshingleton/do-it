@@ -323,6 +323,9 @@ export function snapshot(cwd, { exclude = [] } = {}) {
       fromHead();
       add();
     }
+    // The index started from HEAD or the real index, so excluded paths that are committed or staged are
+    // still in it: take them out, or a committed plan file shows up as a change between two snapshots.
+    if (exclude.length) run(['rm', '--cached', '-r', '-q', '--ignore-unmatch', '--', ...exclude.map((p) => `:(literal)${p}`)]);
     return run(['write-tree']);
   } finally {
     fs.rmSync(path.dirname(index), { recursive: true, force: true });
