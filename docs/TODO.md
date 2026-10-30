@@ -7,7 +7,7 @@ Next id: T154
 
 ## Open
 
-- [ ] T2 Dogfood /setup-it on another repo (/do-it has already run on this one, see T49) `circle-back` (session 2026-10-19; narrowed 2026-10-25)
+- [ ] T2 Dogfood /setup-it on another repo (/do-it has already run on this one) `circle-back` (session 2026-10-19; narrowed 2026-10-25)
 - [ ] T3 Add a tracker.mjs doctor command that checks gh auth or a Jira /myself call, so setup-it verifies reachability `nice-to-have` (session 2026-10-19)
 - [ ] T4 Add a provenance check script that flags skill text copied from known source repos `nice-to-have` (session 2026-10-19)
 - [ ] T6 setup-it writes DO_IT_PROTECTED_BRANCHES from the remote's default branch when it is not main or master `nice-to-have` (skills/setup-it)
@@ -28,25 +28,21 @@ Next id: T154
 - [ ] T27 A Stop hook that warns when a building item edited code but no test command ran `idea` (research: claude-code hookify)
 - [ ] T28 Use the hook if: filter so the commit scan does not start node on every Bash call `idea` (research: claude-code security-guidance)
 - [ ] T29 retro-it mines session transcripts for explicit user corrections and turns them into candidate rules `idea` (research: hookify conversation-analyzer, superpowers diagnosing)
-- [ ] T30 Read-only reviewer agents (agents/ with restricted tools and model) generated from the skill briefs, like gen-opencode `idea` (research: claude-code plugins)
 - [ ] T31 Bugfix plans list behaviour that must not change, feeding regression seams `idea` (research: Kiro bugfix specs)
 - [ ] T32 Path-scoped standards files that load only when matching files are edited `idea` (research: Kiro steering)
 - [ ] T44 Explore: move shared config and doc resolution from skills/track-it/scripts into a top-level lib/ `question` (deepen-it 2026-10-19, candidate 6)
 - [ ] T45 Explore: merge map-it with sweep-it as a single skill with modes `question` (deepen-it 2026-10-19, candidate 7; not recommended now; the log-it and todo-it half shipped as single-intake)
-- [ ] T46 Code map in large repos: cache the map keyed by HEAD and index mtime so subagent starts reuse it, and fall back to tracked files only (no untracked walk) when the 1.5 s timeout hits `idea` (hooks/lib/codemap.mjs; codemap-containers review)
+- [ ] T46 Code map in large repos (the OpenCode plugin already caches per session, R19): cache the map keyed by HEAD and index mtime so Claude Code subagent starts reuse it, and fall back to tracked files only (no untracked walk) when the 1.5 s timeout hits `idea` (hooks/lib/codemap.mjs; codemap-containers review)
 - [ ] T47 Explore self-improving mechanisms for the skill base: review the references, then decide what fits (e.g. extend retro-it, feed audit findings and user corrections back into skills, checks and evals) `question` (user 2026-10-19; after the current plans)
   - References: https://github.com/BerriAI/self-improving-agent, https://github.com/microsoft/Trace, https://github.com/XMUDeepLIT/Awesome-Self-Evolving-Agents, https://github.com/selfimproving-agent/awesome-Self-Improving-Agents
   - Related: T29 (retro-it mines transcripts for corrections), T22 (red-flag tables from observed failures), T23 (behaviour evals), T10 (routing eval variants).
 - [ ] T49 Concurrent uncommitted work items: each fingerprint hashes the whole change since its base, so fixing one item invalidates every other item's audit. Scope the fingerprint (and the auditors' diff) to the item's own paths, e.g. a `paths:` field filled as build-it touches files `idea` (do-it run 2026-10-19: three items, one base, no commits)
 - [ ] T62 The lifecycle stops at a local commit: no skill owns push or PR (body, protected-branch check), changelog version headings, or carrying out ship-it's rollback note `idea` (docs/reference-audit/2026-10-19-repo.md, finding 20; T24 covers PR feedback)
-- [ ] T64 Review the to-do list for additive ideas versus simplification: most open items add features, while removing duplication would save roughly 150 to 250 lines `question` (docs/reference-audit/2026-10-19-repo.md)
 - [ ] T76 usage-it windows (`--from/--to`, `--hours`) count a whole run by its last message time, so a session that straddles a window edge (a weekly reset) is counted entirely inside it; split by per-message timestamps from the transcript, or label the window as run-based `debt` (found checking usage against the 3am weekly reset, session 2026-10-22)
 - [ ] T78 An install doctor (Node >= 18, host, agent and skill symlink health, hook registration, `checks.json` validity); extends T3's tracker-only doctor `idea` (handoff review 2026-10-25)
 - [ ] T81 Trim passing-test noise from `npm test` and build output before it reaches the model; feasibility first, since Claude Code's PostToolUse hook may not rewrite Bash output (T27 is the related hook) `question` (handoff review 2026-10-25, unproven)
 - [ ] T82 Pre-edit guard against whole-file rewrites of large files (over 300 lines or 25 KB), steering to targeted edits; weigh against generated files and the cost of false blocks `question` (handoff review 2026-10-25, unproven)
-- [ ] T103 Consider `node --test --import ./tests/env.mjs` in the `npm test` script instead of the per-suite import line; it couples the helper to the test command `idea` (test-env-helper audit, package.json)
 - [ ] T107 The prove-it Architecture brief and sweep-it LENSES item 8 only link design-it for the deletion test, so a pointer-only agent may not open it; decide whether one sentence belongs inline `nice-to-have` (docs-one-copy audit, skills/prove-it/ARCHITECTURE.md:9)
-- [ ] T110 The usage-ledger rows behind `docs/research/terse-voice-ledger.md` live in `~/.claude` and roll off after 30 days, so its table cannot be recomputed later; snapshot the `it-*` rows if the verdict is cited again `debt` (terse-voice-ab-harness audit, docs/research/terse-voice-ledger.md)
 - [ ] T115 A v2 `session.step.ended` without `assistantMessageID` is dropped, so a live field-name difference gives zero rows; confirm the shape on a live OpenCode 2 `debt` (opencode-usage-ledger audit, skills/usage-it/scripts/opencode.mjs:99)
 - [ ] T130 The `prune` and `now` test seams sit in the public `createOpenCodeUsage` signature; judgement only `nice-to-have` (opencode-usage-agent-prune audit, skills/usage-it/scripts/opencode.mjs:20)
 - [ ] T131 The eval-routing CLI test in `tests/scripts-regressions.test.mjs` hand-rolls its copy-and-spawn runner; a `checkWith`-style helper could serve both it and the check.mjs tests `nice-to-have` (routing-missing-entry audit, tests/scripts-regressions.test.mjs:396)
@@ -69,6 +65,5 @@ Next id: T154
 - [ ] T148 Text accuracy: COMMITS.md:33 and commit.mjs:5 say the do-it line comes from the user's rules but it is a constant; COMMITS.md:20 unwrapped; do-it/SKILL.md long bullet holds three rules; level flag not mapped to `run new --level` `nice-to-have` (complete-run-lane audit, skills/build-it/COMMITS.md, skills/do-it/SKILL.md:80, skills/finish-it/SKILL.md:17)
 - [ ] T149 `run verify` parks a slice only on FLAKY (a plain double failure only throws); `STOPS` codes are not asserted against `gate()` reasons `nice-to-have` (complete-run-lane audit, skills/do-it/scripts/work.mjs:262, stops.mjs)
 - [ ] T150 `changeset.mjs` snapshot loosened (`--ignore-errors`, nested-repo stderr filter) beyond what phase 1 asked; `run base` ignores a dirty tree; a tag failure after commit leaves an untagged commit `nice-to-have` (complete-run-lane audit, skills/do-it/scripts/changeset.mjs:296)
-- [ ] T151 Confirm `npm run gen` owns `.opencode/commands/` (second directory beside `command/`); AGENTS.md names only `command/` `nice-to-have` (complete-run-lane audit, .opencode/commands/finish-it.md)
 - [ ] T152 Skills should run phases in parallel worktrees whenever possible when it costs no extra tokens over the normal route; today build-it's PARALLEL.md requires a clean tree, so one in-place phase forces the rest in place `idea` (complete-run-lane audit, skills/build-it/PARALLEL.md (user request during complete-run-lane))
 - [ ] T153 Phase 2 fixture walkthroughs were never run: a swept fixture roadmap ending with every decision in a legal state, and a non-interactive scope-it plan with no question turn `circle-back` (complete-run-lane audit, complete-run-lane phase 2)

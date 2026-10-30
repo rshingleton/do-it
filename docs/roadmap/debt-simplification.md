@@ -83,7 +83,7 @@ None.
 - Running `/setup-it` on another repo (T2) and confirming the OpenCode v2 `session.step.ended` field names on a live OpenCode 2 (T115): user-run checks; a mismatch becomes a slice.
 - The inline-or-link question for the deletion test in the prove-it Architecture brief and sweep-it LENSES (T107): judgement, settle when an agent is seen to skip the link.
 - Whether the public `createOpenCodeUsage` signature should hide its test seams (T130): judgement.
-- A `work.mjs` per-step usage field (issue: per-step usage record): deferred until the ledger's window attribution proves too coarse.
+- A `work.mjs` per-step usage field (closed per-step usage issue, state field only): deferred until the ledger's window attribution proves too coarse.
 
 ## Out of scope
 - New features and the research-derived ideas T13 to T32, T44, T45, T47, T62: still parked until an audit or retro cites one.
