@@ -36,7 +36,7 @@ function fixture() {
   ok(work(dir, 'run', 'slice', 'road', 'R1', 'shipped'));
   ok(work(dir, 'run', 'slice', 'road', 'R2', 'parked', '--needs', 'decision', '--reason', 'storage engine unanswered'));
   ok(work(dir, 'run', 'slice', 'road', 'R3', 'blocked', '--reason', 'waits on R2'));
-  ok(work(dir, 'run', 'set', 'road', 'assumptions', '["Retry once on timeout"]'));
+  ok(work(dir, 'run', 'add-assumptions', 'road', 'sweep', '["Retry once on timeout"]'));
   ok(work(dir, 'run', 'add-assumptions', 'road', 'feat', '["Default page size 50","Cache 5 min"]'));
   ok(work(dir, 'run', 'reject-assumption', 'road', 'feat#1', 'page', 'size', '25'));
   ok(work(dir, 'run', 'set', 'road', 'limits', JSON.stringify([
@@ -91,7 +91,7 @@ test('run new records base, show reads it back, and a rejection keeps other keys
   const dir = fixture();
   const rec = JSON.parse(ok(work(dir, 'run', 'show', 'road')));
   assert.equal(rec.base, git(dir, 'rev-parse', 'HEAD'));
-  assert.deepEqual(rec.assumptions, ['Retry once on timeout', 'feat#2: Cache 5 min']);
+  assert.deepEqual(rec.assumptions, ['sweep#1: Retry once on timeout', 'feat#2: Cache 5 min']);
   assert.deepEqual(rec.rejected, ['feat#1: Default page size 50 (instead: page size 25)']);
   assert.equal(work(dir, 'run', 'reject-assumption', 'road', 'feat#1', 'x').status === 0, false);
 });

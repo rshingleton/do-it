@@ -73,35 +73,34 @@ export function runReviewChange({ planningDir, root, slug, exclude }) {
 }
 
 // `run reject-assumption`: the plan's event fires first, so a plan that refuses leaves the record
-// untouched, and the plan entry is found by the key's number, not by its text. A recorded number
-// is fixed when the assumption is added, while the plan's list closes up after each rejection,
-// so earlier rejections of the same item are subtracted. A closed item has no plan to reopen:
-// the record is the whole trace.
+// untouched. The plan's entry is found by the recorded text among the plan's remaining entries (the
+// plan's list closes up after every rejection and a re-add renumbers the record, so a number cannot
+// say where it is; two equal texts remove the first, which leaves the same plan). A plan that is
+// auditing or shipping reopens. A plan that no longer lists the text (ship-it rejected it plan-side, or
+// it was edited) gets only the record updated; a plan in another state, or no plan at all, is named
+// in `followup`, never called closed unless it is.
 export function runRejectAssumption({ planningDir, slug, key, instead, items, date }) {
   const want = splitKey(key);
   if (!want || want.text !== undefined) throw new Error('run reject-assumption needs <work id>#<n>');
-  if (!instead) throw new Error('run reject-assumption needs what replaces the assumption');
-  const record = showRun(planningDir, slug);
-  const entry = record.assumptions.find((a) => a.startsWith(`${key}: `));
+  const text = String(instead ?? '').replace(/\s+/g, ' ').trim();
+  if (!text) throw new Error('run reject-assumption needs what replaces the assumption');
+  const entry = showRun(planningDir, slug).assumptions.find((a) => a.startsWith(`${key}: `));
   if (!entry) throw new Error(`no recorded assumption ${key}`);
   let plan = null;
   try {
     plan = items.get(want.id);
-  } catch {
-    plan = null;
+  } catch (e) {
+    // items.get says "no plan for <id>" when the item is gone; any other failure is not "closed".
+    if (!/^no plan for /.test(e.message)) throw e;
   }
-  const live = Boolean(plan) && ['auditing', 'shipping'].includes(plan.state.status);
-  if (live) {
-    const earlier = record.rejected.filter((r) => {
-      const k = splitKey(r.split(' (instead: ')[0]);
-      return k && k.id === want.id && k.n < want.n;
-    }).length;
-    const at = want.n - earlier;
-    if (plan.state.assumptions[at - 1] !== entry.slice(key.length + 2)) {
-      throw new Error(`plan ${want.id} assumption ${at} no longer matches ${key}; nothing rejected`);
-    }
-    items.fire(want.id, 'reject-assumption', { n: at, text: instead, date });
-  }
-  const { record: next } = rejectAssumption(planningDir, slug, key, instead);
-  return { rejected: key, reopened: live, followup: live ? null : 'item closed: the user files a fix: or log-it entry', record: next };
+  const status = plan?.state.status;
+  const at = plan ? plan.state.assumptions.indexOf(entry.slice(key.length + 2)) + 1 : 0;
+  const live = ['auditing', 'shipping'].includes(status) && at > 0;
+  if (live) items.fire(want.id, 'reject-assumption', { n: at, text, date });
+  const { record: next } = rejectAssumption(planningDir, slug, key, text);
+  let followup = null;
+  if (!plan) followup = `no plan for ${want.id} (the item is closed, or this is a sweep default): the user files a fix: or log-it entry`;
+  else if (!live && ['auditing', 'shipping'].includes(status)) followup = `plan ${want.id} no longer lists it (rejected plan-side or edited): only the record changed`;
+  else if (!live) followup = `plan ${want.id} is ${status}, not reopened: add the change to its fix: list`;
+  return { rejected: key, reopened: live, followup, record: next };
 }

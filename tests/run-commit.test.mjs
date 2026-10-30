@@ -373,11 +373,11 @@ test('lane M closing docs commit with --docs after every phase passed, untagged'
 test('run add-assumptions merges per work id and is idempotent', () => {
   const { dir } = fixture();
   ok(work(dir, 'run', 'new', 'road'));
-  ok(work(dir, 'run', 'set', 'road', 'assumptions', '["sweep default"]'));
+  ok(work(dir, 'run', 'add-assumptions', 'road', 'sweep', '["sweep default"]'));
   ok(work(dir, 'run', 'add-assumptions', 'road', 'feat', '["a","b"]'));
   ok(work(dir, 'run', 'add-assumptions', 'road', 'other', '["c"]'));
   const r = ok(work(dir, 'run', 'add-assumptions', 'road', 'feat', '["a2"]'));
-  assert.deepEqual(r.assumptions, ['sweep default', 'other#1: c', 'feat#1: a2']);
+  assert.deepEqual(r.assumptions, ['sweep#1: sweep default', 'other#1: c', 'feat#1: a2']);
 });
 
 // Lane M in slice mode with both phases verified through `run verify`, `setup` run in between.

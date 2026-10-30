@@ -13,7 +13,7 @@ export const LEVELS = ['lite', 'full', 'ultra'];
 export const COMMIT_MODES = ['phase', 'slice', 'none'];
 export const SLICE_STATUSES = ['shipped', 'parked', 'blocked'];
 export const NEEDS = ['user', 'decision'];
-const SETTABLE = ['level', 'commit', 'branch', 'max_slices', 'slice_cap_min', 'audit_cap', 'final_audit_cap', 'audit_total_cap', 'assumptions', 'limits'];
+const SETTABLE = ['level', 'commit', 'branch', 'max_slices', 'slice_cap_min', 'audit_cap', 'final_audit_cap', 'audit_total_cap', 'limits'];
 // Changing a cap puts every refusal marker back to unset, so lowering a cap to the value
 // it once refused at cannot revive an old refusal.
 const CAPS = ['max_slices', 'audit_cap', 'final_audit_cap', 'audit_total_cap'];
@@ -167,6 +167,7 @@ function clearRefusals(r) {
 }
 
 export function setRun(planningDir, slug, key, value) {
+  if (key === 'assumptions') throw new Error('run set does not take assumptions: use run add-assumptions <slug> <id> <json array> (the sweep uses the id `sweep`), so each one keeps a key reject-assumption can take');
   if (!SETTABLE.includes(key)) throw new Error(`run set takes one of: ${SETTABLE.join(', ')}`);
   if (value === undefined) throw new Error(`run set ${key} needs a value`);
   return updateRun(planningDir, slug, (r) => {

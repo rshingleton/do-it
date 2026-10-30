@@ -408,22 +408,86 @@ function rejectFixture(planStatus = 'shipping') {
   return { ...unit(dir), items, fired, plan };
 }
 
-test('reject-assumption: two assumptions with equal text reject by n, not by the first text match', () => {
+test('reject-assumption: two assumptions with equal text lose one in the plan, and the record key says which', () => {
   const t = rejectFixture();
   const out = runRejectAssumption({ ...t, key: 'feat#2', instead: 'different' });
-  assert.deepEqual(t.fired, [['feat', 'reject-assumption', 2, 'different']]);
+  assert.deepEqual(t.fired, [['feat', 'reject-assumption', 1, 'different']], 'equal texts: the first is removed, the plan ends the same');
   assert.equal(out.reopened, true);
   const rec = showRun(t.planningDir, 'road');
   assert.ok(rec.assumptions.includes('feat#1: same') && !rec.assumptions.includes('feat#2: same'), 'the other keeps its number');
   assert.deepEqual(rec.rejected, ['feat#2: same (instead: different)']);
 });
 
-test('reject-assumption: an earlier rejection shifts the plan position, not the key', () => {
-  const t = rejectFixture();
+// A run record "road" whose item "feat" has these assumptions, and a plan stub that lists them.
+function planOf(texts, status = 'shipping') {
+  const dir = fixture();
+  ok(work(dir, 'run', 'add-assumptions', 'road', 'feat', JSON.stringify(texts)));
+  const fired = [];
+  const plan = { state: { status, assumptions: [...texts] } };
+  const items = { get: () => plan, fire: (id, event, args) => fired.push([event, args.n, args.text]) };
+  return { ...unit(dir), items, fired, plan };
+}
+
+test('reject-assumption: the plan entry is found by text among those left, after an earlier rejection', () => {
+  const t = planOf(['a', 'b']);
+  runRejectAssumption({ ...t, key: 'feat#1', instead: 'x' });
+  t.plan.state.assumptions = ['b']; // the plan event removed the first
+  runRejectAssumption({ ...t, key: 'feat#2', instead: 'y' });
+  assert.deepEqual(t.fired, [['reject-assumption', 1, 'x'], ['reject-assumption', 1, 'y']]);
+});
+
+test('reject-assumption: an assumption ship-it already rejected plan-side only updates the record, no refusal', () => {
+  const t = planOf(['a', 'b']);
+  t.plan.state.assumptions = ['b']; // ship-it removed `a` from the plan
+  const out = runRejectAssumption({ ...t, key: 'feat#1', instead: 'x' });
+  assert.deepEqual([out.reopened, t.fired], [false, []]);
+  assert.match(out.followup, /plan-side/);
+  assert.deepEqual(showRun(t.planningDir, 'road').rejected, ['feat#1: a (instead: x)']);
+});
+
+test('reject-assumption: a re-add renumbers the record and the plan entry is still found', () => {
+  const t = planOf(['a', 'b']);
+  runRejectAssumption({ ...t, key: 'feat#1', instead: 'x' });
+  ok(work(t.planningDir.replace(/\/docs\/planning$/, ''), 'run', 'add-assumptions', 'road', 'feat', '["p","q"]'));
+  t.plan.state.assumptions = ['p', 'q'];
+  runRejectAssumption({ ...t, key: 'feat#2', instead: 'y' });
+  assert.deepEqual(t.fired.at(-1), ['reject-assumption', 2, 'y']);
+});
+
+test('reject-assumption: text that looks like a key does not confuse a later rejection', () => {
+  const t = planOf(['see x#2: y', 'z']);
   runRejectAssumption({ ...t, key: 'feat#1', instead: 'a' });
-  t.plan.state.assumptions = ['same']; // the plan event removed the first
+  t.plan.state.assumptions = ['z'];
   runRejectAssumption({ ...t, key: 'feat#2', instead: 'b' });
-  assert.deepEqual(t.fired.map((f) => f[2]), [1, 1], 'feat#2 is now the plan\'s first');
+  assert.deepEqual(t.fired.map((f) => f[1]), [1, 1]);
+});
+
+test('reject-assumption: a plan still building is named, not called closed, and a lookup failure is not swallowed', () => {
+  const t = planOf(['a'], 'building');
+  const out = runRejectAssumption({ ...t, key: 'feat#1', instead: 'x' });
+  assert.deepEqual([out.reopened, t.fired], [false, []]);
+  assert.match(out.followup, /building/);
+  assert.doesNotMatch(out.followup, /closed/);
+  const u = planOf(['a']);
+  u.items.get = () => {
+    throw new Error('EACCES: cannot read the plan');
+  };
+  assert.throws(() => runRejectAssumption({ ...u, key: 'feat#1', instead: 'x' }), /EACCES/);
+});
+
+test('reject-assumption: the replacement is collapsed to one line before it reaches the record', () => {
+  const t = planOf(['a']);
+  runRejectAssumption({ ...t, key: 'feat#1', instead: 'x\n## forged\t line  two' });
+  assert.deepEqual(showRun(t.planningDir, 'road').rejected, ['feat#1: a (instead: x ## forged line two)']);
+  assert.equal(t.fired[0][2], 'x ## forged line two');
+});
+
+test('run set refuses assumptions, which only add-assumptions writes', () => {
+  const dir = fixture();
+  const r = work(dir, 'run', 'set', 'road', 'assumptions', '["x"]');
+  assert.equal(r.status, 1);
+  assert.match(r.out.error, /add-assumptions/);
+  assert.deepEqual(ok(work(dir, 'run', 'add-assumptions', 'road', 'sweep', '["default one"]')).assumptions.slice(-1), ['sweep#1: default one']);
 });
 
 test('reject-assumption: a refused plan event leaves the record exactly as it was', () => {
@@ -434,19 +498,18 @@ test('reject-assumption: a refused plan event leaves the record exactly as it wa
   assert.equal(JSON.stringify(showRun(t.planningDir, 'road')), before);
 });
 
-test('reject-assumption: a plan that no longer matches is refused before anything is written', () => {
+test('reject-assumption: a plan edited by hand fires no event and names it, so the plan is never changed blind', () => {
   const t = rejectFixture();
-  t.plan.state.assumptions = ['same', 'edited by hand'];
-  const before = JSON.stringify(showRun(t.planningDir, 'road'));
-  assert.throws(() => runRejectAssumption({ ...t, key: 'feat#2', instead: 'x' }), /no longer matches/);
-  assert.equal(JSON.stringify(showRun(t.planningDir, 'road')), before);
-  assert.deepEqual(t.fired, []);
+  t.plan.state.assumptions = ['edited by hand', 'edited too'];
+  const out = runRejectAssumption({ ...t, key: 'feat#2', instead: 'x' });
+  assert.deepEqual([out.reopened, t.fired], [false, []]);
+  assert.match(out.followup, /no longer lists it/);
 });
 
 test('reject-assumption: a closed item has no plan to reopen, so only the record changes', () => {
   const t = rejectFixture();
   t.items.get = () => {
-    throw new Error('no such item');
+    throw new Error('no plan for feat under docs/planning');
   };
   const out = runRejectAssumption({ ...t, key: 'feat#1', instead: 'x' });
   assert.equal(out.reopened, false);

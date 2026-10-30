@@ -782,9 +782,9 @@ test('work.mjs run: new, show, set and slice round trip with config defaults', (
   assert.deepEqual(ok(work(dir, 'run', 'show', 'flags')), r, 'read back equals written');
 
   ok(work(dir, 'run', 'set', 'road', 'branch', '"do-it/road"'));
-  ok(work(dir, 'run', 'set', 'road', 'assumptions', '["a (reversible: x)"]'));
+  ok(work(dir, 'run', 'add-assumptions', 'road', 'sweep', '["a (reversible: x)"]'));
   r = ok(work(dir, 'run', 'set', 'road', 'limits', '["no browser: UI not seen"]'));
-  assert.deepEqual([r.branch, r.assumptions, r.limits], ['do-it/road', ['a (reversible: x)'], ['no browser: UI not seen']]);
+  assert.deepEqual([r.branch, r.assumptions, r.limits], ['do-it/road', ['sweep#1: a (reversible: x)'], ['no browser: UI not seen']]);
   ok(work(dir, 'run', 'set', 'road', 'max_slices', '3'));
   assert.equal(ok(work(dir, 'run', 'show', 'road')).max_slices, 3);
 });
@@ -819,7 +819,7 @@ test('work.mjs run: unknown levels, commit modes and non-positive caps are refus
   assert.match(work(dir, 'run', 'show', 'none').out.error, /no run record/);
 
   ok(work(dir, 'run', 'new', 'x'));
-  for (const [key, val, re] of [['level', '"turbo"', /level must/], ['commit', '"all"', /commit must/], ['audit_cap', '0', /positive/], ['assumptions', '"text"', /array/], ['status', '"x"', /takes one of/]]) {
+  for (const [key, val, re] of [['level', '"turbo"', /level must/], ['commit', '"all"', /commit must/], ['audit_cap', '0', /positive/], ['limits', '"text"', /array/], ['assumptions', '["x"]', /add-assumptions/], ['status', '"x"', /takes one of/]]) {
     const r = work(dir, 'run', 'set', 'x', key, val);
     assert.equal(r.status, 1, key);
     assert.match(r.out.error, re);
