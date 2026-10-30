@@ -57,7 +57,7 @@ Exit: a fixture run with `--commit none` and one with phase commits produce a fi
 | R8 | build | `review-diff` omits `docs/planning/` whether or not those files are committed (issue: review-diff reports a committed plan file) | G4 | none | A test commits a plan file after `base_ref` and asserts it is absent | low | shipped 2026-10-30 review-diff-planning |
 | R9 | build | The final review reads the working tree against `base` when the run has `--commit none` or uncommitted closing docs, else `<base>...HEAD` (T141) | G4 | R8 (same diff code) | A `--commit none` fixture gives a non-empty final-review change set | med | shipped 2026-10-30 final-review-change |
 | R10 | build | Digest rollback lists only this run's `do-it/<id>/phase-*` tags and gains a retry-result section (T140) | G4 | none | A fixture repo with another run's tags lists only this run's; the digest shows a retried slice's result | low | shipped 2026-10-30 digest-run-scope |
-| R11 | build | `run reject-assumption` fires the plan event before writing the record and finds the plan entry by `n`, not `indexOf` text (T143) | G4 | R5 (same dispatcher code) | Two assumptions with equal text reject by `n`; a failing event leaves the record unchanged | low | |
+| R11 | build | `run reject-assumption` fires the plan event before writing the record and finds the plan entry by `n`, not `indexOf` text (T143) | G4 | R5 (same dispatcher code) | Two assumptions with equal text reject by `n`; a failing event leaves the record unchanged | low | shipped 2026-10-30 reject-by-n |
 
 ## Open decisions
 None.
@@ -89,3 +89,4 @@ None.
 - 2026-10-30: R8 shipped (review-diff-planning): the snapshot drops excluded planning paths from its index, so `review-diff` never lists a committed plan file; no findings.
 - 2026-10-30: R9 shipped (final-review-change): `work.mjs run review-change` gives the final review the working tree against base under `--commit none` or uncommitted closing docs, else `<base>...HEAD`, planning files never in it; finding T167.
 - 2026-10-30: R10 shipped (digest-run-scope): the digest's Rollback lists only tags of work items this run started and a Retried section shows how each resumed slice ended; findings T168.
+- 2026-10-30: R11 shipped (reject-by-n): `run reject-assumption` fires the plan event before writing the record and finds the plan entry by the key's number, adjusted for earlier rejections; findings T169.
