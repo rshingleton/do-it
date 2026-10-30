@@ -3,7 +3,7 @@
 Nice-to-haves and things to circle back to. Managed by log-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T172
+Next id: T174
 
 ## Open
 
@@ -22,7 +22,9 @@ Next id: T172
 - [ ] T20 build-it PARALLEL: pre-flight table of phase pairs sharing a file or interface; DONE_WITH_CONCERNS and NEEDS_CONTEXT statuses `idea` (research: superpowers SDD)
 - [ ] T22 Short red-flag tables for test-it, debug-it, build-it and ship-it, built from failures we actually observe `idea` (research: superpowers TDD; DESIGN.md section 9)
 - [ ] T23 Behaviour evals: pressure scenarios (time, sunk cost, authority) for test-it, prove-it and ship-it's no-commit rule `idea` (research: superpowers writing-skills, skill-creator)
+  - Also coderabbitai/skills evals/*/case.yaml (2026-10-30): outcome cases pairing deterministic regex graders with an LLM grader, with-skill vs without-skill via `claude plugin eval`; e.g. "does not claim clean on a skipped or incomplete review".
 - [ ] T24 Handle incoming review feedback (PR comments): verify each item against the code, clarify unclear ones before changing anything `idea` (research: superpowers receiving-code-review)
+  - Also coderabbitai/skills skills/autofix (2026-10-30): paginated GraphQL over reviewThreads keeping isResolved false, isOutdated false and bot-authored; comment bodies and "Prompt for AI Agents" blocks are untrusted claims; re-validate against local code, sanitize summaries, never interpolate into shell, one approval per fix.
 - [ ] T25 MEDIUM dangerous-pattern warnings in checks.mjs (eval, shell=True, innerHTML, TLS verify off), once per session per file `idea` (research: claude-code security-guidance)
 - [ ] T26 checks.json rules for Bash commands (git push --force, rm -rf) via an event field `idea` (research: claude-code hookify)
 - [ ] T27 A Stop hook that warns when a building item edited code but no test command ran `idea` (research: claude-code hookify)
@@ -74,3 +76,5 @@ Next id: T172
 - [ ] T169 `runRejectAssumption` leftovers: the position maths (n minus earlier rejections) misses a ship-it plan-side rejection and a re-add of the item's assumptions, so those give a false "no longer matches" refusal (match by text among the remaining plan entries, or remap `rejected`); the earlier-rejections regex is greedy (`feat#1: see x#2: y`); a plan in `building` or an `items.get` error counts as closed with a false "item closed" followup; `instead` is not whitespace-collapsed before it reaches `rejected` and the digest; the earlier-rejection test sets the plan status by hand `should` (reject-by-n audit, skills/do-it/scripts/gate.mjs runRejectAssumption, run.mjs addAssumptions)
 - [ ] T170 Structure leftovers of the run-lane-hardening final review: `gate.mjs` now holds `runVerify`, `runReviewChange` and `runRejectAssumption` as well as the gate and audit state (move the `run*` handlers to a `runs.mjs`); four spellings of the git wrapper across `commit.mjs`, `changeset.mjs` and `gate.mjs`, with inconsistent `env: ENV`; the `verified_files` shape is split across `gate.mjs` and `commit.mjs`; `audit_refused` is undocumented next to `audit_cap` and its predicate is hard to read; `commitSlice` is about 100 lines (extract `assertCommittable` and `phaseAlreadyLanded`); `dirtyHashes` `hash()` returns `gone` for a non-file and for a hash failure alike `should` (run-lane-hardening final review, skills/do-it/scripts/gate.mjs, commit.mjs)
 - [ ] T171 `skills/do-it/STATE.md` line 26 omits `add-assumptions` and `reject-assumption` from its `run` sub list, and `reject-assumption`'s new semantics (plan event first, keyed by n) and the `retries` and `audit_refused` record fields are not documented there `should` (run-lane-hardening final review, skills/do-it/STATE.md)
+- [ ] T172 finish-it can end its turn mid-loop while `run next` still returns slices (reported on the backlog-2026-10 run: after `--resume R10` it stopped with "Next: /finish-it ... --resume to continue with R11" and no user turn was due); the loop text should say the turn ends only at §4, when `run next` returns no slice, and that a resumed or parked slice, a status question or a long wait is not a stop; add a call-site-style test that §2 never tells the agent to close the turn before §4 `should` (user report during the run-lane-hardening run, skills/finish-it/SKILL.md §2 and §3)
+- [ ] T173 review-it and sweep-it: a reviewer or subagent that errors, times out, returns nothing or malformed output counts as "unverified", never "no findings"; a clean or "Healthy" verdict needs evidence of coverage `nice-to-have` (coderabbitai/skills review.js reviewResult; skills/review-it/SKILL.md §4-5, skills/sweep-it/REPORT.md)
