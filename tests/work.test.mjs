@@ -283,6 +283,18 @@ test('roadmap: completed is the frontmatter value and empties next and ready', (
   assert.equal(roadmapOf(rows, '---\ntitle: Billing\n---\n').next, 'R2');
 });
 
+test('roadmap: a completed roadmap with an unshipped slice reports why nothing is offered', () => {
+  const shipped = '| R1 | build | A | G1 | none | v | low | shipped 2026-10-20 x |';
+  const open = '| R2 | build | B | G1 | none | v | low | |';
+  const front = '---\ntitle: Billing\ncompleted: 2026-10-30\n---\n';
+  const reopened = roadmapOf(`${shipped}\n${open}`, front);
+  assert.deepEqual([reopened.finished, reopened.next], [false, null]);
+  assert.match(reopened.reopened, /completed 2026-10-30 but 1 slice not shipped/);
+  assert.equal(roadmapOf(shipped, front).reopened, null, 'a fully shipped completed roadmap has nothing to reopen');
+  assert.equal(roadmapOf(`${shipped}\n${open}`, '---\ntitle: Billing\n---\n').reopened, null, 'not completed');
+  assert.equal(roadmapOf(`${shipped}\n${open}\n| R3 | build | C | G1 | none | v | low | |`, front).reopened.includes('2 slices'), true);
+});
+
 test('skills: roadmap-it and do-it ask the decisions that block slices', () => {
   const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
   const next = read('skills/roadmap-it/SKILL.md');
@@ -863,4 +875,14 @@ test('ship-it: FINALIZE.md covers a completed roadmap with no edits, offer e on 
   for (const want of ['roadmap file', 'ADR', 'docs/TODO.md']) assert.ok(paths.includes(want), `Paths names ${want}`);
   assert.ok(flat(read('skills/ship-it/RUNMODE.md')).includes('FINALIZE.md](FINALIZE.md) Paths'), 'run mode points a run\'s --paths at it');
   assert.ok(flat(read('skills/ship-it/SKILL.md')).includes('what finalize offers a to e will write'), 'the question shows what the offers write');
+});
+
+test('roadmap-it FORMAT.md describes completed and Shipped and no longer shows Changes in its example', () => {
+  const format = fs.readFileSync(path.join(ROOT, 'skills/roadmap-it/FORMAT.md'), 'utf8');
+  const example = format.slice(format.indexOf('```markdown'), format.indexOf('```\n', format.indexOf('```markdown') + 5));
+  assert.doesNotMatch(example, /^## Changes/m, 'the example is a new roadmap: Changes comes with its first dated line');
+  assert.match(format, /`completed: <date>`/);
+  assert.match(format, /## Shipped/);
+  assert.match(format, /re-chart\s+keeps both/);
+  assert.match(format, /`reopened` note/);
 });

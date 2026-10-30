@@ -44,9 +44,6 @@ Exit: an owner upgrades on staging and the next invoice is prorated.
 
 ## Decisions so far
 - 2026-10-22 Decision: proration handled by the provider (ADR-0014). Unblocked R2.
-
-## Changes
-- 2026-10-22: R1 answered; R2 ready.
 ```
 
 ## Fields
@@ -69,3 +66,13 @@ Exit: an owner upgrades on staging and the next invoice is prorated.
 
 The Decisions so far section is an index of dated one-liners pointing at the
 ADR or plan that holds the reasoning.
+
+Two more parts appear over a roadmap's life. `## Changes` holds dated lines
+while work goes on (the first dated line creates it, e.g. `- 2026-10-22: R1
+answered; R2 ready.`). When ship-it finalizes a finished roadmap
+([FINALIZE.md](../ship-it/FINALIZE.md)) it adds `completed: <date>` to the
+frontmatter and turns `## Changes` into a `## Shipped` bullet list. A re-chart
+keeps both: it never drops `completed:` or turns `## Shipped` back into a
+Changes section. `work.mjs roadmap` offers no slice of a completed roadmap, and
+its `reopened` note says so when slices are unshipped; clear `completed:` to
+work them.
