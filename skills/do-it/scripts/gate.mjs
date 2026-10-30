@@ -39,10 +39,18 @@ export function recordVerified(planningDir, slug, id, fingerprint, files) {
   });
 }
 
+// Counts one audit round, unless the run is already at its cap: then the round
+// is refused and not counted, so the loop stops before another round is spent.
 export function countAudit(planningDir, slug) {
-  return update(planningDir, slug, (r) => {
-    r.audit_rounds = (Number(r.audit_rounds) || 0) + 1;
+  let refused = null;
+  const record = update(planningDir, slug, (r) => {
+    const rounds = Number(r.audit_rounds) || 0;
+    if (rounds >= r.audit_cap) {
+      refused = `${rounds} audit rounds, cap ${r.audit_cap}`;
+      r.audit_refused = rounds;
+    } else r.audit_rounds = rounds + 1;
   });
+  return { audit_rounds: record.audit_rounds, allow: !refused, reason: refused && 'AUDIT_CAP', detail: refused };
 }
 
 // {allow, reason, detail}: reason is a code from stops.mjs. `current` is the
@@ -51,8 +59,11 @@ export function gate(record, id, { current, now = Date.now() }) {
   const stop = (reason, detail) => ({ allow: false, reason, detail });
   const shipped = record.slices.filter((s) => s.status === 'shipped').length;
   if (record.max_slices != null && shipped >= record.max_slices) return stop('MAX_SLICES', `${shipped} shipped, cap ${record.max_slices}`);
+  // Past the cap, never at it: a slice whose last allowed round passed still ships.
   const rounds = Number(record.audit_rounds) || 0;
-  if (rounds >= record.audit_cap) return stop('AUDIT_CAP', `${rounds} audit rounds, cap ${record.audit_cap}`);
+  // A refused round is remembered by the rounds spent then: a caller that ignored it is still stopped here, until
+  // the cap is raised or another round is counted.
+  if (rounds > record.audit_cap || (record.audit_refused === rounds && rounds >= record.audit_cap)) return stop('AUDIT_CAP', `${rounds} audit rounds, cap ${record.audit_cap}`);
   const g = (record.gates ?? []).find((x) => x.id === id);
   if (g?.started) {
     const mins = (now - Date.parse(g.started)) / 60000;

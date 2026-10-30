@@ -6,8 +6,8 @@ import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { STOPS } from '../skills/do-it/scripts/stops.mjs';
-import { runGate, runVerify } from '../skills/do-it/scripts/gate.mjs';
-import { showRun } from '../skills/do-it/scripts/run.mjs';
+import { gate as gateRule, runGate, runVerify } from '../skills/do-it/scripts/gate.mjs';
+import { nextSlice, showRun } from '../skills/do-it/scripts/run.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const WORK = path.join(ROOT, 'skills/do-it/scripts/work.mjs');
@@ -114,15 +114,47 @@ test('max-slices: stops once that many slices shipped; unset means no cap', () =
   assert.equal(gate(free).allow, true);
 });
 
-test('audit cap: rounds across the run stop at audit_cap; the default is 5', () => {
+test('audit cap: the round after the cap is refused and uncounted; a slice whose last allowed round passed ships', () => {
   const dir = fixture(['--audit-cap', '2']);
   ok(verify(dir));
-  ok(work(dir, 'run', 'audit', 'road'));
+  assert.equal(ok(work(dir, 'run', 'audit', 'road')).audit_rounds, 1);
+  assert.equal(ok(work(dir, 'run', 'audit', 'road')).allow, true);
+  assert.equal(gate(dir).allow, true, 'the 2nd of 2 rounds passed: the slice ships');
+  const over = ok(work(dir, 'run', 'audit', 'road'));
+  assert.deepEqual([over.allow, over.reason, over.audit_rounds], [false, 'AUDIT_CAP', 2]);
+  // A caller that ignores the refusal is still stopped at the gate; a raised cap clears it.
+  assert.equal(gate(dir).reason, 'AUDIT_CAP');
+  ok(work(dir, 'run', 'set', 'road', 'audit_cap', '3'));
   assert.equal(gate(dir).allow, true);
-  assert.equal(ok(work(dir, 'run', 'audit', 'road')).audit_rounds, 2);
-  const g = gate(dir);
-  assert.deepEqual([g.allow, g.reason], [false, 'AUDIT_CAP']);
+  // The raised cap's last allowed round passes: the refusal from before does not stop that slice.
+  assert.equal(ok(work(dir, 'run', 'audit', 'road')).allow, true);
+  assert.equal(gate(dir).allow, true, 'the 3rd of 3 rounds passed: the slice ships');
+  ok(work(dir, 'run', 'set', 'road', 'audit_cap', '1'));
+  assert.equal(gate(dir).reason, 'AUDIT_CAP', 'a cap lowered below the rounds spent stops the gate');
   assert.equal(ok(work(tmpRepo(), 'run', 'new', 'x')).audit_cap, 5);
+});
+
+test('audit cap: a record already past the cap still stops the gate', () => {
+  const dir = fixture(['--audit-cap', '2']);
+  ok(verify(dir));
+  ok(work(dir, 'run', 'set', 'road', 'audit_cap', '1'));
+  ok(work(dir, 'run', 'audit', 'road'));
+  const rec = ok(work(dir, 'run', 'show', 'road'));
+  assert.equal(rec.audit_cap, 1);
+  assert.equal(gate(dir).allow, true, 'one round at a cap of one is not over it');
+  const rec2 = JSON.parse(JSON.stringify(rec));
+  rec2.audit_rounds = 2;
+  assert.equal(gateRule(rec2, 'R1', { current: 'fp' }).reason, 'AUDIT_CAP');
+});
+
+test('run next: stops handing out slices once max_slices shipped, and says why', () => {
+  const road = { slices: [{ id: 'R1', blocked_by: [], state: 'shipped' }, { id: 'R2', blocked_by: [], state: 'ready' }], ready: ['R2'] };
+  const rec = (shipped, max) => ({ max_slices: max, slices: shipped.map((id) => ({ id, status: 'shipped' })) });
+  assert.equal(nextSlice(road, rec(['R1'], 2)).next, 'R2');
+  assert.equal(nextSlice(road, rec(['R1'], null)).next, 'R2', 'no cap, no stop');
+  const stopped = nextSlice(road, rec(['R1'], 1));
+  assert.equal(stopped.next, null);
+  assert.equal(stopped.stop.reason, 'MAX_SLICES');
 });
 
 test('STOPS.md names exactly the shared reason codes, and judgment codes are named as judgment', () => {
