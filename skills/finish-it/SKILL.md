@@ -78,6 +78,8 @@ before resuming). Then each
 parked slice with its `needs` and reason, and the slices still waiting on
 them. Then `Skipped / Not checked / Risk`. Last line, `Next:` the command that
 resumes: `/finish-it <file> --resume`, or nothing when every slice shipped.
+When the last slice shipped, say what ship-it finalized for the roadmap
+([FINALIZE.md](../ship-it/FINALIZE.md)).
 
 ## Rules
 

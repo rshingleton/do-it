@@ -3,7 +3,7 @@
 Nice-to-haves and things to circle back to. Managed by log-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T175
+Next id: T184
 
 ## Open
 
@@ -62,6 +62,12 @@ Next id: T175
 - [ ] T170 Structure leftovers of the run-lane-hardening final review: `gate.mjs` now holds `runVerify`, `runReviewChange` and `runRejectAssumption` as well as the gate and audit state (move the `run*` handlers to a `runs.mjs`); `audit_refused` is undocumented next to `audit_cap` and its predicate is hard to read; `commitSlice` is about 100 lines (extract `assertCommittable` and `phaseAlreadyLanded`); `dirtyHashes` `hash()` returns `gone` for a non-file and for a hash failure alike `should` (run-lane-hardening final review, skills/do-it/scripts/gate.mjs, commit.mjs)
 - [ ] T171 `skills/do-it/STATE.md` line 26 omits `add-assumptions` and `reject-assumption` from its `run` sub list, and `reject-assumption`'s new semantics (plan event first, keyed by n) and the `retries` and `audit_refused` record fields are not documented there `should` (run-lane-hardening final review, skills/do-it/STATE.md)
 - [ ] T173 review-it and sweep-it: a reviewer or subagent that errors, times out, returns nothing or malformed output counts as "unverified", never "no findings"; a clean or "Healthy" verdict needs evidence of coverage `nice-to-have` (coderabbitai/skills review.js reviewResult; skills/review-it/SKILL.md §4-5, skills/sweep-it/REPORT.md)
-- [ ] T174 Fold the finished roadmaps, work items, issues and closed to-dos into their lasting homes (changelog, ADRs, research or reference notes) and retire the working copies `circle-back` (session 2026-10-30; docs/roadmap/)
-  - Candidates: backlog-hardening, debt-simplification and run-lane-hardening (every slice shipped); the merged T-ids they closed.
-  - Open choices: this repo resolves no changelog (project docs say skip), so decide whether history lives in a new changelog, in ADRs for the hard-to-reverse decisions, or in `docs/research` notes; roadmap-it says a roadmap is never deleted at ship, so retiring one needs an explicit decision.
+- [ ] T175 A `work.mjs` per-step usage field (state field only): deferred until the usage ledger's window attribution proves too coarse `idea` (backlog-hardening and debt-simplification fog, finalized 2026-10-30)
+- [ ] T176 FINALIZE.md edge cases: a `completed` roadmap with no uncommitted edits matches no "When" bullet, the second `--roadmap` run drops offer e's remote milestone close, and "commit now" and run mode's `--paths` never name the paths to stage (the roadmap, new ADRs, `docs/TODO.md`) `should` (roadmap-history audit, skills/ship-it/FINALIZE.md:11-20, RUNMODE.md:26)
+- [ ] T177 ship-it §2: the Show list does not say what the finalize offers a to e write, and Ask item 2's default ("findings and defects") conflicts with "every offer by default"; item 2 is labelled "To log" but carries non-log offers `should` (roadmap-history audit, skills/ship-it/SKILL.md:34-51)
+- [ ] T178 `roadmapSlices` zeroes `next` and `ready` for a `completed` roadmap even when slices are unshipped, so `finished: false` with `next: null` looks like "all blocked"; document that the owner clears `completed:` to reopen, or report a `reopened` note `should` (roadmap-history audit, skills/do-it/scripts/roadmap.mjs:134, tests/work.test.mjs)
+- [ ] T179 `skills/roadmap-it/FORMAT.md` does not describe the `completed:` frontmatter key or the `## Shipped` section, and its example still shows `## Changes`, so a re-chart can rewrite a finalized roadmap back `should` (roadmap-history audit, skills/roadmap-it/FORMAT.md:48)
+- [ ] T180 FINALIZE offer a creates `proposed` ADRs from a roadmap and no step accepts them, since ship-it only accepts a plan's ADRs; say who accepts them or write them `accepted` `should` (roadmap-history audit, skills/ship-it/FINALIZE.md offer a)
+- [ ] T181 Wrap and rewrap churn from roadmap-history: `ship-it/SKILL.md` reworded lines beside the real edits, `RESUME.md:13` repeats "always asks, no default", and `FINALIZE.md:36` and `roadmap-it/SKILL.md:100` run past the wrap width `nice-to-have` (roadmap-history audit)
+- [ ] T182 ADRs 0009 and 0010 Execution notes only restate where each ADR came from; ADR 0010 is a judgement call against the three-part test `nice-to-have` (roadmap-history audit, docs/adr/0009-*, 0010-*)
+- [ ] T183 The FINALIZE pin test in `tests/work.test.mjs` pins about 19 prose fragments (a harmless rewording fails it) and its line-count assertion duplicates `npm run check` `nice-to-have` (roadmap-history audit, tests/work.test.mjs)

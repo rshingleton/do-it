@@ -23,5 +23,7 @@ Take §1 as written; a stale fingerprint still stops. In place of §2's question
    `work.mjs run commit <slug> <id> --docs --paths a,b` (lane M, after every
    phase passed; lane S: the same, after its own code commit), never a push.
 
-Then run §3 steps 1 and 2, and the commit step when step 5 applies. Close
-with `work.mjs close <id>` once the commit holds, and return `done`.
+Then run §3 steps 1 and 2 (a finished roadmap finalizes there with every
+default and no question, [FINALIZE.md](FINALIZE.md)), and the commit step when
+step 5 applies. Close with `work.mjs close <id>` once the commit holds, and
+return `done`.

@@ -252,6 +252,37 @@ test('roadmap: a dependent of an unmet-Verify slice is ready, with the unmet cla
   assert.deepEqual(out.slices.find((s) => s.id === 'R3').unmet, []);
 });
 
+const TABLE = '| Slice | Kind | Delivers | Covers | Blocked by | Verify | Risk | Status |\n|---|---|---|---|---|---|---|---|\n';
+
+function roadmapOf(body, front = '') {
+  const dir = tmpDir('do-it-rm-');
+  const planningDir = path.join(dir, 'docs/planning');
+  fs.mkdirSync(planningDir, { recursive: true });
+  const file = path.join(dir, 'billing.md');
+  fs.writeFileSync(file, `${front}### M1\n\n${TABLE}${body}`);
+  return roadmapSlices(file, { root: dir, planningDir, tracked: () => false });
+}
+
+test('roadmap: finished means slices exist, all shipped or dropped, no open decision', () => {
+  const done = ['| R1 | build | A | G1 | none | v | low | shipped 2026-10-20 x |', '| R2 | build | B | G1 | none | v | low | dropped 2026-10-21: no |'];
+  assert.equal(roadmapOf(done.join('\n')).finished, true);
+  assert.equal(roadmapOf([done[0], '| R2 | build | B | G1 | none | v | low | |'].join('\n')).finished, false, 'an unshipped slice');
+  assert.equal(roadmapOf(`${done.join('\n')}\n\n## Open decisions\n- D1: q?\n`).finished, false, 'an open decision');
+  assert.equal(roadmapOf('').finished, false, 'no slices');
+  assert.equal(roadmapOf(done.join('\n')).completed, null, 'no frontmatter');
+});
+
+test('roadmap: completed is the frontmatter value and empties next and ready', () => {
+  const rows = '| R1 | build | A | G1 | none | v | low | shipped 2026-10-20 x |\n| R2 | build | B | G1 | none | v | low | |';
+  const out = roadmapOf(rows, '---\ntitle: Billing\ncompleted: 2026-10-30\n---\n');
+  assert.equal(out.completed, '2026-10-30');
+  assert.equal(out.finished, false, 'derived, not marked');
+  assert.equal(out.next, null);
+  assert.deepEqual(out.ready, []);
+  assert.equal(roadmapOf(rows, '---\ntitle: Billing\ncompleted:\n---\n').completed, null, 'empty value');
+  assert.equal(roadmapOf(rows, '---\ntitle: Billing\n---\n').next, 'R2');
+});
+
 test('skills: roadmap-it and do-it ask the decisions that block slices', () => {
   const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
   const next = read('skills/roadmap-it/SKILL.md');
@@ -520,6 +551,14 @@ test('work.mjs: roadmap reads the file relative to the current directory', () =>
   assert.equal(out.next, 'R2', 'no plans: R2 is ready and riskier than R4');
 });
 
+test('work.mjs: roadmap prints finished and completed', () => {
+  const dir = tempRepo();
+  fs.writeFileSync(path.join(dir, 'r.md'), `---\ncompleted: 2026-10-30\n---\n### M1\n\n${TABLE}| R1 | build | A | G1 | none | v | low | shipped 2026-10-20 x |\n`);
+  const r = work(dir, 'roadmap', 'r.md');
+  assert.equal(r.out.finished, true);
+  assert.equal(r.out.completed, '2026-10-30');
+});
+
 test('work.mjs: show --brief prints only status, lane, next moves and the blocker, before or after the id', () => {
   const dir = tempRepo();
   work(dir, 'new', 'feat-b', '--lane', 'm', '--title', 'Feature B');
@@ -590,6 +629,42 @@ test('ship-it: the question offers the audit leftovers, DOCS.md and prove-it nam
   const section = docs.slice(docs.indexOf('## Audit findings'));
   assert.match(section, /"log-it"[\s\S]*`source: <work id> audit`/, 'it logs through log-it with the audit source');
   assert.ok(flat(prove).includes('with no changelog offers to log them as to-dos'), 'prove-it names the home');
+});
+
+test('ship-it: FINALIZE.md holds the trigger, five offers and never-list, and ship, run mode, finish-it and roadmap-it point at it', () => {
+  const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
+  const ship = read('skills/ship-it/SKILL.md');
+  assert.match(ship, /^argument-hint:.*--roadmap <file>/m, 'the hint has the mode');
+  assert.ok(ship.includes('(FINALIZE.md)'), 'SKILL.md links FINALIZE.md');
+  assert.ok(ship.trimEnd().split('\n').length <= 100, 'SKILL.md stays within the line budget');
+  const fin = flat(read('skills/ship-it/FINALIZE.md'));
+  for (const want of [
+    'every slice but this one is `shipped` or `dropped`',
+    'a roadmap that is not `finished` is refused as blocked',
+    'a `completed` roadmap with uncommitted edits asks one line, "Commit now?"',
+    'skip d when `completed` is already set',
+    '--roadmap <file>',
+    '`roadmap-<slug>`',
+    'skip `event ship-prepared` and `work.mjs close`',
+    '`finished`, not yet `completed`',
+    'name-it',
+    '`source: <roadmap slug> fog`',
+    '`## Shipped` bullet list',
+    'never a table',
+    '`Verify unmet`',
+    '`completed: <date>`',
+    '`track-it`',
+    'a remote tracker only on the user\'s yes',
+    'Never delete the roadmap',
+    'Never create a changelog',
+    'Never touch a slice Status beyond what ship-it writes',
+  ]) assert.ok(fin.includes(want), `FINALIZE.md names: ${want}`);
+  for (const [letter, title] of [['a', 'ADRs'], ['b', 'Fog'], ['c', 'Shipped'], ['d', 'Completed'], ['e', 'Milestones']])
+    assert.match(read('skills/ship-it/FINALIZE.md'), new RegExp(`^${letter}\\. \\*\\*${title}:\\*\\*`, 'm'), `offer ${letter}`);
+  assert.match(flat(ship), /2\. To log:.*finalize offers a to e/, 'the offers ride in the Ask list item 2, inside the three-ask cap');
+  assert.ok(flat(read('skills/ship-it/RUNMODE.md')).includes('FINALIZE.md'), 'run mode names it');
+  assert.ok(read('skills/finish-it/SKILL.md').includes('FINALIZE.md'), 'finish-it close names it');
+  assert.ok(flat(read('skills/roadmap-it/SKILL.md')).includes('ship-it finalizes a finished roadmap'), 'roadmap-it names it');
 });
 
 test('closing Next: do-it §6 and ship-it §4 name a slash command, never a script', () => {

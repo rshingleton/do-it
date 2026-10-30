@@ -22,7 +22,7 @@ from anywhere in the repo.
 | `work.mjs fingerprint <id>` | Hash of the change since `base_ref`, planning files excluded |
 | `work.mjs review-diff <id>` | Files changed since ship-it prepared the commit (the user's review edits), with a diffstat |
 | `work.mjs verify-phase <id> [n] [--in <dir>] -- "<checks>"` | Runs the checks (in `<dir>` with `--in`, the plan staying this checkout's); records the phase (lane S: the item) as verified only on exit 0. The only way a phase is recorded. Quote a chain (`"npm test && npm run lint"`) so the script runs all of it |
-| `work.mjs roadmap <file>` | Every slice's derived state and the next one to start |
+| `work.mjs roadmap <file>` | Every slice's derived state and the next one to start. `finished` is derived (a slice exists, all shipped or dropped, no open decision); `completed` is the roadmap frontmatter `completed:` value or null. A completed roadmap has `next: null` and `ready: []` |
 | `work.mjs run <sub> <slug> ...` | The run record of a `--complete` run, at `<planning dir>/<slug>.run/RUN.md`. `new` (flags `--level --commit --max-slices --slice-cap-min --audit-cap`), `show`, `set`, `slice <id> shipped\|parked\|blocked\|ready [--reason --needs user\|decision]`, `next <roadmap file>`, `start`, `verify` (reruns a failure once; a pass on the rerun is a failure), `audit`, `gate` (prints `allow` and a stop reason), `review-change` (the final review's change set), `commit` (stages the named paths, commits, tags), `digest` (saved uncommitted). [finish-it](../finish-it/SKILL.md) is its caller |
 | `work.mjs close <id>` | Deletes the plan and prints the to-do ids, roadmap slice and tracker refs to close |
 

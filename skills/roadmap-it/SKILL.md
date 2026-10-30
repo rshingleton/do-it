@@ -97,4 +97,4 @@ After a slice ships, a spike or decision answers, or the destination moves:
 
 - No code here: the roadmap decides what and in which order; scope-it decides
   how. Each slice is at most lane M.
-- ship-it marks a slice `shipped`; the roadmap is never deleted at ship.
+- ship-it finalizes a finished roadmap ([FINALIZE.md](../ship-it/FINALIZE.md)) and never deletes it.
