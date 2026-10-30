@@ -373,6 +373,17 @@ test('an unresolvable earlier git add may stage an untracked file: its secret bl
   assert.equal(beforeShell(ctx, 'cd $X && git commit -m "t: x"').action, 'allow');
 });
 
+test('a new untracked file named on a git commit path line is scanned', () => {
+  const { dir } = repo();
+  fs.writeFileSync(path.join(dir, 'n.js'), `k = "${KEY}"\n`);
+  fs.writeFileSync(path.join(dir, 'ok.js'), 'fine = 1\n');
+  const ctx = ctxFor(dir);
+  const res = beforeShell(ctx, 'git commit -m "t: x" n.js');
+  assert.equal(res.action, 'block');
+  assert.match(res.reason, /n\.js/);
+  assert.equal(beforeShell(ctx, 'git commit -m "t: x" ok.js').action, 'allow');
+});
+
 test('an untracked file named by an earlier git add is read through its textconv driver', () => {
   const { dir, git } = repo();
   b64Driver(dir, git);

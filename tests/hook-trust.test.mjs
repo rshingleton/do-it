@@ -257,7 +257,8 @@ test('a commit with no earlier index-changing command makes the same git calls a
   // plus the one lookup for textconv drivers when a listing has files.
   assert.equal(calls('git commit -m x'), 2);
   assert.equal(calls('git commit -am x'), 7);
-  assert.equal(calls('git commit -m x a.js'), 7);
+  // A named path adds one ls-files call, so a new untracked file named on the line is scanned (R1).
+  assert.equal(calls('git commit -m x a.js'), 8);
 });
 
 test('commit -a before the first commit is scanned', () => {
