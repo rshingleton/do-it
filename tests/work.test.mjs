@@ -636,3 +636,121 @@ test('skills: surfaced defects are planned, recorded and offered at ship', () =>
   assert.match(read('skills/build-it/SKILL.md'), /defects/, 'build-it records defects');
   assert.match(read('skills/do-it/STATE.md'), /`defects`/, 'STATE.md documents the field');
 });
+
+test('work.mjs: fingerprint and review-diff stay correct across commits after base_ref', () => {
+  const dir = tempRepo();
+  const git = (...a) => execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', ...a], { cwd: dir, encoding: 'utf8' });
+  fs.writeFileSync(path.join(dir, 'a.js'), 'one\n');
+  git('add', 'a.js');
+  git('commit', '-q', '-m', 'base');
+  work(dir, 'new', 'cm', '--lane', 's', '--title', 'Cm');
+  for (const e of ['approve', 'start']) work(dir, 'event', 'cm', e);
+  fs.writeFileSync(path.join(dir, 'a.js'), 'two\n');
+  const before = work(dir, 'fingerprint', 'cm').out.fingerprint;
+  git('add', '-A', '--', '.', ':!docs');
+  git('commit', '-q', '-m', 'phase commit');
+  assert.equal(work(dir, 'fingerprint', 'cm').out.fingerprint, before, 'a commit of the same change keeps the fingerprint');
+
+  work(dir, 'verify-phase', 'cm', '--', 'node -e "process.exit(0)"');
+  for (const e of ['build-done', 'audit-pass', 'ship-prepared']) work(dir, 'event', 'cm', e);
+  assert.deepEqual(work(dir, 'review-diff', 'cm').out.files, []);
+
+  fs.writeFileSync(path.join(dir, 'b.js'), 'new\n');
+  git('add', '-A', '--', '.', ':!docs');
+  git('commit', '-q', '-m', 'second commit');
+  assert.deepEqual(work(dir, 'review-diff', 'cm').out.files, [{ status: 'A', path: 'b.js' }], 'only the change since prepare');
+  fs.writeFileSync(path.join(dir, 'a.js'), 'three\n');
+  assert.deepEqual(work(dir, 'review-diff', 'cm').out.files.map((f) => f.path), ['a.js', 'b.js']);
+  assert.notEqual(work(dir, 'fingerprint', 'cm').out.fingerprint, before);
+});
+
+const ok = (r) => {
+  assert.equal(r.status, 0, JSON.stringify(r.out));
+  return r.out;
+};
+
+test('work.mjs run: new, show, set and slice round trip with config defaults', () => {
+  const dir = tempRepo();
+  let r = ok(work(dir, 'run', 'new', 'road', '--date', '2026-10-30'));
+  assert.deepEqual(r, {
+    id: 'road', level: 'full', commit: 'phase', branch: null, started: '2026-10-30',
+    max_slices: null, slice_cap_min: 120, audit_cap: 5, slices: [], assumptions: [], limits: [],
+  });
+  assert.ok(fs.existsSync(path.join(dir, 'docs/planning/road.run/RUN.md')));
+  assert.equal(work(dir, 'run', 'new', 'road').status, 1, 'no second record');
+
+  r = ok(work(dir, 'run', 'new', 'flags', '--level', 'ultra', '--commit', 'none', '--max-slices', '4', '--slice-cap-min', '30', '--audit-cap', '2'));
+  assert.deepEqual([r.level, r.commit, r.max_slices, r.slice_cap_min, r.audit_cap], ['ultra', 'none', 4, 30, 2]);
+  assert.deepEqual(ok(work(dir, 'run', 'show', 'flags')), r, 'read back equals written');
+
+  ok(work(dir, 'run', 'set', 'road', 'branch', '"do-it/road"'));
+  ok(work(dir, 'run', 'set', 'road', 'assumptions', '["a (reversible: x)"]'));
+  r = ok(work(dir, 'run', 'set', 'road', 'limits', '["no browser: UI not seen"]'));
+  assert.deepEqual([r.branch, r.assumptions, r.limits], ['do-it/road', ['a (reversible: x)'], ['no browser: UI not seen']]);
+  ok(work(dir, 'run', 'set', 'road', 'max_slices', '3'));
+  assert.equal(ok(work(dir, 'run', 'show', 'road')).max_slices, 3);
+});
+
+test('work.mjs run: config keys supply defaults when a flag is absent', () => {
+  const dir = tempRepo();
+  fs.mkdirSync(path.join(dir, '.do-it'));
+  fs.writeFileSync(path.join(dir, '.do-it/config.env'), 'DO_IT_MAX_SLICES=7\nDO_IT_SLICE_CAP_MIN=45\nDO_IT_AUDIT_CAP=3\n');
+  let r = ok(work(dir, 'run', 'new', 'cfg'));
+  assert.deepEqual([r.max_slices, r.slice_cap_min, r.audit_cap], [7, 45, 3]);
+  r = ok(work(dir, 'run', 'new', 'cfg2', '--audit-cap', '9'));
+  assert.deepEqual([r.max_slices, r.slice_cap_min, r.audit_cap], [7, 45, 9], 'a flag beats config');
+});
+
+test('work.mjs run: unknown levels, commit modes and non-positive caps are refused', () => {
+  const dir = tempRepo();
+  const bad = [
+    [['--level', 'turbo'], /level must be one of/],
+    [['--commit', 'always'], /commit must be one of/],
+    [['--max-slices', '0'], /max_slices must be a positive whole number/],
+    [['--slice-cap-min', '-5'], /slice_cap_min must be a positive/],
+    [['--audit-cap', '1.5'], /audit_cap must be a positive/],
+    [['--audit-cap', 'abc'], /audit_cap must be a positive/],
+  ];
+  for (const [flags, re] of bad) {
+    const r = work(dir, 'run', 'new', 'x', ...flags);
+    assert.equal(r.status, 1, flags.join(' '));
+    assert.match(r.out.error, re);
+  }
+  assert.ok(!fs.existsSync(path.join(dir, 'docs/planning/x.run')), 'a refused new writes nothing');
+  assert.equal(work(dir, 'run', 'new', '../x').status, 1);
+  assert.match(work(dir, 'run', 'show', 'none').out.error, /no run record/);
+
+  ok(work(dir, 'run', 'new', 'x'));
+  for (const [key, val, re] of [['level', '"turbo"', /level must/], ['commit', '"all"', /commit must/], ['audit_cap', '0', /positive/], ['assumptions', '"text"', /array/], ['status', '"x"', /takes one of/]]) {
+    const r = work(dir, 'run', 'set', 'x', key, val);
+    assert.equal(r.status, 1, key);
+    assert.match(r.out.error, re);
+  }
+  assert.equal(ok(work(dir, 'run', 'show', 'x')).level, 'full', 'refused sets change nothing');
+});
+
+test('work.mjs run: slice states, parked needs a reason, shipped is final', () => {
+  const dir = tempRepo();
+  ok(work(dir, 'run', 'new', 'r'));
+  assert.match(work(dir, 'run', 'slice', 'r', 's1', 'parked').out.error, /needs --reason/);
+  assert.match(work(dir, 'run', 'slice', 'r', 's1', 'parked', '--reason', 'why').out.error, /needs must be one of user, decision/);
+  assert.match(work(dir, 'run', 'slice', 'r', 's1', 'done').out.error, /status must be one of/);
+
+  let r = ok(work(dir, 'run', 'slice', 'r', 's1', 'parked', '--reason', 'API choice open', '--needs', 'decision'));
+  assert.deepEqual(r.slices, [{ id: 's1', status: 'parked', reason: 'API choice open', needs: 'decision' }]);
+  ok(work(dir, 'run', 'slice', 'r', 's2', 'blocked', '--reason', 'waits on s1'));
+  r = ok(work(dir, 'run', 'slice', 'r', 's1', 'shipped'));
+  assert.deepEqual(r.slices, [{ id: 's1', status: 'shipped' }, { id: 's2', status: 'blocked', reason: 'waits on s1' }], 'a move replaces the entry in place');
+  assert.match(work(dir, 'run', 'slice', 'r', 's1', 'parked', '--reason', 'x', '--needs', 'user').out.error, /shipped; a shipped slice does not move/);
+  assert.deepEqual(ok(work(dir, 'run', 'show', 'r')).slices, r.slices);
+});
+
+test('work.mjs run: a run record never shows in list', () => {
+  const dir = tempRepo();
+  work(dir, 'new', 'feat', '--lane', 'm', '--title', 'Feat');
+  const without = ok(work(dir, 'list'));
+  ok(work(dir, 'run', 'new', 'feat'));
+  ok(work(dir, 'run', 'new', 'other'));
+  assert.deepEqual(ok(work(dir, 'list')), without);
+  assert.equal(without.length, 1);
+});

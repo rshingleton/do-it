@@ -40,3 +40,12 @@ Follow the `it-core` posture. In addition:
 [ ] Every known limit carries `shortcut: <the limit>, <when to upgrade>`
 [ ] New files are listed in the closing message (untracked files hide from git diff)
 ```
+
+## 4. Commit boundary (a run that commits)
+
+Before each run commit, list every changed file (`git status --porcelain`)
+and map each to the slice goal, the plan, or a necessary dependency of
+either. A change that maps to none and is yours: remove it. One that is not
+yours (the user's other work in the tree): leave it alone, unstaged. Hand the
+mapped files, by path, to the commit step in [COMMITS.md](COMMITS.md); never
+stage a directory you did not map or use `git add -A`.

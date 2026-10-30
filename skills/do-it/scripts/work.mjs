@@ -10,6 +10,9 @@
 //   work.mjs review-diff <id>
 //   work.mjs verify-phase <id> [n] [--in dir] -- <command...>
 //   work.mjs roadmap <file>
+//   work.mjs run new <slug> [--level --commit --max-slices --slice-cap-min --audit-cap]
+//   work.mjs run show <slug> | set <slug> <key> <json> | slice <slug> <id> <status> [--reason --needs]
+//   work.mjs run commit <slug> <id> [--phase n] --paths a,b [--limits <json>]
 //   work.mjs close <id>
 //
 // The rules live in items.mjs and state.mjs (../STATE.md documents them);
@@ -25,6 +28,8 @@ import { EMPTY_TREE, fingerprint, hasObject, snapshot, treeDiff } from './change
 import { needsUser } from './state.mjs';
 import { allowedMoves, firableEvents, workItems } from './items.mjs';
 import { roadmapSlices } from './roadmap.mjs';
+import { commitSlice } from './commit.mjs';
+import { createRun, setRun, showRun, sliceRun } from './run.mjs';
 
 // Flags that take no value.
 const FLAGS = new Set(['brief']);
@@ -49,7 +54,7 @@ function parseArgs(argv) {
 function context(cwd) {
   const { root, values } = loadConfig({ cwd });
   const planningDir = path.resolve(root, values.DO_IT_PLANNING_DIR);
-  return { root, planningDir, items: workItems({ planningDir }) };
+  return { root, planningDir, config: values, items: workItems({ planningDir }) };
 }
 
 function view(ctx, item) {
@@ -192,13 +197,37 @@ export async function run(argv, { cwd = process.cwd() } = {}) {
       const file = path.resolve(cwd, id);
       return { file: path.relative(ctx.root, file), ...roadmapSlices(file, ctx) };
     }
+    case 'run': {
+      // A complete run's record: id is the subcommand here, rest[0] the roadmap slug.
+      const [slug, ...args] = rest;
+      switch (id) {
+        case 'new':
+          return createRun(ctx.planningDir, slug, opts, ctx.config);
+        case 'show':
+          return showRun(ctx.planningDir, slug);
+        case 'set':
+          return setRun(ctx.planningDir, slug, args[0], args[1] === undefined ? undefined : json(args[1]));
+        case 'slice':
+          return sliceRun(ctx.planningDir, slug, args[0], args[1], { reason: opts.reason, needs: opts.needs });
+        case 'commit': {
+          if (!args[0]) throw new Error('run commit needs a work id');
+          const limits = opts.limits === undefined ? [] : json(opts.limits);
+          return commitSlice({
+            ...ctx, slug, id: args[0], phase: opts.phase === undefined ? undefined : Number(opts.phase),
+            paths: String(opts.paths ?? '').split(',').filter(Boolean), limits,
+          });
+        }
+        default:
+          throw new Error('usage: work.mjs run new|show|set|slice|commit <slug> ...');
+      }
+    }
     case 'close': {
       const item = items.close(id);
       const s = item.state;
       return { closed: s.id, removed: path.relative(ctx.root, item.path), todo: s.todo, roadmap: s.roadmap, tracker: s.tracker, sources: s.sources };
     }
     default:
-      throw new Error('usage: work.mjs new|show|list|event|set|fingerprint|review-diff|verify-phase|roadmap|close ...');
+      throw new Error('usage: work.mjs new|show|list|event|set|fingerprint|review-diff|verify-phase|roadmap|run|close ...');
   }
 }
 

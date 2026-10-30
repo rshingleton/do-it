@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 
-import { addedLines } from '../skills/do-it/scripts/changeset.mjs';
+import { addedLines, fingerprint } from '../skills/do-it/scripts/changeset.mjs';
 
 function gitRepo() {
   const dir = tmpDir('do-it-cs-');
@@ -453,4 +453,25 @@ test('three thousand staged files read the same as one at a time', () => {
   const files = byFile(addedLines(r.dir, { against: 'staged' }));
   assert.equal(Object.keys(files).length, 3000);
   for (const i of [0, 1500, 2999]) assert.deepEqual(files[`d/f${i}.js`], [{ n: 1, text: `a${i}` }, { n: 2, text: `b${i}` }]);
+});
+
+test('fingerprint hashes base..working tree and survives commits after the base', () => {
+  const { dir, git, write, commit } = gitRepo();
+  write('a.js', 'one\n');
+  commit();
+  const base = git('rev-parse', 'HEAD').trim();
+  assert.equal(fingerprint(dir, base), fingerprint(dir, base), 'stable with no change');
+  write('a.js', 'two\n');
+  write('b.js', 'new\n');
+  const before = fingerprint(dir, base);
+  commit();
+  assert.equal(fingerprint(dir, base), before, 'committing the same change leaves the hash equal');
+  write('c.js', 'more\n');
+  assert.notEqual(fingerprint(dir, base), before, 'a new file changes it');
+  commit();
+  const mid = fingerprint(dir, base);
+  write('a.js', 'three\n');
+  assert.notEqual(fingerprint(dir, base), mid, 'an edit after a commit changes it');
+  write('a.js', 'two\n');
+  assert.equal(fingerprint(dir, base), mid, 'reverting the edit restores it');
 });
