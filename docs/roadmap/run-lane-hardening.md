@@ -38,14 +38,14 @@ Exit: a run commit with a directory path, a retry, a rejecting hook and a lane M
 |-------|------|----------|--------|------------|--------|------|--------|
 | R2 | build | `run commit --paths` rejects a directory path, and a retried phase commit that finds `do-it/<id>/phase-N` already on HEAD is a no-op (T136, T137) | G2 | none | A directory path is refused and another slice's edit stays unstaged; a second commit call after a landed commit returns the same sha without throwing | med | shipped 2026-10-30 commit-dir-retry |
 | R3 | build | `commitSlice` writes the run record and keeps the branch only after `git commit` succeeds, and restores the branch when a hook rejects (T138) | G2 | R2 (same function) | A rejecting `pre-commit` hook leaves the branch and the run record as before the call | med | shipped 2026-10-30 commit-after-success |
-| R4 | build | Lane M in `slice` commit mode makes one code commit after its last phase verifies, then the closing-docs commit; COMMITS.md and ADR 0008 line 25 say so (T142) | G2 | R3 (same function) | A lane M fixture in `slice` mode commits its code and then its docs; code changed after `verify-phase` refuses | med |shipped 2026-10-30 lane-m-slice-commit |
+| R4 | build | Lane M in `slice` commit mode makes one code commit after its last phase verifies, then the closing-docs commit; COMMITS.md and ADR 0008 line 25 say so (T142) | G2 | R3 (same function) | A lane M fixture in `slice` mode commits its code and then its docs; code changed after `verify-phase` refuses | med | shipped 2026-10-30 lane-m-slice-commit |
 
 ### M3: Caps and stops fire
 Exit: a fixture run hits the audit-round cap, the slice cap and a stale verify, and each parks or stops with the reason STOPS.md names.
 
 | Slice | Kind | Delivers | Covers | Blocked by | Verify | Risk | Status |
 |-------|------|----------|--------|------------|--------|------|--------|
-| R5 | enabler | `run gate` and `run verify` orchestration moves from the `work.mjs` dispatcher into `gate.mjs`, and the `run` usage error lists start, audit, gate, verify and reject-assumption (T144) | G5 | none | `gate.mjs` exports the two functions with unit tests; `work.mjs` only dispatches; `npm test` passes unchanged | low | |
+| R5 | enabler | `run gate` and `run verify` orchestration moves from the `work.mjs` dispatcher into `gate.mjs`, and the `run` usage error lists start, audit, gate, verify and reject-assumption (T144) | G5 | none | `gate.mjs` exports the two functions with unit tests; `work.mjs` only dispatches; `npm test` passes unchanged | low |  shipped 2026-10-30 gate-orchestration |
 | R6 | build | The audit-round cap and `max_slices` are checked before another round or slice is built, so a slice whose 5th round passed is not stopped and slice 2 is not built over the cap (T139) | G3 | R5 (the gate code it edits) | A test: 5th round passes, slice ships; `max_slices` 1 stops before slice 2 | med | |
 | R7 | build | The finish-it loop text calls `run start`, `run verify` and `run audit` at the steps STOPS.md names, `--resume` names the id `run slice ... ready` needs, and a test fails if a stop code has no call site (T145, T135) | G3 | R6 (stop semantics settled) | The test fails when a stop code's call is removed from the loop text; the resume line names an id | med | |
 
@@ -83,3 +83,4 @@ None.
 - 2026-10-30: R2 shipped (commit-dir-retry): `run commit` refuses directory and glob paths and a landed phase commit is a no-op on retry; findings T155 to T157.
 - 2026-10-30: R3 shipped (commit-after-success): a rejected run commit restores the branch and leaves the run record untouched; finding T158.
 - 2026-10-30: R4 shipped (lane-m-slice-commit): lane M in `slice` mode commits its code once, then its closing docs; named files are compared to the hashes `run verify` recorded; findings T159 to T162.
+- 2026-10-30: R5 shipped (gate-orchestration): `run gate` and `run verify` live in `gate.mjs` as `runGate` and `runVerify` with unit tests; finding T163.
