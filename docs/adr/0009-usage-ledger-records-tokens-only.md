@@ -11,7 +11,3 @@ status: accepted
 - The digest and the `usage-it` report state counted tokens and never an estimate of money or time saved.
 - Changing a price needs no migration; a new table re-prices every row.
 - A cost field in a row is a defect, not a feature to fill in.
-
-## Execution notes
-
-Decided as D1 of the backlog-hardening roadmap (2026-10-26) and built as opencode-usage-ledger.

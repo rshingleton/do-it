@@ -886,3 +886,15 @@ test('roadmap-it FORMAT.md describes completed and Shipped and no longer shows C
   assert.match(format, /re-chart\s+keeps both/);
   assert.match(format, /`reopened` note/);
 });
+
+test('a roadmap finalize leaves no proposed ADR nobody accepts, and the two origin-only Execution notes are gone', () => {
+  const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
+  const offerA = flat(read('skills/ship-it/FINALIZE.md')).match(/a\. \*\*ADRs:\*\*.*?(?=b\. \*\*Fog)/)[0];
+  assert.match(offerA, /`accepted` ADR/);
+  assert.doesNotMatch(offerA, /proposed/);
+  for (const adr of ['0009-usage-ledger-records-tokens-only', '0010-unmet-verify-does-not-block-dependents']) {
+    const text = read(`docs/adr/${adr}.md`);
+    assert.match(text, /^status: accepted/m);
+    assert.doesNotMatch(text, /## Execution notes/);
+  }
+});

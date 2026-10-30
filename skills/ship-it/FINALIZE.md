@@ -32,8 +32,9 @@ Item 2 of §2's Ask list carries them as `a` to `e`, each taken by default;
 the user names the letters to leave out. Nothing is written before the answer.
 
 a. **ADRs:** each Decisions-so-far entry that passes
-   [name-it](../name-it/SKILL.md)'s three-part test becomes a proposed ADR
-   ([ADR-FORMAT.md](../name-it/ADR-FORMAT.md)); list them by title.
+   [name-it](../name-it/SKILL.md)'s three-part test becomes an `accepted` ADR
+   ([ADR-FORMAT.md](../name-it/ADR-FORMAT.md)): the owner approved the roadmap
+   and nothing later accepts a roadmap's ADR. List them by title.
 b. **Fog:** each Fog line becomes a to-do through `log-it`, with
    `source: <roadmap slug> fog` (a line already on the to-do list is skipped).
 c. **Shipped:** `## Changes` becomes a `## Shipped` bullet list, never a table,
@@ -42,8 +43,8 @@ c. **Shipped:** `## Changes` becomes a `## Shipped` bullet list, never a table,
 d. **Completed:** `completed: <date>` in the frontmatter, the date of this run;
    skip d when `completed` is already set.
 e. **Milestones:** for a published roadmap, close each milestone parent with
-   `track-it` (`tracker.mjs close`). A local tracker closes by default; a remote tracker only on the
-   user's yes, in a run too.
+   `track-it` (`tracker.mjs close`). A local tracker closes by default; a
+   remote tracker only on the user's yes, in a run too.
 
 Write a to d in the same change as the slice's own closes (§3 step 2). Run
 mode takes every default, with no question ([RUNMODE.md](RUNMODE.md)).

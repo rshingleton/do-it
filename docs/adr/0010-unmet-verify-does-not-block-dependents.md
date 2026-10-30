@@ -11,7 +11,3 @@ A roadmap slice can ship with its Verify clause not met: the product defect it e
 - Done means shipped or dropped; one predicate serves `next`, `blocked` and `blocking`.
 - The unmet clause appears in the `roadmap` output next to each dependent and in the closing message, so the gap is visible at the point it matters.
 - A dependent that truly cannot work without the unmet clause says so in its own Blocked-by, as a decision.
-
-## Execution notes
-
-Decided as D1 of the debt-simplification roadmap (2026-10-27) and built as R12 (`roadmap.mjs`, `unmet` list).
