@@ -54,7 +54,7 @@ Exit: `gate.mjs` holds no `run*` handler, no helper has a second copy, and `npm 
 | R9 | enabler | `runVerify`, `runReviewChange` and `runRejectAssumption` move to `runs.mjs`; `commitSlice` splits into `assertCommittable` and `phaseAlreadyLanded`; `audit_refused` documented beside `audit_cap`; `dirtyHashes` `hash()` tells a non-file from a failure (T170) | G4 | R5, R6, R7, R8 (they edit these functions) | `npm test` passes; no `run*` handler in `gate.mjs`; `commitSlice` is under 60 lines | med | shipped 2026-10-30 r9-split-run-handlers, no `dirtyHashes` change: R4 already made a non-file `dir` and a hash failure a throw |
 | R10 | enabler | One record read-modify-write (owned by `run.mjs`), one id regex, one git wrapper with consistent `env`, one `verified_files` shape, and the dead `instead ?` branch, `ready` pseudo-status and in-writer timestamp gone (T147) | G4 | R9 (same files) | `rg` finds one id regex and one git wrapper; `npm test` passes | low | shipped 2026-10-30 r10-one-copy |
 | R11 | build | Digest sanitizes `--reason` and tag names (only `^do-it/<id>/phase-<n>$`), keeps a works list across a resumed slice, drops the redundant `now()` branch, and tests repeated retries (T168) | G4 | R10 (same files) | A multi-line reason cannot render a heading; a tag with shell text is not printed; a resumed slice keeps its old tag in Rollback | med | shipped 2026-10-30 r11-digest-safe |
-| R12 | build | Run assumption bookkeeping: `run set assumptions` refused, rejection matched by text among remaining plan entries, sweep-origin assumptions rejectable, greedy regex fixed, `instead` whitespace-collapsed, `building` and `items.get` errors no longer read as closed (T146) | G4 | R11 (same files), D3 (reject semantics) | Tests for a ship-it plan-side rejection, a re-add, `feat#1: see x#2: y` and a plan in `building` | high | |
+| R12 | build | Run assumption bookkeeping: `run set assumptions` refused, rejection matched by text among remaining plan entries, sweep-origin assumptions rejectable, greedy regex fixed, `instead` whitespace-collapsed, `building` and `items.get` errors no longer read as closed (T146) | G4 | R11 (same files), D3 (reject semantics) | Tests for a ship-it plan-side rejection, a re-add, `feat#1: see x#2: y` and a plan in `building` | high | shipped 2026-10-30 r12-assumption-bookkeeping |
 | R13 | build | Text accuracy: the do-it line named a constant in COMMITS.md and `commit.mjs`, wrap fixed, the long `do-it/SKILL.md` bullet split, the level flag mapped to `run new --level` (T148) | G2 | R2 (same finish-it text), R10 | `npm run check` passes; no "from the user's rules" text remains for the do-it line | low | |
 
 ### M4: The roadmap lifecycle is whole
@@ -81,9 +81,7 @@ Exit: every remaining audit case has a test or a decision, and nothing on the to
 | R24 | build | setup-it writes `DO_IT_PROTECTED_BRANCHES` from the remote's default branch when it is not main or master (T6) | G7 | none | A fixture repo with default branch `trunk` gets it written | low | |
 
 ## Open decisions
-- D1: usage-it windows: split a straddling session by per-message timestamps, or keep run-based counting and label the window? Answer by: grill at the start of R22. Blocks R22.
-- D2: Who accepts the `proposed` ADRs a roadmap finalize creates: offer a writes them `accepted`, or a later step accepts them? Answer by: grill at the start of R16. Blocks R16.
-- D3: What does rejecting an assumption mean after a ship-it plan-side rejection or a re-add: match by text among the remaining plan entries, or remap `rejected` by position? Answer by: grill at the start of R12. Blocks R12.
+- none
 
 ## Fog
 - T78 doctors: a tracker reachability check and an install doctor (may become one `/setup-it` check slice, or two).
@@ -98,6 +96,9 @@ Exit: every remaining audit case has a test or a decision, and nothing on the to
 - 2026-10-30 Decision: scope is defects, debt and the audit-cap issue; ideas and questions stay on the to-do list.
 - 2026-10-30 Decision: audit cap becomes per slice (default 3), the final review keeps its own cap, and the run total is `max_slices x per-slice cap`.
 - 2026-10-30 Decision: one slice at a time, `should` before `nice-to-have`, high risk first; no tracker publish.
+- 2026-10-30 Decision (D1, settled in the run sweep as an assumption): usage-it splits a straddling session by per-message timestamps, with the run-based label as the fallback; revisit if transcripts lack per-message times.
+- 2026-10-30 Decision (D2, settled in the run sweep as an assumption): a roadmap finalize's offer a writes its ADRs `accepted`; revisit if a finalize can run with no user turn.
+- 2026-10-30 Decision (D3, settled in the run sweep as an assumption): assumption rejection matches by text among the remaining plan entries; revisit if entries can carry identical text.
 
 ## Changes
 - 2026-10-30: charted and approved.
@@ -112,3 +113,5 @@ Exit: every remaining audit case has a test or a decision, and nothing on the to
 - 2026-10-30: R9 shipped (r9-split-run-handlers).
 - 2026-10-30: R10 shipped (r10-one-copy).
 - 2026-10-30: R11 shipped (r11-digest-safe).
+- 2026-10-30: D1, D2 and D3 moved from Open decisions to Decisions so far: the run sweep had settled them as assumptions, and an open entry held R12, R16 and R22 back.
+- 2026-10-30: R12 shipped (r12-assumption-bookkeeping).
