@@ -34,6 +34,8 @@ export function buildDigest({ record, tags = [], usage = null, findings = [], re
   const limits = record.limits.filter((l) => !l.startsWith('marker:'));
   const out = [`# Run digest: ${record.id}`, '', `Level ${record.level}, commit ${record.commit}, started ${record.started}.`, ''];
   const sec = (title, lines) => out.push(`## ${title}`, '', ...lines, '');
+  // The audit limit that last refused a round: the slice, the final review or the run total.
+  if (record.audit_stop) sec('Limit fired', [`- AUDIT_CAP, ${String(record.audit_stop).replace(/\s+/g, ' ')}`]);
   sec(`Shipped (${by('shipped').length})`, bullets(by('shipped').map((x) => x.id)));
   sec(`Parked (${by('parked').length})`, bullets(by('parked').map(why)));
   sec(`Blocked (${by('blocked').length})`, bullets(by('blocked').map(why)));

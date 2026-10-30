@@ -13,8 +13,9 @@ committed work) or `worktree` (the working tree against base: commit mode
 `none`, or closing docs not yet committed). A null `base` (no git): review the
 working tree.
 
-- Fix only Must findings, then review again. At most the record's `audit_cap`
-  rounds across the run; a Must left at the cap goes in the digest as open.
+- Fix only Must findings, then review again. Before each round,
+  `work.mjs run audit <slug> --final`; at the record's `final_audit_cap` it is
+  refused, and a Must left then goes in the digest as open.
 - Should and Nice findings and surfaced defects: `log-it`, never fixed. Keep
   each filed ref for the digest's findings list.
 

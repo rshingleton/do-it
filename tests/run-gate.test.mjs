@@ -114,36 +114,111 @@ test('max-slices: stops once that many slices shipped; unset means no cap', () =
   assert.equal(gate(free).allow, true);
 });
 
-test('audit cap: the round after the cap is refused and uncounted; a slice whose last allowed round passed ships', () => {
+const audit = (dir, ...a) => ok(work(dir, 'run', 'audit', 'road', ...a));
+
+test('audit cap: the round after a slice\'s cap is refused and uncounted, naming the slice; its last allowed round ships', () => {
   const dir = fixture(['--audit-cap', '2']);
   ok(verify(dir));
-  assert.equal(ok(work(dir, 'run', 'audit', 'road')).audit_rounds, 1);
-  assert.equal(ok(work(dir, 'run', 'audit', 'road')).allow, true);
+  assert.equal(audit(dir, 'R1').audit_rounds, 1);
+  assert.equal(audit(dir, 'R1').allow, true);
   assert.equal(gate(dir).allow, true, 'the 2nd of 2 rounds passed: the slice ships');
-  const over = ok(work(dir, 'run', 'audit', 'road'));
-  assert.deepEqual([over.allow, over.reason, over.audit_rounds], [false, 'AUDIT_CAP', 2]);
+  const over = audit(dir, 'R1');
+  assert.deepEqual([over.allow, over.reason, over.audit_rounds, over.limit], [false, 'AUDIT_CAP', 2, 'slice R1']);
+  assert.match(over.detail, /slice R1: 2 audit rounds, cap 2/);
   // A caller that ignores the refusal is still stopped at the gate; a raised cap clears it.
+  assert.match(gate(dir).detail, /slice R1/);
   assert.equal(gate(dir).reason, 'AUDIT_CAP');
   ok(work(dir, 'run', 'set', 'road', 'audit_cap', '3'));
   assert.equal(gate(dir).allow, true);
-  // The raised cap's last allowed round passes: the refusal from before does not stop that slice.
-  assert.equal(ok(work(dir, 'run', 'audit', 'road')).allow, true);
+  assert.equal(audit(dir, 'R1').allow, true);
   assert.equal(gate(dir).allow, true, 'the 3rd of 3 rounds passed: the slice ships');
   ok(work(dir, 'run', 'set', 'road', 'audit_cap', '1'));
   assert.equal(gate(dir).reason, 'AUDIT_CAP', 'a cap lowered below the rounds spent stops the gate');
-  assert.equal(ok(work(tmpRepo(), 'run', 'new', 'x')).audit_cap, 5);
+  const fresh = ok(work(tmpRepo(), 'run', 'new', 'x'));
+  assert.deepEqual([fresh.audit_cap, fresh.final_audit_cap, fresh.audit_total_cap], [3, 3, null]);
+});
+
+test('audit cap: a round needs a slice or --final', () => {
+  const dir = fixture();
+  assert.equal(work(dir, 'run', 'audit', 'road').status, 1);
+});
+
+test('audit cap: lowering a cap back to the value it refused at does not revive the refusal', () => {
+  const dir = fixture(['--audit-cap', '2']);
+  ok(verify(dir));
+  audit(dir, 'R1');
+  audit(dir, 'R1');
+  assert.equal(audit(dir, 'R1').allow, false);
+  ok(work(dir, 'run', 'set', 'road', 'audit_cap', '3'));
+  ok(work(dir, 'run', 'set', 'road', 'audit_cap', '2'));
+  assert.equal(gate(dir).allow, true, 'two rounds at a cap of two ship; the old refusal is gone');
+  assert.equal(ok(work(dir, 'run', 'show', 'road')).audit_stop, undefined);
+});
+
+test('audit cap: a long run of slices at two rounds each finishes under default caps', () => {
+  const dir = fixture();
+  for (let i = 1; i <= 8; i++) {
+    const id = `R${i}`;
+    assert.equal(audit(dir, id).allow, true);
+    assert.equal(audit(dir, id).allow, true, `${id} second round`);
+    ok(work(dir, 'run', 'slice', 'road', id, 'shipped'));
+  }
+  assert.equal(ok(work(dir, 'run', 'show', 'road')).audit_rounds, 16, 'the run total counts across slices');
+});
+
+test('audit cap: a slice at its 4th round stops naming the slice, and the digest says which limit fired', () => {
+  const dir = fixture();
+  for (let i = 0; i < 3; i++) assert.equal(audit(dir, 'R1').allow, true);
+  const r = audit(dir, 'R1');
+  assert.deepEqual([r.allow, r.limit], [false, 'slice R1']);
+  assert.equal(audit(dir, 'R2').allow, true, 'another slice has its own rounds');
+  assert.equal(spawnSync('node', [WORK, 'run', 'digest', 'road'], { cwd: dir, encoding: 'utf8', env: { ...process.env, XDG_CONFIG_HOME: dir } }).status, 0);
+  const digest = fs.readFileSync(path.join(dir, 'docs/planning/road.run/DIGEST.md'), 'utf8');
+  assert.match(digest, /## Limit fired[\s\S]*AUDIT_CAP, slice R1: 3 audit rounds, cap 3/);
+});
+
+test('audit cap: the final review has its own cap and does not spend a slice\'s rounds', () => {
+  const dir = fixture(['--final-audit-cap', '2']);
+  assert.equal(audit(dir, '--final').allow, true);
+  assert.equal(audit(dir, '--final').allow, true);
+  const r = audit(dir, '--final');
+  assert.deepEqual([r.allow, r.limit, r.audit_rounds], [false, 'final review', 2]);
+  assert.equal(audit(dir, 'R1').allow, true);
+  assert.equal(ok(work(dir, 'run', 'show', 'road')).audit_rounds, 1, 'final rounds stay out of the slice total');
+});
+
+test('audit cap: the run total stops a runaway; max_slices x the per-slice cap is its default', () => {
+  const dir = fixture(['--audit-cap', '2', '--max-slices', '2']);
+  for (const id of ['R1', 'R1', 'R2', 'R2']) assert.equal(audit(dir, id).allow, true);
+  const r = audit(dir, 'R3');
+  assert.deepEqual([r.allow, r.limit], [false, 'run total']);
+  assert.match(r.detail, /run total: 4 audit rounds, cap 4/);
+  ok(work(dir, 'run', 'set', 'road', 'audit_total_cap', '5'));
+  assert.equal(audit(dir, 'R3').allow, true, 'the overridden total allows one more');
+  assert.equal(audit(dir, 'R4').allow, false);
+  const none = fixture();
+  for (let i = 1; i <= 12; i++) assert.equal(audit(none, `R${i}`).allow, true, 'no max_slices and no total: no backstop');
+});
+
+test('audit cap: resuming a parked slice starts its rounds again', () => {
+  const dir = fixture(['--audit-cap', '1']);
+  audit(dir, 'R1');
+  assert.equal(audit(dir, 'R1').allow, false);
+  ok(work(dir, 'run', 'slice', 'road', 'R1', 'parked', '--reason', 'x', '--needs', 'user'));
+  ok(work(dir, 'run', 'slice', 'road', 'R1', 'ready'));
+  assert.equal(audit(dir, 'R1').allow, true);
 });
 
 test('audit cap: a record already past the cap still stops the gate', () => {
   const dir = fixture(['--audit-cap', '2']);
   ok(verify(dir));
   ok(work(dir, 'run', 'set', 'road', 'audit_cap', '1'));
-  ok(work(dir, 'run', 'audit', 'road'));
+  audit(dir, 'R1');
   const rec = ok(work(dir, 'run', 'show', 'road'));
   assert.equal(rec.audit_cap, 1);
   assert.equal(gate(dir).allow, true, 'one round at a cap of one is not over it');
   const rec2 = JSON.parse(JSON.stringify(rec));
-  rec2.audit_rounds = 2;
+  rec2.gates.find((g) => g.id === 'R1').audit_rounds = 2;
   assert.equal(gateRule(rec2, 'R1', { current: 'fp' }).reason, 'AUDIT_CAP');
 });
 

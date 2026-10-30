@@ -772,7 +772,7 @@ test('work.mjs run: new, show, set and slice round trip with config defaults', (
   let r = ok(work(dir, 'run', 'new', 'road', '--date', '2026-10-30'));
   assert.deepEqual(r, {
     id: 'road', level: 'full', commit: 'phase', branch: null, started: '2026-10-30', base: null,
-    max_slices: null, slice_cap_min: 120, audit_cap: 5, slices: [], assumptions: [], rejected: [], limits: [],
+    max_slices: null, slice_cap_min: 120, audit_cap: 3, final_audit_cap: 3, audit_total_cap: null, slices: [], assumptions: [], rejected: [], limits: [],
   });
   assert.ok(fs.existsSync(path.join(dir, 'docs/planning/road.run/RUN.md')));
   assert.equal(work(dir, 'run', 'new', 'road').status, 1, 'no second record');

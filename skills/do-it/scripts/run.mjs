@@ -12,7 +12,10 @@ export const LEVELS = ['lite', 'full', 'ultra'];
 export const COMMIT_MODES = ['phase', 'slice', 'none'];
 export const SLICE_STATUSES = ['shipped', 'parked', 'blocked'];
 export const NEEDS = ['user', 'decision'];
-const SETTABLE = ['level', 'commit', 'branch', 'max_slices', 'slice_cap_min', 'audit_cap', 'assumptions', 'limits'];
+const SETTABLE = ['level', 'commit', 'branch', 'max_slices', 'slice_cap_min', 'audit_cap', 'final_audit_cap', 'audit_total_cap', 'assumptions', 'limits'];
+// Changing a cap puts every refusal marker back to unset, so lowering a cap to the value
+// it once refused at cannot revive an old refusal.
+const CAPS = ['max_slices', 'audit_cap', 'final_audit_cap', 'audit_total_cap'];
 
 export function runPath(planningDir, slug) {
   return path.join(planningDir, `${slug}.run`, 'RUN.md');
@@ -60,6 +63,10 @@ function validate(key, value) {
       return cap('slice_cap_min', value);
     case 'audit_cap':
       return cap('audit_cap', value);
+    case 'final_audit_cap':
+      return cap('final_audit_cap', value);
+    case 'audit_total_cap':
+      return cap('audit_total_cap', value, { optional: true });
     default:
       return list(key, value);
   }
@@ -110,7 +117,11 @@ export function createRun(planningDir, slug, opts, defaults, { now = () => new D
     base: opts.base ?? null,
     max_slices: cap('max_slices', opts['max-slices'] ?? defaults.DO_IT_MAX_SLICES, { optional: true }),
     slice_cap_min: cap('slice_cap_min', opts['slice-cap-min'] ?? defaults.DO_IT_SLICE_CAP_MIN),
+    // Audit rounds: `audit_cap` per slice, `final_audit_cap` for the final review, `audit_total_cap`
+    // over every slice's rounds (unset: max_slices x audit_cap when max_slices is set, else none).
     audit_cap: cap('audit_cap', opts['audit-cap'] ?? defaults.DO_IT_AUDIT_CAP),
+    final_audit_cap: cap('final_audit_cap', opts['final-audit-cap'] ?? defaults.DO_IT_FINAL_AUDIT_CAP),
+    audit_total_cap: cap('audit_total_cap', opts['audit-total-cap'] ?? defaults.DO_IT_AUDIT_TOTAL_CAP, { optional: true }),
     slices: [],
     assumptions: [],
     rejected: [],
@@ -126,6 +137,11 @@ export function showRun(planningDir, slug) {
   return read(runPath(planningDir, slug), slug).record;
 }
 
+function clearRefusals(r) {
+  for (const k of ['audit_refused', 'final_audit_refused', 'audit_stop']) delete r[k];
+  for (const g of r.gates ?? []) delete g.audit_refused;
+}
+
 export function setRun(planningDir, slug, key, value) {
   checkSlug(slug);
   if (!SETTABLE.includes(key)) throw new Error(`run set takes one of: ${SETTABLE.join(', ')}`);
@@ -133,6 +149,7 @@ export function setRun(planningDir, slug, key, value) {
   const file = runPath(planningDir, slug);
   const cur = read(file, slug);
   cur.record[key] = validate(key, value);
+  if (CAPS.includes(key)) clearRefusals(cur.record);
   write(file, cur);
   return cur.record;
 }
@@ -180,6 +197,12 @@ export function sliceRun(planningDir, slug, id, status, { reason, needs } = {}) 
     // What it was is kept in `retries`, so the digest can say how the retry ended.
     if (prior) cur.record.retries = [...(cur.record.retries ?? []), { id, was: prior.status, reason: prior.reason ?? null }];
     cur.record.slices = cur.record.slices.filter((s) => s.id !== id);
+    // A resumed slice starts its audit rounds again: what stopped it is settled.
+    const g = (cur.record.gates ?? []).find((x) => x.id === id);
+    if (g) {
+      delete g.audit_rounds;
+      delete g.audit_refused;
+    }
     write(file, cur);
     return cur.record;
   }

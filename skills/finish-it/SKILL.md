@@ -42,8 +42,8 @@ until none can go on, then closes once. `work.mjs` is the work-item script in
    3. [build-it](../build-it/SKILL.md), its checks run through
       `work.mjs run verify <slug> <slice> [--phase n] -- "<checks>"` in place
       of `verify-phase`. A flaky result parks the slice.
-   4. Before each prove-it round, `work.mjs run audit <slug>`. `allow` false:
-      never start the round; stop the run per [STOPS.md](STOPS.md).
+   4. Before each prove-it round, `work.mjs run audit <slug> <slice>`. `allow`
+      false: never start the round; stop the run per [STOPS.md](STOPS.md).
    5. [prove-it](../prove-it/SKILL.md).
    6. Before ship-it, `work.mjs run gate <slug> <slice>`. `allow` false: ship
       nothing; park or stop per [STOPS.md](STOPS.md), which lists every stop
@@ -73,7 +73,8 @@ never redone.
 Run the final review and digest in [DIGEST.md](DIGEST.md) first. Only here
 does the turn end. First line: how many slices shipped, and the `stop`
 code and detail when `run next` or `run audit` returned one (`MAX_SLICES`,
-`AUDIT_CAP`; raise the cap with `work.mjs run set <slug> max_slices|audit_cap <n>`
+`AUDIT_CAP`, which names the limit that fired; raise it with
+`work.mjs run set <slug> max_slices|audit_cap|final_audit_cap|audit_total_cap <n>`
 before resuming). Then each
 parked slice with its `needs` and reason, and the slices still waiting on
 them. Then `Skipped / Not checked / Risk`. Last line, `Next:` the command that

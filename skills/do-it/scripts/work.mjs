@@ -10,7 +10,7 @@
 //   work.mjs review-diff <id>
 //   work.mjs verify-phase <id> [n] [--in dir] -- <command...>
 //   work.mjs roadmap <file>
-//   work.mjs run new <slug> [--level --commit --max-slices --slice-cap-min --audit-cap]
+//   work.mjs run new <slug> [--level --commit --max-slices --slice-cap-min --audit-cap --final-audit-cap --audit-total-cap]
 //   work.mjs run show <slug> | set <slug> <key> <json> | slice <slug> <id> <status> [--reason --needs]
 //   work.mjs run add-assumptions <slug> <work id> <json array>   (merges; kept as <id>#<n>: text)
 //   work.mjs run reject-assumption <slug> <id>#<n> <instead...>   (by key; reopens the item if its plan is still auditing or shipping)
@@ -18,7 +18,7 @@
 //   work.mjs run commit <slug> <id> [--phase n | --docs] --paths a,b [--limits <json>]
 //   work.mjs run review-change <slug>   (the final review's change: <base>...HEAD, or the working tree against base)
 //   work.mjs run digest <slug> [--usage <json>] [--findings <json>] [--retro <json>]   (markdown, saved uncommitted)
-//   work.mjs run start <slug> <slice> --work <id> [--at iso] | audit <slug> | gate <slug> <slice>
+//   work.mjs run start <slug> <slice> --work <id> [--at iso] | audit <slug> <slice>|--final | gate <slug> <slice>
 //   work.mjs run verify <slug> <slice> [--phase n] [--in dir] -- <command...>   (reruns a failure once)
 //   work.mjs close <id>
 //
@@ -41,7 +41,7 @@ import { addAssumptions, createRun, nextSlice, runPath, setRun, showRun, sliceRu
 import { countAudit, runGate, runRejectAssumption, runReviewChange, runVerify, startSlice } from './gate.mjs';
 
 // Flags that take no value.
-const FLAGS = new Set(['brief', 'docs']);
+const FLAGS = new Set(['brief', 'docs', 'final']);
 
 function parseArgs(argv) {
   const pos = [];
@@ -236,7 +236,7 @@ export async function run(argv, { cwd = process.cwd() } = {}) {
         case 'start':
           return startSlice(ctx.planningDir, slug, args[0], { work: opts.work, at: opts.at });
         case 'audit':
-          return countAudit(ctx.planningDir, slug);
+          return countAudit(ctx.planningDir, slug, { id: args[0], final: opts.final === true });
         case 'gate':
           return runGate({ planningDir: ctx.planningDir, slug, id: args[0], items, fingerprintOf: (item) => itemFingerprint(ctx, item) });
         case 'verify':

@@ -15,11 +15,11 @@ Before chaining a slice to ship, `work.mjs run gate <slug> <slice>` prints
 - `FLAKY` (park): `run verify` reran a failing check once and it passed. Never rerun again.
 - `SLICE_CAP` (park): the slice ran past `slice_cap_min`.
 - `MAX_SLICES` (stop): shipped slices reached `max_slices`. `run next` returns no slice and a `stop` with this code.
-- `AUDIT_CAP` (stop): `run audit` is refused (`allow` false) because the run already spent `audit_cap` rounds. A slice whose last allowed round passed still ships.
+- `AUDIT_CAP` (stop): `run audit` is refused (`allow` false) because a limit that applies is spent. `limit` and `detail` name which: `slice <id>` (`audit_cap`, default 3, rounds on that slice), `final review` (`final_audit_cap`, default 3) or `run total` (`audit_total_cap`, else `max_slices` x `audit_cap`, else none). A slice whose last allowed round passed still ships. `run set` on any cap clears the refusal; the digest repeats the limit under "Limit fired".
 
 Calls: `run start <slug> <slice> --work <id>` when a slice begins,
 `run verify <slug> <slice> -- <checks>` instead of `verify-phase`,
-`run audit <slug>` before each audit round; a refusal stops the run.
+`run audit <slug> <slice>` before each slice audit round (`run audit <slug> --final` for the final review's); a refusal stops the run.
 
 ## Judgment (no script sees these)
 
