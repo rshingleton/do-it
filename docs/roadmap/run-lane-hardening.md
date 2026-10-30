@@ -36,7 +36,7 @@ Exit: a run commit with a directory path, a retry, a rejecting hook and a lane M
 
 | Slice | Kind | Delivers | Covers | Blocked by | Verify | Risk | Status |
 |-------|------|----------|--------|------------|--------|------|--------|
-| R2 | build | `run commit --paths` rejects a directory path, and a retried phase commit that finds `do-it/<id>/phase-N` already on HEAD is a no-op (T136, T137) | G2 | none | A directory path is refused and another slice's edit stays unstaged; a second commit call after a landed commit returns the same sha without throwing | med | |
+| R2 | build | `run commit --paths` rejects a directory path, and a retried phase commit that finds `do-it/<id>/phase-N` already on HEAD is a no-op (T136, T137) | G2 | none | A directory path is refused and another slice's edit stays unstaged; a second commit call after a landed commit returns the same sha without throwing | med shipped 2026-10-30 commit-dir-retry |
 | R3 | build | `commitSlice` writes the run record and keeps the branch only after `git commit` succeeds, and restores the branch when a hook rejects (T138) | G2 | R2 (same function) | A rejecting `pre-commit` hook leaves the branch and the run record as before the call | med | |
 | R4 | build | Lane M in `slice` commit mode makes one code commit after its last phase verifies, then the closing-docs commit; COMMITS.md and ADR 0008 line 25 say so (T142) | G2 | R3 (same function) | A lane M fixture in `slice` mode commits its code and then its docs; code changed after `verify-phase` refuses | med | |
 
@@ -80,3 +80,4 @@ None.
 ## Changes
 - 2026-10-30: charted from the two open issues and T135 to T145 of the complete-run-lane audit.
 - 2026-10-30: R1 shipped (guard-untracked-paths): the guard scans untracked files named on a `git commit <path>` line; one extra `ls-files` call, pinned at 8 in hook-trust.test.mjs.
+- 2026-10-30: R2 shipped (commit-dir-retry): `run commit` refuses directory and glob paths and a landed phase commit is a no-op on retry; findings T155 to T157.
