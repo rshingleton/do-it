@@ -51,7 +51,7 @@ Exit: `gate.mjs` holds no `run*` handler, no helper has a second copy, and `npm 
 
 | Slice | Kind | Delivers | Covers | Blocked by | Verify | Risk | Status |
 |-------|------|----------|--------|------------|--------|------|--------|
-| R9 | enabler | `runVerify`, `runReviewChange` and `runRejectAssumption` move to `runs.mjs`; `commitSlice` splits into `assertCommittable` and `phaseAlreadyLanded`; `audit_refused` documented beside `audit_cap`; `dirtyHashes` `hash()` tells a non-file from a failure (T170) | G4 | R5, R6, R7, R8 (they edit these functions) | `npm test` passes; no `run*` handler in `gate.mjs`; `commitSlice` is under 60 lines | med | |
+| R9 | enabler | `runVerify`, `runReviewChange` and `runRejectAssumption` move to `runs.mjs`; `commitSlice` splits into `assertCommittable` and `phaseAlreadyLanded`; `audit_refused` documented beside `audit_cap`; `dirtyHashes` `hash()` tells a non-file from a failure (T170) | G4 | R5, R6, R7, R8 (they edit these functions) | `npm test` passes; no `run*` handler in `gate.mjs`; `commitSlice` is under 60 lines | med | shipped 2026-10-30 r9-split-run-handlers, no `dirtyHashes` change: R4 already made a non-file `dir` and a hash failure a throw |
 | R10 | enabler | One record read-modify-write (owned by `run.mjs`), one id regex, one git wrapper with consistent `env`, one `verified_files` shape, and the dead `instead ?` branch, `ready` pseudo-status and in-writer timestamp gone (T147) | G4 | R9 (same files) | `rg` finds one id regex and one git wrapper; `npm test` passes | low | |
 | R11 | build | Digest sanitizes `--reason` and tag names (only `^do-it/<id>/phase-<n>$`), keeps a works list across a resumed slice, drops the redundant `now()` branch, and tests repeated retries (T168) | G4 | R10 (same files) | A multi-line reason cannot render a heading; a tag with shell text is not printed; a resumed slice keeps its old tag in Rollback | med | |
 | R12 | build | Run assumption bookkeeping: `run set assumptions` refused, rejection matched by text among remaining plan entries, sweep-origin assumptions rejectable, greedy regex fixed, `instead` whitespace-collapsed, `building` and `items.get` errors no longer read as closed (T146) | G4 | R11 (same files), D3 (reject semantics) | Tests for a ship-it plan-side rejection, a re-add, `feat#1: see x#2: y` and a plan in `building` | high | |
@@ -109,3 +109,4 @@ Exit: every remaining audit case has a test or a decision, and nothing on the to
 - 2026-10-30: R6 shipped (r6-undo).
 - 2026-10-30: R7 shipped (r7-run-caps), without parking a plain double verify failure.
 - 2026-10-30: R8 shipped (r8-review-change), without the snapshot narrowing or the dirty-tree refusal.
+- 2026-10-30: R9 shipped (r9-split-run-handlers).
