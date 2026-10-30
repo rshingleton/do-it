@@ -14,6 +14,9 @@
 //   work.mjs run show <slug> | set <slug> <key> <json> | slice <slug> <id> <status> [--reason --needs]
 //   work.mjs run next <slug> <roadmap file>   (slice ready|parked|blocked|shipped; ready un-parks)
 //   work.mjs run commit <slug> <id> [--phase n] --paths a,b [--limits <json>]
+//   work.mjs run digest <slug> [--usage <json>] [--findings <json>] [--retro <json>]   (markdown, saved uncommitted)
+//   work.mjs run start <slug> <slice> --work <id> [--at iso] | audit <slug> | gate <slug> <slice>
+//   work.mjs run verify <slug> <slice> [--phase n] [--in dir] -- <command...>   (reruns a failure once)
 //   work.mjs close <id>
 //
 // The rules live in items.mjs and state.mjs (../STATE.md documents them);
@@ -30,7 +33,9 @@ import { needsUser } from './state.mjs';
 import { allowedMoves, firableEvents, workItems } from './items.mjs';
 import { roadmapSlices } from './roadmap.mjs';
 import { commitSlice } from './commit.mjs';
-import { createRun, nextSlice, setRun, showRun, sliceRun } from './run.mjs';
+import { buildDigest } from './digest.mjs';
+import { createRun, nextSlice, runPath, setRun, showRun, sliceRun } from './run.mjs';
+import { checkWithRerun, countAudit, gate, recordVerified, startSlice } from './gate.mjs';
 
 // Flags that take no value.
 const FLAGS = new Set(['brief']);
@@ -215,6 +220,43 @@ export async function run(argv, { cwd = process.cwd() } = {}) {
           const file = path.resolve(cwd, args[0]);
           return nextSlice(roadmapSlices(file, ctx), showRun(ctx.planningDir, slug));
         }
+        case 'start':
+          return startSlice(ctx.planningDir, slug, args[0], { work: opts.work, at: opts.at });
+        case 'audit':
+          return countAudit(ctx.planningDir, slug);
+        case 'gate': {
+          const g = (showRun(ctx.planningDir, slug).gates ?? []).find((x) => x.id === args[0]);
+          const current = g?.work ? itemFingerprint(ctx, items.get(g.work)) : null;
+          return gate(showRun(ctx.planningDir, slug), args[0], { current });
+        }
+        case 'verify': {
+          const g = (showRun(ctx.planningDir, slug).gates ?? []).find((x) => x.id === args[0]);
+          if (!g?.work) throw new Error(`run verify: ${args[0]} has no work id; run start first`);
+          const command = opts['--'] ?? [];
+          if (!command.length) throw new Error('run verify needs the checks after --');
+          const where = opts.in === undefined ? ctx.root : path.resolve(cwd, opts.in);
+          const text = command.length === 1 ? command[0] : command.map(shellQuote).join(' ');
+          let flaky = false;
+          const attempt = () => {
+            const r = spawnSync(text, { cwd: where, shell: true, stdio: ['ignore', 2, 2] });
+            if (r.error) return { ok: false, why: `${text}: ${r.error.message}` };
+            return r.status === 0 ? { ok: true, text } : { ok: false, why: `${text} exited ${r.status ?? r.signal}` };
+          };
+          const check = () => {
+            const r = checkWithRerun(attempt);
+            flaky = Boolean(r.flaky);
+            return r;
+          };
+          const phase = opts.phase === undefined ? undefined : Number(opts.phase);
+          try {
+            items.verifyPhase(g.work, phase, check, { date: opts.date });
+          } catch (e) {
+            if (flaky) sliceRun(ctx.planningDir, slug, args[0], 'parked', { reason: e.message.replace(/^verify-phase: /, ''), needs: 'user' });
+            throw e;
+          }
+          recordVerified(ctx.planningDir, slug, args[0], itemFingerprint(ctx, items.get(g.work)));
+          return showRun(ctx.planningDir, slug);
+        }
         case 'commit': {
           if (!args[0]) throw new Error('run commit needs a work id');
           const limits = opts.limits === undefined ? [] : json(opts.limits);
@@ -223,8 +265,15 @@ export async function run(argv, { cwd = process.cwd() } = {}) {
             paths: String(opts.paths ?? '').split(',').filter(Boolean), limits,
           });
         }
+        case 'digest': {
+          const tags = spawnSync('git', ['tag', '-l', 'do-it/*/phase-*'], { cwd: ctx.root, encoding: 'utf8' }).stdout.split('\n').filter(Boolean).sort();
+          const arg = (k, d) => (opts[k] === undefined ? d : json(opts[k]));
+          const text = buildDigest({ record: showRun(ctx.planningDir, slug), tags, usage: arg('usage', null), findings: arg('findings', []), retro: arg('retro', []) });
+          fs.writeFileSync(path.join(path.dirname(runPath(ctx.planningDir, slug)), 'DIGEST.md'), text);
+          return text;
+        }
         default:
-          throw new Error('usage: work.mjs run new|show|set|slice|next|commit <slug> ...');
+          throw new Error('usage: work.mjs run new|show|set|slice|next|commit|digest <slug> ...');
       }
     }
     case 'close': {
@@ -239,7 +288,7 @@ export async function run(argv, { cwd = process.cwd() } = {}) {
 
 if (isMain(import.meta.url)) {
   run(process.argv.slice(2))
-    .then((out) => process.stdout.write(`${JSON.stringify(out, null, 2)}\n`))
+    .then((out) => process.stdout.write(typeof out === 'string' ? out : `${JSON.stringify(out, null, 2)}\n`))
     .catch((e) => {
       process.stdout.write(`${JSON.stringify({ error: e.message })}\n`);
       process.exit(1);

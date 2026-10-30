@@ -65,7 +65,7 @@ function validate(key, value) {
   }
 }
 
-function read(file, slug) {
+export function read(file, slug) {
   let text;
   try {
     text = fs.readFileSync(file, 'utf8');
@@ -82,7 +82,7 @@ function read(file, slug) {
 }
 
 // A temp file and a rename, as block.mjs does: a failed write leaves the old record whole.
-function write(file, { record, body, eol }) {
+export function write(file, { record, body, eol }) {
   const tmp = `${file}.${process.pid}.tmp`;
   try {
     fs.writeFileSync(tmp, joinFrontmatter(writeBlock(record), body, eol ?? '\n'));

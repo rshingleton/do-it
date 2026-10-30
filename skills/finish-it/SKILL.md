@@ -43,7 +43,9 @@ until none can go on, then closes once. `work.mjs` is the work-item script in
    `work.mjs run slice <slug> <id> parked --needs user|decision --reason "<why>"`.
    `needs` is `decision` for an unanswered question, else `user`. Its
    dependents wait by themselves; back to 1, so independent slices go on.
-6. Background work (an agent, a long check): never poll or sleep. Wait for the
+6. Before shipping a slice, `work.mjs run gate <slug> <id>`; `allow` false
+   parks or stops per [STOPS.md](STOPS.md), which lists every stop reason.
+7. Background work (an agent, a long check): never poll or sleep. Wait for the
    host's completion notice.
 
 ## 3. Resume
@@ -55,7 +57,8 @@ re-enters at the first slice `run next` returns; finished work is never redone.
 
 ## 4. Close
 
-Only here does the turn end. First line: how many slices shipped. Then each
+Run the final review and digest in [DIGEST.md](DIGEST.md) first. Only here
+does the turn end. First line: how many slices shipped. Then each
 parked slice with its `needs` and reason, and the slices still waiting on
 them. Then `Skipped / Not checked / Risk`. Last line, `Next:` the command that
 resumes: `/finish-it <file> --resume`, or nothing when every slice shipped.
