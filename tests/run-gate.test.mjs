@@ -208,3 +208,50 @@ test('the run usage error lists every subcommand the loop calls', () => {
   const r = spawnSync('node', [WORK, 'run', 'bogus', 'road'], { cwd: dir, encoding: 'utf8' });
   for (const sub of ['start', 'audit', 'gate', 'verify', 'reject-assumption']) assert.match(r.stdout + r.stderr, new RegExp(`\\b${sub}\\b`));
 });
+
+// The finish-it loop is text an agent follows, so a stop is only as live as its call
+// site there. Each shared stop code names the `work.mjs run` call that surfaces it.
+const CALL_SITE = {
+  STALE_VERIFY: 'gate',
+  UNVERIFIED: 'gate',
+  SLICE_CAP: 'gate',
+  FLAKY: 'verify',
+  MAX_SLICES: 'next',
+  AUDIT_CAP: 'audit',
+};
+const section = (doc, title) => doc.slice(doc.indexOf(`## ${title}`)).split(/\n## /)[0];
+
+test('every stop code has a call site in the finish-it loop, in the order the stops need', () => {
+  const doc = fs.readFileSync(path.join(ROOT, 'skills/finish-it/SKILL.md'), 'utf8');
+  const loop = section(doc, '2. Loop');
+  for (const [code, s] of Object.entries(STOPS)) {
+    if (s.how === 'gate') {
+      assert.ok(CALL_SITE[code], `${code} has no entry in CALL_SITE`);
+      assert.match(loop, new RegExp(`work\\.mjs run ${CALL_SITE[code]} <slug>`), `${code}: the loop never calls run ${CALL_SITE[code]}`);
+    }
+  }
+  // The clock starts once the work item exists and before build; verify records, audit counts
+  // before each round, the gate runs before ship-it, and only then is the slice marked shipped.
+  const at = (re) => {
+    const m = re.exec(loop);
+    assert.ok(m, `${re} is missing from the loop`);
+    return m.index;
+  };
+  const order = [
+    /work\.mjs run start <slug> <slice> --work/,
+    /work\.mjs run verify <slug> <slice>/,
+    /work\.mjs run audit <slug>/,
+    /work\.mjs run gate <slug> <slice>/,
+    /work\.mjs run slice <slug> <slice> shipped/,
+  ].map(at);
+  assert.deepEqual(order, [...order].sort((x, y) => x - y), 'start, verify, audit, gate, shipped in that order');
+  assert.match(loop, /stop code first in `--reason`/, 'a park puts the stop code first');
+  // A `run next` stop is reported where the run closes.
+  assert.match(section(doc, '4. Close'), /`stop`/);
+});
+
+test('the finish-it resume text names the slice id that `run slice ... ready` needs', () => {
+  const resume = section(fs.readFileSync(path.join(ROOT, 'skills/finish-it/SKILL.md'), 'utf8'), '3. Resume');
+  assert.match(resume, /work\.mjs run slice <slug> <slice> ready/);
+  assert.doesNotMatch(resume, /no id/);
+});
