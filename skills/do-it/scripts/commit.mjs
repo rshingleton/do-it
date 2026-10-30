@@ -110,10 +110,9 @@ export function dirtyHashes(root) {
   return files;
 }
 
-// `paths` are the files the boundary check mapped to the slice. Returns the
-// commit and its tag; throws, changing nothing in HEAD, when a gate fails.
-export function commitSlice({ root, planningDir, config, items, slug, id, phase, docs = false, paths, limits = [] }) {
-  const run = showRun(planningDir, slug);
+// Every gate a commit passes before anything is staged: the run's mode, the item's verified state,
+// and the named paths. Returns the commit's subject; throws, touching nothing, when one fails.
+function assertCommittable({ root, run, slug, items, id, phase, docs, paths }) {
   if (run.commit === 'none') throw new Error(`run ${slug} has commit mode none: nothing is committed`);
   if (run.commit === 'slice' && phase !== undefined) throw new Error(`run ${slug} commits one commit per slice, not per phase`);
   if (docs && phase !== undefined) throw new Error('--docs and --phase are separate commits');
@@ -168,10 +167,14 @@ export function commitSlice({ root, planningDir, config, items, slug, id, phase,
     const untrusted = unknown.filter((p) => !lines(gitRaw(root, ['ls-files', '-z', '--', p]).replaceAll('\0', '\n')).includes(p) || gitRaw(root, ['status', '--porcelain', '--', p]).trim());
     if (untrusted.length) throw new Error(`${untrusted.join(', ')} is in neither verify record and is not a tracked, clean file; nothing committed`);
   }
-  // A commit retried after it landed (a phase, a lane S slice or the closing docs): it is HEAD with this subject,
-  // attribution and exactly these paths, so nothing is left to stage and a phase's tag may be the only thing
-  // missing. Anything else under that tag (a new edit, another commit) is refused, never skipped.
-  const tag = phase === undefined ? null : `do-it/${id}/phase-${phase}`;
+  return subject;
+}
+
+// A commit retried after it landed (a phase, a lane S slice or the closing docs): it is HEAD with this subject,
+// attribution and exactly these paths, so nothing is left to stage and a phase's tag may be the only thing
+// missing. Returns its result then, null when this is a first commit; anything else under that tag (a new
+// edit, another commit) throws, never skipped.
+function phaseAlreadyLanded({ root, run, tag, phase, subject, paths }) {
   const rev = (ref) => spawnSync('git', ['rev-parse', '-q', '--verify', ref], { cwd: root, encoding: 'utf8', env: ENV }).stdout.trim();
   const head = rev('HEAD');
   const tagged = tag && rev(`refs/tags/${tag}^{commit}`);
@@ -184,6 +187,17 @@ export function commitSlice({ root, planningDir, config, items, slug, id, phase,
     return { commit: head, branch: currentBranch(root), tag, subject, limits: run.limits };
   }
   if (tagged) throw new Error(`phase ${phase} is already committed as ${tag}; nothing committed`);
+  return null;
+}
+
+// `paths` are the files the boundary check mapped to the slice. Returns the
+// commit and its tag; throws, changing nothing in HEAD, when a gate fails.
+export function commitSlice({ root, planningDir, config, items, slug, id, phase, docs = false, paths, limits = [] }) {
+  const run = showRun(planningDir, slug);
+  const subject = assertCommittable({ root, run, slug, items, id, phase, docs, paths });
+  const tag = phase === undefined ? null : `do-it/${id}/phase-${phase}`;
+  const landed = phaseAlreadyLanded({ root, run, tag, phase, subject, paths });
+  if (landed) return landed;
   if (lines(git(root, ['diff', '--cached', '--name-only'])).length) throw new Error('the index already holds staged files; unstage them first');
   for (const p of paths) {
     if (!git(root, ['status', '--porcelain', '--', p])) throw new Error(`${p} has no change to commit`);

@@ -42,7 +42,8 @@ import { roadmapSlices } from './roadmap.mjs';
 import { commitSlice } from './commit.mjs';
 import { buildDigest } from './digest.mjs';
 import { addAssumptions, createRun, nextSlice, runPath, setRun, showRun, sliceRun } from './run.mjs';
-import { countAudit, runGate, runRejectAssumption, runReviewChange, runVerify, startSlice } from './gate.mjs';
+import { countAudit, startSlice } from './gate.mjs';
+import { runGate, runRejectAssumption, runReviewChange, runVerify } from './runs.mjs';
 
 // Flags that take no value.
 const FLAGS = new Set(['brief', 'docs', 'final']);

@@ -119,6 +119,8 @@ export function createRun(planningDir, slug, opts, defaults, { now = () => new D
     slice_cap_min: cap('slice_cap_min', opts['slice-cap-min'] ?? defaults.DO_IT_SLICE_CAP_MIN),
     // Audit rounds: `audit_cap` per slice, `final_audit_cap` for the final review, `audit_total_cap`
     // over every slice's rounds (unset: max_slices x audit_cap when max_slices is set, else none).
+    // A round `run audit` turns away is remembered as `audit_refused` on the slice's gates entry or
+    // here (`final_audit_refused` for the final review), `audit_stop` names the limit; changing a cap clears them.
     audit_cap: cap('audit_cap', opts['audit-cap'] ?? defaults.DO_IT_AUDIT_CAP),
     final_audit_cap: cap('final_audit_cap', opts['final-audit-cap'] ?? defaults.DO_IT_FINAL_AUDIT_CAP),
     audit_total_cap: cap('audit_total_cap', opts['audit-total-cap'] ?? defaults.DO_IT_AUDIT_TOTAL_CAP, { optional: true }),

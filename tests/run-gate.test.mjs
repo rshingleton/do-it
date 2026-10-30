@@ -6,7 +6,8 @@ import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { STOPS } from '../skills/do-it/scripts/stops.mjs';
-import { gate as gateRule, runGate, runRejectAssumption, runVerify } from '../skills/do-it/scripts/gate.mjs';
+import { gate as gateRule } from '../skills/do-it/scripts/gate.mjs';
+import { runGate, runRejectAssumption, runVerify } from '../skills/do-it/scripts/runs.mjs';
 import { nextSlice, showRun } from '../skills/do-it/scripts/run.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -452,4 +453,15 @@ test('reject-assumption: a closed item has no plan to reopen, so only the record
   assert.deepEqual(t.fired, []);
   assert.equal(showRun(t.planningDir, 'road').rejected.length, 1);
   assert.throws(() => runRejectAssumption({ ...t, key: 'feat#9', instead: 'x' }), /no recorded assumption/);
+});
+
+test('gate.mjs holds the rule and counters only: the run handlers live in runs.mjs, and commitSlice stays short', () => {
+  const scripts = path.join(ROOT, 'skills/do-it/scripts');
+  assert.doesNotMatch(fs.readFileSync(path.join(scripts, 'gate.mjs'), 'utf8'), /^export (async )?function run[A-Z]/m);
+  for (const handler of ['runGate', 'runVerify', 'runReviewChange', 'runRejectAssumption']) {
+    assert.match(fs.readFileSync(path.join(scripts, 'runs.mjs'), 'utf8'), new RegExp(`^export function ${handler}\\(`, 'm'));
+  }
+  const commit = fs.readFileSync(path.join(scripts, 'commit.mjs'), 'utf8');
+  const body = /^export function commitSlice[\s\S]*?^}/m.exec(commit)[0];
+  assert.ok(body.split('\n').length < 60, 'commitSlice is under 60 lines');
 });
