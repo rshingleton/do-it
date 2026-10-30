@@ -537,3 +537,10 @@ test('the run scripts carry one id pattern, one git spawn and one record writer'
   assert.deepEqual(files(/spawnSync\('git'/), ['git.mjs'], 'git is spawned in one place');
   assert.deepEqual(files(/\bwrite\(file, /), ['run.mjs'], 'only run.mjs writes the record');
 });
+
+test('the docs name the do-it commit line as the ATTRIBUTION constant, and finish-it maps the level argument to run new --level', () => {
+  const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
+  assert.doesNotMatch(read('skills/build-it/COMMITS.md') + read('skills/do-it/scripts/commit.mjs'), /user's (commit )?rules?/);
+  assert.match(read('skills/build-it/COMMITS.md'), /ATTRIBUTION/);
+  assert.match(read('skills/finish-it/SKILL.md'), /run new <slug> --level\s+lite\|full\|ultra/);
+});

@@ -21,7 +21,8 @@ until none can go on, then closes once. `work.mjs` is the work-item script in
   [SWEEP.md](../roadmap-it/SWEEP.md) and its approval turn. That turn and the
   final one are the only two the run waits on.
 - A record exists but the sweep never ran or was not approved: run it now.
-- Level is the record's `level`; flags override config, as
+- Level is the record's `level`, set by `work.mjs run new <slug> --level
+  lite|full|ultra` (the `--complete` argument of `/do-it`); flags override config, as
   [CONFIG.md](../track-it/CONFIG.md) says. Per-level rules: [LEVELS.md](LEVELS.md).
 
 ## 2. Loop

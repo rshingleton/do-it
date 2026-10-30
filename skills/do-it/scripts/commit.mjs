@@ -2,7 +2,7 @@
 // a safe branch. Only a run record opts in; without one nothing here runs.
 // It stages the paths it is given and never anything else, tags each phase
 // commit locally, and never pushes. The message ends with the single do-it
-// attribution line (the user's commit rule), so the commit guard allows it.
+// attribution line (ATTRIBUTION below), which the commit guard allows.
 
 import fs from 'node:fs';
 import path from 'node:path';
