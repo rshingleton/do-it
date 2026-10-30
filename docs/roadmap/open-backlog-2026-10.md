@@ -33,7 +33,7 @@ Exit: a test run of 8 slices at two audit rounds each finishes under default cap
 |-------|------|----------|--------|------------|--------|------|--------|
 | R1 | build | Per-slice audit counter (default 3) recorded on each slice entry, the final review's own cap, the run total as backstop `max_slices x per-slice cap` (overridable), and `AUDIT_CAP` plus the digest naming the limit that fired; documented in CONFIG.md, STOPS.md and the `run new` usage (issue audit-cap; T164 lock and refusal-marker leftovers) | G1 | none | Tests: 8 slices at 2 rounds finish; a slice at its 4th round stops naming the slice; the final review stops on its own cap; the run total stops a runaway; lowering the cap back to a refusal value does not revive a marker | high | shipped 2026-10-30 r1-audit-cap |
 | R2 | build | `finish-it` loop text fixed: "back to 1" wording, the FLAKY pointer, wait for each reviewer's final notice before `run gate`, turn ends only at §4, and call-site tests anchored to their allow-false line (T165) | G2 | R1 (same STOPS.md and AUDIT_CAP text) | A call-site test fails a fixture §2 that closes the turn before §4; `rg verify-phase skills/build-it` finds none | med | shipped 2026-10-30 r2-loop-text, Verify unmet: build-it keeps `verify-phase`, the real command for a run-less item |
-| R3 | build | `STATE.md` `run` sub list, `reject-assumption` semantics, `retries`, `audit_refused` and the `run audit` return shape documented (T171, T164 doc part) | G2 | R1 (new audit fields) | Every `run` sub in `work.mjs` usage appears in `STATE.md`; the audit return shape sits in the `work.mjs` header | low | |
+| R3 | build | `STATE.md` `run` sub list, `reject-assumption` semantics, `retries`, `audit_refused` and the `run audit` return shape documented (T171, T164 doc part) | G2 | R1 (new audit fields) | Every `run` sub in `work.mjs` usage appears in `STATE.md`; the audit return shape sits in the `work.mjs` header | low | shipped 2026-10-30 r3-state-docs |
 
 ### M2: The commit and verify path refuses unsafe states
 Exit: each audit case for `commit.mjs`, `gate.mjs` and `changeset.mjs` has a regression test that fails when the fix is removed.
@@ -103,3 +103,4 @@ Exit: every remaining audit case has a test or a decision, and nothing on the to
 - 2026-10-30: charted and approved.
 - 2026-10-30: R1 shipped (r1-audit-cap).
 - 2026-10-30: R2 shipped (r2-loop-text).
+- 2026-10-30: R3 shipped (r3-state-docs).
