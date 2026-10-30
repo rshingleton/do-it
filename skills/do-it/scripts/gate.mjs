@@ -2,7 +2,10 @@
 // record's `gates` list (work id, start time, fingerprint at the last passing
 // verify); run-wide audit rounds in `audit_rounds`. work.mjs is the only caller.
 
-import { read, runPath, write } from './run.mjs';
+import { spawnSync } from 'node:child_process';
+import path from 'node:path';
+import { dirtyHashes } from './commit.mjs';
+import { read, runPath, showRun, sliceRun, write } from './run.mjs';
 
 function entry(record, id) {
   record.gates = Array.isArray(record.gates) ? record.gates : [];
@@ -68,4 +71,45 @@ export function checkWithRerun(attempt) {
   const second = attempt();
   if (second.ok) return { ok: false, flaky: true, why: `FLAKY: ${first.why}, then passed on rerun` };
   return first;
+}
+
+// `run gate`: the slice's gate result against the fingerprint of its work item now.
+// `fingerprintOf(item)` is the item's change since its base, planning files excluded.
+export function runGate({ planningDir, slug, id, items, fingerprintOf }) {
+  const record = showRun(planningDir, slug);
+  const g = (record.gates ?? []).find((x) => x.id === id);
+  const current = g?.work ? fingerprintOf(items.get(g.work)) : null;
+  return gate(record, id, { current });
+}
+
+// `run verify`: run the checks (a failure once more), record the phase on the work
+// item, and on a pass the fingerprint and file hashes the gate and the code commit
+// compare against. A flaky check parks the slice. `quote` shell-quotes one word.
+export function runVerify({ planningDir, root, cwd, slug, id, opts, items, fingerprintOf, quote }) {
+  const g = (showRun(planningDir, slug).gates ?? []).find((x) => x.id === id);
+  if (!g?.work) throw new Error(`run verify: ${id} has no work id; run start first`);
+  const command = opts['--'] ?? [];
+  if (!command.length) throw new Error('run verify needs the checks after --');
+  const where = opts.in === undefined ? root : path.resolve(cwd, opts.in);
+  const text = command.length === 1 ? command[0] : command.map(quote).join(' ');
+  let flaky = false;
+  const attempt = () => {
+    const r = spawnSync(text, { cwd: where, shell: true, stdio: ['ignore', 2, 2] });
+    if (r.error) return { ok: false, why: `${text}: ${r.error.message}` };
+    return r.status === 0 ? { ok: true, text } : { ok: false, why: `${text} exited ${r.status ?? r.signal}` };
+  };
+  const check = () => {
+    const r = checkWithRerun(attempt);
+    flaky = Boolean(r.flaky);
+    return r;
+  };
+  const phase = opts.phase === undefined ? undefined : Number(opts.phase);
+  try {
+    items.verifyPhase(g.work, phase, check, { date: opts.date });
+  } catch (e) {
+    if (flaky) sliceRun(planningDir, slug, id, 'parked', { reason: e.message.replace(/^verify-phase: /, ''), needs: 'user' });
+    throw e;
+  }
+  recordVerified(planningDir, slug, id, fingerprintOf(items.get(g.work)), dirtyHashes(root));
+  return showRun(planningDir, slug);
 }

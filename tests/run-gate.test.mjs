@@ -6,6 +6,8 @@ import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { STOPS } from '../skills/do-it/scripts/stops.mjs';
+import { runGate, runVerify } from '../skills/do-it/scripts/gate.mjs';
+import { showRun } from '../skills/do-it/scripts/run.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const WORK = path.join(ROOT, 'skills/do-it/scripts/work.mjs');
@@ -131,4 +133,46 @@ test('STOPS.md names exactly the shared reason codes, and judgment codes are nam
   const judgment = doc.slice(doc.indexOf('## Judgment'));
   for (const [code, s] of Object.entries(STOPS)) assert.equal(judgment.includes(`\`${code}\``), s.how === 'judgment', code);
   assert.match(fs.readFileSync(path.join(ROOT, 'skills/finish-it/SKILL.md'), 'utf8'), /STOPS\.md/);
+});
+
+// The two orchestrators called in-process, with the work item stubbed: what they decide
+// and record is checked without going through work.mjs.
+const unit = (dir) => ({ planningDir: path.join(dir, 'docs/planning'), slug: 'road', id: 'R1' });
+const stub = (calls = []) => ({
+  get: (id) => ({ id }),
+  verifyPhase: (id, phase, check) => {
+    calls.push([id, phase]);
+    const r = check();
+    if (!r.ok) throw new Error(`verify-phase: ${r.why}`);
+  },
+});
+
+test('runGate: no verify, a matching fingerprint and a moved one give UNVERIFIED, allow and STALE_VERIFY', () => {
+  const dir = fixture();
+  const base = { ...unit(dir), items: stub() };
+  assert.equal(runGate({ ...base, fingerprintOf: () => 'fp' }).reason, 'UNVERIFIED');
+  runVerify({ ...base, root: dir, cwd: dir, opts: { '--': ['true'] }, fingerprintOf: () => 'fp', quote: String });
+  assert.equal(runGate({ ...base, fingerprintOf: () => 'fp' }).allow, true);
+  assert.equal(runGate({ ...base, fingerprintOf: () => 'moved' }).reason, 'STALE_VERIFY');
+  assert.equal(runGate({ ...base, id: 'R9', fingerprintOf: () => 'fp' }).reason, 'UNVERIFIED', 'an unknown slice has no verify');
+});
+
+test('runVerify: a pass records the fingerprint and file hashes, a failure records neither', () => {
+  const dir = fixture();
+  const calls = [];
+  const base = { ...unit(dir), items: stub(calls), root: dir, cwd: dir, fingerprintOf: () => 'fp', quote: String };
+  assert.throws(() => runVerify({ ...base, opts: { '--': ['false'] } }), /exited 1/);
+  assert.equal(showRun(base.planningDir, 'road').gates[0].verified_fingerprint, undefined);
+  const rec = runVerify({ ...base, opts: { '--': ['true'], phase: '2' } });
+  assert.deepEqual(calls.at(-1), ['feat', 2]);
+  assert.equal(rec.gates[0].verified_fingerprint, 'fp');
+  assert.ok(rec.gates[0].verified_files['a.js'], 'the dirty file is hashed');
+  assert.throws(() => runVerify({ ...base, id: 'R9', opts: { '--': ['true'] } }), /run start first/);
+  assert.throws(() => runVerify({ ...base, opts: {} }), /needs the checks/);
+});
+
+test('the run usage error lists every subcommand the loop calls', () => {
+  const dir = fixture();
+  const r = spawnSync('node', [WORK, 'run', 'bogus', 'road'], { cwd: dir, encoding: 'utf8' });
+  for (const sub of ['start', 'audit', 'gate', 'verify', 'reject-assumption']) assert.match(r.stdout + r.stderr, new RegExp(`\\b${sub}\\b`));
 });
