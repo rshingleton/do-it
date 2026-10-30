@@ -190,6 +190,32 @@ test('a phase retry with a new edit, or onto a different tag, is refused rather 
   assert.match(work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'a.js,b.js').out.error, /already committed/);
 });
 
+test('a rejecting pre-commit hook leaves the branch, the index and the run record as they were', () => {
+  const { dir } = fixture();
+  ok(work(dir, 'run', 'new', 'road'));
+  verify(dir);
+  write(dir, '.git/hooks/pre-commit', '#!/bin/sh\nexit 1\n');
+  fs.chmodSync(path.join(dir, '.git/hooks/pre-commit'), 0o755);
+  const before = ok(work(dir, 'run', 'show', 'road'));
+  const head = git(dir, 'rev-parse', 'HEAD');
+  const r = work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'a.js', '--limits', '["no browser"]');
+  assert.equal(r.status, 1);
+  assert.equal(git(dir, 'branch', '--show-current'), 'main', 'back on the protected branch');
+  assert.equal(git(dir, 'branch', '--list', 'do-it/road'), '', 'the branch it made is gone');
+  assert.equal(git(dir, 'diff', '--cached', '--name-only'), '');
+  assert.equal(git(dir, 'rev-parse', 'HEAD'), head);
+  const after = ok(work(dir, 'run', 'show', 'road'));
+  assert.equal(after.branch, before.branch);
+  assert.deepEqual(after.limits, before.limits);
+  // With the hook gone the same call commits on do-it/road and records both.
+  fs.rmSync(path.join(dir, '.git/hooks/pre-commit'));
+  const done = ok(work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'a.js', '--limits', '["no browser"]'));
+  assert.equal(done.branch, 'do-it/road');
+  const rec = ok(work(dir, 'run', 'show', 'road'));
+  assert.equal(rec.branch, 'do-it/road');
+  assert.deepEqual(rec.limits, ['no browser']);
+});
+
 test('verification limits go to the run record and the commit body, not a trailer', () => {
   const { dir } = fixture();
   ok(work(dir, 'run', 'new', 'road'));

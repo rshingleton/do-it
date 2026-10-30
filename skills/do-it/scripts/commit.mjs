@@ -33,14 +33,24 @@ function branchExists(cwd, name) {
 }
 
 // The current branch when it is unprotected, else do-it/<roadmap-slug>,
-// created (or switched to) before the first commit. A detached HEAD counts as protected.
+// created (or switched to) before the first commit. A detached HEAD counts as
+// protected. `undo` puts the repo back as it was found.
 function safeBranch(cwd, slug, protectedList) {
   const now = currentBranch(cwd);
   const blocked = protectedList.split(',').map((b) => b.trim()).filter(Boolean);
-  if (now && !blocked.includes(now)) return now;
+  if (now && !blocked.includes(now)) return { name: now, undo() {} };
   const name = `do-it/${slug}`;
-  if (now !== name) git(cwd, branchExists(cwd, name) ? ['switch', '-q', name] : ['switch', '-q', '-c', name]);
-  return name;
+  if (now === name) return { name, undo() {} };
+  const made = !branchExists(cwd, name);
+  const from = now || git(cwd, ['rev-parse', 'HEAD']);
+  git(cwd, made ? ['switch', '-q', '-c', name] : ['switch', '-q', name]);
+  return {
+    name,
+    undo() {
+      spawnSync('git', ['switch', '-q', ...(now ? [] : ['--detach']), from], { cwd, env: ENV });
+      if (made) spawnSync('git', ['branch', '-q', '-D', name], { cwd, env: ENV });
+    },
+  };
 }
 
 // `paths` are the files the boundary check mapped to the slice. Returns the
@@ -97,18 +107,21 @@ export function commitSlice({ root, planningDir, config, items, slug, id, phase,
   for (const p of paths) {
     if (!git(root, ['status', '--porcelain', '--', p])) throw new Error(`${p} has no change to commit`);
   }
-  const branch = safeBranch(root, slug, config.DO_IT_PROTECTED_BRANCHES);
-  if (run.branch !== branch) setRun(planningDir, slug, 'branch', branch);
-  const known = limits.length ? setRun(planningDir, slug, 'limits', [...new Set([...run.limits, ...limits])]).limits : run.limits;
-  git(root, ['add', '--', ...paths]);
+  const onto = safeBranch(root, slug, config.DO_IT_PROTECTED_BRANCHES);
   const body = limits.length ? `Verification limits:\n${limits.map((l) => `- ${l}`).join('\n')}` : null;
   const message = [subject, body, ATTRIBUTION].filter(Boolean).join('\n\n');
   try {
+    git(root, ['add', '--', ...paths]);
     git(root, ['commit', '-q', '-F', '-'], message);
   } catch (e) {
-    spawnSync('git', ['reset', '-q', '--', ...paths], { cwd: root });
+    spawnSync('git', ['reset', '-q', '--', ...paths], { cwd: root, env: ENV });
+    onto.undo();
     throw e;
   }
+  // The run record follows the commit, so a rejected commit leaves it as it was.
+  const branch = onto.name;
+  if (run.branch !== branch) setRun(planningDir, slug, 'branch', branch);
+  const known = limits.length ? setRun(planningDir, slug, 'limits', [...new Set([...run.limits, ...limits])]).limits : run.limits;
   const sha = git(root, ['rev-parse', 'HEAD']);
   let tag = null;
   if (phase !== undefined) {
