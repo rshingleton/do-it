@@ -517,3 +517,48 @@ test('a submodule path is a directory: naming it stages nothing inside it', () =
   assert.match(sliceCommit(dir, ['mod/f.txt', 'x.js']).out.error, /mod\/f\.txt (is a directory|has no change)/, 'a file inside it is refused too');
   assert.equal(git(dir, 'diff', '--cached', '--name-only'), '', 'nothing was staged');
 });
+
+// A protected-branch run whose phase 1 commit is rejected by a pre-commit hook that runs `hook`.
+function rejectedCommit(hook, setup = () => {}) {
+  const { dir } = fixture();
+  ok(work(dir, 'run', 'new', 'road'));
+  verify(dir);
+  setup(dir);
+  write(dir, '.git/hooks/pre-commit', `#!/bin/sh\n${hook}\nexit 1\n`);
+  fs.chmodSync(path.join(dir, '.git/hooks/pre-commit'), 0o755);
+  const r = work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'a.js');
+  assert.equal(r.status, 1);
+  return { dir, error: r.out.error };
+}
+
+test('a rejected commit that cannot switch back says where the repo is and keeps the branch it is on', () => {
+  const { dir, error } = rejectedCommit('git branch -m main gone-main');
+  assert.match(error, /could not switch back to main, still on do-it\/road/);
+  assert.equal(git(dir, 'branch', '--show-current'), 'do-it/road');
+  assert.equal(git(dir, 'diff', '--cached', '--name-only'), '');
+});
+
+test('a rejected commit keeps a scratch branch a hook committed on, and says so', () => {
+  const { dir, error } = rejectedCommit('c=$(git commit-tree -m hook "$(git rev-parse HEAD^{tree})" -p HEAD) && git update-ref HEAD "$c"');
+  assert.match(error, /do-it\/road gained commits and was kept/);
+  assert.equal(git(dir, 'branch', '--show-current'), 'main', 'back on the protected branch');
+  assert.equal(git(dir, 'log', '-1', '--format=%s', 'do-it/road'), 'hook');
+});
+
+test('a rejected commit on a reused scratch branch switches back and keeps the branch', () => {
+  const { dir, error } = rejectedCommit(':', (d) => git(d, 'branch', 'do-it/road'));
+  assert.doesNotMatch(error, /kept|could not/);
+  assert.equal(git(dir, 'branch', '--show-current'), 'main');
+  assert.equal(git(dir, 'branch', '--list', 'do-it/road').trim(), 'do-it/road', 'a branch it did not make stays');
+});
+
+test('a rejected commit from a detached start returns to the same commit and removes the branch it made', () => {
+  let head;
+  const { dir } = rejectedCommit(':', (d) => {
+    head = git(d, 'rev-parse', 'HEAD');
+    git(d, 'checkout', '-q', '--detach');
+  });
+  assert.equal(git(dir, 'branch', '--show-current'), '', 'still detached');
+  assert.equal(git(dir, 'rev-parse', 'HEAD'), head);
+  assert.equal(git(dir, 'branch', '--list', 'do-it/road'), '');
+});

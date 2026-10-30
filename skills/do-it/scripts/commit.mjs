@@ -37,21 +37,31 @@ function branchExists(cwd, name) {
 
 // The current branch when it is unprotected, else do-it/<roadmap-slug>,
 // created (or switched to) before the first commit. A detached HEAD counts as
-// protected. `undo` puts the repo back as it was found.
+// protected. `undo` puts the repo back as it was found and returns what it could not
+// undo (a failed switch back, a branch kept because it gained commits), else ''.
 function safeBranch(cwd, slug, protectedList) {
   const now = currentBranch(cwd);
   const blocked = protectedList.split(',').map((b) => b.trim()).filter(Boolean);
-  if (now && !blocked.includes(now)) return { name: now, undo() {} };
+  if (now && !blocked.includes(now)) return { name: now, undo: () => '' };
   const name = `do-it/${slug}`;
-  if (now === name) return { name, undo() {} };
+  if (now === name) return { name, undo: () => '' };
   const made = !branchExists(cwd, name);
-  const from = now || git(cwd, ['rev-parse', 'HEAD']);
+  // Empty with no commit yet: then there is no branch tip to compare, and a detached start cannot exist.
+  const start = spawnSync('git', ['rev-parse', '-q', '--verify', 'HEAD'], { cwd, encoding: 'utf8', env: ENV }).stdout.trim();
+  const from = now || start;
   git(cwd, made ? ['switch', '-q', '-c', name] : ['switch', '-q', name]);
   return {
     name,
     undo() {
-      spawnSync('git', ['switch', '-q', ...(now ? [] : ['--detach']), from], { cwd, env: ENV });
-      if (made) spawnSync('git', ['branch', '-q', '-D', name], { cwd, env: ENV });
+      const back = spawnSync('git', ['switch', '-q', '--no-guess', ...(now ? [] : ['--detach']), from], { cwd, encoding: 'utf8', env: ENV });
+      // Still on the scratch branch: it cannot be deleted, and the caller is told where the repo is.
+      if (back.status !== 0) return ` (could not switch back to ${now ?? from}, still on ${name}: ${back.stderr.trim()})`;
+      if (!made) return '';
+      // A hook that committed on the branch it was given leaves work there; only an untouched branch is removed.
+      const tip = spawnSync('git', ['rev-parse', '-q', '--verify', `refs/heads/${name}`], { cwd, encoding: 'utf8', env: ENV }).stdout.trim();
+      if (tip !== start) return ` (${name} gained commits and was kept)`;
+      spawnSync('git', ['branch', '-q', '-D', name], { cwd, env: ENV });
+      return '';
     },
   };
 }
@@ -186,8 +196,7 @@ export function commitSlice({ root, planningDir, config, items, slug, id, phase,
     git(root, ['commit', '-q', '-F', '-'], message);
   } catch (e) {
     spawnSync('git', ['reset', '-q', '--', ...paths], { cwd: root, env: ENV });
-    onto.undo();
-    throw e;
+    throw new Error(`${e.message}${onto.undo()}`);
   }
   // The run record follows the commit, so a rejected commit leaves it as it was.
   const branch = onto.name;
