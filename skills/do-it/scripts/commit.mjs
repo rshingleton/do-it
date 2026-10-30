@@ -23,6 +23,9 @@ function git(cwd, args, input) {
 
 const lines = (s) => s.split('\n').filter(Boolean);
 
+// A named path as the records and git list it: relative to the repo root.
+const relative = (root, p) => path.relative(root, path.resolve(root, p));
+
 function currentBranch(cwd) {
   const r = spawnSync('git', ['symbolic-ref', '--quiet', '--short', 'HEAD'], { cwd, encoding: 'utf8' });
   return r.status === 0 ? r.stdout.trim() : null;
@@ -132,9 +135,10 @@ export function commitSlice({ root, planningDir, config, items, slug, id, phase,
     throw new Error(`commit stages named files only, got ${paths.join(',')}`);
   }
   // A directory, even one deleted from disk, would stage every edit under it, other slices' included.
+  // `ls-files -z` reads names unquoted; they are compared with the path's repo-relative form.
   for (const p of paths) {
     const onDisk = fs.statSync(path.resolve(root, p), { throwIfNoEntry: false })?.isDirectory();
-    if (onDisk || lines(git(root, ['ls-files', '--', p])).some((f) => f !== path.normalize(p))) throw new Error(`commit stages named files only, ${p} is a directory`);
+    if (onDisk || gitRaw(root, ['ls-files', '-z', '--', p]).split('\0').filter(Boolean).some((f) => f !== relative(root, p))) throw new Error(`commit stages named files only, ${p} is a directory`);
   }
   // Lane M's code commit follows its last verify: a named file that differs from what `run verify` saw refuses.
   // Files outside the named paths (the closing docs, a user's own edit) are not compared.
@@ -143,7 +147,7 @@ export function commitSlice({ root, planningDir, config, items, slug, id, phase,
     if (!seen) throw new Error(`${id} has no verify record from run verify; run it, nothing committed`);
     const now = dirtyHashes(root);
     // The records key on repo-relative names, so an absolute in-repo path is compared by its relative form.
-    const named = paths.map((p) => path.relative(root, path.resolve(root, p)));
+    const named = paths.map((p) => relative(root, p));
     const outside = named.filter((p) => p.startsWith('..') || path.isAbsolute(p));
     if (outside.length) throw new Error(`commit stages files inside the repo, ${outside.join(', ')} is not; nothing committed`);
     const moved = named.filter((p) => (now[p] ?? 'clean') !== (seen[p] ?? 'clean'));
@@ -154,21 +158,22 @@ export function commitSlice({ root, planningDir, config, items, slug, id, phase,
     const untrusted = unknown.filter((p) => !lines(gitRaw(root, ['ls-files', '-z', '--', p]).replaceAll('\0', '\n')).includes(p) || gitRaw(root, ['status', '--porcelain', '--', p]).trim());
     if (untrusted.length) throw new Error(`${untrusted.join(', ')} is in neither verify record and is not a tracked, clean file; nothing committed`);
   }
-  // A phase retried after its commit landed: the commit is HEAD, so nothing is left to stage and the tag may be the
-  // only thing missing. Anything else under that tag (a new edit, another commit) is refused, never skipped.
-  if (phase !== undefined) {
-    const tag = `do-it/${id}/phase-${phase}`;
-    const head = spawnSync('git', ['rev-parse', '-q', '--verify', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim();
-    const tagged = spawnSync('git', ['rev-parse', '-q', '--verify', `refs/tags/${tag}^{commit}`], { cwd: root, encoding: 'utf8' }).stdout.trim();
-    const landed =
-      head && git(root, ['log', '-1', '--format=%s']) === subject && git(root, ['log', '-1', '--format=%B']).endsWith(ATTRIBUTION) &&
-      !git(root, ['status', '--porcelain', '--', ...paths]);
-    if (landed && (!tagged || tagged === head)) {
-      if (!tagged) git(root, ['tag', tag, head]);
-      return { commit: head, branch: currentBranch(root), tag, subject, limits: run.limits };
-    }
-    if (tagged) throw new Error(`phase ${phase} is already committed as ${tag}; nothing committed`);
+  // A commit retried after it landed (a phase, a lane S slice or the closing docs): it is HEAD with this subject,
+  // attribution and exactly these paths, so nothing is left to stage and a phase's tag may be the only thing
+  // missing. Anything else under that tag (a new edit, another commit) is refused, never skipped.
+  const tag = phase === undefined ? null : `do-it/${id}/phase-${phase}`;
+  const rev = (ref) => spawnSync('git', ['rev-parse', '-q', '--verify', ref], { cwd: root, encoding: 'utf8', env: ENV }).stdout.trim();
+  const head = rev('HEAD');
+  const tagged = tag && rev(`refs/tags/${tag}^{commit}`);
+  const landed =
+    head && git(root, ['log', '-1', '--format=%s']) === subject && git(root, ['log', '-1', '--format=%B']).endsWith(ATTRIBUTION) &&
+    !git(root, ['status', '--porcelain', '--', ...paths]) &&
+    gitRaw(root, ['show', '--no-renames', '--name-only', '--format=', '-z', 'HEAD']).split('\0').filter(Boolean).sort().join('\n') === paths.map((p) => relative(root, p)).sort().join('\n');
+  if (landed && (!tagged || tagged === head)) {
+    if (tag && !tagged) git(root, ['tag', tag, head]);
+    return { commit: head, branch: currentBranch(root), tag, subject, limits: run.limits };
   }
+  if (tagged) throw new Error(`phase ${phase} is already committed as ${tag}; nothing committed`);
   if (lines(git(root, ['diff', '--cached', '--name-only'])).length) throw new Error('the index already holds staged files; unstage them first');
   for (const p of paths) {
     if (!git(root, ['status', '--porcelain', '--', p])) throw new Error(`${p} has no change to commit`);
@@ -189,10 +194,6 @@ export function commitSlice({ root, planningDir, config, items, slug, id, phase,
   if (run.branch !== branch) setRun(planningDir, slug, 'branch', branch);
   const known = limits.length ? setRun(planningDir, slug, 'limits', [...new Set([...run.limits, ...limits])]).limits : run.limits;
   const sha = git(root, ['rev-parse', 'HEAD']);
-  let tag = null;
-  if (phase !== undefined) {
-    tag = `do-it/${id}/phase-${phase}`;
-    git(root, ['tag', tag, sha]);
-  }
+  if (tag) git(root, ['tag', tag, sha]);
   return { commit: sha, branch, tag, subject, limits: known };
 }

@@ -440,3 +440,80 @@ test('dirtyHashes reads past 1 MB of status output and fails when git does', () 
   assert.match(seen['untracked-file-with-a-long-name-000007.txt'], /^6\d\d:[0-9a-f]{40}$/);
   assert.throws(() => dirtyHashes(tmpDir('do-it-notrepo-')), /git status failed/);
 });
+
+// A repo on `topic` with x.js and y.js committed and a started lane S item "small"; `edit` makes
+// the slice's changes before the item is verified and a slice-mode run "sl" is recorded.
+function laneS(edit) {
+  const dir = tmpDir('do-it-runcommit-paths-');
+  git(dir, 'init', '-q', '-b', 'topic');
+  git(dir, 'config', 'user.name', 't');
+  git(dir, 'config', 'user.email', 't@t');
+  git(dir, 'config', 'commit.gpgsign', 'false');
+  write(dir, 'x.js', '1\n');
+  write(dir, 'y.js', 'untouched\n');
+  git(dir, 'add', '-A');
+  git(dir, 'commit', '-qm', 'init');
+  ok(work(dir, 'new', 'small', '--lane', 's', '--title', 'Small fix'));
+  ok(work(dir, 'event', 'small', 'approve'));
+  ok(work(dir, 'event', 'small', 'start'));
+  edit(dir);
+  ok(work(dir, 'run', 'new', 'sl', '--commit', 'slice'));
+  ok(work(dir, 'verify-phase', 'small', '--', 'true'));
+  return dir;
+}
+const sliceCommit = (dir, paths, ...flags) => work(dir, 'run', 'commit', 'sl', 'small', ...flags, '--paths', paths.join(','));
+const names = (dir) => git(dir, 'show', '--no-renames', '--name-only', '--format=', '-z', 'HEAD').split('\0').filter(Boolean).sort();
+
+test('a tracked name git quotes and an absolute in-repo path commit; neither reads as a directory', () => {
+  const dir = laneS((d) => {
+    write(d, 'é.txt', 'accent\n');
+    write(d, 'a\nb.txt', 'newline\n');
+    write(d, 'x.js', '2\n');
+  });
+  ok(sliceCommit(dir, ['é.txt', 'a\nb.txt', path.join(fs.realpathSync(dir), 'x.js')]));
+  assert.deepEqual(names(dir), ['a\nb.txt', 'x.js', 'é.txt'].sort());
+  write(dir, 'é.txt', 'edited\n');
+  assert.match(sliceCommit(dir, ['é.txt', 'x.js']).out.error, /x\.js has no change/, 'a tracked quoted name is a file, so only the clean one is refused');
+});
+
+test('a retry after the commit landed succeeds for lane S and --docs, and a different path set is refused', () => {
+  const dir = laneS((d) => {
+    write(d, 'x.js', '2\n');
+    write(d, 'z.js', 'new\n');
+  });
+  const code = ok(sliceCommit(dir, ['x.js', 'z.js']));
+  assert.equal(ok(sliceCommit(dir, ['x.js', 'z.js'])).commit, code.commit, 'lane S retry returns the same commit');
+  assert.match(sliceCommit(dir, ['x.js']).out.error, /no change to commit/, 'a subset is not a retry');
+  assert.match(sliceCommit(dir, ['y.js']).out.error, /no change to commit/, 'a clean tracked file is not a retry');
+  assert.equal(git(dir, 'rev-list', '--count', 'HEAD'), '2');
+  write(dir, 'notes.md', 'closing\n');
+  const docs = ok(sliceCommit(dir, ['notes.md'], '--docs'));
+  assert.equal(ok(sliceCommit(dir, ['notes.md'], '--docs')).commit, docs.commit, 'a docs retry returns the same commit');
+  assert.equal(git(dir, 'rev-list', '--count', 'HEAD'), '3');
+});
+
+test('a rename is committed as its new path and its old path, and its retry is a no-op', () => {
+  const dir = laneS((d) => fs.renameSync(path.join(d, 'x.js'), path.join(d, 'moved.js')));
+  const code = ok(sliceCommit(dir, ['x.js', 'moved.js']));
+  assert.deepEqual(names(dir), ['moved.js', 'x.js']);
+  assert.equal(ok(sliceCommit(dir, ['x.js', 'moved.js'])).commit, code.commit);
+});
+
+test('a submodule path is a directory: naming it stages nothing inside it', () => {
+  const sub = tmpDir('do-it-sub-');
+  git(sub, 'init', '-q', '-b', 'main');
+  git(sub, 'config', 'user.name', 't');
+  git(sub, 'config', 'user.email', 't@t');
+  write(sub, 'f.txt', 'inner\n');
+  git(sub, 'add', '-A');
+  git(sub, 'commit', '-qm', 'sub');
+  const dir = laneS((d) => {
+    git(d, '-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', sub, 'mod');
+    git(d, 'reset', '-q');
+    write(d, 'mod/f.txt', 'edited inside\n');
+    write(d, 'x.js', '2\n');
+  });
+  assert.match(sliceCommit(dir, ['mod', 'x.js']).out.error, /mod is a directory/);
+  assert.match(sliceCommit(dir, ['mod/f.txt', 'x.js']).out.error, /mod\/f\.txt (is a directory|has no change)/, 'a file inside it is refused too');
+  assert.equal(git(dir, 'diff', '--cached', '--name-only'), '', 'nothing was staged');
+});
