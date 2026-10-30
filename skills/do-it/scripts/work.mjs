@@ -16,6 +16,7 @@
 //   work.mjs run reject-assumption <slug> <id>#<n> <instead...>   (by key; reopens the item if its plan is still auditing or shipping)
 //   work.mjs run next <slug> <roadmap file>   (slice ready|parked|blocked|shipped; ready un-parks)
 //   work.mjs run commit <slug> <id> [--phase n | --docs] --paths a,b [--limits <json>]
+//   work.mjs run review-change <slug>   (the final review's change: <base>...HEAD, or the working tree against base)
 //   work.mjs run digest <slug> [--usage <json>] [--findings <json>] [--retro <json>]   (markdown, saved uncommitted)
 //   work.mjs run start <slug> <slice> --work <id> [--at iso] | audit <slug> | gate <slug> <slice>
 //   work.mjs run verify <slug> <slice> [--phase n] [--in dir] -- <command...>   (reruns a failure once)
@@ -37,7 +38,7 @@ import { roadmapSlices } from './roadmap.mjs';
 import { commitSlice } from './commit.mjs';
 import { buildDigest } from './digest.mjs';
 import { addAssumptions, createRun, nextSlice, rejectAssumption, runPath, setRun, showRun, sliceRun } from './run.mjs';
-import { countAudit, runGate, runVerify, startSlice } from './gate.mjs';
+import { countAudit, runGate, runReviewChange, runVerify, startSlice } from './gate.mjs';
 
 // Flags that take no value.
 const FLAGS = new Set(['brief', 'docs']);
@@ -260,6 +261,8 @@ export async function run(argv, { cwd = process.cwd() } = {}) {
             planningDir: ctx.planningDir, root: ctx.root, cwd, slug, id: args[0], opts, items,
             fingerprintOf: (item) => itemFingerprint(ctx, item), quote: shellQuote,
           });
+        case 'review-change':
+          return runReviewChange({ planningDir: ctx.planningDir, root: ctx.root, slug, exclude: planningExclude(ctx) });
         case 'commit': {
           if (!args[0]) throw new Error('run commit needs a work id');
           const limits = opts.limits === undefined ? [] : json(opts.limits);
@@ -276,7 +279,7 @@ export async function run(argv, { cwd = process.cwd() } = {}) {
           return text;
         }
         default:
-          throw new Error('usage: work.mjs run new|show|set|add-assumptions|reject-assumption|slice|next|start|audit|gate|verify|commit|digest <slug> ...');
+          throw new Error('usage: work.mjs run new|show|set|add-assumptions|reject-assumption|slice|next|start|audit|gate|verify|review-change|commit|digest <slug> ...');
       }
     }
     case 'close': {

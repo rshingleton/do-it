@@ -6,10 +6,12 @@ never an estimate of time or money saved.
 ## 1. Final review
 
 When every slice is shipped or parked, call
-[review-it](../review-it/SKILL.md) once over the whole run: base is the
-run record's `base` (the commit HEAD was at `run new`; `work.mjs run show
-<slug>`), change is committed work, `<base>...HEAD`. A null `base` (no git):
-review the working tree.
+[review-it](../review-it/SKILL.md) once over the whole run. The change is what
+`work.mjs run review-change <slug>` prints: base is the run record's `base`
+(the commit HEAD was at `run new`), and `mode` is `range` (`<base>...HEAD`,
+committed work) or `worktree` (the working tree against base: commit mode
+`none`, or closing docs not yet committed). A null `base` (no git): review the
+working tree.
 
 - Fix only Must findings, then review again. At most the record's `audit_cap`
   rounds across the run; a Must left at the cap goes in the digest as open.

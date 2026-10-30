@@ -332,11 +332,13 @@ export function snapshot(cwd, { exclude = [] } = {}) {
   }
 }
 
-// Files that differ between two snapshots, with a diffstat.
-export function treeDiff(cwd, from, to) {
-  const names = git(cwd, ['diff', '--name-status', from, to]);
+// Files that differ between two snapshots (or commits), with a diffstat;
+// `exclude` paths are left out.
+export function treeDiff(cwd, from, to, { exclude = [] } = {}) {
+  const spec = exclude.length ? ['--', '.', ...exclude.map((p) => `:(exclude,literal)${p}`)] : [];
+  const names = git(cwd, ['diff', '--name-status', from, to, ...spec]);
   if (names.status !== 0) throw new Error(`git diff failed: ${names.stderr}`);
-  const stat = git(cwd, ['diff', '--stat', from, to]).stdout.trim();
+  const stat = git(cwd, ['diff', '--stat', from, to, ...spec]).stdout.trim();
   const files = names.stdout.split('\n').filter(Boolean).map((l) => {
     const [status, ...rest] = l.split('\t');
     return { status, path: rest.join(' -> ') };

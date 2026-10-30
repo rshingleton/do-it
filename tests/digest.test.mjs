@@ -115,3 +115,46 @@ test('rejecting an assumption after the item closed works through the run record
   assert.match(out.followup, /fix:/);
   assert.ok(out.record.rejected.some((r) => r.startsWith('gone#1: Use utc')));
 });
+
+// A repo whose run base is its first commit, with one change made after it.
+function reviewFixture(commitMode, { commitChange }) {
+  const dir = tmpDir('do-it-review-');
+  git(dir, 'init', '-q', '-b', 'dev');
+  git(dir, 'config', 'user.name', 't');
+  git(dir, 'config', 'user.email', 't@t');
+  git(dir, 'config', 'commit.gpgsign', 'false');
+  fs.writeFileSync(path.join(dir, 'a.js'), 'one\n');
+  git(dir, 'add', '-A');
+  git(dir, 'commit', '-qm', 'init');
+  ok(work(dir, 'run', 'new', 'road', '--commit', commitMode));
+  fs.writeFileSync(path.join(dir, 'a.js'), 'two\n');
+  fs.writeFileSync(path.join(dir, 'b.js'), 'new\n');
+  fs.mkdirSync(path.join(dir, 'docs/planning'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'docs/planning/plan.md'), 'a plan\n');
+  if (commitChange) {
+    git(dir, 'add', '-f', '-A');
+    git(dir, 'commit', '-qm', 'run commit');
+  }
+  return dir;
+}
+const review = (dir) => JSON.parse(ok(work(dir, 'run', 'review-change', 'road')));
+
+test('final review: --commit none reads the working tree against base, so its change set is not empty', () => {
+  const r = review(reviewFixture('none', { commitChange: false }));
+  assert.equal(r.mode, 'worktree');
+  assert.deepEqual(r.files.map((f) => f.path).sort(), ['a.js', 'b.js'], 'untracked files count, planning files do not');
+});
+
+test('final review: committed work with a clean tree reads <base>...HEAD, planning files left out', () => {
+  const r = review(reviewFixture('phase', { commitChange: true }));
+  assert.equal(r.mode, 'range');
+  assert.deepEqual(r.files.map((f) => f.path).sort(), ['a.js', 'b.js']);
+});
+
+test('final review: uncommitted closing docs in a committed run read the working tree', () => {
+  const dir = reviewFixture('phase', { commitChange: true });
+  fs.writeFileSync(path.join(dir, 'TODO.md'), 'closing docs, not committed yet\n');
+  const r = review(dir);
+  assert.equal(r.mode, 'worktree');
+  assert.deepEqual(r.files.map((f) => f.path).sort(), ['TODO.md', 'a.js', 'b.js']);
+});

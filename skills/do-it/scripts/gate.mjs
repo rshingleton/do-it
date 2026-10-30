@@ -4,6 +4,7 @@
 
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
+import { snapshot, treeDiff } from './changeset.mjs';
 import { dirtyHashes } from './commit.mjs';
 import { read, runPath, showRun, sliceRun, write } from './run.mjs';
 
@@ -123,4 +124,18 @@ export function runVerify({ planningDir, root, cwd, slug, id, opts, items, finge
   }
   recordVerified(planningDir, slug, id, fingerprintOf(items.get(g.work)), dirtyHashes(root));
   return showRun(planningDir, slug);
+}
+
+// `run review-change`: the change the run's final review reads. Committed work
+// is `<base>...HEAD`; with commit mode none, no base, or anything still
+// uncommitted outside the planning dir (the closing docs), the working tree
+// against base, untracked files included. Planning files are never in it.
+export function runReviewChange({ planningDir, root, slug, exclude }) {
+  const { base, commit } = showRun(planningDir, slug);
+  if (!base) return { base: null, mode: 'worktree', files: null, note: 'no base recorded: review the working tree' };
+  const git = (args) => spawnSync('git', args, { cwd: root, encoding: 'utf8' });
+  const dirty = git(['status', '--porcelain', '-uall', '--', '.', ...exclude.map((p) => `:(exclude,literal)${p}`)]).stdout.trim();
+  if (commit === 'none' || dirty) return { base, mode: 'worktree', ...treeDiff(root, base, snapshot(root, { exclude }), { exclude }) };
+  const from = git(['merge-base', base, 'HEAD']).stdout.trim() || base;
+  return { base, mode: 'range', ...treeDiff(root, from, 'HEAD', { exclude }) };
 }
