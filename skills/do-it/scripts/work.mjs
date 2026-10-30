@@ -22,6 +22,10 @@
 //   work.mjs run verify <slug> <slice> [--phase n] [--in dir] -- <command...>   (reruns a failure once)
 //   work.mjs close <id>
 //
+// `run audit` prints {audit_rounds, allow, reason, limit, detail}: `audit_rounds` is the slice's (or the
+// final review's) count after the call, `allow` false with `reason` AUDIT_CAP when a limit was spent,
+// `limit` names it (`slice R1`, `final review`, `run total`), `detail` says rounds against cap.
+//
 // The rules live in items.mjs and state.mjs (../STATE.md documents them);
 // this script parses arguments, gathers the git facts an event needs, and
 // prints JSON.
