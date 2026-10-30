@@ -166,9 +166,16 @@ export function runReviewChange({ planningDir, root, slug, exclude }) {
   const { base, commit } = showRun(planningDir, slug);
   if (!base) return { base: null, mode: 'worktree', files: null, note: 'no base recorded: review the working tree' };
   const git = (args) => spawnSync('git', args, { cwd: root, encoding: 'utf8' });
-  const dirty = git(['status', '--porcelain', '-uall', '--', '.', ...exclude.map((p) => `:(exclude,literal)${p}`)]).stdout.trim();
+  // A git that failed says nothing about the tree: it is an error, never "clean" or "no merge base".
+  const must = (r, what) => {
+    if (r.error || r.status !== 0) throw new Error(`${what} failed: ${(r.error?.message || r.stderr).trim()}`);
+    return r.stdout.trim();
+  };
+  const dirty = must(git(['status', '--porcelain', '-uall', '--', '.', ...exclude.map((p) => `:(exclude,literal)${p}`)]), 'git status');
   if (commit === 'none' || dirty) return { base, mode: 'worktree', ...treeDiff(root, base, snapshot(root, { exclude }), { exclude }) };
-  const from = git(['merge-base', base, 'HEAD']).stdout.trim() || base;
+  const mb = git(['merge-base', base, 'HEAD']);
+  // Exit 1 is no common ancestor (rewritten history): review from the base itself.
+  const from = mb.status === 1 ? base : must(mb, 'git merge-base');
   return { base, mode: 'range', ...treeDiff(root, from, 'HEAD', { exclude }) };
 }
 

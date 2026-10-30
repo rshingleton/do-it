@@ -562,3 +562,15 @@ test('a rejected commit from a detached start returns to the same commit and rem
   assert.equal(git(dir, 'rev-parse', 'HEAD'), head);
   assert.equal(git(dir, 'branch', '--list', 'do-it/road'), '');
 });
+
+test('a tag that cannot be made after the commit landed is reported with the commit', () => {
+  const { dir } = fixture();
+  ok(work(dir, 'run', 'new', 'road'));
+  verify(dir);
+  // A ref under the tag's own name makes `git tag` fail after the commit has landed.
+  write(dir, '.git/refs/tags/do-it/feat/phase-1/blocker', '0'.repeat(40) + '\n');
+  const r = work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'a.js');
+  assert.equal(r.status, 1);
+  assert.match(r.out.error, /committed [0-9a-f]{40} on do-it\/road but .*run the same command again to tag it/);
+  assert.equal(git(dir, 'log', '-1', '--format=%s'), 'feat: phase 1 Limiter', 'the commit landed');
+});

@@ -203,6 +203,14 @@ export function commitSlice({ root, planningDir, config, items, slug, id, phase,
   if (run.branch !== branch) setRun(planningDir, slug, 'branch', branch);
   const known = limits.length ? setRun(planningDir, slug, 'limits', [...new Set([...run.limits, ...limits])]).limits : run.limits;
   const sha = git(root, ['rev-parse', 'HEAD']);
-  if (tag) git(root, ['tag', tag, sha]);
+  // The commit has landed, so a tag that fails is reported with the commit, not as a failed commit; the
+  // same call again finds the commit at HEAD and only tags it.
+  if (tag) {
+    try {
+      git(root, ['tag', tag, sha]);
+    } catch (e) {
+      throw new Error(`committed ${sha} on ${branch} but ${e.message}; run the same command again to tag it`);
+    }
+  }
   return { commit: sha, branch, tag, subject, limits: known };
 }

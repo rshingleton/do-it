@@ -183,3 +183,38 @@ test('digest shows what became of each retried slice', () => {
   assert.match(text, /- R3: was blocked \(waits on R2\), now parked \(FLAKY: check passed on rerun\)/);
   assert.match(text, /- R4: was parked \(IRREVERSIBLE\), now not run again yet/);
 });
+
+test('final review: a git that fails is an error, never a clean tree', () => {
+  const dir = reviewFixture('phase', { commitChange: true });
+  fs.writeFileSync(path.join(dir, '.git/index'), 'not an index');
+  const r = work(dir, 'run', 'review-change', 'road');
+  assert.equal(r.status, 1);
+  assert.match(JSON.parse(r.stdout).error, /git status failed/);
+});
+
+test('final review: a base git cannot resolve is an error, not "no merge base"', () => {
+  const dir = reviewFixture('phase', { commitChange: true });
+  const file = path.join(dir, 'docs/planning/road.run/RUN.md');
+  fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace(/^base: .*$/m, `base: ${'0'.repeat(40)}`));
+  const r = work(dir, 'run', 'review-change', 'road');
+  assert.equal(r.status, 1);
+  assert.match(JSON.parse(r.stdout).error, /git merge-base failed/);
+});
+
+test('final review: a run with no base reads the working tree and says so', () => {
+  const dir = tmpDir('do-it-nobase-');
+  ok(work(dir, 'run', 'new', 'road', '--commit', 'phase'));
+  fs.writeFileSync(path.join(dir, 'a.js'), 'x\n');
+  const r = review(dir);
+  assert.equal(r.base, null);
+  assert.equal(r.mode, 'worktree');
+  assert.match(r.note, /no base recorded/);
+});
+
+test('final review: a tracked planning file modified after the run commits leaves the range review alone', () => {
+  const dir = reviewFixture('phase', { commitChange: true });
+  fs.appendFileSync(path.join(dir, 'docs/planning/plan.md'), 'edited after the commit\n');
+  const r = review(dir);
+  assert.equal(r.mode, 'range', 'planning files never make the tree dirty');
+  assert.deepEqual(r.files.map((f) => f.path).sort(), ['a.js', 'b.js']);
+});
