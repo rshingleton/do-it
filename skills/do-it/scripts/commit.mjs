@@ -53,22 +53,47 @@ function safeBranch(cwd, slug, protectedList) {
   };
 }
 
-// Every file the working tree changes, each with a hash of its content ('gone'
-// when it is deleted), as `run verify` saw it. A rename is its new path plus its
-// old path gone. Nothing is matched as a pattern: names are read, never expanded.
+// Output of `git status` and `hash-object` can run to megabytes: a full buffer must fail the call,
+// never read as a clean tree.
+const MAX_OUT = 512 * 1024 * 1024;
+
+function gitRaw(cwd, args, input) {
+  const r = spawnSync('git', args, { cwd, encoding: 'utf8', input, env: ENV, maxBuffer: MAX_OUT });
+  if (r.error || r.status !== 0) throw new Error(`git ${args[0]} failed: ${(r.error?.message || r.stderr || r.stdout).trim()}`);
+  return r.stdout;
+}
+
+// Every file the working tree changes, each as `<mode>:<blob hash>` ('gone' when it is deleted, 'dir'
+// for a directory), as `run verify` saw it. A link is its target's hash, never what it points at, so a
+// retargeted or dangling link and a mode-only change both show. A rename is its new path plus its old
+// path gone. Nothing is matched as a pattern: names are read, never expanded. Throws when git fails.
 export function dirtyHashes(root) {
-  const recs = spawnSync('git', ['status', '--porcelain', '-z', '-uall'], { cwd: root, encoding: 'utf8', env: ENV }).stdout.split('\0').filter(Boolean);
+  const recs = gitRaw(root, ['status', '--porcelain', '-z', '-uall']).split('\0').filter(Boolean);
   const files = {};
-  const hash = (f) => {
+  const modes = {};
+  const plain = [];
+  const stamp = (f) => {
     const abs = path.resolve(root, f);
-    if (!fs.statSync(abs, { throwIfNoEntry: false })?.isFile()) return 'gone';
-    return spawnSync('git', ['hash-object', '--no-filters', '--', abs], { cwd: root, encoding: 'utf8' }).stdout.trim() || 'gone';
+    const st = fs.lstatSync(abs, { throwIfNoEntry: false });
+    if (!st) return 'gone';
+    modes[f] = (st.mode & 0o777).toString(8);
+    if (st.isSymbolicLink()) return `${modes[f]}:${gitRaw(root, ['hash-object', '--stdin'], fs.readlinkSync(abs)).trim()}`;
+    if (!st.isFile()) return 'dir';
+    plain.push(f);
+    return null;
   };
   for (let i = 0; i < recs.length; i++) {
     const f = recs[i].slice(3);
-    files[f] = hash(f);
+    files[f] = stamp(f);
     if (/[RC]/.test(recs[i][0])) files[recs[++i]] = 'gone';
   }
+  // Regular files hash in one call; a name with a newline cannot ride a line-based list.
+  const lined = plain.filter((f) => !f.includes('\n'));
+  const out = lined.length ? gitRaw(root, ['hash-object', '--no-filters', '--stdin-paths'], lined.map((f) => path.resolve(root, f)).join('\n') + '\n').split('\n') : [];
+  lined.forEach((f, i) => {
+    files[f] = `${modes[f]}:${out[i]}`;
+  });
+  for (const f of plain.filter((x) => x.includes('\n'))) files[f] = `${modes[f]}:${gitRaw(root, ['hash-object', '--no-filters', '--', path.resolve(root, f)]).trim()}`;
   return files;
 }
 
@@ -117,8 +142,17 @@ export function commitSlice({ root, planningDir, config, items, slug, id, phase,
     const seen = (run.gates ?? []).find((x) => x.work === id)?.verified_files;
     if (!seen) throw new Error(`${id} has no verify record from run verify; run it, nothing committed`);
     const now = dirtyHashes(root);
-    const moved = paths.map((p) => path.normalize(p)).filter((p) => (now[p] ?? 'clean') !== (seen[p] ?? 'clean'));
+    // The records key on repo-relative names, so an absolute in-repo path is compared by its relative form.
+    const named = paths.map((p) => path.relative(root, path.resolve(root, p)));
+    const outside = named.filter((p) => p.startsWith('..') || path.isAbsolute(p));
+    if (outside.length) throw new Error(`commit stages files inside the repo, ${outside.join(', ')} is not; nothing committed`);
+    const moved = named.filter((p) => (now[p] ?? 'clean') !== (seen[p] ?? 'clean'));
     if (moved.length) throw new Error(`${moved.join(', ')} changed since the last passing verify; run verify again, nothing committed`);
+    // A name in neither record reads clean on both sides; it is only clean when git tracks it exactly so
+    // (a case variant or a typo is not).
+    const unknown = named.filter((p) => !(p in now) && !(p in seen));
+    const untrusted = unknown.filter((p) => !lines(gitRaw(root, ['ls-files', '-z', '--', p]).replaceAll('\0', '\n')).includes(p) || gitRaw(root, ['status', '--porcelain', '--', p]).trim());
+    if (untrusted.length) throw new Error(`${untrusted.join(', ')} is in neither verify record and is not a tracked, clean file; nothing committed`);
   }
   // A phase retried after its commit landed: the commit is HEAD, so nothing is left to stage and the tag may be the
   // only thing missing. Anything else under that tag (a new edit, another commit) is refused, never skipped.

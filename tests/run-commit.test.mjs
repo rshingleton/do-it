@@ -6,6 +6,7 @@ import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { DEFAULTS } from '../skills/track-it/scripts/config.mjs';
+import { dirtyHashes } from '../skills/do-it/scripts/commit.mjs';
 import { loadChecks } from '../hooks/lib/checks.mjs';
 import { beforeShell } from '../hooks/lib/guard.mjs';
 
@@ -377,4 +378,65 @@ test('run add-assumptions merges per work id and is idempotent', () => {
   ok(work(dir, 'run', 'add-assumptions', 'road', 'other', '["c"]'));
   const r = ok(work(dir, 'run', 'add-assumptions', 'road', 'feat', '["a2"]'));
   assert.deepEqual(r.assumptions, ['sweep default', 'other#1: c', 'feat#1: a2']);
+});
+
+// Lane M in slice mode with both phases verified through `run verify`, `setup` run in between.
+function verifiedSlice(setup = () => {}) {
+  const { dir } = fixture();
+  setup(dir);
+  ok(work(dir, 'run', 'new', 'road', '--commit', 'slice'));
+  ok(work(dir, 'run', 'start', 'road', 'R1', '--work', 'feat'));
+  ok(work(dir, 'run', 'verify', 'road', 'R1', '--phase', '1', '--', 'true'));
+  write(dir, 'c.js', 'phase two\n');
+  ok(work(dir, 'run', 'verify', 'road', 'R1', '--phase', '2', '--', 'true'));
+  return dir;
+}
+const commit = (dir, paths) => work(dir, 'run', 'commit', 'road', 'feat', '--paths', paths.join(','));
+
+test('slice mode compares an absolute in-repo path by its repo-relative name', () => {
+  const dir = verifiedSlice();
+  write(dir, 'b.js', 'edited after verify\n');
+  assert.match(commit(dir, [path.join(fs.realpathSync(dir), 'b.js'), 'a.js', 'c.js']).out.error, /b\.js changed since/);
+  assert.match(commit(dir, ['../outside.js', 'a.js']).out.error, /outside repository|inside the repo/);
+});
+
+test('slice mode refuses a name that is in neither record unless git tracks it exactly', () => {
+  const dir = verifiedSlice();
+  assert.match(commit(dir, ['A.JS', 'a.js', 'b.js', 'c.js']).out.error, /A\.JS is in neither verify record/);
+  assert.match(commit(dir, ['nope.js', 'a.js']).out.error, /nope\.js is in neither verify record/);
+});
+
+test('slice mode sees a retargeted link and a mode-only change after verify', () => {
+  const dir = verifiedSlice((d) => fs.symlinkSync('missing-one', path.join(d, 'link')));
+  fs.chmodSync(path.join(dir, 'b.js'), 0o755);
+  assert.match(commit(dir, ['a.js', 'b.js', 'c.js', 'link']).out.error, /b\.js changed since/);
+  fs.chmodSync(path.join(dir, 'b.js'), 0o644);
+  fs.rmSync(path.join(dir, 'link'));
+  fs.symlinkSync('missing-two', path.join(dir, 'link'));
+  assert.match(commit(dir, ['a.js', 'b.js', 'c.js', 'link']).out.error, /link changed since/);
+});
+
+test('slice mode commits a rename, a delete and a spaced name; a file clean at verify then edited is refused', () => {
+  const dir = verifiedSlice((d) => {
+    git(d, 'checkout', '--', 'unrelated.txt');
+    fs.renameSync(path.join(d, 'a.js'), path.join(d, 'a b.js'));
+    fs.rmSync(path.join(d, 'b.js'));
+  });
+  write(dir, 'unrelated.txt', 'edited after verify\n');
+  assert.match(commit(dir, ['a.js', 'a b.js', 'c.js', 'unrelated.txt']).out.error, /unrelated\.txt changed since/);
+  fs.writeFileSync(path.join(dir, 'unrelated.txt'), 'mine\n');
+  const code = ok(commit(dir, ['a.js', 'a b.js', 'c.js']));
+  assert.equal(code.subject, 'feat: Feature');
+  assert.deepEqual(git(dir, 'show', '--name-only', '--format=', 'HEAD').split('\n').sort(), ['a b.js', 'a.js', 'c.js']);
+});
+
+test('dirtyHashes reads past 1 MB of status output and fails when git does', () => {
+  const dir = tmpDir('do-it-bigstatus-');
+  git(dir, 'init', '-q');
+  const many = 25000;
+  for (let i = 0; i < many; i++) fs.writeFileSync(path.join(dir, `untracked-file-with-a-long-name-${String(i).padStart(6, '0')}.txt`), `${i}\n`);
+  const seen = dirtyHashes(dir);
+  assert.equal(Object.keys(seen).length, many, 'every file is recorded, none read as clean');
+  assert.match(seen['untracked-file-with-a-long-name-000007.txt'], /^6\d\d:[0-9a-f]{40}$/);
+  assert.throws(() => dirtyHashes(tmpDir('do-it-notrepo-')), /git status failed/);
 });
