@@ -39,16 +39,22 @@ function safeBranch(cwd, slug, protectedList) {
 
 // `paths` are the files the boundary check mapped to the slice. Returns the
 // commit and its tag; throws, changing nothing in HEAD, when a gate fails.
-export function commitSlice({ root, planningDir, config, items, slug, id, phase, paths, limits = [] }) {
+export function commitSlice({ root, planningDir, config, items, slug, id, phase, docs = false, paths, limits = [] }) {
   const run = showRun(planningDir, slug);
   if (run.commit === 'none') throw new Error(`run ${slug} has commit mode none: nothing is committed`);
   if (run.commit === 'slice' && phase !== undefined) throw new Error(`run ${slug} commits one commit per slice, not per phase`);
-  if (run.commit === 'phase' && phase === undefined && items.get(id).state.lane === 'm') {
-    throw new Error('lane M in commit mode phase: name the phase (--phase n)');
+  if (docs && phase !== undefined) throw new Error('--docs and --phase are separate commits');
+  if (!docs && run.commit === 'phase' && phase === undefined && items.get(id).state.lane === 'm') {
+    throw new Error('lane M in commit mode phase: name the phase (--phase n), or --docs for the closing docs');
   }
   const state = items.get(id).state;
   let subject;
-  if (phase !== undefined) {
+  if (docs) {
+    // The ship step: closing docs after every phase passed, no tag.
+    const open = (state.phases || []).filter((x) => x.status !== 'done' || !x.verified);
+    if (open.length || (!(state.phases || []).length && !state.verified)) throw new Error(`${id} has phases not verified yet; nothing committed`);
+    subject = `${id}: closing docs`;
+  } else if (phase !== undefined) {
     const p = (state.phases || []).find((x) => x.n === phase);
     if (!p) throw new Error(`${id} has no phase ${phase}`);
     if (p.status !== 'done' || !p.verified) throw new Error(`phase ${phase} has no passing verify-phase; nothing committed`);

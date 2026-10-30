@@ -16,8 +16,12 @@ Level full, commit phase, started 2026-10-30.
 
 ## Assumptions taken (2)
 
-1. Default page size 50
-2. Retry once on timeout
+- Retry once on timeout
+- feat #2: Cache 5 min
+
+## Assumptions rejected (1)
+
+- feat #1: Default page size 50 (instead: page size 25)
 
 ## Verification limits (1)
 

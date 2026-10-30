@@ -13,7 +13,7 @@ plan asks no question and ends no turn for an answer.
 2. Scout the code and ADRs for the rest, as in the normal path.
 3. A new unknown, sorted by it-core's assume-or-ask:
    - Reversible and low impact: decide it, add it to the plan's `assumptions:`
-     and to the run record (`work.mjs run set <slug> assumptions`), with a
+     and to the run record (`work.mjs run add-assumptions <slug> <id> '<json>'`), with a
      stop-if-wrong note.
    - Fails assume-or-ask (irreversible, scope, money, credentials, data loss),
      or is an `ask-when-reached` decision: do not ask. Park the slice with

@@ -32,7 +32,9 @@ function fixture() {
   ok(work(dir, 'run', 'slice', 'road', 'R1', 'shipped'));
   ok(work(dir, 'run', 'slice', 'road', 'R2', 'parked', '--needs', 'decision', '--reason', 'storage engine unanswered'));
   ok(work(dir, 'run', 'slice', 'road', 'R3', 'blocked', '--reason', 'waits on R2'));
-  ok(work(dir, 'run', 'set', 'road', 'assumptions', '["Default page size 50","Retry once on timeout"]'));
+  ok(work(dir, 'run', 'set', 'road', 'assumptions', '["Retry once on timeout"]'));
+  ok(work(dir, 'run', 'add-assumptions', 'road', 'feat', '["Default page size 50","Cache 5 min"]'));
+  ok(work(dir, 'run', 'reject-assumption', 'road', 'feat#1', 'page', 'size', '25'));
   ok(work(dir, 'run', 'set', 'road', 'limits', JSON.stringify([
     'no browser: layout not seen',
     'marker: src/a.js shortcut: one worker, add a pool at 100 jobs',
@@ -79,4 +81,37 @@ test('rejecting an assumption fires reject-assumption for the slice item', () =>
   assert.equal(out.status, 'building');
   assert.deepEqual(out.assumptions, []);
   assert.match(out.fix[0], /Rejected assumption: Default page size 50\. Instead: page size 25/);
+});
+
+test('run new records base, show reads it back, and a rejection keeps other keys', () => {
+  const dir = fixture();
+  const rec = JSON.parse(ok(work(dir, 'run', 'show', 'road')));
+  assert.equal(rec.base, git(dir, 'rev-parse', 'HEAD'));
+  assert.deepEqual(rec.assumptions, ['Retry once on timeout', 'feat#2: Cache 5 min']);
+  assert.deepEqual(rec.rejected, ['feat#1: Default page size 50 (instead: page size 25)']);
+  assert.equal(work(dir, 'run', 'reject-assumption', 'road', 'feat#1', 'x').status === 0, false);
+});
+
+test('run new outside git records base null', () => {
+  const dir = tmpDir('do-it-nogit-');
+  ok(work(dir, 'run', 'new', 'road'));
+  assert.equal(JSON.parse(ok(work(dir, 'run', 'show', 'road'))).base, null);
+});
+
+test('rejecting an assumption after the item closed works through the run record', () => {
+  const dir = fixture();
+  ok(work(dir, 'new', 'gone', '--lane', 's', '--title', 'Gone'));
+  ok(work(dir, 'run', 'add-assumptions', 'road', 'gone', '["Use utc"]'));
+  ok(work(dir, 'set', 'gone', 'assumptions', '["Use utc"]'));
+  ok(work(dir, 'event', 'gone', 'approve'));
+  ok(work(dir, 'event', 'gone', 'start'));
+  ok(work(dir, 'verify-phase', 'gone', '--', 'true'));
+  ok(work(dir, 'event', 'gone', 'build-done'));
+  ok(work(dir, 'event', 'gone', 'audit-pass'));
+  ok(work(dir, 'event', 'gone', 'ship-prepared'));
+  ok(work(dir, 'close', 'gone'));
+  const out = JSON.parse(ok(work(dir, 'run', 'reject-assumption', 'road', 'gone#1', 'use', 'local', 'time')));
+  assert.equal(out.reopened, false);
+  assert.match(out.followup, /fix:/);
+  assert.ok(out.record.rejected.some((r) => r.startsWith('gone#1: Use utc')));
 });

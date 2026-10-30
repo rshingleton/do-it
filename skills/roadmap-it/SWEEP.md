@@ -41,7 +41,7 @@ record the date in the file and write the settled defaults to the run record
 with `work.mjs run set <slug> assumptions '<json array>'`.
 
 `lite` keeps today's flow: the sweep still runs, but each slice's scope-it grill
-still asks its own questions and the run stops after every slice.
+still asks its own questions and the run stops after every slice (the lite level).
 
 ## 5. Handoff to scope-it
 

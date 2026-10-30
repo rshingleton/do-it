@@ -20,7 +20,9 @@ defaulting to `phase`; `none` means build as usual and commit nothing.
 3. `work.mjs run commit <slug> <id> --phase <n> --paths a,b` (lane S: no
    `--phase`). It picks the branch, stages those paths only, commits and, for
    a phase, tags `do-it/<id>/phase-<n>`.
-4. A check that could not run (no browser, no service): pass
+4. Closing docs (lane M after the last phase; lane S after its code commit): `work.mjs run commit <slug>
+   <id> --docs --paths a,b`. Subject `<id>: closing docs`, no tag.
+5. A check that could not run (no browser, no service): pass
    `--limits '["<what was not checked>"]'`. It goes in the run record and the
    commit body, never a trailer.
 

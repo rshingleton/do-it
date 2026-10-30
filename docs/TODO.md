@@ -3,7 +3,7 @@
 Nice-to-haves and things to circle back to. Managed by log-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T131
+Next id: T154
 
 ## Open
 
@@ -53,3 +53,22 @@ Next id: T131
 - [ ] T132 In the missing-entry unit case, `entry` holds the full skills map but is also indexed per skill; `specs` would read better `nice-to-have` (routing-missing-entry audit, tests/codemap-routing.test.mjs:224)
 - [ ] T133 `addLine` in `unifiedFiles` takes a boolean `pair` flag that decides whether the `''` scan runs; a reader must trace the caller `nice-to-have` (unified-files-state audit, hooks/lib/checks.mjs:262)
 - [ ] T134 An in-hunk `+++ <path>` line (not dev-null) is now scanned under its own pair path, and no test pins it `nice-to-have` (unified-files-state audit, tests/hooks-regressions.test.mjs:316)
+- [ ] T135 `/finish-it --resume` text says `run slice <slug> <id> ready` with no id for every parked slice, but `sliceRun` needs an id `should` (complete-run-lane audit, skills/finish-it/SKILL.md:50)
+- [ ] T136 `run commit --paths` stages whatever it is handed; a directory path stages other slices' edits. Compute the mapped paths or reject directories `should` (complete-run-lane audit, skills/do-it/scripts/commit.mjs:42)
+- [ ] T137 A retried phase commit throws on the existing `do-it/<id>/phase-N` tag after the commit has landed `should` (complete-run-lane audit, skills/do-it/scripts/commit.mjs:88)
+- [ ] T138 `commitSlice` switches branch and writes the run record before `git commit`; a rejecting hook leaves them out of sync `should` (complete-run-lane audit, skills/do-it/scripts/commit.mjs:74)
+- [ ] T139 The audit-round cap stops a slice whose 5th round passed; `run next` ignores `max_slices`, so slice 2 is built before the cap stops it `should` (complete-run-lane audit, skills/do-it/scripts/gate.mjs:41, run.mjs:164)
+- [ ] T140 Digest rollback lists every `do-it/*/phase-*` tag in the repo, not this run's, and has no retry-result section `should` (complete-run-lane audit, skills/do-it/scripts/digest.mjs:25, work.mjs:272)
+- [ ] T141 Final review `<base>...HEAD` sees nothing with `--commit none` or uncommitted closing docs; review the working tree against `base` then `should` (complete-run-lane audit, skills/finish-it/DIGEST.md:12)
+- [ ] T142 `commitSlice` checks only that `verify-phase` passed, not that code is unchanged since; lane M in `slice` commit mode can only commit `--docs`, never code `should` (complete-run-lane audit, skills/do-it/scripts/commit.mjs:42-61)
+- [ ] T143 `run reject-assumption` writes the record before firing the plan event and finds the plan entry by text (`indexOf`), ignoring `n` `should` (complete-run-lane audit, skills/do-it/scripts/work.mjs:232-244)
+- [ ] T144 `run gate` and `run verify` orchestration sits inline in the `work.mjs` dispatcher; move into `gate.mjs` so it is unit-testable. `run` usage error also omits start, audit, gate, verify, reject-assumption `should` (complete-run-lane audit, skills/do-it/scripts/work.mjs:221-278)
+- [ ] T145 The finish-it loop text never calls `run start`, `run verify` or `run audit`; only STOPS.md names them, so SLICE_CAP and stale-verify may never run `should` (complete-run-lane audit, skills/finish-it/SKILL.md:29-47)
+- [ ] T146 Run assumption bookkeeping: raw `run set assumptions` still allowed, SWEEP.md overwrites with it, numbers reset on re-add, sweep-origin assumptions cannot be rejected by a script, record copy goes stale after a plan-side reject `nice-to-have` (complete-run-lane audit, skills/do-it/scripts/run.mjs:137, skills/roadmap-it/SWEEP.md:38)
+- [ ] T147 Run script cleanups: `gate.mjs` re-implements the record read-modify-write `run.mjs` owns; id regex written three times; `sliceRun` `ready` pseudo-status; dead `instead ?` branch; `startSlice` stamps time inside the writer; `run.mjs` header says work.mjs is the only writer `nice-to-have` (complete-run-lane audit, skills/do-it/scripts/gate.mjs, run.mjs, digest.mjs)
+- [ ] T148 Text accuracy: COMMITS.md:33 and commit.mjs:5 say the do-it line comes from the user's rules but it is a constant; COMMITS.md:20 unwrapped; do-it/SKILL.md long bullet holds three rules; level flag not mapped to `run new --level` `nice-to-have` (complete-run-lane audit, skills/build-it/COMMITS.md, skills/do-it/SKILL.md:80, skills/finish-it/SKILL.md:17)
+- [ ] T149 `run verify` parks a slice only on FLAKY (a plain double failure only throws); `STOPS` codes are not asserted against `gate()` reasons `nice-to-have` (complete-run-lane audit, skills/do-it/scripts/work.mjs:262, stops.mjs)
+- [ ] T150 `changeset.mjs` snapshot loosened (`--ignore-errors`, nested-repo stderr filter) beyond what phase 1 asked; `run base` ignores a dirty tree; a tag failure after commit leaves an untagged commit `nice-to-have` (complete-run-lane audit, skills/do-it/scripts/changeset.mjs:296)
+- [ ] T151 Confirm `npm run gen` owns `.opencode/commands/` (second directory beside `command/`); AGENTS.md names only `command/` `nice-to-have` (complete-run-lane audit, .opencode/commands/finish-it.md)
+- [ ] T152 Skills should run phases in parallel worktrees whenever possible when it costs no extra tokens over the normal route; today build-it's PARALLEL.md requires a clean tree, so one in-place phase forces the rest in place `idea` (complete-run-lane audit, skills/build-it/PARALLEL.md (user request during complete-run-lane))
+- [ ] T153 Phase 2 fixture walkthroughs were never run: a swept fixture roadmap ending with every decision in a legal state, and a non-interactive scope-it plan with no question turn `circle-back` (complete-run-lane audit, complete-run-lane phase 2)

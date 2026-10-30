@@ -7,8 +7,9 @@ never an estimate of time or money saved.
 
 When every slice is shipped or parked, call
 [review-it](../review-it/SKILL.md) once over the whole run: base is the
-roadmap's first `base_ref` (the commit before the run began), change is that
-base to HEAD.
+run record's `base` (the commit HEAD was at `run new`; `work.mjs run show
+<slug>`), change is committed work, `<base>...HEAD`. A null `base` (no git):
+review the working tree.
 
 - Fix only Must findings, then review again. At most the record's `audit_cap`
   rounds across the run; a Must left at the cap goes in the digest as open.
@@ -31,7 +32,12 @@ flagged), tokens, rollback commands per phase tag and four retro lines.
 
 ## 3. Assumption review
 
-Show the digest, then ask one question: which assumptions to reject. A
-rejection fires `work.mjs event <slice work id> reject-assumption <n>
-"<replacement>"`; the slice's item returns to building and the run is not
-shipped until it passes again. No rejection: the run is final.
+Show the digest, then ask one question: which assumptions to reject. Each
+line reads `<work id> #<n>: text`; a rejection runs `work.mjs run
+reject-assumption <slug> <work id>#<n> "<replacement>"`. The record is the
+store, so it works after the item closed. It leaves the entry out of
+Assumptions and lists it under Assumptions rejected, numbers unchanged. An item
+still auditing or shipping returns to building and the run is not shipped until
+it passes again. A closed item has no plan to reopen: the user's follow-up is a
+`fix:` or `log-it` entry. A line with no id came from the sweep: note it for the
+user. No rejection: the run is final.

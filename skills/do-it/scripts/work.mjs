@@ -12,8 +12,10 @@
 //   work.mjs roadmap <file>
 //   work.mjs run new <slug> [--level --commit --max-slices --slice-cap-min --audit-cap]
 //   work.mjs run show <slug> | set <slug> <key> <json> | slice <slug> <id> <status> [--reason --needs]
+//   work.mjs run add-assumptions <slug> <work id> <json array>   (merges; kept as <id>#<n>: text)
+//   work.mjs run reject-assumption <slug> <id>#<n> <instead...>   (by key; reopens the item if its plan is still auditing or shipping)
 //   work.mjs run next <slug> <roadmap file>   (slice ready|parked|blocked|shipped; ready un-parks)
-//   work.mjs run commit <slug> <id> [--phase n] --paths a,b [--limits <json>]
+//   work.mjs run commit <slug> <id> [--phase n | --docs] --paths a,b [--limits <json>]
 //   work.mjs run digest <slug> [--usage <json>] [--findings <json>] [--retro <json>]   (markdown, saved uncommitted)
 //   work.mjs run start <slug> <slice> --work <id> [--at iso] | audit <slug> | gate <slug> <slice>
 //   work.mjs run verify <slug> <slice> [--phase n] [--in dir] -- <command...>   (reruns a failure once)
@@ -34,11 +36,11 @@ import { allowedMoves, firableEvents, workItems } from './items.mjs';
 import { roadmapSlices } from './roadmap.mjs';
 import { commitSlice } from './commit.mjs';
 import { buildDigest } from './digest.mjs';
-import { createRun, nextSlice, runPath, setRun, showRun, sliceRun } from './run.mjs';
+import { addAssumptions, createRun, nextSlice, rejectAssumption, runPath, setRun, showRun, sliceRun } from './run.mjs';
 import { checkWithRerun, countAudit, gate, recordVerified, startSlice } from './gate.mjs';
 
 // Flags that take no value.
-const FLAGS = new Set(['brief']);
+const FLAGS = new Set(['brief', 'docs']);
 
 function parseArgs(argv) {
   const pos = [];
@@ -137,6 +139,12 @@ function eventArgs(ctx, item, event, rest, opts) {
   return a;
 }
 
+// HEAD's commit, or null outside a git repo or before the first commit.
+function baseRef(root) {
+  const r = spawnSync('git', ['rev-parse', '--verify', '--quiet', 'HEAD'], { cwd: root, encoding: 'utf8' });
+  return r.status === 0 ? r.stdout.trim() : null;
+}
+
 export async function run(argv, { cwd = process.cwd() } = {}) {
   const { pos, opts } = parseArgs(argv);
   const [cmd, id, ...rest] = pos;
@@ -208,11 +216,32 @@ export async function run(argv, { cwd = process.cwd() } = {}) {
       const [slug, ...args] = rest;
       switch (id) {
         case 'new':
-          return createRun(ctx.planningDir, slug, opts, ctx.config);
+          return createRun(ctx.planningDir, slug, { ...opts, base: baseRef(ctx.root) }, ctx.config);
         case 'show':
           return showRun(ctx.planningDir, slug);
         case 'set':
           return setRun(ctx.planningDir, slug, args[0], args[1] === undefined ? undefined : json(args[1]));
+        case 'add-assumptions':
+          return addAssumptions(ctx.planningDir, slug, args[0], args[1] === undefined ? undefined : json(args[1]));
+        case 'reject-assumption': {
+          const key = args[0] ?? '';
+          const m = /^(.+)#(\d+)$/.exec(key);
+          if (!m) throw new Error('run reject-assumption needs <work id>#<n>');
+          const instead = args.slice(1).join(' ');
+          if (!instead) throw new Error('run reject-assumption needs what replaces the assumption');
+          const { record, text } = rejectAssumption(ctx.planningDir, slug, key, instead);
+          // A plan still auditing or shipping reopens; a closed item's plan is gone, so the record is the whole trace.
+          let plan = null;
+          try {
+            plan = items.get(m[1]);
+          } catch {
+            plan = null;
+          }
+          const at = plan ? plan.state.assumptions.indexOf(text) : -1;
+          const live = at >= 0 && ['auditing', 'shipping'].includes(plan.state.status);
+          if (live) items.fire(m[1], 'reject-assumption', { n: at + 1, text: instead, date: opts.date });
+          return { rejected: key, reopened: live, followup: live ? null : 'item closed: the user files a fix: or log-it entry', record };
+        }
         case 'slice':
           return sliceRun(ctx.planningDir, slug, args[0], args[1], { reason: opts.reason, needs: opts.needs });
         case 'next': {
@@ -261,7 +290,7 @@ export async function run(argv, { cwd = process.cwd() } = {}) {
           if (!args[0]) throw new Error('run commit needs a work id');
           const limits = opts.limits === undefined ? [] : json(opts.limits);
           return commitSlice({
-            ...ctx, slug, id: args[0], phase: opts.phase === undefined ? undefined : Number(opts.phase),
+            ...ctx, slug, id: args[0], phase: opts.phase === undefined ? undefined : Number(opts.phase), docs: opts.docs === true,
             paths: String(opts.paths ?? '').split(',').filter(Boolean), limits,
           });
         }
@@ -273,7 +302,7 @@ export async function run(argv, { cwd = process.cwd() } = {}) {
           return text;
         }
         default:
-          throw new Error('usage: work.mjs run new|show|set|slice|next|commit|digest <slug> ...');
+          throw new Error('usage: work.mjs run new|show|set|add-assumptions|reject-assumption|slice|next|commit|digest <slug> ...');
       }
     }
     case 'close': {

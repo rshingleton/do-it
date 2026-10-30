@@ -33,7 +33,7 @@ Coding agents fail in a few predictable ways. Each step of the flow answers one.
 | The agent reviews its own work and finds nothing | Audit runs in fresh-context reviewers that see the plan and the diff, never the build transcript |
 | A long session loses the thread | State lives in a file, not the chat. `/clear` and resume any time |
 | A secret or a bad commit slips through | Hooks block secrets and env files before the edit and scan the diff before the commit |
-| The agent commits before you looked | Nothing is committed until you say "do it" at ship |
+| The agent commits before you looked | Nothing is committed until you say "do it" at ship (a `--complete` run commits each verified phase locally; `--commit none` turns that off) |
 
 It does not own your process. Every step is also a skill you can call alone,
 and the plan, ADRs and context files are plain Markdown in your repo.
@@ -90,6 +90,8 @@ Resuming rate-limit-login: build is done and audited, waiting at ship.
 | `/map-it payments` | Learn an unfamiliar area before changing it |
 | `/sweep-it --hot` | Audit the code that changes most for bugs and debt |
 | `/roadmap-it "move billing to Stripe"` | Chart work too big for one plan, then `/do-it docs/roadmap/billing.md#R1` |
+| `/do-it docs/roadmap/billing.md --complete` | Carry a whole roadmap to a reviewed finish: decisions settled up front, slices chained, stuck ones parked |
+| `/finish-it docs/roadmap/billing.md --resume` | Resume a run after you settled what parked a slice |
 | `/usage-it` | See what your sessions cost in tokens |
 
 ## Does it save tokens?
@@ -166,6 +168,7 @@ of starting a build.
 | Skill | Does |
 |-------|------|
 | `/roadmap-it` | Charts an extra-large effort as a durable roadmap: destination with numbered requirements, milestones of S/M slices (covers, blocked by, verify, risk), open decisions, fog, out of scope. `next` shows where every slice stands and starts the next one; `replan` re-plans without touching shipped slices |
+| `/finish-it` | The loop behind `/do-it --complete`: chains approved slices, parks what cannot proceed, local phase commits (`--commit phase|slice|none`), a final review and a counted digest. Never pushes |
 
 ## Setting up and improving
 
@@ -409,10 +412,12 @@ from several other repos. All text here is this repo's own; no code is copied.
 | Source | What do-it took from it |
 |--------|-------------------------|
 | [addyosmani/agent-skills](https://github.com/addyosmani/agent-skills) | The lifecycle shape, building every ready phase after one approval, the size-based skip rule behind lane XS, artifact handoff between steps, the routing eval, and the adversarial check behind `doubt-it` |
-| [denyszorinets/ballet](https://github.com/denyszorinets/ballet) | Fresh-context audit stages, the `done`, `blocked`, `failed` outcome that routes the next step, the three-round audit cap, assume-or-ask, and handing out-of-scope finds to the backlog |
-| [dietrichgebert/ponytail](https://github.com/dietrichgebert/ponytail) | Reuse-first coding posture, one always-on core injected into subagents too, the finding format, a drift check, and the idea of a usage ledger rebuilt from session transcripts |
+| [denyszorinets/ballet](https://github.com/denyszorinets/ballet) | Fresh-context audit stages, the `done`, `blocked`, `failed` outcome that routes the next step, the three-round audit cap, assume-or-ask, and handing out-of-scope finds to the backlog. For the complete run: reviewing assumptions at the end, parking a stuck slice while others go on, and the closing digest |
+| [dietrichgebert/ponytail](https://github.com/dietrichgebert/ponytail) | Reuse-first coding posture, one always-on core injected into subagents too, the finding format, a drift check, and the idea of a usage ledger rebuilt from session transcripts. For the complete run: the three levels, the ledger of recorded shortcuts, and counted figures only |
 | [multica-ai/andrej-karpathy-skills](https://github.com/multica-ai/andrej-karpathy-skills) | The four coding principles behind `it-core` and the `step → verify:` plan form |
 | [juliusbrussee/caveman](https://github.com/juliusbrussee/caveman) | Terse voice and fixed report shapes with word caps for internal agent text. Its proxy, compress and per-turn tools are not used |
+| [shinpr/claude-code-workflows](https://github.com/shinpr/claude-code-workflows) | For the complete run: one batch approval, a per-task commit gate, a boundary check before staging, readiness states for decisions, and a final review of the whole change |
+| [glebis/claude-skills](https://github.com/glebis/claude-skills) | For the complete run, from its feature-factory: two gates, a flaky check counted as a failure, a plan audit, and short retro lines |
 | [mattpocock/skills](https://github.com/mattpocock/skills) (MIT) | The starting points for the discipline skills, rewritten here: `grill-it`, `name-it`, `design-it`, `test-it`, `debug-it`, `review-it`, `look-it-up`, `sketch-it`, `pass-it`, `skill-it`, `deepen-it`, `retro-it` |
 
 Where do-it runs on or calls other tools, they keep their own licenses and

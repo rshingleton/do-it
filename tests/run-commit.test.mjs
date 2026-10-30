@@ -157,6 +157,27 @@ test('a lane S slice is one commit with no tag; mode none and slice rules hold',
   assert.match(work(dir, 'run', 'commit', 'off', 'small', '--paths', 'x.js').out.error, /mode none/);
 });
 
+test('a lane S slice closing docs commit uses --docs, so the subject differs from the code commit', () => {
+  const dir = tmpDir('do-it-runcommit-sdocs-');
+  git(dir, 'init', '-q', '-b', 'topic');
+  git(dir, 'config', 'user.name', 't');
+  git(dir, 'config', 'user.email', 't@t');
+  write(dir, 'x.js', '1\n');
+  git(dir, 'add', '-A');
+  git(dir, 'commit', '-qm', 'init');
+  ok(work(dir, 'new', 'small', '--lane', 's', '--title', 'Small fix'));
+  ok(work(dir, 'event', 'small', 'approve'));
+  ok(work(dir, 'event', 'small', 'start'));
+  write(dir, 'x.js', '2\n');
+  ok(work(dir, 'run', 'new', 'sl', '--commit', 'slice'));
+  ok(work(dir, 'verify-phase', 'small', '--', 'true'));
+  assert.equal(ok(work(dir, 'run', 'commit', 'sl', 'small', '--paths', 'x.js')).subject, 'small: Small fix');
+  write(dir, 'notes.md', 'closing\n');
+  const r = ok(work(dir, 'run', 'commit', 'sl', 'small', '--docs', '--paths', 'notes.md'));
+  assert.equal(r.subject, 'small: closing docs');
+  assert.equal(r.tag, null);
+});
+
 test('without a run record nothing commits, and build-it still forbids commits', () => {
   const { dir } = fixture();
   verify(dir);
@@ -192,4 +213,30 @@ test('the commit guard allows a run commit message and still blocks a secret in 
   assert.equal(beforeShell(ctx, 'git commit -m "no id here" b.js').action, 'warn');
   write(dir, 'a.js', `const t = "${['xox', 'b-1234567890-abcdef'].join('')}";\n`);
   assert.equal(beforeShell(ctx, `git commit -m "feat: phase 2 Wire" a.js`).action, 'block');
+});
+
+test('lane M closing docs commit with --docs after every phase passed, untagged', () => {
+  const { dir } = fixture();
+  ok(work(dir, 'run', 'new', 'road'));
+  write(dir, 'docs/notes.md', 'closing\n');
+  assert.match(work(dir, 'run', 'commit', 'road', 'feat', '--paths', 'docs/notes.md').out.error, /--docs/);
+  verify(dir);
+  assert.match(work(dir, 'run', 'commit', 'road', 'feat', '--docs', '--paths', 'docs/notes.md').out.error, /not verified/);
+  write(dir, 'docs/planning/feat/phase-2.md', '# Phase 2\n');
+  verify(dir, 2);
+  const r = ok(work(dir, 'run', 'commit', 'road', 'feat', '--docs', '--paths', 'docs/notes.md'));
+  assert.equal(r.subject, 'feat: closing docs');
+  assert.equal(r.tag, null);
+  assert.equal(git(dir, 'tag', '-l'), '');
+  assert.equal(git(dir, 'log', '-1', '--format=%B').split('\n').at(-1), LINE);
+});
+
+test('run add-assumptions merges per work id and is idempotent', () => {
+  const { dir } = fixture();
+  ok(work(dir, 'run', 'new', 'road'));
+  ok(work(dir, 'run', 'set', 'road', 'assumptions', '["sweep default"]'));
+  ok(work(dir, 'run', 'add-assumptions', 'road', 'feat', '["a","b"]'));
+  ok(work(dir, 'run', 'add-assumptions', 'road', 'other', '["c"]'));
+  const r = ok(work(dir, 'run', 'add-assumptions', 'road', 'feat', '["a2"]'));
+  assert.deepEqual(r.assumptions, ['sweep default', 'other#1: c', 'feat#1: a2']);
 });

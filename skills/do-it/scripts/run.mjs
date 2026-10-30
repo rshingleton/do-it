@@ -78,6 +78,7 @@ export function read(file, slug) {
   r.slices = Array.isArray(r.slices) ? r.slices : [];
   r.assumptions = Array.isArray(r.assumptions) ? r.assumptions : [];
   r.limits = Array.isArray(r.limits) ? r.limits : [];
+  r.rejected = Array.isArray(r.rejected) ? r.rejected : [];
   return { record: r, body: parts.body, eol: parts.eol };
 }
 
@@ -105,11 +106,14 @@ export function createRun(planningDir, slug, opts, defaults, { now = () => new D
     commit: oneOf('commit', opts.commit ?? (defaults.DO_IT_COMMIT === 'never' ? 'none' : 'phase'), COMMIT_MODES),
     branch: null,
     started: opts.date ?? now(),
+    // The commit HEAD resolved to at run new: the final review's fixed point. null outside git.
+    base: opts.base ?? null,
     max_slices: cap('max_slices', opts['max-slices'] ?? defaults.DO_IT_MAX_SLICES, { optional: true }),
     slice_cap_min: cap('slice_cap_min', opts['slice-cap-min'] ?? defaults.DO_IT_SLICE_CAP_MIN),
     audit_cap: cap('audit_cap', opts['audit-cap'] ?? defaults.DO_IT_AUDIT_CAP),
     slices: [],
     assumptions: [],
+    rejected: [],
     limits: [],
   };
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -131,6 +135,34 @@ export function setRun(planningDir, slug, key, value) {
   cur.record[key] = validate(key, value);
   write(file, cur);
   return cur.record;
+}
+
+// Merge one work item's plan assumptions into the record, each stored as
+// `<id>#<n>: text` (n = its place in the item's own list, what reject-assumption
+// takes). Re-adding an id replaces that id's entries; other entries stay.
+export function addAssumptions(planningDir, slug, id, items) {
+  checkSlug(slug);
+  if (!id || !/^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(id)) throw new Error('run add-assumptions needs the work id');
+  list('assumptions', items);
+  const file = runPath(planningDir, slug);
+  const cur = read(file, slug);
+  cur.record.assumptions = [...cur.record.assumptions.filter((a) => !a.startsWith(`${id}#`)), ...items.map((t, i) => `${id}#${i + 1}: ${t}`)];
+  write(file, cur);
+  return cur.record;
+}
+
+// Remove one recorded assumption by its `<id>#<n>` key (never by index, so the
+// other keys keep their numbers) and keep it under `rejected` with what replaces it.
+export function rejectAssumption(planningDir, slug, key, instead) {
+  checkSlug(slug);
+  const file = runPath(planningDir, slug);
+  const cur = read(file, slug);
+  const entry = cur.record.assumptions.find((a) => a.startsWith(`${key}: `));
+  if (!entry) throw new Error(`no recorded assumption ${key}`);
+  cur.record.assumptions = cur.record.assumptions.filter((a) => a !== entry);
+  cur.record.rejected = [...cur.record.rejected, instead ? `${entry} (instead: ${instead})` : entry];
+  write(file, cur);
+  return { record: cur.record, text: entry.slice(key.length + 2) };
 }
 
 // A slice moves to shipped, parked (with a reason and who must act) or
