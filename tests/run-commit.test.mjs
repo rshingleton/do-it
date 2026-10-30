@@ -216,6 +216,47 @@ test('a rejecting pre-commit hook leaves the branch, the index and the run recor
   assert.deepEqual(rec.limits, ['no browser']);
 });
 
+test('lane M in slice mode commits its code once after the last phase verifies, then its closing docs', () => {
+  const { dir } = fixture();
+  // unrelated.txt is dirty at verify time and never named: it must not matter.
+  ok(work(dir, 'run', 'new', 'road', '--commit', 'slice'));
+  ok(work(dir, 'run', 'start', 'road', 'R1', '--work', 'feat'));
+  ok(work(dir, 'run', 'verify', 'road', 'R1', '--phase', '1', '--', 'true'));
+  assert.match(work(dir, 'run', 'commit', 'road', 'feat', '--paths', 'a.js,b.js').out.error, /phase 2|not verified/, 'a phase is still open');
+  write(dir, 'c.js', 'phase two\n');
+  ok(work(dir, 'run', 'verify', 'road', 'R1', '--phase', '2', '--', 'true'));
+  // Closing docs are written before the code commit; they are not code.
+  write(dir, 'notes.md', 'closing docs\n');
+  // Code changed after its verify is refused, and nothing is committed.
+  write(dir, 'b.js', 'edited after verify\n');
+  const head = git(dir, 'rev-parse', 'HEAD');
+  assert.match(work(dir, 'run', 'commit', 'road', 'feat', '--paths', 'a.js,b.js,c.js').out.error, /changed since/);
+  assert.equal(git(dir, 'rev-parse', 'HEAD'), head);
+  // A glob-named dirty file hides nothing: an unverified file named on the line is still refused.
+  write(dir, '*.js', 'decoy\n');
+  write(dir, 'evil.js', 'never verified\n');
+  assert.match(work(dir, 'run', 'commit', 'road', 'feat', '--paths', 'a.js,b.js,c.js,evil.js').out.error, /changed since/);
+  fs.rmSync(path.join(dir, '*.js'));
+  fs.rmSync(path.join(dir, 'evil.js'));
+  write(dir, 'b.js', 'new file\n');
+  const code = ok(work(dir, 'run', 'commit', 'road', 'feat', '--paths', 'a.js,b.js,c.js'));
+  assert.equal(code.subject, 'feat: Feature');
+  assert.equal(code.tag, null);
+  assert.deepEqual(git(dir, 'show', '--name-only', '--format=', 'HEAD').split('\n').sort(), ['a.js', 'b.js', 'c.js']);
+  const docs = ok(work(dir, 'run', 'commit', 'road', 'feat', '--docs', '--paths', 'notes.md'));
+  assert.equal(docs.subject, 'feat: closing docs');
+  assert.equal(git(dir, 'show', '--name-only', '--format=', 'HEAD'), 'notes.md');
+});
+
+test('lane M in slice mode refuses a code commit whose phases were verified without run verify', () => {
+  const { dir } = fixture();
+  ok(work(dir, 'run', 'new', 'road', '--commit', 'slice'));
+  verify(dir, 1);
+  write(dir, 'c.js', 'phase two\n');
+  verify(dir, 2);
+  assert.match(work(dir, 'run', 'commit', 'road', 'feat', '--paths', 'a.js,b.js,c.js').out.error, /run verify/);
+});
+
 test('verification limits go to the run record and the commit body, not a trailer', () => {
   const { dir } = fixture();
   ok(work(dir, 'run', 'new', 'road'));

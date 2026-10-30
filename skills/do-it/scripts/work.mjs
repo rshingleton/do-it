@@ -34,7 +34,7 @@ import { EMPTY_TREE, fingerprint, hasObject, snapshot, treeDiff } from './change
 import { needsUser } from './state.mjs';
 import { allowedMoves, firableEvents, workItems } from './items.mjs';
 import { roadmapSlices } from './roadmap.mjs';
-import { commitSlice } from './commit.mjs';
+import { commitSlice, dirtyHashes } from './commit.mjs';
 import { buildDigest } from './digest.mjs';
 import { addAssumptions, createRun, nextSlice, rejectAssumption, runPath, setRun, showRun, sliceRun } from './run.mjs';
 import { checkWithRerun, countAudit, gate, recordVerified, startSlice } from './gate.mjs';
@@ -283,7 +283,7 @@ export async function run(argv, { cwd = process.cwd() } = {}) {
             if (flaky) sliceRun(ctx.planningDir, slug, args[0], 'parked', { reason: e.message.replace(/^verify-phase: /, ''), needs: 'user' });
             throw e;
           }
-          recordVerified(ctx.planningDir, slug, args[0], itemFingerprint(ctx, items.get(g.work)));
+          recordVerified(ctx.planningDir, slug, args[0], itemFingerprint(ctx, items.get(g.work)), dirtyHashes(ctx.root));
           return showRun(ctx.planningDir, slug);
         }
         case 'commit': {

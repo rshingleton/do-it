@@ -22,6 +22,6 @@ ADR [0002](0002-no-commits-until-ship.md) keeps every build uncommitted until `s
 Built as complete-run-lane; the audit passed on round 4. Non-blocking findings, all filed in `docs/TODO.md` (T135 to T153):
 
 - Run commits stage whatever `--paths` names; a directory path can sweep in other slices' edits. The commit gate checks that `verify-phase` passed, not that code is unchanged since. A retried phase commit throws on the existing tag after the commit lands, and the branch switch and record writes precede `git commit`.
-- Lane M in `slice` commit mode can commit only the closing docs. The final review's `<base>...HEAD` is empty with `--commit none`.
+- Lane M in `slice` commit mode commits its code once after its last phase verifies, then the closing docs (run-lane-hardening R4). The final review's `<base>...HEAD` is empty with `--commit none`.
 - Caps: the audit-round cap stops a slice whose fifth round passed, and `run next` ignores `max_slices`.
 - Fixed in the build: the closing-docs commit (`run commit --docs`, lane M and S), assumption merging (`run add-assumptions`), digest assumption keys (`<id>#<n>`), rejection after close (`run reject-assumption`), and the recorded run `base`.

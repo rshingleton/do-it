@@ -29,9 +29,10 @@ export function startSlice(planningDir, slug, id, { work, at }) {
   });
 }
 
-export function recordVerified(planningDir, slug, id, fingerprint) {
+export function recordVerified(planningDir, slug, id, fingerprint, files) {
   return update(planningDir, slug, (r) => {
     entry(r, id).verified_fingerprint = fingerprint;
+    if (files) entry(r, id).verified_files = files;
   });
 }
 

@@ -53,6 +53,25 @@ function safeBranch(cwd, slug, protectedList) {
   };
 }
 
+// Every file the working tree changes, each with a hash of its content ('gone'
+// when it is deleted), as `run verify` saw it. A rename is its new path plus its
+// old path gone. Nothing is matched as a pattern: names are read, never expanded.
+export function dirtyHashes(root) {
+  const recs = spawnSync('git', ['status', '--porcelain', '-z', '-uall'], { cwd: root, encoding: 'utf8', env: ENV }).stdout.split('\0').filter(Boolean);
+  const files = {};
+  const hash = (f) => {
+    const abs = path.resolve(root, f);
+    if (!fs.statSync(abs, { throwIfNoEntry: false })?.isFile()) return 'gone';
+    return spawnSync('git', ['hash-object', '--no-filters', '--', abs], { cwd: root, encoding: 'utf8' }).stdout.trim() || 'gone';
+  };
+  for (let i = 0; i < recs.length; i++) {
+    const f = recs[i].slice(3);
+    files[f] = hash(f);
+    if (/[RC]/.test(recs[i][0])) files[recs[++i]] = 'gone';
+  }
+  return files;
+}
+
 // `paths` are the files the boundary check mapped to the slice. Returns the
 // commit and its tag; throws, changing nothing in HEAD, when a gate fails.
 export function commitSlice({ root, planningDir, config, items, slug, id, phase, docs = false, paths, limits = [] }) {
@@ -76,7 +95,11 @@ export function commitSlice({ root, planningDir, config, items, slug, id, phase,
     if (p.status !== 'done' || !p.verified) throw new Error(`phase ${phase} has no passing verify-phase; nothing committed`);
     subject = `${id}: phase ${phase} ${p.title}`;
   } else {
-    if (!state.verified) throw new Error(`${id} has no passing verify-phase; nothing committed`);
+    // One commit per slice: lane S has its own verified record, lane M needs every phase verified.
+    if (state.lane === 'm') {
+      const open = (state.phases || []).filter((x) => x.status !== 'done' || !x.verified);
+      if (open.length || !(state.phases || []).length) throw new Error(`${id} has phases not verified yet; nothing committed`);
+    } else if (!state.verified) throw new Error(`${id} has no passing verify-phase; nothing committed`);
     subject = `${id}: ${state.title}`;
   }
   if (!Array.isArray(paths) || !paths.length) throw new Error('commit needs the mapped paths (--paths a,b); never everything');
@@ -87,6 +110,15 @@ export function commitSlice({ root, planningDir, config, items, slug, id, phase,
   for (const p of paths) {
     const onDisk = fs.statSync(path.resolve(root, p), { throwIfNoEntry: false })?.isDirectory();
     if (onDisk || lines(git(root, ['ls-files', '--', p])).some((f) => f !== path.normalize(p))) throw new Error(`commit stages named files only, ${p} is a directory`);
+  }
+  // Lane M's code commit follows its last verify: a named file that differs from what `run verify` saw refuses.
+  // Files outside the named paths (the closing docs, a user's own edit) are not compared.
+  if (!docs && phase === undefined && state.lane === 'm') {
+    const seen = (run.gates ?? []).find((x) => x.work === id)?.verified_files;
+    if (!seen) throw new Error(`${id} has no verify record from run verify; run it, nothing committed`);
+    const now = dirtyHashes(root);
+    const moved = paths.map((p) => path.normalize(p)).filter((p) => (now[p] ?? 'clean') !== (seen[p] ?? 'clean'));
+    if (moved.length) throw new Error(`${moved.join(', ')} changed since the last passing verify; run verify again, nothing committed`);
   }
   // A phase retried after its commit landed: the commit is HEAD, so nothing is left to stage and the tag may be the
   // only thing missing. Anything else under that tag (a new edit, another commit) is refused, never skipped.
