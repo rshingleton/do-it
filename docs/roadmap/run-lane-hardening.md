@@ -29,7 +29,7 @@ Exit: a new untracked file holding a secret, named on a `git commit <path>` line
 
 | Slice | Kind | Delivers | Covers | Blocked by | Verify | Risk | Status |
 |-------|------|----------|--------|------------|--------|------|--------|
-| R1 | build | The commit guard scans untracked files named on a `git commit <path>` line, inside the existing time budget (issue: commit guard skips untracked files) | G1 | none | A test commits a new file holding a secret by path and gets a block; the 3,000-file budget test still passes | high | |
+| R1 | build | The commit guard scans untracked files named on a `git commit <path>` line, inside the existing time budget (issue: commit guard skips untracked files) | G1 | none | A test commits a new file holding a secret by path and gets a block; the 3,000-file budget test still passes | high | shipped 2026-10-30 guard-untracked-paths |
 
 ### M2: Run commits are safe
 Exit: a run commit with a directory path, a retry, a rejecting hook and a lane M slice in `slice` mode each behave in a test as COMMITS.md says.
@@ -79,3 +79,4 @@ None.
 
 ## Changes
 - 2026-10-30: charted from the two open issues and T135 to T145 of the complete-run-lane audit.
+- 2026-10-30: R1 shipped (guard-untracked-paths): the guard scans untracked files named on a `git commit <path>` line; one extra `ls-files` call, pinned at 8 in hook-trust.test.mjs.
