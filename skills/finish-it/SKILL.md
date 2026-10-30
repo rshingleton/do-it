@@ -26,6 +26,10 @@ until none can go on, then closes once. `work.mjs` is the work-item script in
 
 ## 2. Loop
 
+The turn ends only at §4, when `run next` returns no `next`. A parked or
+resumed slice, a status question, a long wait and a finished step are not
+stops: go on to the next slice.
+
 1. `work.mjs run next <slug> <file>` gives `next`, `parked` and `waiting`. It
    skips parked and blocked slices and anything that waits on one, resumes a
    slice already in flight first, and otherwise takes the roadmap's order.
@@ -34,28 +38,31 @@ until none can go on, then closes once. `work.mjs` is the work-item script in
 3. Size the slice (S or M) per [do-it](../do-it/SKILL.md) §2 and
    [LANES.md](../do-it/LANES.md), then run the lane in this order, as do-it §3
    does. A step that finishes returns here; none closes the turn.
-   1. [scope-it](../scope-it/SKILL.md) in its
-      [non-interactive form](../scope-it/NONINTERACTIVE.md).
-   2. Right after it, before build-it, start the slice's clock:
-      `work.mjs run start <slug> <slice> --work <work id>`. `<slice>` is the
-      roadmap id (`R<n>`), not the work id.
-   3. [build-it](../build-it/SKILL.md), its checks run through
-      `work.mjs run verify <slug> <slice> [--phase n] -- "<checks>"` in place
-      of `verify-phase`. A flaky result parks the slice.
-   4. Before each prove-it round, `work.mjs run audit <slug> <slice>`. `allow`
-      false: never start the round; stop the run per [STOPS.md](STOPS.md).
-   5. [prove-it](../prove-it/SKILL.md).
-   6. Before ship-it, `work.mjs run gate <slug> <slice>`. `allow` false: ship
-      nothing; park or stop per [STOPS.md](STOPS.md), which lists every stop
-      reason.
-   7. [ship-it](../ship-it/SKILL.md) in [run mode](../ship-it/RUNMODE.md).
-4. `done` from ship-it: `work.mjs run slice <slug> <slice> shipped`, back to 1.
+   - (a) [scope-it](../scope-it/SKILL.md) in its
+     [non-interactive form](../scope-it/NONINTERACTIVE.md).
+   - (b) Right after it, before build-it, start the slice's clock:
+     `work.mjs run start <slug> <slice> --work <work id>`. `<slice>` is the
+     roadmap id (`R<n>`), not the work id.
+   - (c) [build-it](../build-it/SKILL.md), its checks run through
+     `work.mjs run verify <slug> <slice> [--phase n] -- "<checks>"` in place
+     of the item-level verify. A flaky result parks the slice (FLAKY, as step 5).
+   - (d) Before each prove-it round, `work.mjs run audit <slug> <slice>`. `allow`
+     false: never start the round; stop the run per [STOPS.md](STOPS.md).
+   - (e) [prove-it](../prove-it/SKILL.md). Wait for each reviewer's final
+     completion notice: a first hand-back with an agent still running is not
+     the verdict.
+   - (f) Before ship-it, `work.mjs run gate <slug> <slice>`. `allow` false: ship
+     nothing; park or stop per [STOPS.md](STOPS.md), which lists every stop
+     reason.
+   - (g) [ship-it](../ship-it/SKILL.md) in [run mode](../ship-it/RUNMODE.md).
+4. `done` from ship-it: `work.mjs run slice <slug> <slice> shipped`, back to
+   step 1.
 5. A step returns `blocked` or `failed` past what build-it and prove-it fix
    themselves: park it, never ask.
    `work.mjs run slice <slug> <slice> parked --needs user|decision --reason "<why>"`,
    with the stop code first in `--reason`.
    `needs` is `decision` for an unanswered question, else `user`. Its
-   dependents wait by themselves; back to 1, so independent slices go on.
+   dependents wait by themselves; back to step 1, so independent slices go on.
 6. Background work (an agent, a long check): never poll or sleep. Wait for the
    host's completion notice.
 

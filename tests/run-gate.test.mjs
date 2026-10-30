@@ -305,6 +305,12 @@ test('every stop code has a call site in the finish-it loop, in the order the st
       assert.match(loop, new RegExp(`work\\.mjs run ${CALL_SITE[code]} <slug>`), `${code}: the loop never calls run ${CALL_SITE[code]}`);
     }
   }
+  // A stop is live only where its call is: the item that makes the call names the stop path on
+  // its own lines, so a mention elsewhere in the loop cannot stand in for it.
+  const item = (call) => loop.split(/\n(?=\s*(?:- \([a-z]\)|\d+\.) )/).find((x) => x.includes(`work.mjs run ${call} <slug>`));
+  assert.match(item('gate'), /`allow` false: ship\s+nothing/, 'the gate call carries its allow-false line');
+  assert.match(item('audit'), /`allow`\s+false: never start the round/, 'the audit call carries its allow-false line');
+  assert.match(item('next'), /skips parked/, 'the next call is the loop start');
   // The clock starts once the work item exists and before build; verify records, audit counts
   // before each round, the gate runs before ship-it, and only then is the slice marked shipped.
   const at = (re) => {
@@ -323,6 +329,18 @@ test('every stop code has a call site in the finish-it loop, in the order the st
   assert.match(loop, /stop code first in `--reason`/, 'a park puts the stop code first');
   // A `run next` stop is reported where the run closes.
   assert.match(section(doc, '4. Close'), /`stop`/);
+});
+
+// The loop closes the turn only at §4. A closing message or `Next:` before it ends a run
+// that `run next` would have gone on with.
+const closesEarly = (loop) => /\bNext:|close the turn|end the turn|stop here/i.test(loop.replace(/none closes the turn/g, '').replace(/The turn ends only at §4[^]*?go on to the next slice\./, ''));
+
+test('the finish-it loop ends its turn only at §4, and says a parked or resumed slice is not a stop', () => {
+  const loop = section(fs.readFileSync(path.join(ROOT, 'skills/finish-it/SKILL.md'), 'utf8'), '2. Loop');
+  assert.match(loop, /The turn ends only at §4, when `run next` returns no `next`/);
+  assert.match(loop, /parked or\s+resumed slice/);
+  assert.equal(closesEarly(loop), false);
+  assert.equal(closesEarly(`${loop}\n7. A slice parked: close the turn with a Next: line.`), true, 'a fixture that closes before §4 fails');
 });
 
 test('the finish-it resume text names the slice id that `run slice ... ready` needs', () => {
