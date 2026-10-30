@@ -235,11 +235,14 @@ export function nextSlice(road, record) {
   const waiting = open.filter((s) => !held.has(s.id) && waitsOnHeld(s)).map((s) => s.id);
   const free = (id) => !held.has(id) && !waiting.includes(id);
   const flying = open.find((s) => s.state === 'in flight' && free(s.id));
-  // The slice cap is checked before a slice is built, not when it comes to ship.
-  const shipped = record.slices.filter((s) => s.status === 'shipped').length;
-  if (record.max_slices != null && shipped >= record.max_slices) {
-    return { next: null, parked: [...held], waiting, stop: { reason: 'MAX_SLICES', detail: `${shipped} shipped, cap ${record.max_slices}` } };
-  }
   const next = flying?.id ?? road.ready.find(free) ?? null;
+  // The slice cap is checked before a slice is built, not when it comes to ship, and only when a
+  // slice is left: a run that has nothing more to build finishes, it is not stopped. A slice
+  // already in flight at the cap is named, so it is not dropped without a word.
+  const shipped = record.slices.filter((s) => s.status === 'shipped').length;
+  if (next && record.max_slices != null && shipped >= record.max_slices) {
+    const inFlight = flying ? `; ${flying.id} is in flight` : '';
+    return { next: null, parked: [...held], waiting, stop: { reason: 'MAX_SLICES', detail: `${shipped} shipped, cap ${record.max_slices}${inFlight}` } };
+  }
   return { next, parked: [...held], waiting };
 }

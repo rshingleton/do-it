@@ -232,6 +232,18 @@ test('run next: stops handing out slices once max_slices shipped, and says why',
   assert.equal(stopped.stop.reason, 'MAX_SLICES');
 });
 
+test('run next: a run at its cap with nothing left to build finishes, and an in-flight slice is named', () => {
+  const slice = (id, state) => ({ id, blocked_by: [], state });
+  const rec = (max) => ({ max_slices: max, slices: [{ id: 'R1', status: 'shipped' }] });
+  const done = nextSlice({ slices: [slice('R1', 'shipped')], ready: [] }, rec(1));
+  assert.deepEqual([done.next, done.stop], [null, undefined], 'nothing left, so no stop');
+  const flying = nextSlice({ slices: [slice('R1', 'shipped'), slice('R2', 'in flight')], ready: [] }, rec(1));
+  assert.equal(flying.next, null);
+  assert.equal(flying.stop.reason, 'MAX_SLICES');
+  assert.match(flying.stop.detail, /R2 is in flight/);
+  assert.equal(nextSlice({ slices: [slice('R1', 'shipped'), slice('R2', 'in flight')], ready: [] }, rec(2)).next, 'R2', 'under the cap the in-flight slice resumes');
+});
+
 test('STOPS.md names exactly the shared reason codes, and judgment codes are named as judgment', () => {
   const doc = fs.readFileSync(path.join(ROOT, 'skills/finish-it/STOPS.md'), 'utf8');
   const named = [...doc.matchAll(/^- `([A-Z_0-9]+)` \((park|stop)\)/gm)].map((m) => [m[1], m[2]]);
@@ -276,6 +288,35 @@ test('runVerify: a pass records the fingerprint and file hashes, a failure recor
   assert.ok(rec.gates[0].verified_files['a.js'], 'the dirty file is hashed');
   assert.throws(() => runVerify({ ...base, id: 'R9', opts: { '--': ['true'] } }), /run start first/);
   assert.throws(() => runVerify({ ...base, opts: {} }), /needs the checks/);
+});
+
+test('runVerify: --in resolves against the caller\'s directory, and a check that passes only on its rerun parks the slice', () => {
+  const dir = fixture();
+  const sub = path.join(dir, 'sub');
+  fs.mkdirSync(path.join(sub, 'inner'), { recursive: true });
+  fs.writeFileSync(path.join(sub, 'inner', 'here.txt'), 'x\n');
+  const base = { ...unit(dir), items: stub(), root: dir, cwd: sub, fingerprintOf: () => 'fp', quote: String };
+  // here.txt exists only under cwd/inner: resolving --in against the repo root would not find it.
+  assert.equal(runVerify({ ...base, opts: { '--': ['test -f here.txt'], in: 'inner' } }).gates[0].verified_fingerprint, 'fp');
+  assert.throws(() => runVerify({ ...base, opts: { '--': ['test -f here.txt'] } }), /exited 1/, 'without --in the check runs at the root');
+  const flaky = path.join(dir, 'ran-once');
+  assert.throws(() => runVerify({ ...base, opts: { '--': [`test -f ${flaky} || { touch ${flaky}; exit 1; }`] } }), /FLAKY/);
+  const parked = showRun(base.planningDir, 'road').slices.find((s) => s.id === 'R1');
+  assert.deepEqual([parked.status, parked.needs, /^FLAKY/.test(parked.reason)], ['parked', 'user', true]);
+});
+
+test('every reason the gate and run next return is a code in STOPS, shared with the loop text', () => {
+  const rec = { max_slices: 1, slice_cap_min: 1, audit_cap: 1, slices: [{ id: 'S', status: 'shipped' }], gates: [{ id: 'R1', started: '2026-01-01T00:00:00Z', audit_rounds: 2 }] };
+  const seen = new Set();
+  const stop = (r) => seen.add(r.reason);
+  stop(gateRule(rec, 'R1', { current: 'fp', now: Date.parse('2026-01-01T00:00:30Z') }));
+  stop(gateRule({ ...rec, max_slices: null }, 'R1', { current: 'fp', now: Date.parse('2026-01-01T00:00:30Z') }));
+  stop(gateRule({ ...rec, max_slices: null, audit_cap: 9 }, 'R1', { current: 'fp', now: Date.parse('2026-01-01T00:05:00Z') }));
+  const soon = { current: 'fp', now: Date.parse('2026-01-01T00:00:30Z') };
+  stop(gateRule({ ...rec, max_slices: null, audit_cap: 9, slice_cap_min: 99 }, 'R1', soon));
+  stop(gateRule({ ...rec, max_slices: null, audit_cap: 9, slice_cap_min: 99, gates: [{ id: 'R1', verified_fingerprint: 'old' }] }, 'R1', soon));
+  assert.deepEqual([...seen].sort(), ['AUDIT_CAP', 'MAX_SLICES', 'SLICE_CAP', 'STALE_VERIFY', 'UNVERIFIED']);
+  for (const code of seen) assert.equal(STOPS[code]?.how, 'gate', `${code} is a gate stop in STOPS`);
 });
 
 test('the run usage error lists every subcommand the loop calls', () => {
