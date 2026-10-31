@@ -78,7 +78,7 @@ Exit: every remaining audit case has a test or a decision, and nothing on the to
 | R21 | build | design-it pointer decision for the prove-it Architecture brief and sweep-it LENSES item 8, and debug-it's "no honest seam" finding routed (T107, T7) | G7 | none | The decided sentence is inline or the link is kept with the reason recorded; `npm run check` passes | low | shipped 2026-10-30 r21-design-it-pointers, decided: one sentence inline beside the link, since a subagent given only the brief will not open the link |
 | R22 | build | usage-it windows follow D1 (per-message split or labelled as run-based) (T76) | G7 | D1 | The straddling-session fixture counts as D1 decides | med | shipped 2026-10-30 r22-usage-windows |
 | R23 | spike | Confirm the v2 `session.step.ended` shape on a live OpenCode 2 and fix the `assistantMessageID` drop (T115) | G7 | none | A live session produces usage rows, or the shape is recorded and the parser matches it. Needs OpenCode 2 on this machine; if absent, move to Fog on replan | med | |
-| R24 | build | setup-it writes `DO_IT_PROTECTED_BRANCHES` from the remote's default branch when it is not main or master (T6) | G7 | none | A fixture repo with default branch `trunk` gets it written | low | |
+| R24 | build | setup-it writes `DO_IT_PROTECTED_BRANCHES` from the remote's default branch when it is not main or master (T6) | G7 | none | A fixture repo with default branch `trunk` gets it written | low | shipped 2026-10-30 r24-protected-default-branch |
 
 ## Open decisions
 - none
@@ -125,4 +125,5 @@ Exit: every remaining audit case has a test or a decision, and nothing on the to
 - 2026-10-30: R20 shipped (r20-walkthroughs): the walks found four defects, filed as T205 to T208.
 - 2026-10-30: R22 shipped (r22-usage-windows), D1 applied: windows split a straddling run by 15-minute buckets.
 - 2026-10-30: R19 shipped (r19-test-runner-and-guards).
+- 2026-10-30: R24 shipped (r24-protected-default-branch): setup-it reads the remote's default branch with `default-branch.mjs`.
 - 2026-10-30: R21 shipped (r21-design-it-pointers): the deletion test sits inline in the prove-it and sweep-it briefs; debug-it routes a missing seam to log-it or deepen-it.
