@@ -97,9 +97,9 @@ Exit: every remaining audit case has a test or a decision, and nothing on the to
 - 2026-10-30 Decision: scope is defects, debt and the audit-cap issue; ideas and questions stay on the to-do list.
 - 2026-10-30 Decision: audit cap becomes per slice (default 3), the final review keeps its own cap, and the run total is `max_slices x per-slice cap`.
 - 2026-10-30 Decision: one slice at a time, `should` before `nice-to-have`, high risk first; no tracker publish.
-- 2026-10-30 Decision (D1, settled in the run sweep as an assumption): usage-it splits a straddling session by per-message timestamps, with the run-based label as the fallback; revisit if transcripts lack per-message times.
-- 2026-10-30 Decision (D2, settled in the run sweep as an assumption): a roadmap finalize's offer a writes its ADRs `accepted`; revisit if a finalize can run with no user turn.
-- 2026-10-30 Decision (D3, settled in the run sweep as an assumption): assumption rejection matches by text among the remaining plan entries; revisit if entries can carry identical text.
+- 2026-10-30 Decision (D1, settled in the run sweep as an assumption): usage-it splits a straddling session by per-message timestamps, with the run-based label as the fallback; revisit if transcripts lack per-message times (plan r22-usage-windows).
+- 2026-10-30 Decision (D2, settled in the run sweep as an assumption): a roadmap finalize's offer a writes its ADRs `accepted`; revisit if a finalize can run with no user turn (plan r16-adr-accepted).
+- 2026-10-30 Decision (D3, settled in the run sweep as an assumption): assumption rejection matches by text among the remaining plan entries; revisit if entries can carry identical text (plan r12-assumption-bookkeeping; should-backlog-2026-10 R8 settled equal texts by id).
 
 ## Shipped
 - 2026-10-30: charted and approved.
