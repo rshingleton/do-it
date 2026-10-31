@@ -27,7 +27,7 @@ export function startSlice(planningDir, slug, id, { work, at }) {
 }
 
 // What `run verify` saw: the slice's `verified_fingerprint` (its work item's change now) and
-// `verified_files`, `{<repo-relative name>: <mode>:<blob hash> | 'gone' | 'dir'}` from commit.mjs
+// `verified_files`, `{<repo-relative name>: <755|644|120000>:<blob hash> | 'sub:<hash>' | 'gone' | 'dir'}` from commit.mjs
 // `dirtyHashes`, which the lane M code commit compares its named paths against.
 export function recordVerified(planningDir, slug, id, fingerprint, files) {
   return updateRun(planningDir, slug, (r) => {

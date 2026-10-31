@@ -451,14 +451,61 @@ test('slice mode commits a rename, a delete and a spaced name; a file clean at v
   assert.deepEqual(git(dir, 'show', '--name-only', '--format=', 'HEAD').split('\n').sort(), ['a b.js', 'a.js', 'c.js']);
 });
 
+test('slice mode: a clean tracked file whose name has a newline commits; chmod g+w is no change; a \\r name is hashed', () => {
+  const dir = verifiedSlice((d) => {
+    write(d, 'new\nline.js', 'tracked\n');
+    git(d, 'add', 'new\nline.js');
+    git(d, 'commit', '-qm', 'add newline name');
+    write(d, 'cr\r.js', 'carriage\n');
+  });
+  fs.chmodSync(path.join(dir, 'b.js'), 0o664);
+  // Past the neither-record gate (a tracked clean name is trusted), it stops only at "nothing to commit".
+  assert.match(commit(dir, ['a.js', 'new\nline.js']).out.error, /new\nline\.js has no change to commit/);
+  const code = ok(commit(dir, ['a.js', 'b.js', 'c.js']));
+  assert.equal(code.subject, 'feat: Feature', 'g+w on b.js is not a change since verify');
+  const seen = dirtyHashes(dir);
+  assert.deepEqual(Object.keys(seen).filter((f) => f.includes('\r')), ['cr\r.js']);
+  assert.match(seen['cr\r.js'], /^644:[0-9a-f]{40}$/);
+  fs.chmodSync(path.join(dir, 'cr\r.js'), 0o654);
+  assert.match(dirtyHashes(dir)['cr\r.js'], /^644:/, 'a group or other execute bit is not the executable bit git tracks');
+  fs.chmodSync(path.join(dir, 'cr\r.js'), 0o755);
+  assert.match(dirtyHashes(dir)['cr\r.js'], /^755:/, 'the executable bit is recorded as 755');
+});
+
+test('dirtyHashes sees an edit inside a dirty submodule', () => {
+  const dir = tmpDir('do-it-submod-');
+  const inner = tmpDir('do-it-submod-inner-');
+  for (const d of [dir, inner]) {
+    git(d, 'init', '-q', '-b', 'main');
+    git(d, 'config', 'user.name', 't');
+    git(d, 'config', 'user.email', 't@t');
+    git(d, 'config', 'commit.gpgsign', 'false');
+  }
+  write(inner, 'f.txt', '1\n');
+  git(inner, 'add', '-A');
+  git(inner, 'commit', '-qm', 'inner');
+  write(dir, 'x.txt', '1\n');
+  git(dir, 'add', '-A');
+  git(dir, 'commit', '-qm', 'outer');
+  execFileSync('git', ['-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', inner, 'sub'], { cwd: dir });
+  git(dir, 'commit', '-qm', 'add sub');
+  write(dir, 'sub/f.txt', '2\n');
+  const one = dirtyHashes(dir, ['sub'])['sub'];
+  assert.match(one, /^sub:[0-9a-f]{40}$/);
+  write(dir, 'sub/f.txt', '3\n');
+  assert.notEqual(dirtyHashes(dir, ['sub'])['sub'], one, 'a second edit inside the submodule changes the record');
+});
+
 test('dirtyHashes reads past 1 MB of status output and fails when git does', () => {
   const dir = tmpDir('do-it-bigstatus-');
   git(dir, 'init', '-q');
-  const many = 25000;
-  for (let i = 0; i < many; i++) fs.writeFileSync(path.join(dir, `untracked-file-with-a-long-name-${String(i).padStart(6, '0')}.txt`), `${i}\n`);
+  // About 5000 names of 200 characters put the status past 1 MB with a fifth of the files.
+  const many = 5000;
+  const name = (i) => `${'x'.repeat(190)}-${String(i).padStart(6, '0')}.txt`;
+  for (let i = 0; i < many; i++) fs.writeFileSync(path.join(dir, name(i)), `${i}\n`);
   const seen = dirtyHashes(dir);
   assert.equal(Object.keys(seen).length, many, 'every file is recorded, none read as clean');
-  assert.match(seen['untracked-file-with-a-long-name-000007.txt'], /^6\d\d:[0-9a-f]{40}$/);
+  assert.match(seen[name(7)], /^644:[0-9a-f]{40}$/);
   assert.throws(() => dirtyHashes(tmpDir('do-it-notrepo-')), /git status failed/);
 });
 

@@ -49,7 +49,14 @@ export function runVerify({ planningDir, root, cwd, slug, id, opts, items, finge
   }
   // Only the slice's own files are recorded (`--paths a,b`): never the user's or another slice's.
   const mapped = opts.paths === undefined ? null : String(opts.paths).split(',').filter(Boolean).map((p) => relative(root, p));
-  recordVerified(planningDir, slug, id, fingerprintOf(items.get(g.work)), mapped && dirtyHashes(root, mapped));
+  let files = null;
+  try {
+    files = mapped && dirtyHashes(root, mapped);
+  } catch (e) {
+    // The phase is already recorded as verified; say which record is missing so the retry is not a guess.
+    throw new Error(`${e.message}; the checks passed and the phase is recorded, but ${id}'s verified_files is not: run verify again`);
+  }
+  recordVerified(planningDir, slug, id, fingerprintOf(items.get(g.work)), files);
   return showRun(planningDir, slug);
 }
 

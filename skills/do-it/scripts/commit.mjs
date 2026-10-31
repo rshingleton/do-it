@@ -63,12 +63,21 @@ function safeBranch(cwd, slug, protectedList) {
   };
 }
 
-// Every file the working tree changes, each as `<mode>:<blob hash>` ('gone' when it is deleted, 'dir'
-// for a directory), as `run verify` saw it. A link is its target's hash, never what it points at, so a
+// Every file the working tree changes, each as `<755|644>:<blob hash>` ('gone' when it is deleted, 'dir'
+// for a directory, `sub:<hash>` for a submodule's own state), as `run verify` saw it. A link is its target's hash, never what it points at, so a
 // retargeted or dangling link and a mode-only change both show. A rename is its new path plus its old
 // path gone. Nothing is matched as a pattern: names are read, never expanded. `only` (repo-relative
 // names) keeps just those entries, a rename counting when either side is named, so the record never
 // holds another slice's or the user's files. Throws when git fails.
+//
+// A dirty submodule's state: its HEAD plus a hash of its own status and diff, so an edit inside it shows.
+// shortcut: an untracked file inside the submodule counts by name only, so a re-edit of it goes unseen; hash its content if a slice ever edits one.
+function submoduleState(abs) {
+  const sub = (args) => gitRaw(abs, args);
+  const text = [sub(['rev-parse', 'HEAD']), sub(['status', '--porcelain', '-z', '-uall']), sub(['diff', 'HEAD'])].join('\n--\n');
+  return gitRaw(abs, ['hash-object', '--stdin'], text).trim();
+}
+
 export function dirtyHashes(root, only = null) {
   const wanted = only && new Set(only);
   const recs = [];
@@ -85,8 +94,10 @@ export function dirtyHashes(root, only = null) {
     const abs = path.resolve(root, f);
     const st = fs.lstatSync(abs, { throwIfNoEntry: false });
     if (!st) return 'gone';
-    modes[f] = (st.mode & 0o777).toString(8);
+    // Git tracks the executable bit and nothing else of the mode, so a `chmod g+w` or a umask change is no change.
+    modes[f] = st.isSymbolicLink() ? '120000' : st.mode & 0o100 ? '755' : '644';
     if (st.isSymbolicLink()) return `${modes[f]}:${gitRaw(root, ['hash-object', '--stdin'], fs.readlinkSync(abs)).trim()}`;
+    if (st.isDirectory() && fs.existsSync(path.join(abs, '.git'))) return `sub:${submoduleState(abs)}`;
     if (!st.isFile()) return 'dir';
     plain.push(f);
     return null;
@@ -96,13 +107,13 @@ export function dirtyHashes(root, only = null) {
     files[f] = stamp(f);
     if (/[RC]/.test(recs[i][0])) files[recs[++i]] = 'gone';
   }
-  // Regular files hash in one call; a name with a newline cannot ride a line-based list.
-  const lined = plain.filter((f) => !f.includes('\n'));
+  // Regular files hash in one call; a name with a newline or a carriage return cannot ride a line-based list.
+  const lined = plain.filter((f) => !/[\r\n]/.test(f));
   const out = lined.length ? gitRaw(root, ['hash-object', '--no-filters', '--stdin-paths'], lined.map((f) => path.resolve(root, f)).join('\n') + '\n').split('\n') : [];
   lined.forEach((f, i) => {
     files[f] = `${modes[f]}:${out[i]}`;
   });
-  for (const f of plain.filter((x) => x.includes('\n'))) files[f] = `${modes[f]}:${gitRaw(root, ['hash-object', '--no-filters', '--', path.resolve(root, f)]).trim()}`;
+  for (const f of plain.filter((x) => /[\r\n]/.test(x))) files[f] = `${modes[f]}:${gitRaw(root, ['hash-object', '--no-filters', '--', path.resolve(root, f)]).trim()}`;
   return files;
 }
 
@@ -152,7 +163,12 @@ function assertCommittable({ root, run, slug, items, id, phase, docs, paths }) {
     if (!seen) throw new Error(`${id} has no verify record from run verify; run it with --paths a,b (the slice's files), nothing committed`);
     // The records key on repo-relative names, so an absolute in-repo path is compared by its relative form.
     const named = paths.map((p) => relative(root, p));
-    const now = dirtyHashes(root, named);
+    let now;
+    try {
+      now = dirtyHashes(root, named);
+    } catch (e) {
+      throw new Error(`could not read the working tree to compare with ${id}'s verified_files (${e.message}); nothing committed`);
+    }
     const outside = named.filter((p) => p.startsWith('..') || path.isAbsolute(p));
     if (outside.length) throw new Error(`commit stages files inside the repo, ${outside.join(', ')} is not; nothing committed`);
     const moved = named.filter((p) => (now[p] ?? 'clean') !== (seen[p] ?? 'clean'));
@@ -160,7 +176,7 @@ function assertCommittable({ root, run, slug, items, id, phase, docs, paths }) {
     // A name in neither record reads clean on both sides; it is only clean when git tracks it exactly so
     // (a case variant or a typo is not).
     const unknown = named.filter((p) => !(p in now) && !(p in seen));
-    const untrusted = unknown.filter((p) => !lines(gitRaw(root, ['ls-files', '-z', '--', p]).replaceAll('\0', '\n')).includes(p) || gitRaw(root, ['status', '--porcelain', '--', p]).trim());
+    const untrusted = unknown.filter((p) => !gitRaw(root, ['ls-files', '-z', '--', p]).split('\0').filter(Boolean).includes(p) || gitRaw(root, ['status', '--porcelain', '--', p]).trim());
     if (untrusted.length) throw new Error(`${untrusted.join(', ')} is in neither verify record and is not a tracked, clean file; nothing committed`);
   }
   return subject;
