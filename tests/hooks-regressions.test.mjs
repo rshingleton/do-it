@@ -478,3 +478,26 @@ test('hooks.json event names and commands match the events claude.mjs handles', 
   }
   assert.deepEqual(wired, handled);
 });
+
+test('an untracked file in a subdirectory or behind a glob is scanned when an earlier git add stages it', () => {
+  const { dir } = repo();
+  fs.mkdirSync(path.join(dir, 'sub/deep'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'sub/deep/n.js'), `k = "${KEY}"\n`);
+  fs.writeFileSync(path.join(dir, 'sub/ok.js'), 'fine = 1\n');
+  const ctx = ctxFor(dir);
+  assert.equal(beforeShell(ctx, 'git add sub/deep/n.js && git commit -m "t: x"').action, 'block', 'a named subdirectory file');
+  assert.equal(beforeShell(ctx, 'git add sub/deep/*.js && git commit -m "t: x"').action, 'block', 'a glob inside the subdirectory');
+  assert.equal(beforeShell(ctx, 'git add sub && git commit -m "t: x"').action, 'block', 'the directory that holds it');
+  assert.equal(beforeShell(ctx, 'git add sub/ok.js && git commit -m "t: x"').action, 'allow', 'a clean sibling alone');
+});
+
+test('an in-hunk +++ path that is not dev-null is scanned under that path', () => {
+  const { dir } = repo();
+  fs.mkdirSync(path.join(dir, '.compliance-rules'));
+  fs.writeFileSync(path.join(dir, '.compliance-rules', 'checks.json'), JSON.stringify([{ id: 'no-evil', severity: 'HIGH', pattern: 'EVIL', files: ['.py'] }]));
+  // The first pair names a.txt (not scanned); a second pair inside the hunk names y.py.
+  const patch = ['--- a/a.txt', '+++ b/a.txt', '@@ -0,0 +1,3 @@', '--- a/x.txt', '+++ b/y.py', '+EVIL'].join('\n');
+  assert.match(beforeEdit(ctxFor(dir), { patch }).reason, /no-evil in y\.py/);
+  const clean = ['--- a/a.txt', '+++ b/a.txt', '@@ -0,0 +1,3 @@', '--- a/x.txt', '+++ b/y.txt', '+EVIL'].join('\n');
+  assert.equal(beforeEdit(ctxFor(dir), { patch: clean }).action, 'allow', 'the same line under a path the rule does not cover');
+});
