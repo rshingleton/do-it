@@ -170,6 +170,54 @@ test('audit cap: lowering a cap back to the value it refused at does not revive 
   assert.equal(ok(work(dir, 'run', 'show', 'road')).audit_stop, undefined);
 });
 
+test('audit cap: the run-total refusal clears when audit_total_cap is set again, so gate allows', () => {
+  const dir = fixture(['--audit-cap', '2', '--max-slices', '2']);
+  ok(verify(dir));
+  for (const id of ['R1', 'R1', 'R2', 'R2']) assert.equal(audit(dir, id).allow, true);
+  assert.equal(audit(dir, 'R3').allow, false);
+  assert.equal(gate(dir).reason, 'AUDIT_CAP', 'the refusal stops the gate while the cap is unchanged');
+  ok(work(dir, 'run', 'set', 'road', 'audit_total_cap', '5'));
+  ok(work(dir, 'run', 'set', 'road', 'audit_total_cap', '4'));
+  assert.equal(gate(dir).allow, true, 'four rounds at a cap of four ship: the record-level marker is gone');
+});
+
+test('audit cap: the final review refusal marker clears when final_audit_cap is set again', () => {
+  const dir = fixture(['--final-audit-cap', '1']);
+  assert.equal(audit(dir, '--final').allow, true);
+  assert.equal(audit(dir, '--final').allow, false);
+  assert.equal(ok(work(dir, 'run', 'show', 'road')).final_audit_refused, 1);
+  ok(work(dir, 'run', 'set', 'road', 'final_audit_cap', '2'));
+  ok(work(dir, 'run', 'set', 'road', 'final_audit_cap', '1'));
+  assert.equal(ok(work(dir, 'run', 'show', 'road')).final_audit_refused, undefined);
+});
+
+test('audit cap: resuming the slice a stop names clears audit_stop; another slice\'s stop stays', () => {
+  const dir = fixture(['--audit-cap', '1']);
+  audit(dir, 'R1');
+  assert.equal(audit(dir, 'R1').allow, false);
+  assert.match(ok(work(dir, 'run', 'show', 'road')).audit_stop, /^slice R1:/);
+  ok(work(dir, 'run', 'slice', 'road', 'R2', 'ready'));
+  assert.match(ok(work(dir, 'run', 'show', 'road')).audit_stop, /^slice R1:/, 'resuming R2 leaves R1\'s stop');
+  ok(work(dir, 'run', 'slice', 'road', 'R1', 'ready'));
+  assert.equal(ok(work(dir, 'run', 'show', 'road')).audit_stop, undefined);
+});
+
+test('audit cap: a record written before final_audit_cap existed still gates and counts the final review', () => {
+  const dir = fixture();
+  const file = path.join(dir, 'docs/planning/road.run/RUN.md');
+  fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace(/^final_audit_cap:.*\n/m, ''));
+  assert.equal(ok(work(dir, 'run', 'show', 'road')).final_audit_cap, undefined);
+  ok(verify(dir));
+  assert.equal(gate(dir).allow, true);
+  assert.equal(audit(dir, '--final').allow, true, 'the final review falls back to audit_cap');
+});
+
+test('gate reads the record: it adds no gates entry for a slice that has none', () => {
+  const rec = { slices: [], gates: [], audit_cap: 3, slice_cap_min: 120 };
+  gateRule(rec, 'R9', { current: 'fp' });
+  assert.deepEqual(rec.gates, []);
+});
+
 test('audit cap: a long run of slices at two rounds each finishes under default caps', () => {
   const dir = fixture();
   for (let i = 1; i <= 8; i++) {

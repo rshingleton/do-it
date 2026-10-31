@@ -230,6 +230,8 @@ export function resumeSlice(planningDir, slug, id) {
     if (prior?.status === 'shipped') throw new Error(`slice ${id} is shipped; a shipped slice does not move`);
     if (prior) r.retries = [...(r.retries ?? []), { id, was: prior.status, reason: prior.reason ?? null }];
     r.slices = r.slices.filter((s) => s.id !== id);
+    // The stop that named this slice is settled by the resume, so it does not outlive it.
+    if (r.audit_stop?.startsWith(`slice ${id}:`)) delete r.audit_stop;
     const g = (r.gates ?? []).find((x) => x.id === id);
     if (g) {
       delete g.audit_rounds;

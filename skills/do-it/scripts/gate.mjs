@@ -41,12 +41,13 @@ export function recordVerified(planningDir, slug, id, fingerprint, files) {
 // The audit limits that apply to a round: the slice's own, the run total across slices (its cap
 // is `audit_total_cap`, else `max_slices` x the per-slice cap, else none), or the final review's.
 // Each holds its counter and refusal marker on `at` (a gates entry or the record).
-function auditLimits(record, id, final) {
+function auditLimits(record, id, final, { create = true } = {}) {
   if (final) {
     return [{ limit: 'final review', at: record, rounds: 'final_audit_rounds', refused: 'final_audit_refused', cap: record.final_audit_cap ?? record.audit_cap }];
   }
   const total = record.audit_total_cap ?? (record.max_slices == null ? null : record.max_slices * record.audit_cap);
-  const g = entry(record, id);
+  // `gate` only reads: it must not add a gates entry to the record it was handed.
+  const g = create ? entry(record, id) : (record.gates ?? []).find((x) => x.id === id) ?? {};
   const limits = [{ limit: `slice ${id}`, at: g, rounds: 'audit_rounds', refused: 'audit_refused', cap: record.audit_cap }];
   // No total cap still counts, so the digest and a later `audit_total_cap` see the rounds spent.
   limits.push({ limit: 'run total', at: record, rounds: 'audit_rounds', refused: 'audit_refused', cap: total ?? Infinity });
@@ -94,7 +95,7 @@ export function gate(record, id, { current, now = Date.now() }) {
   const shipped = record.slices.filter((s) => s.status === 'shipped').length;
   if (record.max_slices != null && shipped >= record.max_slices) return stop('MAX_SLICES', `${shipped} shipped, cap ${record.max_slices}`);
   // Past a cap, never at it: a slice whose last allowed round passed still ships.
-  const spentLimit = auditLimits(record, id, false).find(exhausted);
+  const spentLimit = auditLimits(record, id, false, { create: false }).find(exhausted);
   if (spentLimit) return stop('AUDIT_CAP', describe(spentLimit));
   const g = (record.gates ?? []).find((x) => x.id === id);
   if (g?.started) {
