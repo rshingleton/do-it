@@ -167,6 +167,15 @@ export function workItems({ planningDir, write = writeItem }) {
     verifyPhase(id, n, run, { date } = {}) {
       const state = get(id).state;
       if (state.lane === 'm' && !Number.isInteger(n)) throw new Error('lane M: verify-phase needs a phase number');
+      // Before the check runs: past building the move is refused anyway, and the refusal should say why.
+      if (state.status !== 'building') {
+        const how = {
+          draft: `approve it, then start it (work.mjs event ${id} approve, then start)`,
+          planned: `start it (work.mjs event ${id} start)`,
+          blocked: `unblock it (work.mjs event ${id} unblock)`,
+        }[state.status] ?? `a replan reopens it (work.mjs event ${id} replan, then approve and start)`;
+        throw new Error(`verify-phase needs ${id} building, but it is ${state.status}: ${how}; no check ran`);
+      }
       transition(state, 'phase-done', { n, verified: 'dry run', date });
       const r = run();
       if (!r.ok) throw new Error(`verify-phase: ${r.why}; nothing recorded`);

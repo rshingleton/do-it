@@ -69,6 +69,20 @@ test('gate: closing docs (the roadmap file, the to-do list, ADRs) do not make a 
   assert.equal(gate(dir).reason, 'STALE_VERIFY', 'a code edit after verify still reads stale');
 });
 
+test('run verify on an item past building says it must be building and that a replan reopens it, and runs no check', () => {
+  const dir = fixture();
+  ok(verify(dir));
+  ok(work(dir, 'event', 'feat', 'build-done'));
+  const marker = path.join(dir, 'check-ran');
+  const r = work(dir, 'run', 'verify', 'road', 'R1', '--', `touch ${marker}`);
+  assert.equal(r.status, 1);
+  assert.match(r.out.error, /needs feat building, but it is auditing/);
+  assert.match(r.out.error, /a replan reopens it/);
+  ok(work(dir, 'event', 'feat', 'block', 'waiting'));
+  assert.match(work(dir, 'run', 'verify', 'road', 'R1', '--', 'true').out.error, /but it is blocked: unblock it/);
+  assert.equal(fs.existsSync(marker), false, 'the check never ran');
+});
+
 test('flaky: a failure that passes on its one rerun parks the slice and records no pass', () => {
   const dir = fixture();
   // Fails the first run, passes the second: exactly one rerun.
