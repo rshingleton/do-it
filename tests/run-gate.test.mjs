@@ -245,6 +245,22 @@ test('run next: a run at its cap with nothing left to build finishes, and an in-
   assert.equal(nextSlice({ slices: [slice('R1', 'shipped'), slice('R2', 'in flight')], ready: [] }, rec(2)).next, 'R2', 'under the cap the in-flight slice resumes');
 });
 
+test('run next: a slice blocked by an open (ask-when-reached) decision is listed under defects, not silently skipped', () => {
+  const road = {
+    slices: [
+      { id: 'R1', blocked_by: [], state: 'ready' },
+      { id: 'R2', blocked_by: ['D1'], state: 'blocked' },
+      { id: 'R3', blocked_by: ['R2'], state: 'blocked' },
+    ],
+    ready: ['R1'],
+    blocking: [{ id: 'D1', blocks: ['R2', 'R3'] }],
+  };
+  const out = nextSlice(road, { max_slices: null, slices: [] });
+  assert.equal(out.next, 'R1');
+  assert.deepEqual(out.defects, [{ decision: 'D1', blocks: ['R2', 'R3'], note: 'ask-when-reached: settle the decision, then the slices can run' }]);
+  assert.deepEqual(nextSlice({ ...road, blocking: [] }, { max_slices: null, slices: [] }).defects, [], 'no open decision, no defects');
+});
+
 test('STOPS.md names exactly the shared reason codes, and judgment codes are named as judgment', () => {
   const doc = fs.readFileSync(path.join(ROOT, 'skills/finish-it/STOPS.md'), 'utf8');
   const named = [...doc.matchAll(/^- `([A-Z_0-9]+)` \((park|stop)\)/gm)].map((m) => [m[1], m[2]]);

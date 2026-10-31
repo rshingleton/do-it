@@ -19,8 +19,8 @@ Give each a stable name (`D1`, `D2`, ...) and the slices it touches.
 | State | Means | Record |
 |-------|-------|--------|
 | `ready` | The user answered it | Dated line under Decisions so far; remove it from Open decisions |
-| `weak-but-explicit` | A recommended default, accepted knowingly | The default and a stop-if-wrong note ("revisit if X"), as an assumption in the run record |
-| `ask-when-reached` | The user will not decide now | Stays in Open decisions; the slice that needs it parks when the run reaches it |
+| `weak-but-explicit` | A recommended default, accepted knowingly | A dated line under Decisions so far with the default and its stop-if-wrong note ("revisit if X"), removed from Open decisions, and the same default as an assumption in the run record |
+| `ask-when-reached` | The user will not decide now | Stays in Open decisions; `run next` lists it under `defects` with the slices it holds, and those slices wait until the user settles it |
 
 A decision left in none of the three is a sweep failure: fix it before the
 approval turn. Settle in the grill-it style, one recommended answer each,

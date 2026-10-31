@@ -260,10 +260,13 @@ export function nextSlice(road, record) {
   // The slice cap is checked before a slice is built, not when it comes to ship, and only when a
   // slice is left: a run that has nothing more to build finishes, it is not stopped. A slice
   // already in flight at the cap is named, so it is not dropped without a word.
+  // A slice behind an open decision is not parked by the run, so say so: `defects` names each open
+  // decision and the slices it holds, or they would never be offered, parked or reported.
+  const defects = (road.blocking ?? []).map((d) => ({ decision: d.id, blocks: d.blocks, note: 'ask-when-reached: settle the decision, then the slices can run' }));
   const shipped = record.slices.filter((s) => s.status === 'shipped').length;
   if (next && record.max_slices != null && shipped >= record.max_slices) {
     const inFlight = flying ? `; ${flying.id} is in flight` : '';
-    return { next: null, parked: [...held], waiting, stop: { reason: 'MAX_SLICES', detail: `${shipped} shipped, cap ${record.max_slices}${inFlight}` } };
+    return { next: null, parked: [...held], waiting, defects, stop: { reason: 'MAX_SLICES', detail: `${shipped} shipped, cap ${record.max_slices}${inFlight}` } };
   }
-  return { next, parked: [...held], waiting };
+  return { next, parked: [...held], waiting, defects };
 }

@@ -65,7 +65,7 @@ test('finish-it run: a parked slice leaves exactly its dependents unstarted, res
   drive(dir, new Set(['R2']), ship, started);
   assert.deepEqual(started.sort(), ['R1', 'R2', 'R5', 'R6'], 'R3 and R4 never start');
   const stop = ok(work(dir, 'run', 'next', 'road', 'docs/roadmap/road.md'));
-  assert.deepEqual(stop, { next: null, parked: ['R2'], waiting: ['R3', 'R4'] });
+  assert.deepEqual(stop, { next: null, parked: ['R2'], waiting: ['R3', 'R4'], defects: [] });
 
   // Resume: the user settled the question, so R2 rejoins and its dependents follow.
   ok(work(dir, 'run', 'slice', 'road', 'R2', 'ready'));

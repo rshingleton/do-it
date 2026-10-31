@@ -31,7 +31,8 @@ The turn ends only at §4, when `run next` returns no `next`. A parked or
 resumed slice, a status question, a long wait and a finished step are not
 stops: go on to the next slice.
 
-1. `work.mjs run next <slug> <file>` gives `next`, `parked` and `waiting`. It
+1. `work.mjs run next <slug> <file>` gives `next`, `parked`, `waiting` and
+   `defects` (open decisions and the slices each holds). It
    skips parked and blocked slices and anything that waits on one, resumes a
    slice already in flight first, and otherwise takes the roadmap's order.
 2. `next` is null: go to §4, and name its `stop` (a `MAX_SLICES` code) there
