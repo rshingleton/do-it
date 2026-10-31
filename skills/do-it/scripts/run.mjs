@@ -183,6 +183,9 @@ export function addAssumptions(planningDir, slug, id, items) {
   if (!id || !ID_ONLY.test(id)) throw new Error('run add-assumptions needs the work id');
   list('assumptions', items);
   return updateRun(planningDir, slug, (r) => {
+    // Rejections made against the list being replaced stay as history, marked so their keys cannot read
+    // as the new list's.
+    r.rejected = r.rejected.map((a) => (a.startsWith(`${id}#`) ? `earlier ${a}` : a));
     r.assumptions = [...r.assumptions.filter((a) => !a.startsWith(`${id}#`)), ...items.map((t, i) => `${id}#${i + 1}: ${t}`)];
   });
 }

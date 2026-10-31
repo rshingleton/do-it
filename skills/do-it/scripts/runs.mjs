@@ -81,10 +81,26 @@ export function runReviewChange({ planningDir, root, slug, exclude }) {
   return { base, mode: 'range', ...treeDiff(root, from, 'HEAD', { exclude }) };
 }
 
+// Where the plan lists record entry `want` (a `<id>#<n>` key), 1-based, or 0 when it is not found.
+// By id first: a plan that still lists as many entries as the record holds for this item has its
+// entry at the key's place. A plan that lost entries (ship-it rejected some plan-side, so its list
+// closed up) is searched by text, and only a unique text is trusted. Equal texts cannot be told apart
+// once the lists differ, so nothing is guessed: the plan is left alone and `ambiguous` names every id
+// that shares the text, for the followup to hand to the user.
+export function planIndex(assumptions, want, planList) {
+  const own = assumptions.map(splitKey).filter((k) => k && k.id === want.id && k.text !== undefined).sort((a, b) => a.n - b.n);
+  const pos = own.findIndex((k) => k.n === want.n);
+  if (pos < 0) return { at: 0, ambiguous: null };
+  const text = own[pos].text;
+  if (planList.length === own.length && planList[pos] === text) return { at: pos + 1, ambiguous: null };
+  const same = own.filter((k) => k.text === text);
+  if (same.length > 1) return { at: 0, ambiguous: same.map((k) => `${want.id}#${k.n}`) };
+  return { at: planList.indexOf(text) + 1, ambiguous: null };
+}
+
 // `run reject-assumption`: the plan's event fires first, so a plan that refuses leaves the record
-// untouched. The plan's entry is found by the recorded text among the plan's remaining entries (the
-// plan's list closes up after every rejection and a re-add renumbers the record, so a number cannot
-// say where it is; two equal texts remove the first, which leaves the same plan). A plan that is
+// untouched. The plan's entry is found by planIndex (the id's place while the plan's list matches the
+// record, else the recorded text among the plan's remaining entries). A plan that is
 // auditing or shipping reopens. A plan that no longer lists the text (ship-it rejected it plan-side, or
 // it was edited) gets only the record updated; a plan in another state, or no plan at all, is named
 // in `followup`, never called closed unless it is.
@@ -103,13 +119,15 @@ export function runRejectAssumption({ planningDir, slug, key, instead, items, da
     if (!/^no plan for /.test(e.message)) throw e;
   }
   const status = plan?.state.status;
-  const at = plan ? plan.state.assumptions.indexOf(entry.slice(key.length + 2)) + 1 : 0;
+  const { at, ambiguous } = plan ? planIndex(showRun(planningDir, slug).assumptions, want, plan.state.assumptions) : { at: 0, ambiguous: null };
   const live = ['auditing', 'shipping'].includes(status) && at > 0;
   if (live) items.fire(want.id, 'reject-assumption', { n: at, text, date });
   const { record: next } = rejectAssumption(planningDir, slug, key, text);
   let followup = null;
   if (!plan) followup = `no plan for ${want.id} (the item is closed, or this is a sweep default): the user files a fix: or log-it entry`;
   else if (!live && ['auditing', 'shipping'].includes(status)) followup = `plan ${want.id} no longer lists it (rejected plan-side or edited): only the record changed`;
+  else if (['done', 'closed'].includes(status)) followup = `plan ${want.id} is ${status}: the user files a new fix item (log-it); its plan is not edited`;
   else if (!live) followup = `plan ${want.id} is ${status}, not reopened: add the change to its fix: list`;
+  if (ambiguous) followup = `equal texts (${ambiguous.join(', ')}): the plan was not changed, check its list by hand; ${followup ?? ''}`.trim();
   return { rejected: key, reopened: live, followup, record: next };
 }

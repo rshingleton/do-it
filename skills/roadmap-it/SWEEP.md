@@ -38,7 +38,9 @@ The final sweep round is the single plan approval: the slices by milestone,
 every decision with its state, the weak-but-explicit defaults with their
 stop-if-wrong notes, and the ask-when-reached list. End the turn. On approval
 record the date in the file and write the settled defaults to the run record
-with `work.mjs run add-assumptions <slug> sweep '<json array>'`, so each keeps a key (`sweep#<n>`) that `run reject-assumption` takes.
+with `work.mjs run add-assumptions <slug> sweep '<json array>'`, so each keeps a
+key (`sweep#<n>`) that `run reject-assumption` takes. `sweep` is reserved: no
+work item may use it as its id.
 
 `lite` keeps today's flow: the sweep still runs, but each slice's scope-it grill
 still asks its own questions and the run stops after every slice (the lite level).

@@ -107,6 +107,8 @@ export function workItems({ planningDir, write = writeItem }) {
       if (!LANE_RANK[lane]) throw new Error('new needs --lane s or --lane m');
       if (!id) throw new Error('new needs an id (kebab-case slug or tracker ref)');
       checkId(id);
+      // The run sweep records its defaults under this id (`run add-assumptions <slug> sweep`), so no item may take it.
+      if (id === 'sweep') throw new Error('sweep is reserved for the run sweep\'s assumptions: pick another id');
       if (planPath(planningDir, id)) throw new Error(`${id} already has a plan`);
       title ??= id;
       const item = { path: layout(planningDir, id, lane), state: emptyBlock({ id, title, lane }), body: `\n# ${title}\n` };
