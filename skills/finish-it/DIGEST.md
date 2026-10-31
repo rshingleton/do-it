@@ -32,7 +32,9 @@ working tree.
 It lists slices shipped, parked and blocked with reasons, retried slices and
 how each retry ended, assumptions, verification limits, findings filed, the
 `shortcut:` ledger (`no-trigger` flagged), tokens, rollback commands per phase
-tag of this run's work items only, and four retro lines.
+tag of this run's work items only, and four retro lines. It prints only
+well-formed phase tags and one-line text: a newline in a reason, limit,
+assumption, finding or retro line is folded into its line.
 
 ## 3. Assumption review
 

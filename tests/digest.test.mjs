@@ -231,7 +231,28 @@ test('digest: a multi-line reason stays one bullet and cannot open a heading', (
     }),
   });
   assert.deepEqual(text.split('\n').filter((l) => /^#+ /.test(l) && /Forged|also|forgery/i.test(l)), []);
-  assert.match(text, /- R1: why ## Forged - run `git revert` \(needs user\)/);
+  const r1 = text.split('\n').filter((l) => l.startsWith('- R1:'));
+  assert.equal(r1.length, 1, 'the reason stays one bullet');
+  assert.ok(r1[0].includes('why') && r1[0].includes('Forged') && r1[0].endsWith('(needs user)'));
+});
+
+test('digest: a newline in a limit, an assumption, a rejection, a finding or a retro line cannot print a heading', () => {
+  const text = buildDigest({
+    record: record({
+      assumptions: ['feat#1: keep\n## Forged assumption'],
+      rejected: ['feat#2: old\n## Forged rejection (instead: x\n## Forged instead)'],
+      limits: ['no browser\n## Forged limit'],
+    }),
+    findings: ['gh-1\n## Forged finding'],
+    retro: ['worked\n## Forged retro', '', '', ''],
+  });
+  assert.deepEqual(text.split('\n').filter((l) => /^#+ /.test(l) && /Forged/.test(l)), []);
+  for (const word of ['assumption', 'rejection', 'limit', 'finding', 'retro']) assert.ok(text.includes(`Forged ${word}`), `${word} text is kept, on its line`);
+});
+
+test('digest: a retried slice that shipped with a reason prints the reason beside shipped', () => {
+  const text = buildDigest({ record: record({ slices: [{ id: 'R5', status: 'shipped', reason: 'user cleared it' }], retries: [{ id: 'R5', was: 'parked', reason: 'x' }] }) });
+  assert.ok(text.split('\n').includes('- R5: was parked (x), now shipped (user cleared it)'));
 });
 
 test('digest: only a well-formed phase tag of this run is printed into a rollback command', () => {
@@ -246,10 +267,12 @@ test('digest: a slice resumed under a new work item keeps the old item\'s tag in
   const dir = fixture();
   ok(work(dir, 'run', 'start', 'road', 'R9', '--work', 'first'));
   ok(work(dir, 'run', 'start', 'road', 'R9', '--work', 'second'));
-  const gate = JSON.parse(ok(work(dir, 'run', 'show', 'road')) || '{}').gates.find((g) => g.id === 'R9');
+  const gate = JSON.parse(ok(work(dir, 'run', 'show', 'road'))).gates.find((g) => g.id === 'R9');
   assert.deepEqual([gate.work, gate.works], ['second', ['first', 'second']]);
   const text = buildDigest({ record: record({ gates: [gate] }), tags: ['do-it/first/phase-1', 'do-it/second/phase-1'] });
   assert.match(text, /## Rollback \(2\)/);
+  assert.ok(text.includes('git revert --no-edit do-it/first/phase-1`'), 'the old item\'s tag is printed');
+  assert.ok(text.includes('git revert --no-edit do-it/second/phase-1`'));
 });
 
 test('digest: repeated retries each get a line and all end at the slice\'s current state', () => {
