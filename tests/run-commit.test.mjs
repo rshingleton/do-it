@@ -560,6 +560,40 @@ test('a retry after the commit landed succeeds for lane S and --docs, and a diff
   assert.equal(git(dir, 'rev-list', '--count', 'HEAD'), '3');
 });
 
+test('a retry names the same files however they are spelled: repeated and ./ forms read as the one set', () => {
+  const dir = laneS((d) => {
+    write(d, 'x.js', '2\n');
+    write(d, 'z.js', 'new\n');
+  });
+  const code = ok(sliceCommit(dir, ['x.js', 'z.js']));
+  assert.equal(ok(sliceCommit(dir, ['x.js', 'x.js', './z.js'])).commit, code.commit);
+  assert.equal(git(dir, 'rev-list', '--count', 'HEAD'), '2');
+});
+
+test('a lane M phase retry with a different clean path set reads already committed', () => {
+  const { dir } = fixture();
+  ok(work(dir, 'run', 'new', 'road'));
+  verify(dir);
+  ok(work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'a.js,b.js'));
+  assert.match(work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'a.js').out.error, /already committed/);
+  assert.match(work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'a.js,b.js,unrelated.txt').out.error, /already committed/);
+});
+
+test('a lane M slice-mode retry after the commit landed returns it instead of failing the verify compare', () => {
+  const dir = verifiedSlice();
+  const code = ok(commit(dir, ['a.js', 'b.js', 'c.js']));
+  assert.equal(ok(commit(dir, ['a.js', 'b.js', 'c.js'])).commit, code.commit);
+  assert.equal(git(dir, 'rev-list', '--count', 'HEAD'), '2');
+});
+
+test('lane S refuses a path spelled through a symlinked root, naming it as outside the repo', () => {
+  const dir = laneS((d) => write(d, 'x.js', '2\n'));
+  const link = path.join(tmpDir('do-it-rootlink-'), 'root');
+  fs.symlinkSync(dir, link);
+  assert.match(sliceCommit(dir, [path.join(link, 'x.js')]).out.error, /inside the repo/);
+  assert.equal(git(dir, 'diff', '--cached', '--name-only'), '');
+});
+
 test('a rename is committed as its new path and its old path, and its retry is a no-op', () => {
   const dir = laneS((d) => fs.renameSync(path.join(d, 'x.js'), path.join(d, 'moved.js')));
   const code = ok(sliceCommit(dir, ['x.js', 'moved.js']));
@@ -582,7 +616,7 @@ test('a submodule path is a directory: naming it stages nothing inside it', () =
     write(d, 'x.js', '2\n');
   });
   assert.match(sliceCommit(dir, ['mod', 'x.js']).out.error, /mod is a directory/);
-  assert.match(sliceCommit(dir, ['mod/f.txt', 'x.js']).out.error, /mod\/f\.txt (is a directory|has no change)/, 'a file inside it is refused too');
+  assert.match(sliceCommit(dir, ['mod/f.txt', 'x.js']).out.error, /mod\/f\.txt has no change to commit/, 'a file inside it is refused too: the outer repo sees no change there');
   assert.equal(git(dir, 'diff', '--cached', '--name-only'), '', 'nothing was staged');
 });
 

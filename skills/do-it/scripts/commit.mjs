@@ -118,8 +118,8 @@ export function dirtyHashes(root, only = null) {
 }
 
 // Every gate a commit passes before anything is staged: the run's mode, the item's verified state,
-// and the named paths. Returns the commit's subject; throws, touching nothing, when one fails.
-function assertCommittable({ root, run, slug, items, id, phase, docs, paths }) {
+// and the named paths. Returns the commit's subject (and the earlier commit when this is a retry of one that landed); throws, touching nothing, when one fails.
+function assertCommittable({ root, run, slug, items, id, phase, docs, paths, retry }) {
   if (run.commit === 'none') throw new Error(`run ${slug} has commit mode none: nothing is committed`);
   if (run.commit === 'slice' && phase !== undefined) throw new Error(`run ${slug} commits one commit per slice, not per phase`);
   if (docs && phase !== undefined) throw new Error('--docs and --phase are separate commits');
@@ -150,12 +150,19 @@ function assertCommittable({ root, run, slug, items, id, phase, docs, paths }) {
   if (paths.some((p) => p === '.' || p === '-A' || p === '--all' || p.startsWith('-') || p.startsWith(':'))) {
     throw new Error(`commit stages named files only, got ${paths.join(',')}`);
   }
+  // Every lane commits files inside the repo; a path spelled through a symlinked root reads as outside it.
+  const outside = paths.map((p) => relative(root, p)).filter((p) => p.startsWith('..') || path.isAbsolute(p));
+  if (outside.length) throw new Error(`commit stages files inside the repo, ${outside.join(', ')} is not; nothing committed`);
   // A directory, even one deleted from disk, would stage every edit under it, other slices' included.
   // `ls-files -z` reads names unquoted; they are compared with the path's repo-relative form.
   for (const p of paths) {
     const onDisk = fs.statSync(path.resolve(root, p), { throwIfNoEntry: false })?.isDirectory();
     if (onDisk || gitRaw(root, ['ls-files', '-z', '--', p]).split('\0').filter(Boolean).some((f) => f !== relative(root, p))) throw new Error(`commit stages named files only, ${p} is a directory`);
   }
+  // A commit that already landed is a retry: it is answered before the verify compare, which a landed
+  // commit (its files now clean) would fail.
+  const landed = retry?.(subject);
+  if (landed) return { subject, landed };
   // Lane M's code commit follows its last verify: a named file that differs from what `run verify` saw refuses.
   // Files outside the named paths (the closing docs, a user's own edit) are not compared.
   if (!docs && phase === undefined && state.lane === 'm') {
@@ -169,8 +176,6 @@ function assertCommittable({ root, run, slug, items, id, phase, docs, paths }) {
     } catch (e) {
       throw new Error(`could not read the working tree to compare with ${id}'s verified_files (${e.message}); nothing committed`);
     }
-    const outside = named.filter((p) => p.startsWith('..') || path.isAbsolute(p));
-    if (outside.length) throw new Error(`commit stages files inside the repo, ${outside.join(', ')} is not; nothing committed`);
     const moved = named.filter((p) => (now[p] ?? 'clean') !== (seen[p] ?? 'clean'));
     if (moved.length) throw new Error(`${moved.join(', ')} changed since the last passing verify; run verify again, nothing committed`);
     // A name in neither record reads clean on both sides; it is only clean when git tracks it exactly so
@@ -179,7 +184,7 @@ function assertCommittable({ root, run, slug, items, id, phase, docs, paths }) {
     const untrusted = unknown.filter((p) => !gitRaw(root, ['ls-files', '-z', '--', p]).split('\0').filter(Boolean).includes(p) || gitRaw(root, ['status', '--porcelain', '--', p]).trim());
     if (untrusted.length) throw new Error(`${untrusted.join(', ')} is in neither verify record and is not a tracked, clean file; nothing committed`);
   }
-  return subject;
+  return { subject };
 }
 
 // A commit retried after it landed (a phase, a lane S slice or the closing docs): it is HEAD with this subject,
@@ -193,7 +198,7 @@ function phaseAlreadyLanded({ root, run, tag, phase, subject, paths }) {
   const landed =
     head && git(root, ['log', '-1', '--format=%s']) === subject && git(root, ['log', '-1', '--format=%B']).endsWith(ATTRIBUTION) &&
     !git(root, ['status', '--porcelain', '--', ...paths]) &&
-    gitRaw(root, ['show', '--no-renames', '--name-only', '--format=', '-z', 'HEAD']).split('\0').filter(Boolean).sort().join('\n') === paths.map((p) => relative(root, p)).sort().join('\n');
+    gitRaw(root, ['show', '--no-renames', '--name-only', '--format=', '-z', 'HEAD']).split('\0').filter(Boolean).sort().join('\n') === [...new Set(paths.map((p) => relative(root, p)))].sort().join('\n');
   if (landed && (!tagged || tagged === head)) {
     if (tag && !tagged) git(root, ['tag', tag, head]);
     return { commit: head, branch: currentBranch(root), tag, subject, limits: run.limits };
@@ -206,9 +211,8 @@ function phaseAlreadyLanded({ root, run, tag, phase, subject, paths }) {
 // commit and its tag; throws, changing nothing in HEAD, when a gate fails.
 export function commitSlice({ root, planningDir, config, items, slug, id, phase, docs = false, paths, limits = [] }) {
   const run = showRun(planningDir, slug);
-  const subject = assertCommittable({ root, run, slug, items, id, phase, docs, paths });
   const tag = phase === undefined ? null : `do-it/${id}/phase-${phase}`;
-  const landed = phaseAlreadyLanded({ root, run, tag, phase, subject, paths });
+  const { subject, landed } = assertCommittable({ root, run, slug, items, id, phase, docs, paths, retry: (s) => phaseAlreadyLanded({ root, run, tag, phase, subject: s, paths }) });
   if (landed) return landed;
   if (lines(git(root, ['diff', '--cached', '--name-only'])).length) throw new Error('the index already holds staged files; unstage them first');
   for (const p of paths) {
