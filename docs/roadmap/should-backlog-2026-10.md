@@ -53,7 +53,7 @@ Exit: no fan-out skill reads an errored agent as clean, and the usage-it window 
 | Slice | Kind | Delivers | Covers | Blocked by | Verify | Risk | Status |
 |-------|------|----------|--------|------------|--------|------|--------|
 | R14 | build | doubt-it, look-it-up, guard-it and debug-it say what an errored agent means; a bare "No findings." reads as unverified; prove-it fires `block "<axis> unverified: <why>"`, keeps `audit-pass` and `audit-fail` un-fired and says the one retry is the same round (T203, T204) | G5 | R13 (same test file) | The prove-it test pins `/event <id> block/`; doubt-it no longer reads "None found: proceed" for an errored skeptic | med | |
-| R15 | build | usage-it window leftovers: runs counted once across adjacent windows, the 7.5-minute edge and the start-day grouping stated, the fallback label limited to records with no timestamps, `--json` carrying the whole-run count, and the short-window limit recorded under a `// shortcut:` marker (T209) | G5 | none | Two adjacent windows over one run report one run; a record with timestamps never gets the "before time buckets" label | med | |
+| R15 | build | usage-it window leftovers: runs counted once across adjacent windows, the 7.5-minute edge and the start-day grouping stated, the fallback label limited to records with no timestamps, `--json` carrying the whole-run count, and the short-window limit recorded under a `// shortcut:` marker (T209) | G5 | none | Two adjacent windows over one run report one run; a record with timestamps never gets the "before time buckets" label | med | shipped 2026-10-31 sb-r15-usage-windows |
 
 ## Open decisions
 - none
