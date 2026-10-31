@@ -78,7 +78,8 @@ Before fixing, look for a seam where a test reproduces the real failure
 pattern as it happens in use. A seam too shallow to show it (one caller when
 the bug needs two, a unit when the bug lives in the chain) gives false
 comfort. No honest seam is itself a finding: report it as an architecture
-problem rather than writing a hollow test.
+problem rather than writing a hollow test, and route it: file it with `log-it`,
+or point to `deepen-it` for the module that has no seam.
 
 With an honest seam: turn the shrunken repro into a failing test there, watch
 it fail (if you forced the failure by editing code or data, diff against a

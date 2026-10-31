@@ -888,3 +888,14 @@ test('prove-it does not pass an audit whose review axis is unverified', () => {
   assert.match(section, /never `audit-pass`/, 'and forbids audit-pass for it');
   assert.match(read('skills/prove-it/REPORT.md'), /UNVERIFIED: <why>/, 'the report table has a cell for it');
 });
+
+test('the architecture briefs carry the deletion test inline, and debug-it routes a missing seam', () => {
+  const read = (f) => flat(fs.readFileSync(path.join(ROOT, f), 'utf8'));
+  for (const f of ['skills/prove-it/ARCHITECTURE.md', 'skills/sweep-it/LENSES.md']) {
+    const text = read(f);
+    assert.match(text, /picture (it|the module) gone/, `${f} states the test in one sentence`);
+    assert.ok(text.includes('../design-it/SKILL.md'), `${f} still links design-it`);
+  }
+  const debug = read('skills/debug-it/SKILL.md');
+  assert.match(debug, /No honest seam is itself a finding[^.]*`log-it`[^.]*`deepen-it`/);
+});
