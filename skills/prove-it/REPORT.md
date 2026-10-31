@@ -36,8 +36,8 @@ Change: <base_ref>..working tree, <N> files. Date: <ISO date>.
 | Compliance | PASS: checks.json, 3 rule files |
 | Architecture | OK |
 
-A row reads `UNVERIFIED: <why>` when its reviewer failed; no verdict is PASS
-while one does.
+A row reads `UNVERIFIED: <why>` when its reviewer failed; the audit is not
+PASS while any row reads UNVERIFIED.
 
 ## Findings
 

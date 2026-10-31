@@ -46,6 +46,10 @@ MUST  src/api/client.ts:42  hardcoded-secret: read it from the environment
 Concrete `file:line`, never the secret value itself, the smallest fix. A
 calling skill (prove-it, sweep-it) takes these findings into its own report.
 
+A step that did not run (the scanner errors or prints nothing it should, a rules
+file cannot be read) is **unverified**, never an empty list: report
+`Unverified: <why>` for it, so the caller does not read "no findings" as clean.
+
 ## Add a mechanical rule
 
 On request, or when `retro-it` decides a recurring mistake belongs here,

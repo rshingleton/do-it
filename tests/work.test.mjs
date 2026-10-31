@@ -904,8 +904,26 @@ test('prove-it does not pass an audit whose review axis is unverified', () => {
   const verdict = read('skills/prove-it/SKILL.md');
   const section = verdict.slice(verdict.indexOf('## 4. Verdict'), verdict.indexOf('## 5. Route'));
   assert.match(section, /unverified/i, 'the verdict step names an unverified axis');
-  assert.match(section, /never `audit-pass`/, 'and forbids audit-pass for it');
   assert.match(read('skills/prove-it/REPORT.md'), /UNVERIFIED: <why>/, 'the report table has a cell for it');
+  // The blocked return is a real event, so the item carries a blocker, and neither verdict event fires for it.
+  assert.match(section, /event <id> block "<axis> unverified/, 'the unverified axis fires the block event');
+  assert.match(section, /`audit-pass` and `audit-fail` stay un-fired/);
+  const route = verdict.slice(verdict.indexOf('## 5. Route'));
+  assert.match(route, /`unblock` then `build-done` re-audits/, 'and Route says how it re-audits');
+});
+
+test('every skill that fans out an agent names what a failed agent means, and a bare "No findings." reads as unverified', () => {
+  const read = (f) => flat(fs.readFileSync(path.join(ROOT, f), 'utf8'));
+  const doubt = read('skills/doubt-it/SKILL.md');
+  const reconcile = doubt.slice(doubt.indexOf('**Reconcile.**'), doubt.indexOf('**Stop.**'));
+  assert.match(reconcile, /errors, times out or returns nothing/);
+  assert.match(reconcile, /unverified/);
+  assert.doesNotMatch(reconcile, /None found: proceed/, 'a bare none-found no longer proceeds');
+  assert.match(read('skills/look-it-up/SKILL.md'), /errors, times out or returns no path/);
+  for (const f of ['skills/guard-it/SKILL.md', 'skills/review-it/SKILL.md']) assert.match(read(f), /unverified/i, f);
+  assert.match(read('skills/debug-it/SKILL.md'), /errored[^.]*tested nothing/);
+  assert.match(read('skills/review-it/SKILL.md'), /bare "No findings\."/);
+  assert.match(read('skills/prove-it/SKILL.md'), /bare "No findings\."/);
 });
 
 test('the architecture briefs carry the deletion test inline, and debug-it routes a missing seam', () => {

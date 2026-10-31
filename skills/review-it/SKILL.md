@@ -83,6 +83,8 @@ with one line per axis: how many findings, and the worst one on that axis.
 A reviewer that errors, times out, returns nothing or a report without the
 `## Report` shape is **unverified**, never "no findings": its section says
 `Unverified: <why>` and its closing line says unverified. A clean axis says
-what it read (the diff files, the spec lines), so "none" is evidence.
+what it read (the diff files, the spec lines), so "none" is evidence; the
+`## Report` shape has no field for that, so a bare "No findings." that says
+nothing of what was read is treated as unverified too.
 
 Called by `prove-it`: return the two sections; it writes the verdict.

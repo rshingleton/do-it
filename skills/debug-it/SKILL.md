@@ -70,7 +70,9 @@ been ruled out. If they are away, go with your ranking.
 
 Each probe tests one prediction and changes one thing. How to probe without
 leaving a mess, and the different approach for slowness:
-[INSTRUMENT.md](INSTRUMENT.md).
+[INSTRUMENT.md](INSTRUMENT.md). A probe that errored (the harness crashed, a
+delegated probe failed, a timeout) tested nothing: record the hypothesis as
+untested, never as ruled out.
 
 ## 5. Fix behind a test
 

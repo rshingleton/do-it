@@ -21,8 +21,12 @@ outside.
 4. **Reconcile.**
    - Counterexample: the claim is wrong or narrower. Restate it, fix the
      plan, and say what changed.
-   - None found: proceed, and name what the subagent could not check under
-     Not checked.
+   - None found, with what it checked listed: proceed, and name what the
+     subagent could not check under Not checked.
+   - A skeptic that errors, times out or returns nothing, or says "none found"
+     with no list of what it checked, is **unverified**, not none found. Start
+     it once more; still unverified: the claim is unproved, so say so under Not
+     checked and do not proceed as if it had been doubted.
 5. **Stop.** One round. A second round only when the first found a
    counterexample and the claim was restated.
 

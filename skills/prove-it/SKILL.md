@@ -55,8 +55,11 @@ the code alone; rejected ones move to **Not confirmed** and stop blocking.
 - Any confirmed **Must**: `FAIL`.
 - A review axis that is **unverified** (a reviewer that errored, timed out or
   returned nothing or malformed output: review-it's `Unverified:`, guard-it,
-  the Architecture reviewer) is no pass. Run that reviewer once more; still
-  unverified: return `blocked`, name the axis, never `audit-pass`.
+  the Architecture reviewer, or a bare "No findings." that says nothing of what
+  it read) is no pass. Run that reviewer once more (the same round: `run audit`
+  is not called again); still unverified: fire
+  `work.mjs event <id> block "<axis> unverified: <why>"`, return `blocked` and
+  name the axis. `audit-pass` and `audit-fail` stay un-fired.
 - Otherwise `PASS`.
 
 Lane S: findings go in chat and a short `## Audit` section appended to the
@@ -85,6 +88,9 @@ A refused event (the script exits 1) is `blocked`.
   count continues), accept with a recorded decision (add it to the plan's
   `## Decisions`, creating the section in a lane S plan, then `unblock` and
   `build-done` to re-audit), or re-plan (`replan`, then scope-it).
+- An axis still unverified after its retry: return `blocked` (the `block` event
+  above set `status: blocked` and the blocker). Once the cause is fixed,
+  `unblock` then `build-done` re-audits.
 
 Should and Nice findings never block. `ship-it` carries them into the
 changelog or ADR notes, and with no changelog offers to log them as
