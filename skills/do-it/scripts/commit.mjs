@@ -6,16 +6,17 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { git as spawnGit, gitOut, LITERAL } from './git.mjs';
+import { git, gitOut, LITERAL } from './git.mjs';
 import { showRun, setRun } from './run.mjs';
 
 export const ATTRIBUTION = 'Build assistance with do-it: https://github.com/rshingleton/do-it';
 
 // Every git call here runs with literal pathspecs: a named path is a file name, never a glob, so `src/*`
-// cannot stage what the slice did not map. `gitRun` is the shared wrapper's result, `git` its trimmed stdout
-// of a call that must succeed, `gitRaw` the same untrimmed (NUL-separated lists, megabytes of status).
-const gitRun = (cwd, args, input) => spawnGit(cwd, args, 'utf8', LITERAL, { input });
-const git = (cwd, args, input) => gitOut(cwd, args, LITERAL, input).trim();
+// cannot stage what the slice did not map. `git` is the shared wrapper, `gitResult` its result under LITERAL,
+// `gitText` the trimmed stdout of a call that must succeed, `gitRaw` the same untrimmed (NUL-separated lists,
+// megabytes of status).
+const gitResult = (cwd, args, input) => git(cwd, args, 'utf8', LITERAL, { input });
+const gitText = (cwd, args, input) => gitOut(cwd, args, LITERAL, input).trim();
 const gitRaw = (cwd, args, input) => gitOut(cwd, args, LITERAL, input);
 
 const lines = (s) => s.split('\n').filter(Boolean);
@@ -24,12 +25,12 @@ const lines = (s) => s.split('\n').filter(Boolean);
 export const relative = (root, p) => path.relative(root, path.resolve(root, p));
 
 function currentBranch(cwd) {
-  const r = gitRun(cwd, ['symbolic-ref', '--quiet', '--short', 'HEAD']);
+  const r = gitResult(cwd, ['symbolic-ref', '--quiet', '--short', 'HEAD']);
   return r.status === 0 ? r.stdout.trim() : null;
 }
 
 function branchExists(cwd, name) {
-  return gitRun(cwd, ['show-ref', '--verify', '--quiet', `refs/heads/${name}`]).status === 0;
+  return gitResult(cwd, ['show-ref', '--verify', '--quiet', `refs/heads/${name}`]).status === 0;
 }
 
 // The current branch when it is unprotected, else do-it/<roadmap-slug>,
@@ -44,20 +45,20 @@ function safeBranch(cwd, slug, protectedList) {
   if (now === name) return { name, undo: () => '' };
   const made = !branchExists(cwd, name);
   // Empty with no commit yet: then there is no branch tip to compare, and a detached start cannot exist.
-  const start = gitRun(cwd, ['rev-parse', '-q', '--verify', 'HEAD']).stdout.trim();
+  const start = gitResult(cwd, ['rev-parse', '-q', '--verify', 'HEAD']).stdout.trim();
   const from = now || start;
-  git(cwd, made ? ['switch', '-q', '-c', name] : ['switch', '-q', name]);
+  gitText(cwd, made ? ['switch', '-q', '-c', name] : ['switch', '-q', name]);
   return {
     name,
     undo() {
-      const back = gitRun(cwd, ['switch', '-q', '--no-guess', ...(now ? [] : ['--detach']), from]);
+      const back = gitResult(cwd, ['switch', '-q', '--no-guess', ...(now ? [] : ['--detach']), from]);
       // Still on the scratch branch: it cannot be deleted, and the caller is told where the repo is.
       if (back.status !== 0) return ` (could not switch back to ${now ?? from}, still on ${name}: ${back.stderr.trim()})`;
       if (!made) return '';
       // A hook that committed on the branch it was given leaves work there; only an untouched branch is removed.
-      const tip = gitRun(cwd, ['rev-parse', '-q', '--verify', `refs/heads/${name}`]).stdout.trim();
+      const tip = gitResult(cwd, ['rev-parse', '-q', '--verify', `refs/heads/${name}`]).stdout.trim();
       if (tip !== start) return ` (${name} gained commits and was kept)`;
-      gitRun(cwd, ['branch', '-q', '-D', name]);
+      gitResult(cwd, ['branch', '-q', '-D', name]);
       return '';
     },
   };
@@ -192,15 +193,15 @@ function assertCommittable({ root, run, slug, items, id, phase, docs, paths, ret
 // missing. Returns its result then, null when this is a first commit; anything else under that tag (a new
 // edit, another commit) throws, never skipped.
 function phaseAlreadyLanded({ root, run, tag, phase, subject, paths }) {
-  const rev = (ref) => gitRun(root, ['rev-parse', '-q', '--verify', ref]).stdout.trim();
+  const rev = (ref) => gitResult(root, ['rev-parse', '-q', '--verify', ref]).stdout.trim();
   const head = rev('HEAD');
   const tagged = tag && rev(`refs/tags/${tag}^{commit}`);
   const landed =
-    head && git(root, ['log', '-1', '--format=%s']) === subject && git(root, ['log', '-1', '--format=%B']).endsWith(ATTRIBUTION) &&
-    !git(root, ['status', '--porcelain', '--', ...paths]) &&
+    head && gitText(root, ['log', '-1', '--format=%s']) === subject && gitText(root, ['log', '-1', '--format=%B']).endsWith(ATTRIBUTION) &&
+    !gitText(root, ['status', '--porcelain', '--', ...paths]) &&
     gitRaw(root, ['show', '--no-renames', '--name-only', '--format=', '-z', 'HEAD']).split('\0').filter(Boolean).sort().join('\n') === [...new Set(paths.map((p) => relative(root, p)))].sort().join('\n');
   if (landed && (!tagged || tagged === head)) {
-    if (tag && !tagged) git(root, ['tag', tag, head]);
+    if (tag && !tagged) gitText(root, ['tag', tag, head]);
     return { commit: head, branch: currentBranch(root), tag, subject, limits: run.limits };
   }
   if (tagged) throw new Error(`phase ${phase} is already committed as ${tag}; nothing committed`);
@@ -214,30 +215,30 @@ export function commitSlice({ root, planningDir, config, items, slug, id, phase,
   const tag = phase === undefined ? null : `do-it/${id}/phase-${phase}`;
   const { subject, landed } = assertCommittable({ root, run, slug, items, id, phase, docs, paths, retry: (s) => phaseAlreadyLanded({ root, run, tag, phase, subject: s, paths }) });
   if (landed) return landed;
-  if (lines(git(root, ['diff', '--cached', '--name-only'])).length) throw new Error('the index already holds staged files; unstage them first');
+  if (lines(gitText(root, ['diff', '--cached', '--name-only'])).length) throw new Error('the index already holds staged files; unstage them first');
   for (const p of paths) {
-    if (!git(root, ['status', '--porcelain', '--', p])) throw new Error(`${p} has no change to commit`);
+    if (!gitText(root, ['status', '--porcelain', '--', p])) throw new Error(`${p} has no change to commit`);
   }
   const onto = safeBranch(root, slug, config.DO_IT_PROTECTED_BRANCHES);
   const body = limits.length ? `Verification limits:\n${limits.map((l) => `- ${l}`).join('\n')}` : null;
   const message = [subject, body, ATTRIBUTION].filter(Boolean).join('\n\n');
   try {
-    git(root, ['add', '--', ...paths]);
-    git(root, ['commit', '-q', '-F', '-'], message);
+    gitText(root, ['add', '--', ...paths]);
+    gitText(root, ['commit', '-q', '-F', '-'], message);
   } catch (e) {
-    gitRun(root, ['reset', '-q', '--', ...paths]);
+    gitResult(root, ['reset', '-q', '--', ...paths]);
     throw new Error(`${e.message}${onto.undo()}`);
   }
   // The run record follows the commit, so a rejected commit leaves it as it was.
   const branch = onto.name;
   if (run.branch !== branch) setRun(planningDir, slug, 'branch', branch);
   const known = limits.length ? setRun(planningDir, slug, 'limits', [...new Set([...run.limits, ...limits])]).limits : run.limits;
-  const sha = git(root, ['rev-parse', 'HEAD']);
+  const sha = gitText(root, ['rev-parse', 'HEAD']);
   // The commit has landed, so a tag that fails is reported with the commit, not as a failed commit; the
   // same call again finds the commit at HEAD and only tags it.
   if (tag) {
     try {
-      git(root, ['tag', tag, sha]);
+      gitText(root, ['tag', tag, sha]);
     } catch (e) {
       throw new Error(`committed ${sha} on ${branch} but ${e.message}; run the same command again to tag it`);
     }

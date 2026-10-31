@@ -1,18 +1,20 @@
 // A complete run's record: level, commit mode, branch, caps, per-slice state,
 // assumptions taken and verification limits. It lives at
-// <planning dir>/<roadmap-slug>.run/RUN.md. Every write goes through `updateRun`
-// here, whoever calls it (gate.mjs keeps its per-slice facts the same way).
+// <planning dir>/<roadmap-slug>.run/RUN.md. `createRun` writes the file once; every
+// later change goes through `updateRun`, whoever calls it (gate.mjs keeps its per-slice
+// facts the same way).
 // The directory has no README.md, so items.mjs never lists it as a work item.
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseBlock, writeBlock } from './block.mjs';
 import { splitFrontmatter, joinFrontmatter } from '../../track-it/scripts/frontmatter.mjs';
+import { isId } from './ids.mjs';
 
-export const LEVELS = ['lite', 'full', 'ultra'];
-export const COMMIT_MODES = ['phase', 'slice', 'none'];
-export const SLICE_STATUSES = ['shipped', 'parked', 'blocked'];
-export const NEEDS = ['user', 'decision'];
+const LEVELS = ['lite', 'full', 'ultra'];
+const COMMIT_MODES = ['phase', 'slice', 'none'];
+const SLICE_STATUSES = ['shipped', 'parked', 'blocked'];
+const NEEDS = ['user', 'decision'];
 const SETTABLE = ['level', 'commit', 'branch', 'max_slices', 'slice_cap_min', 'audit_cap', 'final_audit_cap', 'audit_total_cap', 'limits'];
 // Changing a cap puts every refusal marker back to unset, so lowering a cap to the value
 // it once refused at cannot revive an old refusal.
@@ -22,19 +24,8 @@ export function runPath(planningDir, slug) {
   return path.join(planningDir, `${slug}.run`, 'RUN.md');
 }
 
-// A slug or a work id: letters, digits, `_`, `.` and `-`, starting with a letter or digit.
-export const ID = '[A-Za-z0-9][A-Za-z0-9_.-]*';
-const ID_ONLY = new RegExp(`^${ID}$`);
-export const isId = (s) => typeof s === 'string' && ID_ONLY.test(s);
-
-// A recorded assumption or rejection, `<work id>#<n>` with an optional `: text`.
-export function splitKey(s) {
-  const m = new RegExp(`^(${ID})#(\\d+)(?:: (.*))?$`, 's').exec(s ?? '');
-  return m ? { id: m[1], n: Number(m[2]), text: m[3] } : null;
-}
-
 function checkSlug(slug) {
-  if (!slug || !ID_ONLY.test(slug)) throw new Error('run needs a roadmap slug (kebab-case)');
+  if (!isId(slug)) throw new Error('run needs a roadmap slug (kebab-case)');
 }
 
 // A positive whole number, or null where the cap is optional and unset.
@@ -84,7 +75,7 @@ function validate(key, value) {
   }
 }
 
-export function read(file, slug) {
+function read(file, slug) {
   let text;
   try {
     text = fs.readFileSync(file, 'utf8');
@@ -102,7 +93,7 @@ export function read(file, slug) {
 }
 
 // A temp file and a rename, as block.mjs does: a failed write leaves the old record whole.
-export function write(file, { record, body, eol }) {
+function write(file, { record, body, eol }) {
   const tmp = `${file}.${process.pid}.tmp`;
   try {
     fs.writeFileSync(tmp, joinFrontmatter(writeBlock(record), body, eol ?? '\n'));
@@ -180,7 +171,7 @@ export function setRun(planningDir, slug, key, value) {
 // `<id>#<n>: text` (n = its place in the item's own list, what reject-assumption
 // takes). Re-adding an id replaces that id's entries; other entries stay.
 export function addAssumptions(planningDir, slug, id, items) {
-  if (!id || !ID_ONLY.test(id)) throw new Error('run add-assumptions needs the work id');
+  if (!isId(id)) throw new Error('run add-assumptions needs the work id');
   list('assumptions', items);
   return updateRun(planningDir, slug, (r) => {
     // Rejections made against the list being replaced stay as history, marked so their keys cannot read

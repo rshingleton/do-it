@@ -7,8 +7,9 @@ import path from 'node:path';
 import { snapshot, treeDiff } from './changeset.mjs';
 import { dirtyHashes, relative } from './commit.mjs';
 import { checkWithRerun, gate, recordVerified } from './gate.mjs';
-import { git as spawnGit } from './git.mjs';
-import { rejectAssumption, showRun, sliceRun, splitKey } from './run.mjs';
+import { git } from './git.mjs';
+import { rejectAssumption, showRun, sliceRun } from './run.mjs';
+import { splitKey } from './ids.mjs';
 
 // `run gate`: the slice's gate result against the fingerprint of its work item now.
 // `fingerprintOf(item)` is the item's change since its base, planning files excluded.
@@ -67,15 +68,15 @@ export function runVerify({ planningDir, root, cwd, slug, id, opts, items, finge
 export function runReviewChange({ planningDir, root, slug, exclude }) {
   const { base, commit } = showRun(planningDir, slug);
   if (!base) return { base: null, mode: 'worktree', files: null, note: 'no base recorded: review the working tree' };
-  const git = (args) => spawnGit(root, args);
+  const inRoot = (args) => git(root, args);
   // A git that failed says nothing about the tree: it is an error, never "clean" or "no merge base".
   const must = (r, what) => {
     if (r.error || r.status !== 0) throw new Error(`${what} failed: ${(r.error?.message || r.stderr).trim()}`);
     return r.stdout.trim();
   };
-  const dirty = must(git(['status', '--porcelain', '-uall', '--', '.', ...exclude.map((p) => `:(exclude,literal)${p}`)]), 'git status');
+  const dirty = must(inRoot(['status', '--porcelain', '-uall', '--', '.', ...exclude.map((p) => `:(exclude,literal)${p}`)]), 'git status');
   if (commit === 'none' || dirty) return { base, mode: 'worktree', ...treeDiff(root, base, snapshot(root, { exclude }), { exclude }) };
-  const mb = git(['merge-base', base, 'HEAD']);
+  const mb = inRoot(['merge-base', base, 'HEAD']);
   // Exit 1 is no common ancestor (rewritten history): review from the base itself.
   const from = mb.status === 1 ? base : must(mb, 'git merge-base');
   return { base, mode: 'range', ...treeDiff(root, from, 'HEAD', { exclude }) };

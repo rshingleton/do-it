@@ -675,11 +675,20 @@ test('gate.mjs holds the rule and counters only: the run handlers live in runs.m
 
 test('the run scripts carry one id pattern, one git spawn and one record writer', () => {
   const dir = path.join(ROOT, 'skills/do-it/scripts');
-  const sources = Object.fromEntries(fs.readdirSync(dir).filter((f) => f.endsWith('.mjs')).map((f) => [f, fs.readFileSync(path.join(dir, f), 'utf8')]));
+  // Whole-line and trailing `//` comments are stripped first, so a note that quotes a pattern cannot satisfy
+  // or fail the check. No block-comment strip: these scripts have none, and a string like 'a/*/b' would open one.
+  const code = (text) => text.replace(/^\s*\/\/.*$/gm, '').replace(/\s\/\/\s.*$/gm, '');
+  const sources = Object.fromEntries(fs.readdirSync(dir).filter((f) => f.endsWith('.mjs')).map((f) => [f, code(fs.readFileSync(path.join(dir, f), 'utf8'))]));
   const files = (re) => Object.keys(sources).filter((f) => re.test(sources[f]));
-  assert.deepEqual(files(/\[A-Za-z0-9\]\[A-Za-z0-9_\.-\]/), ['run.mjs'], 'the id pattern is written once');
-  assert.deepEqual(files(/spawnSync\('git'/), ['git.mjs'], 'git is spawned in one place');
+  assert.deepEqual(files(/\[A-Za-z0-9\]\[A-Za-z0-9_\.-\]/), ['ids.mjs'], 'the id pattern is written once');
+  assert.deepEqual(files(/spawnSync\(['"]git['"]/), ['git.mjs'], 'git is spawned in one place');
   assert.deepEqual(files(/\bwrite\(file, /), ['run.mjs'], 'only run.mjs writes the record');
+  assert.deepEqual(files(/\bgit as \w+/), [], 'the shared git helper is imported unaliased in every script');
+  // Nothing outside run.mjs imports its internals, and run.mjs exports only what something imports.
+  const exported = [...sources['run.mjs'].matchAll(/^export (?:async )?(?:function|const) (\w+)/gm)].map((m) => m[1]);
+  const others = Object.entries(sources).filter(([f]) => f !== 'run.mjs').map(([, t]) => t).join('\n');
+  const unused = exported.filter((name) => !new RegExp(`\\b${name}\\b`).test(others));
+  assert.deepEqual(unused, [], 'run.mjs has no unused export');
 });
 
 test('the docs name the do-it commit line as the ATTRIBUTION constant, and finish-it maps the level argument to run new --level', () => {

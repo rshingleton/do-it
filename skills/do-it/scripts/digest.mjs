@@ -2,7 +2,7 @@
 // Pure: work.mjs gathers the git tags and the optional inputs. No estimates of
 // time or money; every figure is a count or a value read from the record.
 
-import { ID, splitKey } from './run.mjs';
+import { ID, splitKey } from './ids.mjs';
 
 // The only tag the digest prints: `do-it/<work id>/phase-<n>`, as the run commit makes it.
 const TAG = new RegExp(`^do-it/${ID}/phase-\\d+$`);

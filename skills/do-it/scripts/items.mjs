@@ -13,7 +13,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { allowedEvents, emptyBlock, normalize, transition } from './state.mjs';
 import { readItem, writeItem } from './block.mjs';
-import { isId } from './run.mjs';
+import { isId } from './ids.mjs';
 
 const SETTABLE = ['title', 'lane', 'tracker', 'sources', 'roadmap', 'todo', 'blocked_by', 'phases', 'assumptions', 'defects'];
 const LANE_RANK = { s: 1, m: 2 };

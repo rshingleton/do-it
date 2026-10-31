@@ -9,7 +9,10 @@ export const LITERAL = { ...process.env, GIT_LITERAL_PATHSPECS: '1' };
 
 const MAX_OUT = 512 * 1024 * 1024;
 
-// `limits` are spawnSync options (`input`, `timeout`, `maxBuffer`, `stdio`). Throws when git cannot run.
+// `limits` are spawnSync options (`input`, `timeout`, `maxBuffer`, `stdio`). Throws when git cannot run
+// (not installed, or the cwd is gone): callers that read a failed status as a plain answer (roadmap.mjs
+// `isTracked`, work.mjs `baseRef` and `digest`, the commit rollback) let that propagate on purpose, since a
+// missing git is a broken install and no state to recover from.
 export function git(cwd, args, encoding = 'utf8', env = process.env, limits = {}) {
   const r = spawnSync('git', args, { cwd, encoding, env, maxBuffer: MAX_OUT, ...limits });
   if (r.error) throw r.error;
