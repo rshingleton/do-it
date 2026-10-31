@@ -2,7 +2,11 @@
 // Summarise recorded token usage (default last 30 days): node skills/usage-it/scripts/usage.mjs [--days N | --hours N] [--by agent|model|day|month|project] [--json]
 //   node skills/usage-it/scripts/usage.mjs --import   first backfill the last N days from ~/.claude/projects
 //   --from <iso> --to <iso>   only tokens in that window (bounds inclusive), e.g. one step of a work item; a run is cut
-//                at the edge by its 15-minute buckets, and an older run without buckets counts whole by its last message
+//                at the edge by its 15-minute buckets (an edge off a quarter hour can move up to 7.5 minutes of
+//                tokens across it), and a run without buckets counts whole by its last message. The run itself
+//                counts once, in the window that holds its first bucket; `--by day|month` groups a share by the
+//                run's start day, so a multi-day run cut by a window sits under the day it started. `--json` rows
+//                carry `whole`, the runs counted whole in that row
 //   --snapshot   take Claude Code's cached /usage reading now and print the pace; or give one by hand:
 //                --snapshot --week <pct> --resets <iso> [--session <pct>] [--at <iso>]
 //   --baseline   what do-it adds to every session, beside the median start context recorded
@@ -47,7 +51,7 @@ if ((from && Number.isNaN(Date.parse(from))) || (to && Number.isNaN(Date.parse(t
 const [fromMs, toMs] = from || to ? [from, to].map((v) => (v ? Date.parse(v) : null)) : hours > 0 ? [Date.now() - hours * 3600000, null] : [null, null];
 const windowed = fromMs !== null || toMs !== null;
 const all = readAll(usageDir()).map(localized);
-const { recs, whole } = windowed ? inWindow(all, fromMs, toMs) : { recs: all.filter((r) => r.day >= cutoff), whole: 0 };
+const { recs, whole, partial } = windowed ? inWindow(all, fromMs, toMs) : { recs: all.filter((r) => r.day >= cutoff), whole: 0, partial: 0 };
 
 
 if (args.includes('--snapshot') && opt('week', null) === null) {
@@ -96,8 +100,9 @@ if (args.includes('--baseline')) {
 const groups = new Map();
 for (const r of recs) {
   const key = (by === 'month' ? r.day.slice(0, 7) : r[by]) ?? 'unknown';
-  const g = groups.get(key) ?? { [by]: key, runs: 0, turns: 0, in: 0, out: 0, cr: 0, cc: 0 };
+  const g = groups.get(key) ?? { [by]: key, runs: 0, turns: 0, in: 0, out: 0, cr: 0, cc: 0, whole: 0 };
   g.runs += r.runs ?? 1;
+  if (r.wholeKind) g.whole += 1; // runs counted whole in a window (no buckets), so a JSON reader sees them too
   for (const f of ['turns', 'in', 'out', 'cr', 'cc']) g[f] += r[f] ?? 0;
   groups.set(key, g);
 }
@@ -116,4 +121,5 @@ if (args.includes('--json')) {
   console.log(line(cols));
   for (const r of body) console.log(line(r));
   if (whole) console.log(`window: ${whole} run(s) recorded before time buckets existed count whole, by their last message`);
+  if (partial) console.log(`window: ${partial} run(s) with a message that had no time count whole, by their last message`);
 }

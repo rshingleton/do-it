@@ -79,10 +79,17 @@ export function addToBucket(buckets, ms, [i, o, cr, cc]) {
 
 // What a record contributes inside [fromMs, toMs] (null: open): the buckets whose midpoint is inside, or the
 // whole record when it has none and its last message is inside. Null when nothing falls in. A bucket belongs
-// to the one window that holds its midpoint, so adjacent windows never count it twice, and an edge that is
-// not on a bucket boundary can move up to 7.5 minutes of tokens across it. A window narrower than a bucket
-// that holds no midpoint counts the buckets it overlaps instead, so a short step is never empty.
+// to the one window that holds its midpoint, so adjacent windows never count its tokens twice, and an edge that
+// is not on a bucket boundary can move up to 7.5 minutes of tokens across it. The run itself (`runs`) counts in
+// the window that holds its first bucket's midpoint and as 0 in the others, so adjacent windows report one run.
+// A window narrower than a bucket that holds no midpoint counts the buckets it overlaps instead, so a short step
+// is never empty.
 // shortcut: 15-minute resolution at a window edge, upgrade to per-message times if a finer cut matters.
+// shortcut: two adjacent windows shorter than 15 minutes can both count the bucket they overlap (and its run),
+// and two windows sharing an inclusive bound both count a bucket whose midpoint is that bound; upgrade with the
+// per-message times above.
+// shortcut: a record without buckets counts whole, by its last message, in the one window that holds it;
+// upgrade by backfilling buckets if old records matter.
 export function windowShare(r, fromMs, toMs) {
   const inside = (t) => Number.isFinite(t) && (fromMs === null || t >= fromMs) && (toMs === null || t <= toMs);
   if (r.buckets && typeof r.buckets === 'object') {
@@ -90,28 +97,35 @@ export function windowShare(r, fromMs, toMs) {
     const start = (key) => Date.parse(`${key}:00Z`);
     let pick = keys.filter((key) => inside(start(key) + BUCKET_MS / 2));
     if (!pick.length && fromMs !== null && toMs !== null && toMs - fromMs < BUCKET_MS) pick = keys.filter((key) => start(key) <= toMs && start(key) + BUCKET_MS > fromMs);
-    const s = { in: 0, out: 0, cr: 0, cc: 0, turns: 0, whole: false };
+    const s = { in: 0, out: 0, cr: 0, cc: 0, turns: 0, runs: 0, whole: null };
+    const home = keys.length ? Math.min(...keys.map(start)) : null;
+    if (pick.some((key) => start(key) === home)) s.runs = r.runs ?? 1;
     for (const key of pick) {
       const v = r.buckets[key];
       [s.in, s.out, s.cr, s.cc, s.turns] = [s.in + v[0], s.out + v[1], s.cr + v[2], s.cc + v[3], s.turns + v[4]];
     }
     return s.turns ? s : null;
   }
-  return inside(Date.parse(r.at)) ? { in: r.in ?? 0, out: r.out ?? 0, cr: r.cr ?? 0, cc: r.cc ?? 0, turns: r.turns ?? 0, whole: true } : null;
+  // `whole` says why: 'partial' (written with buckets withheld because a message lacked a time) or 'old' (written before buckets).
+  return inside(Date.parse(r.at)) ? { in: r.in ?? 0, out: r.out ?? 0, cr: r.cr ?? 0, cc: r.cc ?? 0, turns: r.turns ?? 0, runs: r.runs ?? 1, whole: r.partial ? 'partial' : 'old' } : null;
 }
 
 // The records' shares inside the window as records with those counts, and how many were counted whole
-// (no buckets) so a report can say so. Rolled-up rows carry no time and drop out.
+// (no buckets) so a report can say so: `whole` for records written before buckets existed, `partial` for ones
+// with a message that lacked a time. Each share carries `wholeKind` for per-row counts. Rolled-up rows carry no
+// time and drop out.
 export function inWindow(recs, fromMs, toMs) {
   const out = [];
   let whole = 0;
+  let partial = 0;
   for (const r of recs) {
     const s = windowShare(r, fromMs, toMs);
     if (!s) continue;
-    if (s.whole) whole += 1;
-    out.push({ ...r, in: s.in, out: s.out, cr: s.cr, cc: s.cc, turns: s.turns });
+    if (s.whole === 'old') whole += 1;
+    if (s.whole === 'partial') partial += 1;
+    out.push({ ...r, in: s.in, out: s.out, cr: s.cr, cc: s.cc, turns: s.turns, runs: s.runs, wholeKind: s.whole });
   }
-  return { recs: out, whole };
+  return { recs: out, whole, partial };
 }
 
 // Transcripts repeat an API message once per content block with the same
@@ -294,6 +308,7 @@ export function trackUsage(kind, input, { dir = usageDir(), days = keepDays(), r
   };
   // Only when every message carried a time: a partial set would drop tokens from the windows.
   if (Object.values(total.buckets).reduce((n, b) => n + b[4], 0) === total.turns) rec.buckets = total.buckets;
+  else rec.partial = true; // windows count this run whole, by its last message, and say so
   if (!rec.id || rec.day < cutoffDay(days, now)) return null; // already rolled up, or about to be
   const prevPeak = existing(dir, rec.day, rec.id)?.peak ?? null;
   record(dir, rec);
@@ -348,7 +363,7 @@ export function tokensBetween(dir, fromMs, toMs) {
   for (const r of inWindow(readAll(dir), fromMs, toMs).recs) {
     const m = String(r.model ?? '');
     const f = (out[m.includes('opus') ? 'opus' : m.includes('haiku') ? 'haiku' : m.includes('sonnet') ? 'sonnet' : 'other'] ??= { runs: 0, in: 0, out: 0, cr: 0, cc: 0 });
-    f.runs += 1;
+    f.runs += r.runs ?? 1;
     for (const k of ['in', 'out', 'cr', 'cc']) f[k] += r[k] ?? 0;
   }
   return out;

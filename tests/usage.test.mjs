@@ -545,7 +545,41 @@ test('a run recorded before buckets existed counts whole in the window of its la
   assert.equal(windowed(dir, '--from', '2026-10-22T03:00:00Z', '--to', '2026-10-22T06:00:00Z')[0].out, 150);
 });
 
-test('a window narrower than a bucket still finds the run, and adjacent windows never count a bucket twice', () => {
+test('a transcript with a message that has no time is recorded without buckets and marked partial', () => {
+  const dir = tmp();
+  const file = path.join(dir, 't.jsonl');
+  fs.writeFileSync(file, [stamped('a', 10, '2026-10-22T03:01:00.000Z'), line('b', 20, { timestamp: null }), stamped('c', 40, '2026-10-22T03:20:00.000Z')].join('\n'));
+  trackUsage('session', { session_id: 's3', transcript_path: file, cwd: '/p' }, { dir, now: new Date('2026-10-22T05:00:00Z') });
+  const [rec] = readAll(dir);
+  assert.equal(rec.buckets, undefined);
+  assert.equal(rec.partial, true);
+});
+
+test('two adjacent windows over one run report one run, and tokens and turns still add up', () => {
+  const dir = straddler();
+  const [rec] = readAll(dir);
+  const before = windowed(dir, '--from', '2026-10-22T00:00:00Z', '--to', '2026-10-22T02:59:59Z')[0];
+  const after = windowed(dir, '--from', '2026-10-22T03:00:00Z', '--to', '2026-10-22T06:00:00Z')[0];
+  assert.equal(before.runs + after.runs, 1, 'one run across the two windows');
+  assert.equal(before.runs, 1, 'it counts where it started');
+  assert.equal(before.turns + after.turns, rec.turns);
+});
+
+test('a record with timestamps never gets the before-buckets label; a record written without them says why', () => {
+  const dir = straddler();
+  const env = { ...process.env, DO_IT_USAGE_DIR: dir };
+  const text = execFileSync('node', [USAGE, '--by', 'agent', '--from', '2026-10-22T00:00:00Z', '--to', '2026-10-22T06:00:00Z'], { env, encoding: 'utf8' });
+  assert.doesNotMatch(text, /before time buckets|had no time/);
+  assert.equal(windowed(dir, '--from', '2026-10-22T00:00:00Z', '--to', '2026-10-22T06:00:00Z')[0].whole, 0, '--json carries the whole-run count');
+  // A new record with one message lacking a time keeps no buckets and is marked partial, not "old".
+  record(dir, { id: 'half', kind: 'session', agent: 'main', model: 'claude-sonnet-5-5', project: 'p', day: '2026-10-22', start: '2026-10-22T02:10:00.000Z', at: '2026-10-22T03:50:00.000Z', turns: 4, in: 8, out: 150, cr: 400, cc: 40, partial: true });
+  const half = execFileSync('node', [USAGE, '--by', 'agent', '--from', '2026-10-22T00:00:00Z', '--to', '2026-10-22T06:00:00Z'], { env, encoding: 'utf8' });
+  assert.match(half, /1 run\(s\) with a message that had no time/);
+  assert.doesNotMatch(half, /before time buckets/);
+  assert.equal(windowed(dir, '--from', '2026-10-22T00:00:00Z', '--to', '2026-10-22T06:00:00Z')[0].whole, 1);
+});
+
+test('a window narrower than a bucket still finds the run, and adjacent windows split a bucket by its midpoint', () => {
   const dir = tmp();
   const file = path.join(dir, 't.jsonl');
   fs.writeFileSync(file, [stamped('a', 10, '2026-10-22T03:01:00.000Z'), stamped('b', 20, '2026-10-22T03:05:00.000Z'), stamped('c', 40, '2026-10-22T03:20:00.000Z')].join('\n'));
@@ -555,6 +589,9 @@ test('a window narrower than a bucket still finds the run, and adjacent windows 
   assert.equal(windowed(dir, '--from', '2026-10-22T03:02:00Z', '--to', '2026-10-22T03:08:00Z')[0].out, 30);
   assert.equal(windowed(dir, '--from', '2026-10-22T03:00:30Z', '--to', '2026-10-22T03:02:00Z')[0].out, 30, 'a short window with no midpoint counts the bucket it overlaps');
   assert.equal(windowed(dir, '--from', '2026-10-22T03:30:00Z', '--to', '2026-10-22T03:40:00Z').length, 0, 'a short window the run never spoke in stays empty');
+  // The midpoint rule, not a start rule: a 15-minute window that holds the 03:00 bucket's start but not its
+  // midpoint (03:07:30) is not short, so it has no overlap fallback and stays empty.
+  assert.equal(windowed(dir, '--from', '2026-10-22T02:50:00Z', '--to', '2026-10-22T03:05:00Z').length, 0, 'the bucket belongs to the window holding its midpoint');
   // Two adjacent windows split at an arbitrary instant: every bucket lands in exactly one of them.
   const left = windowed(dir, '--from', '2026-10-22T00:00:00Z', '--to', '2026-10-22T03:12:00Z')[0]?.out ?? 0;
   const right = windowed(dir, '--from', '2026-10-22T03:12:00.001Z', '--to', '2026-10-22T06:00:00Z')[0]?.out ?? 0;

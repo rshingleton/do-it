@@ -93,8 +93,15 @@ nothing to the model's context. `DO_IT_CLEAR_AT` sets the size; `0` turns it off
 
 `usage.mjs --baseline` prints what do-it adds to every session (the session-start
 block, `CLAUDE.md` and `AGENTS.md`, the invocable skill descriptions) beside the
-median start context recorded. `usage.mjs --from <iso> --to <iso>` (or `--hours`) limits any
-summary to the tokens in that window, so a step's usage is its start and end time with `--by agent`;
-a run straddling an edge is cut there by its 15-minute buckets, an older run without them counts whole and the output says so.
+median start context recorded. `usage.mjs --from <iso> --to <iso>` (or `--hours`)
+limits any summary to the tokens in that window, so a step's usage is its start
+and end time with `--by agent`.
+A run straddling an edge is cut there by its 15-minute buckets, so an edge off a
+quarter hour can move up to 7.5 minutes of tokens across it, and a window
+shorter than 15 minutes counts the buckets it overlaps (two adjacent short
+windows can both report one). The run counts once: in the window that holds its
+first bucket, as 0 in the others. `--by day|month` groups a share by the run's
+start day. A run without buckets counts whole by its last message, and the
+output says so (`--json` rows carry `whole`, the runs counted whole in that row).
 
 For a quick table instead of a page: `usage.mjs --days N --by agent|model|day|month|project`.
