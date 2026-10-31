@@ -72,7 +72,7 @@ Exit: every remaining audit case has a test or a decision, and nothing on the to
 
 | Slice | Kind | Delivers | Covers | Blocked by | Verify | Risk | Status |
 |-------|------|----------|--------|------------|--------|------|--------|
-| R18 | build | review-it and sweep-it report an errored, timed-out or malformed reviewer as unverified, and a clean or Healthy verdict needs coverage evidence (T173) | G7 | none | A fixture with one failed reviewer reports unverified; routing eval still passes | med | |
+| R18 | build | review-it and sweep-it report an errored, timed-out or malformed reviewer as unverified, and a clean or Healthy verdict needs coverage evidence (T173) | G7 | none | A fixture with one failed reviewer reports unverified; routing eval still passes | med | shipped 2026-10-30 r18-unverified-reviewers, Verify met in text: the skills say it, a text test pins them (a reviewer agent is not run by a fixture) |
 | R19 | build | One copy-and-spawn test runner serves the eval-routing and `check.mjs` tests; the in-hunk `+++ <path>` case and the R1 guard subdirectory and glob cases are pinned (T131, T134, T154) | G6 | none | Each new test fails when its guard is broken on purpose | low | |
 | R20 | spike | Walk a swept fixture roadmap to every decision in a legal state, and a non-interactive scope-it plan with no question turn; findings go to log-it (T153) | G6 | R2 (loop text settled) | Both walkthroughs recorded; each defect filed or fixed | med | |
 | R21 | build | design-it pointer decision for the prove-it Architecture brief and sweep-it LENSES item 8, and debug-it's "no honest seam" finding routed (T107, T7) | G7 | none | The decided sentence is inline or the link is kept with the reason recorded; `npm run check` passes | low | |
@@ -120,3 +120,4 @@ Exit: every remaining audit case has a test or a decision, and nothing on the to
 - 2026-10-30: R15 shipped (r15-reopened-note).
 - 2026-10-30: R16 shipped (r16-adr-accepted), D2 applied: offer a writes ADRs `accepted`.
 - 2026-10-30: R17 shipped (r17-finalize-pins).
+- 2026-10-30: R18 shipped (r18-unverified-reviewers).
