@@ -1,6 +1,7 @@
 ---
 title: Should backlog 2026-10
 approved: 2026-10-31
+completed: 2026-10-31
 ---
 
 # Should backlog 2026-10
@@ -74,3 +75,20 @@ Exit: no fan-out skill reads an errored agent as clean, and the usage-it window 
 - 2026-10-31 Decision: a swept decision moves to Decisions so far, and `ask-when-reached` slices show in `run next` `defects` (T205).
 - 2026-10-31 Decision: `audit_stop` is cleared when `run slice <id> ready` names that slice (T184).
 - 2026-10-31 Decision: one slice at a time in id order, no tracker publish.
+
+## Shipped
+- 2026-10-31: R1 shipped (sb-r1-sweep-decisions): a swept decision leaves Open decisions and `run next` lists `defects` (T205).
+- 2026-10-31: R2 shipped (sb-r2-fingerprint-docs): the change fingerprint ignores the roadmap file, the to-do list and ADRs (T206).
+- 2026-10-31: R3 shipped (sb-r3-verify-state): `verify-phase` on a non-building item says why and what to do, before any check (T207).
+- 2026-10-31: R4 shipped (sb-r4-verified-paths): `run verify --paths` records only the slice's files (T159).
+- 2026-10-31: R5 shipped (sb-r5-verified-leftovers): NUL split, 755/644 modes, submodule state, named record errors, `\r` names, a smaller 1 MB test (T188).
+- 2026-10-31: R6 shipped (sb-r6-commit-retries): deduped retry path sets, retry ahead of the verify compare, outside-root check in every lane (T189).
+- 2026-10-31: R7 shipped (sb-r7-audit-cap-leftovers): `audit_stop` cleared on resume, record-level marker tests, old records gate, `gate` no longer writes (T184).
+- 2026-10-31: R8 shipped (sb-r8-assumption-bookkeeping): reject by id first, equal texts left alone once lists differ, `earlier` marks, `sweep` reserved (T196).
+- 2026-10-31: R9 shipped (sb-r9-loop-text): finish-it placeholder, `--phase` and round-count text, a stricter `closesEarly` (T165, T186).
+- 2026-10-31: R10 shipped (sb-r10-state-run-row): `STATE.md` run row: `retries`, marker clearing, `audit` fields, `building` plans (T187).
+- 2026-10-31: R11 shipped (sb-r11-one-copy): `ids.mjs`, no unused `run.mjs` exports, one `git` name, a structure test that strips comments (T194).
+- 2026-10-31: R12 shipped (sb-r12-digest-leftovers): every digest bullet folded to one line, shipped-with-reason pinned (T195).
+- 2026-10-31: R13 shipped (sb-r13-roadmap-lifecycle): FINALIZE Paths and run mode, one word for replan, `reopened` for a decision opened later (T198, T199).
+- 2026-10-31: R14 shipped (sb-r14-unverified-reviewers): an errored reviewer or bare "No findings." reads as unverified; prove-it fires `block` (T203, T204).
+- 2026-10-31: R15 shipped (sb-r15-usage-windows): one run across adjacent windows, `partial` label, `--json` `whole`, stated limits (T209).
