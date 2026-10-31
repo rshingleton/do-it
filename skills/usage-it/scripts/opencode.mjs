@@ -113,9 +113,9 @@ export function createOpenCodeUsage({ dir = usageDir(), cwd = process.cwd(), pru
       if (info?.role !== 'assistant' || !info.time?.completed) return;
       add(info.sessionID, info.id, info.tokens, info.time.completed, { agent: info.agent, model: info.modelID });
     },
-    'session.step.ended': (p) => {
+    'session.step.ended': (p, ev) => {
       const known = runs.get(p.sessionID);
-      add(p.sessionID, p.assistantMessageID, p.tokens, p.time ?? p.at, { agent: known?.agent, model: known?.model });
+      add(p.sessionID, p.assistantMessageID, p.tokens, p.time ?? p.at ?? ev?.created, { agent: known?.agent, model: known?.model });
     },
   };
 
@@ -132,8 +132,9 @@ export function createOpenCodeUsage({ dir = usageDir(), cwd = process.cwd(), pru
     },
     event(ev) {
       try {
-        const p = ev?.properties ?? ev ?? {};
-        handlers[ev?.type]?.(p);
+        // v1 nests the payload in `properties`, v2 in `data` beside the envelope's `created`.
+        const p = ev?.properties ?? ev?.data ?? ev ?? {};
+        handlers[ev?.type]?.(p, ev);
       } catch {}
     },
   };

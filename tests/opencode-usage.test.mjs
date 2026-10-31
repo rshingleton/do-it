@@ -228,3 +228,16 @@ test('an OpenCode run keeps its tokens in 15-minute buckets that add up to the r
   const sum = Object.values(row.buckets).reduce((s, b) => s.map((n, i) => n + b[i]), [0, 0, 0, 0, 0]);
   assert.deepEqual(sum, [row.in, row.out, row.cr, row.cc, row.turns]);
 });
+
+test('a v2 step.ended keeps its payload under data and its time on the envelope', () => {
+  const dir = tmp();
+  const usage = createOpenCodeUsage({ dir, cwd: '/x/proj' });
+  // Shape captured from a live OpenCode 2.1.2 session.
+  usage.event({
+    id: 'evt_1', created: NOW - 2000, type: 'session.step.ended',
+    durable: { aggregateID: 's7', seq: 13, version: 1 },
+    data: { sessionID: 's7', assistantMessageID: 'msg_1', finish: 'stop', cost: 0.0026, tokens: { input: 3, output: 7, reasoning: 12, cache: { read: 0, write: 10297 } }, files: [] },
+  });
+  const r = rowsOf(dir).s7;
+  assert.deepEqual([r.turns, r.in, r.out, r.cr, r.cc, r.at], [1, 3, 19, 0, 10297, new Date(NOW - 2000).toISOString()]);
+});
