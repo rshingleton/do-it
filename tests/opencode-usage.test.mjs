@@ -219,3 +219,12 @@ test('a subscribe stream that throws fails open', async () => {
   }
   assert.match(seen, /usage failed open: stream down/);
 });
+
+test('an OpenCode run keeps its tokens in 15-minute buckets that add up to the row', () => {
+  const dir = tmp();
+  const usage = createOpenCodeUsage({ dir, cwd: '/x/proj' });
+  for (const e of v1Stream()) usage.event(e);
+  const row = rowsOf(dir)['s-main'];
+  const sum = Object.values(row.buckets).reduce((s, b) => s.map((n, i) => n + b[i]), [0, 0, 0, 0, 0]);
+  assert.deepEqual(sum, [row.in, row.out, row.cr, row.cc, row.turns]);
+});

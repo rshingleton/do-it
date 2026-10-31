@@ -93,8 +93,8 @@ nothing to the model's context. `DO_IT_CLEAR_AT` sets the size; `0` turns it off
 
 `usage.mjs --baseline` prints what do-it adds to every session (the session-start
 block, `CLAUDE.md` and `AGENTS.md`, the invocable skill descriptions) beside the
-median start context recorded. `usage.mjs --from <iso> --to <iso>` limits any
-summary to runs that ended in that window, so a step's usage is its start and end
-time with `--by agent`.
+median start context recorded. `usage.mjs --from <iso> --to <iso>` (or `--hours`) limits any
+summary to the tokens in that window, so a step's usage is its start and end time with `--by agent`;
+a run straddling an edge is cut there by its 15-minute buckets, an older run without them counts whole and the output says so.
 
 For a quick table instead of a page: `usage.mjs --days N --by agent|model|day|month|project`.

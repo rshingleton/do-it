@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Summarise recorded token usage (default last 30 days): node skills/usage-it/scripts/usage.mjs [--days N | --hours N] [--by agent|model|day|month|project] [--json]
 //   node skills/usage-it/scripts/usage.mjs --import   first backfill the last N days from ~/.claude/projects
-//   --from <iso> --to <iso>   only runs that ended in that window (bounds inclusive), e.g. one step of a work item
+//   --from <iso> --to <iso>   only tokens in that window (bounds inclusive), e.g. one step of a work item; a run is cut
+//                at the edge by its 15-minute buckets, and an older run without buckets counts whole by its last message
 //   --snapshot   take Claude Code's cached /usage reading now and print the pace; or give one by hand:
 //                --snapshot --week <pct> --resets <iso> [--session <pct>] [--at <iso>]
 //   --baseline   what do-it adds to every session, beside the median start context recorded
@@ -11,7 +12,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { baselineSizes, tokens, MCP_NOTE } from './baseline.mjs';
 import { contextOutliers } from './outliers.mjs';
-import { autoSnapshot, importTranscripts, localDay, localized, projectWeek, readAll, readSnapshots, recordSnapshot, refreshUtilization, tokensBetween, usageDir } from './ledger.mjs';
+import { autoSnapshot, importTranscripts, inWindow, localDay, localized, projectWeek, readAll, readSnapshots, recordSnapshot, refreshUtilization, tokensBetween, usageDir } from './ledger.mjs';
 
 const args = process.argv.slice(2);
 const opt = (name, fallback) => {
@@ -33,8 +34,8 @@ if (args.includes('--import')) {
 }
 
 const cutoff = localDay(new Date(Date.now() - (days - 1) * 86400000)); // local calendar days
-// --hours filters on when a run ended; rolled-up rows carry no time and drop out.
-const since = hours > 0 ? new Date(Date.now() - hours * 3600000).toISOString() : null;
+// --hours and --from/--to cut a run at the window edge by its 15-minute buckets; a run recorded before
+// buckets existed counts whole by its last message. Rolled-up rows carry no time and drop out.
 const from = opt('from', null);
 const to = opt('to', null);
 if ((from && Number.isNaN(Date.parse(from))) || (to && Number.isNaN(Date.parse(to)))) {
@@ -43,9 +44,10 @@ if ((from && Number.isNaN(Date.parse(from))) || (to && Number.isNaN(Date.parse(t
 }
 // A window replaces the day cutoff; rolled-up rows carry no time and drop out.
 // Compared as times, not strings: a bound written without milliseconds sorts after the ledger's own.
-const [fromMs, toMs] = [from, to].map((v) => (v ? Date.parse(v) : null));
-const inRange = (r) => (from || to ? Boolean(r.at) && (fromMs === null || Date.parse(r.at) >= fromMs) && (toMs === null || Date.parse(r.at) <= toMs) : since ? r.at >= since : r.day >= cutoff);
-const recs = readAll(usageDir()).map(localized).filter(inRange);
+const [fromMs, toMs] = from || to ? [from, to].map((v) => (v ? Date.parse(v) : null)) : hours > 0 ? [Date.now() - hours * 3600000, null] : [null, null];
+const windowed = fromMs !== null || toMs !== null;
+const all = readAll(usageDir()).map(localized);
+const { recs, whole } = windowed ? inWindow(all, fromMs, toMs) : { recs: all.filter((r) => r.day >= cutoff), whole: 0 };
 
 
 if (args.includes('--snapshot') && opt('week', null) === null) {
@@ -69,7 +71,7 @@ if (args.includes('--snapshot')) {
     console.error('usage: usage.mjs --snapshot --week <0-100> --resets <ISO with offset, e.g. 2026-10-28T02:59:00-04:00> [--session <0-100>] [--at <ISO>]');
     process.exit(2);
   }
-  // Tokens on this host since the week began (a run that straddles the reset counts whole).
+  // Tokens on this host since the week began (a run that straddles the reset is cut by its buckets).
   const tokens = tokensBetween(usageDir(), Date.parse(resetsAt) - 7 * 86400000, Date.parse(at));
   const session = opt('session', null);
   recordSnapshot(usageDir(), { at: new Date(at).toISOString(), weekPct, sessionPct: session === null ? null : Number(session), resetsAt: new Date(resetsAt).toISOString(), tokens });
@@ -113,4 +115,5 @@ if (args.includes('--json')) {
   const line = (r) => r.map((v, i) => (i ? v.padStart(w[i]) : v.padEnd(w[i]))).join('  ');
   console.log(line(cols));
   for (const r of body) console.log(line(r));
+  if (whole) console.log(`window: ${whole} run(s) recorded before time buckets existed count whole, by their last message`);
 }

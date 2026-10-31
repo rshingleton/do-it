@@ -11,7 +11,7 @@
 // Every entry point fails open: a missing or malformed field records nothing.
 
 import path from 'node:path';
-import { keepDays, prune, record, rollupKeepDays, usageDir } from './ledger.mjs';
+import { addToBucket, keepDays, prune, record, rollupKeepDays, usageDir } from './ledger.mjs';
 
 const num = (v) => (Number.isFinite(v) && v > 0 ? v : 0);
 const iso = (ms) => new Date(Number.isFinite(ms) ? ms : Date.now()).toISOString();
@@ -41,11 +41,13 @@ export function createOpenCodeUsage({ dir = usageDir(), cwd = process.cwd(), pru
     let cc = 0;
     let ctx0 = null;
     let peak = 0;
+    const buckets = {};
     for (const m of r.messages.values()) {
       in_ += m.in;
       out += m.out;
       cr += m.cr;
       cc += m.cc;
+      addToBucket(buckets, m.t, [m.in, m.out, m.cr, m.cc]);
       const ctx = m.in + m.cr + m.cc;
       ctx0 ??= ctx;
       peak = Math.max(peak, ctx);
@@ -72,6 +74,7 @@ export function createOpenCodeUsage({ dir = usageDir(), cwd = process.cwd(), pru
       cc,
       ctx0,
       peak,
+      buckets,
     });
     const today = now().toISOString().slice(0, 10);
     if (today !== prunedDay) {
@@ -94,6 +97,7 @@ export function createOpenCodeUsage({ dir = usageDir(), cwd = process.cwd(), pru
       out: num(tokens.output) + num(tokens.reasoning),
       cr: num(tokens.cache?.read),
       cc: num(tokens.cache?.write),
+      t,
     });
     write(sessionID, r);
     return r;
