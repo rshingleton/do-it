@@ -1,6 +1,7 @@
 ---
 title: Open backlog 2026-10
 approved: 2026-10-30
+completed: 2026-10-31
 ---
 
 # Open backlog 2026-10
@@ -100,7 +101,7 @@ Exit: every remaining audit case has a test or a decision, and nothing on the to
 - 2026-10-30 Decision (D2, settled in the run sweep as an assumption): a roadmap finalize's offer a writes its ADRs `accepted`; revisit if a finalize can run with no user turn.
 - 2026-10-30 Decision (D3, settled in the run sweep as an assumption): assumption rejection matches by text among the remaining plan entries; revisit if entries can carry identical text.
 
-## Changes
+## Shipped
 - 2026-10-30: charted and approved.
 - 2026-10-30: R1 shipped (r1-audit-cap).
 - 2026-10-30: R2 shipped (r2-loop-text).
