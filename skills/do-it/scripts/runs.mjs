@@ -5,7 +5,7 @@
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { snapshot, treeDiff } from './changeset.mjs';
-import { dirtyHashes } from './commit.mjs';
+import { dirtyHashes, relative } from './commit.mjs';
 import { checkWithRerun, gate, recordVerified } from './gate.mjs';
 import { git as spawnGit } from './git.mjs';
 import { rejectAssumption, showRun, sliceRun, splitKey } from './run.mjs';
@@ -47,7 +47,9 @@ export function runVerify({ planningDir, root, cwd, slug, id, opts, items, finge
     if (flaky) sliceRun(planningDir, slug, id, 'parked', { reason: e.message.replace(/^verify-phase: /, ''), needs: 'user' });
     throw e;
   }
-  recordVerified(planningDir, slug, id, fingerprintOf(items.get(g.work)), dirtyHashes(root));
+  // Only the slice's own files are recorded (`--paths a,b`): never the user's or another slice's.
+  const mapped = opts.paths === undefined ? null : String(opts.paths).split(',').filter(Boolean).map((p) => relative(root, p));
+  recordVerified(planningDir, slug, id, fingerprintOf(items.get(g.work)), mapped && dirtyHashes(root, mapped));
   return showRun(planningDir, slug);
 }
 

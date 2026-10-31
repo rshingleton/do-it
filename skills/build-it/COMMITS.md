@@ -23,6 +23,9 @@ then the closing docs.
    in mode `slice`: no `--phase`; code changed since its last verify refuses).
    It picks the branch, stages those paths only, commits and, for a phase,
    tags `do-it/<id>/phase-<n>`.
+   A lane M slice-mode commit needs the same mapped list given earlier to
+   `work.mjs run verify <slug> <slice> --paths a,b`, which records only those
+   files' hashes (never the user's or another slice's).
 4. Closing docs (lane M after the last phase; lane S after its code commit):
    `work.mjs run commit <slug> <id> --docs --paths a,b`. Subject
    `<id>: closing docs`, no tag.

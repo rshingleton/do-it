@@ -313,10 +313,12 @@ test('runVerify: a pass records the fingerprint and file hashes, a failure recor
   const base = { ...unit(dir), items: stub(calls), root: dir, cwd: dir, fingerprintOf: () => 'fp', quote: String };
   assert.throws(() => runVerify({ ...base, opts: { '--': ['false'] } }), /exited 1/);
   assert.equal(showRun(base.planningDir, 'road').gates[0].verified_fingerprint, undefined);
-  const rec = runVerify({ ...base, opts: { '--': ['true'], phase: '2' } });
+  const rec = runVerify({ ...base, opts: { '--': ['true'], phase: '2', paths: 'a.js' } });
   assert.deepEqual(calls.at(-1), ['feat', 2]);
   assert.equal(rec.gates[0].verified_fingerprint, 'fp');
-  assert.ok(rec.gates[0].verified_files['a.js'], 'the dirty file is hashed');
+  assert.ok(rec.gates[0].verified_files['a.js'], 'the named dirty file is hashed');
+  const bare = runVerify({ ...base, opts: { '--': ['true'] } });
+  assert.equal(bare.gates[0].verified_files, undefined, 'without --paths no files are recorded, and the older record is dropped');
   assert.throws(() => runVerify({ ...base, id: 'R9', opts: { '--': ['true'] } }), /run start first/);
   assert.throws(() => runVerify({ ...base, opts: {} }), /needs the checks/);
 });

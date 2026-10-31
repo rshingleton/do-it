@@ -21,7 +21,7 @@ const gitRaw = (cwd, args, input) => gitOut(cwd, args, LITERAL, input);
 const lines = (s) => s.split('\n').filter(Boolean);
 
 // A named path as the records and git list it: relative to the repo root.
-const relative = (root, p) => path.relative(root, path.resolve(root, p));
+export const relative = (root, p) => path.relative(root, path.resolve(root, p));
 
 function currentBranch(cwd) {
   const r = gitRun(cwd, ['symbolic-ref', '--quiet', '--short', 'HEAD']);
@@ -66,9 +66,18 @@ function safeBranch(cwd, slug, protectedList) {
 // Every file the working tree changes, each as `<mode>:<blob hash>` ('gone' when it is deleted, 'dir'
 // for a directory), as `run verify` saw it. A link is its target's hash, never what it points at, so a
 // retargeted or dangling link and a mode-only change both show. A rename is its new path plus its old
-// path gone. Nothing is matched as a pattern: names are read, never expanded. Throws when git fails.
-export function dirtyHashes(root) {
-  const recs = gitRaw(root, ['status', '--porcelain', '-z', '-uall']).split('\0').filter(Boolean);
+// path gone. Nothing is matched as a pattern: names are read, never expanded. `only` (repo-relative
+// names) keeps just those entries, a rename counting when either side is named, so the record never
+// holds another slice's or the user's files. Throws when git fails.
+export function dirtyHashes(root, only = null) {
+  const wanted = only && new Set(only);
+  const recs = [];
+  const all = gitRaw(root, ['status', '--porcelain', '-z', '-uall']).split('\0').filter(Boolean);
+  for (let i = 0; i < all.length; i++) {
+    const renamed = /[RC]/.test(all[i][0]);
+    const pair = renamed ? [all[i], all[++i]] : [all[i]];
+    if (!wanted || pair.some((r, k) => wanted.has(k === 0 ? r.slice(3) : r))) recs.push(...pair);
+  }
   const files = {};
   const modes = {};
   const plain = [];
@@ -140,10 +149,10 @@ function assertCommittable({ root, run, slug, items, id, phase, docs, paths }) {
   // Files outside the named paths (the closing docs, a user's own edit) are not compared.
   if (!docs && phase === undefined && state.lane === 'm') {
     const seen = (run.gates ?? []).find((x) => x.work === id)?.verified_files;
-    if (!seen) throw new Error(`${id} has no verify record from run verify; run it, nothing committed`);
-    const now = dirtyHashes(root);
+    if (!seen) throw new Error(`${id} has no verify record from run verify; run it with --paths a,b (the slice's files), nothing committed`);
     // The records key on repo-relative names, so an absolute in-repo path is compared by its relative form.
     const named = paths.map((p) => relative(root, p));
+    const now = dirtyHashes(root, named);
     const outside = named.filter((p) => p.startsWith('..') || path.isAbsolute(p));
     if (outside.length) throw new Error(`commit stages files inside the repo, ${outside.join(', ')} is not; nothing committed`);
     const moved = named.filter((p) => (now[p] ?? 'clean') !== (seen[p] ?? 'clean'));

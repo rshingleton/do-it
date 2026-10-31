@@ -18,7 +18,7 @@ Before chaining a slice to ship, `work.mjs run gate <slug> <slice>` prints
 - `AUDIT_CAP` (stop): `run audit` is refused (`allow` false) because a limit that applies is spent. `limit` and `detail` name which: `slice <id>` (`audit_cap`, default 3, rounds on that slice), `final review` (`final_audit_cap`, default 3) or `run total` (`audit_total_cap`, else `max_slices` x `audit_cap`, else none). A slice whose last allowed round passed still ships. `run set` on any cap clears the refusal; the digest repeats the limit under "Limit fired".
 
 Calls: `run start <slug> <slice> --work <id>` when a slice begins,
-`run verify <slug> <slice> -- <checks>` instead of `verify-phase`,
+`run verify <slug> <slice> [--paths a,b] -- <checks>` instead of `verify-phase`,
 `run audit <slug> <slice>` before each slice audit round (`run audit <slug> --final` for the final review's); a refusal stops the run.
 
 ## Judgment (no script sees these)

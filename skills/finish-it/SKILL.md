@@ -46,8 +46,9 @@ stops: go on to the next slice.
      `work.mjs run start <slug> <slice> --work <work id>`. `<slice>` is the
      roadmap id (`R<n>`), not the work id.
    - (c) [build-it](../build-it/SKILL.md), its checks run through
-     `work.mjs run verify <slug> <slice> [--phase n] -- "<checks>"` in place
-     of the item-level verify. A flaky result parks the slice (FLAKY, as step 5).
+     `work.mjs run verify <slug> <slice> [--phase n] [--paths a,b] -- "<checks>"`
+     in place of the item-level verify (`--paths`: the slice's mapped files,
+     needed before a lane M slice-mode commit). A flaky result parks the slice (FLAKY, as step 5).
    - (d) Before each prove-it round, `work.mjs run audit <slug> <slice>`. `allow`
      false: never start the round; stop the run per [STOPS.md](STOPS.md).
    - (e) [prove-it](../prove-it/SKILL.md). Wait for each reviewer's final

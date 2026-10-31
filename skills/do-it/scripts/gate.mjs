@@ -32,7 +32,9 @@ export function startSlice(planningDir, slug, id, { work, at }) {
 export function recordVerified(planningDir, slug, id, fingerprint, files) {
   return updateRun(planningDir, slug, (r) => {
     entry(r, id).verified_fingerprint = fingerprint;
+    // A verify without --paths records no files, and must not leave an older record standing.
     if (files) entry(r, id).verified_files = files;
+    else delete entry(r, id).verified_files;
   });
 }
 

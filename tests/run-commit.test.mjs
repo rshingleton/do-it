@@ -56,6 +56,8 @@ function fixture({ branch = 'main', config = '' } = {}) {
   return { dir, remote };
 }
 const verify = (dir, n = 1) => ok(work(dir, 'verify-phase', 'feat', String(n), '--', 'true'));
+// The files a slice maps, as `run verify --paths` takes them; the fixtures' other dirty files stay out.
+const SLICE_FILES = 'a.js,b.js,c.js,link,a b.js,unrelated.txt';
 const refs = (remote) => git(remote, 'for-each-ref');
 
 test('a verified phase on a protected branch commits on do-it/<slug>, staged by path, tagged, nothing pushed', () => {
@@ -222,10 +224,10 @@ test('lane M in slice mode commits its code once after the last phase verifies, 
   // unrelated.txt is dirty at verify time and never named: it must not matter.
   ok(work(dir, 'run', 'new', 'road', '--commit', 'slice'));
   ok(work(dir, 'run', 'start', 'road', 'R1', '--work', 'feat'));
-  ok(work(dir, 'run', 'verify', 'road', 'R1', '--phase', '1', '--', 'true'));
+  ok(work(dir, 'run', 'verify', 'road', 'R1', '--phase', '1', '--paths', SLICE_FILES, '--', 'true'));
   assert.match(work(dir, 'run', 'commit', 'road', 'feat', '--paths', 'a.js,b.js').out.error, /phase 2|not verified/, 'a phase is still open');
   write(dir, 'c.js', 'phase two\n');
-  ok(work(dir, 'run', 'verify', 'road', 'R1', '--phase', '2', '--', 'true'));
+  ok(work(dir, 'run', 'verify', 'road', 'R1', '--phase', '2', '--paths', SLICE_FILES, '--', 'true'));
   // Closing docs are written before the code commit; they are not code.
   write(dir, 'notes.md', 'closing docs\n');
   // Code changed after its verify is refused, and nothing is committed.
@@ -247,6 +249,25 @@ test('lane M in slice mode commits its code once after the last phase verifies, 
   const docs = ok(work(dir, 'run', 'commit', 'road', 'feat', '--docs', '--paths', 'notes.md'));
   assert.equal(docs.subject, 'feat: closing docs');
   assert.equal(git(dir, 'show', '--name-only', '--format=', 'HEAD'), 'notes.md');
+});
+
+test('run verify records only the mapped paths: an unrelated dirty file and another slice\'s file stay out of RUN.md', () => {
+  const { dir } = fixture();
+  ok(work(dir, 'run', 'new', 'road', '--commit', 'slice'));
+  ok(work(dir, 'run', 'start', 'road', 'R1', '--work', 'feat'));
+  write(dir, 'other-slice.js', 'theirs\n');
+  ok(work(dir, 'run', 'verify', 'road', 'R1', '--phase', '1', '--paths', 'a.js,b.js', '--', 'true'));
+  const seen = ok(work(dir, 'run', 'show', 'road')).gates.find((g) => g.id === 'R1').verified_files;
+  assert.deepEqual(Object.keys(seen).sort(), ['a.js', 'b.js']);
+  const text = fs.readFileSync(path.join(dir, 'docs/planning/road.run/RUN.md'), 'utf8');
+  assert.doesNotMatch(text, /unrelated\.txt|other-slice\.js/);
+  // Another dirty file edited later does not block the commit of the named ones.
+  write(dir, 'other-slice.js', 'edited again\n');
+  write(dir, 'c.js', 'phase two\n');
+  ok(work(dir, 'run', 'verify', 'road', 'R1', '--phase', '2', '--paths', 'a.js,b.js,c.js', '--', 'true'));
+  write(dir, 'other-slice.js', 'edited a third time\n');
+  ok(work(dir, 'run', 'commit', 'road', 'feat', '--paths', 'a.js,b.js,c.js'));
+  assert.deepEqual(git(dir, 'show', '--name-only', '--format=', 'HEAD').split('\n').sort(), ['a.js', 'b.js', 'c.js']);
 });
 
 test('lane M in slice mode refuses a code commit whose phases were verified without run verify', () => {
@@ -386,9 +407,9 @@ function verifiedSlice(setup = () => {}) {
   setup(dir);
   ok(work(dir, 'run', 'new', 'road', '--commit', 'slice'));
   ok(work(dir, 'run', 'start', 'road', 'R1', '--work', 'feat'));
-  ok(work(dir, 'run', 'verify', 'road', 'R1', '--phase', '1', '--', 'true'));
+  ok(work(dir, 'run', 'verify', 'road', 'R1', '--phase', '1', '--paths', SLICE_FILES, '--', 'true'));
   write(dir, 'c.js', 'phase two\n');
-  ok(work(dir, 'run', 'verify', 'road', 'R1', '--phase', '2', '--', 'true'));
+  ok(work(dir, 'run', 'verify', 'road', 'R1', '--phase', '2', '--paths', SLICE_FILES, '--', 'true'));
   return dir;
 }
 const commit = (dir, paths) => work(dir, 'run', 'commit', 'road', 'feat', '--paths', paths.join(','));

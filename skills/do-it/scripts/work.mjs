@@ -19,7 +19,7 @@
 //   work.mjs run review-change <slug>   (the final review's change: <base>...HEAD, or the working tree against base)
 //   work.mjs run digest <slug> [--usage <json>] [--findings <json>] [--retro <json>]   (markdown, saved uncommitted)
 //   work.mjs run start <slug> <slice> --work <id> [--at iso] | audit <slug> <slice>|--final | gate <slug> <slice>
-//   work.mjs run verify <slug> <slice> [--phase n] [--in dir] -- <command...>   (reruns a failure once)
+//   work.mjs run verify <slug> <slice> [--phase n] [--paths a,b] [--in dir] -- <command...>   (reruns a failure once)
 //   work.mjs close <id>
 //
 // `run audit` prints {audit_rounds, allow, reason, limit, detail}: `audit_rounds` is the slice's (or the
