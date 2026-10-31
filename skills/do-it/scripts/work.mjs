@@ -97,9 +97,18 @@ function planningExclude(ctx) {
   return rel ? [rel] : [];
 }
 
+// The change fingerprint also leaves out what ship-it's closing docs write (the item's roadmap file,
+// the to-do list, the ADR directory), or closing them would read as moved code. A hand edit to
+// those files after verify goes unseen, by decision.
+function closingDocsExclude(ctx, item) {
+  const rel = (p) => path.relative(ctx.root, path.resolve(ctx.root, p)).split(path.sep).join('/');
+  const roadmap = String(item.state.roadmap ?? '').split('#')[0];
+  return [roadmap, ctx.config.DO_IT_TODO_FILE || 'docs/TODO.md', ctx.config.DO_IT_ADR_DIR || 'docs/adr'].filter(Boolean).map(rel).filter((p) => p && !p.startsWith('..'));
+}
+
 function itemFingerprint(ctx, item) {
   if (!item.state.base_ref) throw new Error(`${item.state.id} has no base_ref yet: run event start first`);
-  return fingerprint(ctx.root, item.state.base_ref, { exclude: planningExclude(ctx) });
+  return fingerprint(ctx.root, item.state.base_ref, { exclude: [...planningExclude(ctx), ...closingDocsExclude(ctx, item)] });
 }
 
 function shellQuote(arg) {
