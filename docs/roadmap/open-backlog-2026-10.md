@@ -125,5 +125,6 @@ Exit: every remaining audit case has a test or a decision, and nothing on the to
 - 2026-10-30: R20 shipped (r20-walkthroughs): the walks found four defects, filed as T205 to T208.
 - 2026-10-30: R22 shipped (r22-usage-windows), D1 applied: windows split a straddling run by 15-minute buckets.
 - 2026-10-30: R19 shipped (r19-test-runner-and-guards).
+- 2026-10-30: final review over the whole run: one Must (a stale `Next id` in the to-do list), fixed; the Should and Nice findings are T213.
 - 2026-10-30: R24 shipped (r24-protected-default-branch): setup-it reads the remote's default branch with `default-branch.mjs`.
 - 2026-10-30: R21 shipped (r21-design-it-pointers): the deletion test sits inline in the prove-it and sweep-it briefs; debug-it routes a missing seam to log-it or deepen-it.
