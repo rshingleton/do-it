@@ -65,7 +65,7 @@ Exit: a finalized roadmap is described, reported and finalized as documented, an
 | R14 | build | FINALIZE edge cases (a `completed` roadmap with no edits, offer e on a second `--roadmap` run, the paths to stage) and ship-it §2 Show list and Ask item 2 agree with every-offer-by-default (T176, T177) | G5 | none | Fixture walkthroughs for each case produce the offers a to e and name the paths | med | shipped 2026-10-30 r14-finalize-edges |
 | R15 | build | `roadmapSlices` reports a `reopened` note for a `completed` roadmap with unshipped slices, and FORMAT.md describes `completed:` and `## Shipped` and drops `## Changes` from its example (T178, T179) | G5 | none | A test: `completed` plus an unshipped slice gives `finished: false` and a note; a re-chart of a finalized fixture keeps `completed:` | med | shipped 2026-10-30 r15-reopened-note, Verify met in text: FORMAT.md says a re-chart keeps `completed:` (a re-chart is an agent step, so only the text is tested) |
 | R16 | build | Offer a writes ADRs as the owner decides in D2, and the FINALIZE and ship-it wrap and ADR execution-note churn is removed (T180, T181, T182) | G5 | R14 (same files), D2 | A finalized fixture leaves no `proposed` ADR with nobody to accept it; `npm run check` shows no overlong line in the named files | low | shipped 2026-10-30 r16-adr-accepted, Verify unmet: check.mjs has no line-width rule, so the overlong lines were rewrapped by hand (T200) |
-| R17 | build | The FINALIZE pin test pins behaviour (the offers and the paths), not 19 fragments, and drops the duplicate line-count assertion (T183) | G6 | R14, R16 (they change the pinned text) | A rewording of a pinned sentence passes; removing offer c fails | low | |
+| R17 | build | The FINALIZE pin test pins behaviour (the offers and the paths), not 19 fragments, and drops the duplicate line-count assertion (T183) | G6 | R14, R16 (they change the pinned text) | A rewording of a pinned sentence passes; removing offer c fails | low | shipped 2026-10-30 r17-finalize-pins |
 
 ### M5: Trust and small gaps
 Exit: every remaining audit case has a test or a decision, and nothing on the to-do list in scope is left.
@@ -119,3 +119,4 @@ Exit: every remaining audit case has a test or a decision, and nothing on the to
 - 2026-10-30: R14 shipped (r14-finalize-edges).
 - 2026-10-30: R15 shipped (r15-reopened-note).
 - 2026-10-30: R16 shipped (r16-adr-accepted), D2 applied: offer a writes ADRs `accepted`.
+- 2026-10-30: R17 shipped (r17-finalize-pins).
