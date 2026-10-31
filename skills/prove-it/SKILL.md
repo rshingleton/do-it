@@ -53,6 +53,10 @@ Then validate every Must except failed mechanical checks per
 the code alone; rejected ones move to **Not confirmed** and stop blocking.
 
 - Any confirmed **Must**: `FAIL`.
+- A review axis that is **unverified** (a reviewer that errored, timed out or
+  returned nothing or malformed output: review-it's `Unverified:`, guard-it,
+  the Architecture reviewer) is no pass. Run that reviewer once more; still
+  unverified: return `blocked`, name the axis, never `audit-pass`.
 - Otherwise `PASS`.
 
 Lane S: findings go in chat and a short `## Audit` section appended to the

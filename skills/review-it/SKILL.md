@@ -80,4 +80,9 @@ Put the two reports under `## Spec` and `## Standards`, as returned or
 lightly tidied. Do not merge, rerank or pick a winner between them. Close
 with one line per axis: how many findings, and the worst one on that axis.
 
+A reviewer that errors, times out, returns nothing or a report without the
+`## Report` shape is **unverified**, never "no findings": its section says
+`Unverified: <why>` and its closing line says unverified. A clean axis says
+what it read (the diff files, the spec lines), so "none" is evidence.
+
 Called by `prove-it`: return the two sections; it writes the verdict.

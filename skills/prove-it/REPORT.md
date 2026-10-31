@@ -36,6 +36,9 @@ Change: <base_ref>..working tree, <N> files. Date: <ISO date>.
 | Compliance | PASS: checks.json, 3 rule files |
 | Architecture | OK |
 
+A row reads `UNVERIFIED: <why>` when its reviewer failed; no verdict is PASS
+while one does.
+
 ## Findings
 
 1. Must | `config/.env:3` | live token committed | read at startup, ships with first commit. Fix: delete it, ignore `config/.env`, add `.env.example`.

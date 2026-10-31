@@ -57,4 +57,6 @@ Must: a bug, security hole, data-loss path, or breakage at the assumed load.
 Should: risky code without a test, real slowness, duplication, code that
 should not exist. Nice: small speed-ups, shorter forms. Skip empty groups and
 empty sections. Nothing found: "Healthy. Nothing to fix." and what was
-checked.
+checked (the paths and lenses each group read). A group whose agent errored,
+timed out, returned nothing or malformed output is unverified: list it under
+Not checked with why, and the verdict is never "healthy" while one is.

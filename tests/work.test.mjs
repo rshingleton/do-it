@@ -869,3 +869,22 @@ test('a roadmap finalize leaves no proposed ADR nobody accepts, and the two orig
     assert.doesNotMatch(text, /## Execution notes/);
   }
 });
+
+test('review-it and sweep-it report a reviewer that failed as unverified, never as clean', () => {
+  const read = (f) => flat(fs.readFileSync(path.join(ROOT, f), 'utf8'));
+  const review = read('skills/review-it/SKILL.md');
+  for (const failure of ['errors', 'times out', 'returns nothing']) assert.ok(review.includes(failure), `review-it names a reviewer that ${failure}`);
+  assert.match(review, /\*\*unverified\*\*, never "no findings"/);
+  const sweep = read('skills/sweep-it/REPORT.md');
+  assert.match(sweep, /unverified: list it under Not checked/);
+  assert.match(sweep, /verdict is never "healthy" while one is/);
+});
+
+test('prove-it does not pass an audit whose review axis is unverified', () => {
+  const read = (f) => flat(fs.readFileSync(path.join(ROOT, f), 'utf8'));
+  const verdict = read('skills/prove-it/SKILL.md');
+  const section = verdict.slice(verdict.indexOf('## 4. Verdict'), verdict.indexOf('## 5. Route'));
+  assert.match(section, /unverified/i, 'the verdict step names an unverified axis');
+  assert.match(section, /never `audit-pass`/, 'and forbids audit-pass for it');
+  assert.match(read('skills/prove-it/REPORT.md'), /UNVERIFIED: <why>/, 'the report table has a cell for it');
+});
