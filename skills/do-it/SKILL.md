@@ -97,4 +97,4 @@ half-done). Then follow [ship-it](../ship-it/SKILL.md) with `--lane xs`, plus
 ## 6. Closing message
 
 First line: the lane and where the work stands. Then `Skipped / Not checked /
-Risk`. Last line, `Next:` a slash command, never a script: `/do-it <file>#R<n>` for the slice the roadmap reports next, or `/roadmap-it <file> next`; if no slice is ready, say why and the command that settles it.
+Risk`. Last line, `Next:` a slash command, never a script: `/do-it <file>#R<n>` for the slice the roadmap reports next, or `/roadmap-it <file> next`; if no slice is ready, say why (the roadmap's `reopened` note, [STATE.md](STATE.md), when it is completed) and the command that settles it.

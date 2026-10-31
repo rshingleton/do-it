@@ -133,6 +133,7 @@ export function roadmapSlices(file, { root, planningDir, tracked = (f) => isTrac
   // A completed roadmap offers no slice; one that still has unshipped slices says why, or `next: null`
   // beside `finished: false` reads as "all blocked". The owner clears `completed:` to work them.
   const left = out.filter((s) => s.state !== 'shipped' && s.state !== 'dropped').length;
-  const reopened = completed && left ? `completed ${completed} but ${left} slice${left === 1 ? '' : 's'} not shipped: clear completed: in the frontmatter to work them` : null;
+  const parts = [left ? `${left} slice${left === 1 ? '' : 's'} not shipped` : null, openDecisions.length ? `${openDecisions.length} decision${openDecisions.length === 1 ? '' : 's'} open` : null].filter(Boolean);
+  const reopened = completed && !finished && parts.length ? `completed ${completed} but ${parts.join(' and ')}: clear completed: in the frontmatter to work them` : null;
   return { slices: out, openDecisions, blocking, finished, completed, reopened, next: offer[0]?.id ?? null, ready: offer.map((s) => s.id) };
 }

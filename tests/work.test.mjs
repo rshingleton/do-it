@@ -295,6 +295,17 @@ test('roadmap: a completed roadmap with an unshipped slice reports why nothing i
   assert.equal(roadmapOf(`${shipped}\n${open}\n| R3 | build | C | G1 | none | v | low | |`, front).reopened.includes('2 slices'), true);
 });
 
+test('roadmap: a completed roadmap whose slices all shipped but a decision was opened later reports reopened', () => {
+  const shipped = '| R1 | build | A | G1 | none | v | low | shipped 2026-10-20 x |';
+  const front = '---\ntitle: Billing\ncompleted: 2026-10-30\n---\n';
+  const out = roadmapOf(`${shipped}\n\n## Open decisions\n- D1: q?\n`, front);
+  assert.equal(out.finished, false);
+  assert.match(out.reopened, /completed 2026-10-30 but 1 decision open/);
+  const both = roadmapOf(`${shipped}\n| R2 | build | B | G1 | none | v | low | |\n\n## Open decisions\n- D1: q?\n`, front);
+  assert.match(both.reopened, /1 slice not shipped and 1 decision open/);
+  assert.equal(roadmapOf(shipped, front).reopened, null, 'finished and completed: nothing to reopen');
+});
+
 test('skills: roadmap-it and do-it ask the decisions that block slices', () => {
   const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
   const next = read('skills/roadmap-it/SKILL.md');
@@ -854,8 +865,16 @@ test('roadmap-it FORMAT.md describes completed and Shipped and no longer shows C
   assert.doesNotMatch(example, /^## Changes/m, 'the example is a new roadmap: Changes comes with its first dated line');
   assert.match(format, /`completed: <date>`/);
   assert.match(format, /## Shipped/);
-  assert.match(format, /re-chart\s+keeps both/);
-  assert.match(format, /`reopened` note/);
+  const lifecycle = format.slice(format.indexOf('Two more parts'));
+  assert.ok(lifecycle.includes('replan') && !lifecycle.includes('re-chart'), 'one word for the action, the one roadmap-it uses');
+  assert.ok(lifecycle.includes('`completed:`') && lifecycle.includes('`## Shipped`') && lifecycle.includes('`reopened`'), 'the keep rule and the reopened note are stated');
+});
+
+test('FINALIZE Paths names every file a finalize writes, the local issue files included', () => {
+  const doc = flat(fs.readFileSync(path.join(ROOT, 'skills/ship-it/FINALIZE.md'), 'utf8'));
+  const paths = doc.slice(doc.indexOf('## Paths'), doc.indexOf('## Offers'));
+  for (const piece of ['docs/TODO.md', 'docs/issues/*.md']) assert.ok(paths.includes(piece), piece);
+  assert.ok(!paths.includes('stages exactly'), 'no claim the list is exact when offer e edits more');
 });
 
 test('a roadmap finalize leaves no proposed ADR nobody accepts, and the two origin-only Execution notes are gone', () => {

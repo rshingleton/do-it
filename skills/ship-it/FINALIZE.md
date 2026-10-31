@@ -17,14 +17,18 @@ file in `docs/roadmap`; this turns it into a lasting record.
 - Or `/ship-it --roadmap <file>` again after that review: a `completed`
   roadmap with uncommitted edits asks one line, "Commit now?", and commits the
   paths below; with none it says it was finalized on the `completed` date.
-  Either way offer e is asked again for a milestone still open (a remote one
-  needs its yes). Nothing else is written.
+  Either way offer e is asked again for a milestone still open: a local one
+  closes with no question, a remote one needs its yes. When a run record for
+  this roadmap exists at level `full` or `ultra` this is run mode
+  ([RUNMODE.md](RUNMODE.md)): every default, nothing asked, and a remote
+  milestone stays open. Nothing else is written.
 
 ## Paths
 
-The roadmap file, each ADR a created, and `docs/TODO.md` when b added to-dos
-(the repo's configured paths, not these defaults). "Commit now" stages exactly
-these, and so does a run's `work.mjs run commit <slug> <id> --docs --paths`.
+The roadmap file, each ADR that offer a created, `docs/TODO.md` when b added
+to-dos, and the `docs/issues/*.md` files offer e closed on a local tracker (the
+repo's configured paths, not these defaults). "Commit now" stages these and
+nothing else, and so does a run's `work.mjs run commit <slug> <id> --docs --paths`.
 
 ## Offers
 
@@ -37,7 +41,8 @@ a. **ADRs:** each Decisions-so-far entry that passes
    and nothing later accepts a roadmap's ADR. List them by title.
 b. **Fog:** each Fog line becomes a to-do through `log-it`, with
    `source: <roadmap slug> fog` (a line already on the to-do list is skipped).
-c. **Shipped:** `## Changes` becomes a `## Shipped` bullet list, never a table,
+c. **Shipped:** `## Changes` becomes a `## Shipped` bullet list, never a table (a roadmap
+   that already has `## Shipped` gets the new bullets appended to it),
    after the slice's own dated line is added, so that line converts too. Keep
    each `Verify unmet` clause; drop the T-id lists.
 d. **Completed:** `completed: <date>` in the frontmatter, the date of this run;
