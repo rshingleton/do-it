@@ -56,6 +56,8 @@ the gate, which records the phase only when they exit 0:
 work.mjs verify-phase <id> <n> --in "$root/int" -- "<checks>"
 ```
 
+In a complete run use `work.mjs run verify <slug> <slice> --phase <n> --in ...`.
+
 On a failed check, `git reset --hard HEAD~1` in the scratch worktree only,
 `work.mjs event <id> block "<why>" --phase <n>`, and keep going with phases
 that do not depend on it. Otherwise recompute the frontier and start

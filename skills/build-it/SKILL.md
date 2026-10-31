@@ -61,7 +61,8 @@ Delegated phase: agent items 1, 2, 4 (item 3: it reports `failed`), main item 5.
 5. Run the checks through `work.mjs verify-phase <id> [n] --brief -- "<commands>"`
    (quoted, so a chain runs whole): it records the phase (lane S: the item) verified
    only when they exit 0. New assumptions, or a defect the unit surfaces but does not
-   fix: `work.mjs set <id> assumptions|defects '<json list>' --brief`, old entries kept.
+   fix: `work.mjs set <id> assumptions|defects '<json list>' --brief`, old entries kept. In a complete run finish-it runs the checks through
+   `work.mjs run verify` instead (same recording, plus the run record).
 
 Out-of-scope problems go to `log-it`, not into the diff.
 

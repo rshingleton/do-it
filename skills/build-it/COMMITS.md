@@ -15,8 +15,8 @@ then the closing docs.
 
 ## After a phase passes
 
-1. `work.mjs verify-phase` must have passed for this phase (lane S: the
-   item). A failed, skipped or stale verify never commits.
+1. `work.mjs verify-phase` (in a run, `work.mjs run verify`) must have passed
+   for this phase (lane S: the item). A failed, skipped or stale verify never commits.
 2. Run the commit boundary check in [STANDARDS.md](STANDARDS.md) §4 and keep
    the mapped file list.
 3. `work.mjs run commit <slug> <id> --phase <n> --paths a,b` (lane S, or lane M

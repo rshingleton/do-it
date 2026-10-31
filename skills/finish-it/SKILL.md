@@ -48,9 +48,15 @@ stops: go on to the next slice.
    - (c) [build-it](../build-it/SKILL.md), its checks run through
      `work.mjs run verify <slug> <slice> [--phase n] [--paths a,b] -- "<checks>"`
      in place of the item-level verify (`--paths`: the slice's mapped files,
-     needed before a lane M slice-mode commit). A flaky result parks the slice (FLAKY, as step 5).
-   - (d) Before each prove-it round, `work.mjs run audit <slug> <slice>`. `allow`
-     false: never start the round; stop the run per [STOPS.md](STOPS.md).
+     needed before a lane M slice-mode commit). Lane M: one call per phase with
+     `--phase n`; lane S: no `--phase`. In a run, `run verify` stands in for
+     build-it's `verify-phase`, which stays the command outside a run. A flaky
+     result parks the slice (FLAKY, as step 5).
+   - (d) Before each prove-it round, `work.mjs run audit <slug> <slice>`. It
+     counts every round started, a re-audit after a fix included; prove-it's own
+     `round` counts only consecutive failed audits, so the two differ and the
+     run's caps follow `run audit`. `allow` false: never start the round; stop
+     the run per [STOPS.md](STOPS.md).
    - (e) [prove-it](../prove-it/SKILL.md). Wait for each reviewer's final
      completion notice: a first hand-back with an agent still running is not
      the verdict.
