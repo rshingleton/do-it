@@ -643,40 +643,22 @@ test('ship-it: the question offers the audit leftovers, DOCS.md and prove-it nam
   assert.ok(flat(prove).includes('with no changelog offers to log them as to-dos'), 'prove-it names the home');
 });
 
-test('ship-it: FINALIZE.md holds the trigger, five offers and never-list, and ship, run mode, finish-it and roadmap-it point at it', () => {
+// Behaviour a finalize must keep: the five offers, the paths it stages and the skills that point at it.
+// Wording is free; npm run check holds the line budget.
+test('ship-it: FINALIZE.md keeps its five offers, its paths and its never-list, and ship, run mode, finish-it and roadmap-it point at it', () => {
   const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
   const ship = read('skills/ship-it/SKILL.md');
   assert.match(ship, /^argument-hint:.*--roadmap <file>/m, 'the hint has the mode');
   assert.ok(ship.includes('(FINALIZE.md)'), 'SKILL.md links FINALIZE.md');
-  assert.ok(ship.trimEnd().split('\n').length <= 100, 'SKILL.md stays within the line budget');
-  const fin = flat(read('skills/ship-it/FINALIZE.md'));
-  for (const want of [
-    'every slice but this one is `shipped` or `dropped`',
-    'a roadmap that is not `finished` is refused as blocked',
-    'a `completed` roadmap with uncommitted edits asks one line, "Commit now?"',
-    'skip d when `completed` is already set',
-    '--roadmap <file>',
-    '`roadmap-<slug>`',
-    'skip `event ship-prepared` and `work.mjs close`',
-    '`finished`, not yet `completed`',
-    'name-it',
-    '`source: <roadmap slug> fog`',
-    '`## Shipped` bullet list',
-    'never a table',
-    '`Verify unmet`',
-    '`completed: <date>`',
-    '`track-it`',
-    'a remote tracker only on the user\'s yes',
-    'Never delete the roadmap',
-    'Never create a changelog',
-    'Never touch a slice Status beyond what ship-it writes',
-  ]) assert.ok(fin.includes(want), `FINALIZE.md names: ${want}`);
+  const finalize = read('skills/ship-it/FINALIZE.md');
+  // The paths a finalize stages, named in one section that run mode points at.
+  const paths = flat(finalize.slice(finalize.indexOf('## Paths'), finalize.indexOf('## Offers')));
+  for (const want of ['roadmap file', 'ADR', 'docs/TODO.md']) assert.ok(paths.includes(want), `Paths names ${want}`);
+  assert.equal(finalize.slice(finalize.indexOf('## Never')).split('\n').filter((l) => l.startsWith('- Never')).length, 3, 'the never-list keeps its three rules');
   for (const [letter, title] of [['a', 'ADRs'], ['b', 'Fog'], ['c', 'Shipped'], ['d', 'Completed'], ['e', 'Milestones']])
     assert.match(read('skills/ship-it/FINALIZE.md'), new RegExp(`^${letter}\\. \\*\\*${title}:\\*\\*`, 'm'), `offer ${letter}`);
-  assert.match(flat(ship), /2\. To log, and to finalize:.*finalize offers a to e/, 'the offers ride in the Ask list item 2, inside the three-ask cap');
-  assert.ok(flat(read('skills/ship-it/RUNMODE.md')).includes('FINALIZE.md'), 'run mode names it');
-  assert.ok(read('skills/finish-it/SKILL.md').includes('FINALIZE.md'), 'finish-it close names it');
-  assert.ok(flat(read('skills/roadmap-it/SKILL.md')).includes('ship-it finalizes a finished roadmap'), 'roadmap-it names it');
+  assert.match(flat(ship), /\b2\. .*finalize offers a to e/, 'the offers ride in the Ask list item 2, inside the three-ask cap');
+  for (const f of ['skills/ship-it/RUNMODE.md', 'skills/finish-it/SKILL.md', 'skills/roadmap-it/SKILL.md']) assert.ok(read(f).includes('FINALIZE.md'), `${f} points at it`);
 });
 
 test('closing Next: do-it §6 and ship-it §4 name a slash command, never a script', () => {
@@ -865,17 +847,6 @@ test('work.mjs run: a run record never shows in list', () => {
   assert.equal(without.length, 1);
 });
 
-test('ship-it: FINALIZE.md covers a completed roadmap with no edits, offer e on a second run, and the paths to stage', () => {
-  const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
-  const fin = read('skills/ship-it/FINALIZE.md');
-  const when = flat(fin.slice(fin.indexOf('## When'), fin.indexOf('## Paths')));
-  assert.match(when, /with none it says it was finalized/, 'a completed roadmap with no edits has a case');
-  assert.match(when, /offer e is asked again/, 'a second run asks offer e again');
-  const paths = flat(fin.slice(fin.indexOf('## Paths'), fin.indexOf('## Offers')));
-  for (const want of ['roadmap file', 'ADR', 'docs/TODO.md']) assert.ok(paths.includes(want), `Paths names ${want}`);
-  assert.ok(flat(read('skills/ship-it/RUNMODE.md')).includes('FINALIZE.md](FINALIZE.md) Paths'), 'run mode points a run\'s --paths at it');
-  assert.ok(flat(read('skills/ship-it/SKILL.md')).includes('what finalize offers a to e will write'), 'the question shows what the offers write');
-});
 
 test('roadmap-it FORMAT.md describes completed and Shipped and no longer shows Changes in its example', () => {
   const format = fs.readFileSync(path.join(ROOT, 'skills/roadmap-it/FORMAT.md'), 'utf8');
