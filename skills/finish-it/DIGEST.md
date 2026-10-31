@@ -45,5 +45,6 @@ store, so it works after the item closed. It leaves the entry out of
 Assumptions and lists it under Assumptions rejected, numbers unchanged. An item
 still auditing or shipping returns to building and the run is not shipped until
 it passes again. A closed item has no plan to reopen: the user's follow-up is a
-`fix:` or `log-it` entry. A line with no id came from the sweep: note it for the
+`fix:` or `log-it` entry. A plan still `building` is not reopened either: its
+`fix:` list gets the change. A line with no id came from the sweep: note it for the
 user. No rejection: the run is final.

@@ -65,7 +65,9 @@ const exhausted = (l) => spent(l) > l.cap || (l.at[l.refused] === spent(l) && sp
 
 // Counts one audit round (`id`: a slice's; `final`: the final review's), unless a limit that applies is
 // already spent: then the round is refused and not counted, the limit that fired is named and kept on
-// the record for the digest, so the loop stops before another round is spent.
+// the record for the digest, so the loop stops before another round is spent. Returns `{audit_rounds, allow,
+// reason, limit, detail}`: `limit` and `detail` are null on allow, and a refused call leaves `audit_rounds` at
+// the count already spent.
 export function countAudit(planningDir, slug, { id, final = false } = {}) {
   if (!final && !id) throw new Error('run audit needs a slice id, or --final for the final review');
   let refused = null;

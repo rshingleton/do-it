@@ -400,6 +400,16 @@ test('runVerify: --in resolves against the caller\'s directory, and a check that
   assert.deepEqual([parked.status, parked.needs, /^FLAKY/.test(parked.reason)], ['parked', 'user', true]);
 });
 
+test('STATE.md names every run subcommand work.mjs lists in its usage error, and none that is only a record field', () => {
+  const r = spawnSync('node', [WORK, 'run', 'nope', 'x'], { cwd: ROOT, encoding: 'utf8' });
+  const subs = /work\.mjs run ([a-z|-]+) <slug>/.exec(JSON.parse(r.stdout).error)[1].split('|');
+  const row = fs.readFileSync(path.join(ROOT, 'skills/do-it/STATE.md'), 'utf8').split('\n').find((l) => l.startsWith('| `work.mjs run <sub>'));
+  // A sub counts where the row lists it (after the intro or a comma), not where another name merely contains it.
+  for (const sub of subs) assert.match(row, new RegExp('(?:^|[,.] )`' + sub + '[` <\\\\]'), `${sub} is listed in the STATE.md run row`);
+  assert.ok(!row.includes('`retries` (the record keeps'), 'retries is a record field, described under slice ... ready');
+  assert.match(row, /`limit` and `detail` are null on allow/);
+});
+
 test('every reason the gate and run next return is a code in STOPS, shared with the loop text', () => {
   const rec = { max_slices: 1, slice_cap_min: 1, audit_cap: 1, slices: [{ id: 'S', status: 'shipped' }], gates: [{ id: 'R1', started: '2026-01-01T00:00:00Z', audit_rounds: 2 }] };
   const seen = new Set();
