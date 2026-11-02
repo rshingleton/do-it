@@ -475,3 +475,16 @@ test('fingerprint hashes base..working tree and survives commits after the base'
   write('a.js', 'two\n');
   assert.equal(fingerprint(dir, base), mid, 'reverting the edit restores it');
 });
+
+test('a partly staged excluded path does not break the snapshot', () => {
+  const { dir, git, write, commit } = gitRepo();
+  write('docs/TODO.md', 'a\n');
+  write('a.js', 'one\n');
+  commit();
+  write('docs/TODO.md', 'a\nb\n');
+  git('add', 'docs/TODO.md');
+  write('docs/TODO.md', 'a\nb\nc\n');
+  const before = git('diff', '--cached', '--name-only');
+  assert.doesNotThrow(() => fingerprint(dir, 'HEAD', { exclude: ['docs/TODO.md'] }));
+  assert.equal(git('diff', '--cached', '--name-only'), before, 'the real index is untouched');
+});
