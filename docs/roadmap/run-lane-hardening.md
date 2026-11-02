@@ -1,6 +1,7 @@
 ---
 title: Run lane hardening
 approved: 2026-10-30
+completed: 2026-10-30
 ---
 
 # Run lane hardening
@@ -76,17 +77,17 @@ None.
 - 2026-10-30 Decision: T142 is a bug: lane M in `slice` mode commits its code once, then its closing docs.
 - 2026-10-30 Decision: T145 is fixed in the finish-it loop text with a test that every stop code has a call site, not by having `run next` call `run start`.
 - 2026-10-30 Decision: T144 goes before T139, T143 and T145 so they are unit-testable.
+- 2026-10-30 Decision: run commits are opt-in per run (ADR [0008](../adr/0008-opt-in-run-commits.md)).
 
-## Changes
-- 2026-10-30: charted from the two open issues and T135 to T145 of the complete-run-lane audit.
-- 2026-10-30: R1 shipped (guard-untracked-paths): the guard scans untracked files named on a `git commit <path>` line; one extra `ls-files` call, pinned at 8 in hook-trust.test.mjs.
-- 2026-10-30: R2 shipped (commit-dir-retry): `run commit` refuses directory and glob paths and a landed phase commit is a no-op on retry; findings T155 to T157.
-- 2026-10-30: R3 shipped (commit-after-success): a rejected run commit restores the branch and leaves the run record untouched; finding T158.
-- 2026-10-30: R4 shipped (lane-m-slice-commit): lane M in `slice` mode commits its code once, then its closing docs; named files are compared to the hashes `run verify` recorded; findings T159 to T162.
-- 2026-10-30: R5 shipped (gate-orchestration): `run gate` and `run verify` live in `gate.mjs` as `runGate` and `runVerify` with unit tests; finding T163.
-- 2026-10-30: R6 shipped (cap-checks): the audit cap refuses the round after it and a slice whose last allowed round passed ships; `run next` stops at `max_slices`; a refusal is remembered so an ignored one still stops the gate; finding T164. The finish-it loop text that calls `run audit` before each round is R7.
-- 2026-10-30: R7 shipped (loop-call-sites): the finish-it loop is one ordered lane sequence calling `run start`, `run verify`, `run audit` and `run gate`, section 4 reports a `run next` stop, `--resume` names the slice id, and tests check each stop code's call and the order; finding T165.
-- 2026-10-30: R8 shipped (review-diff-planning): the snapshot drops excluded planning paths from its index, so `review-diff` never lists a committed plan file; no findings.
-- 2026-10-30: R9 shipped (final-review-change): `work.mjs run review-change` gives the final review the working tree against base under `--commit none` or uncommitted closing docs, else `<base>...HEAD`, planning files never in it; finding T167.
-- 2026-10-30: R10 shipped (digest-run-scope): the digest's Rollback lists only tags of work items this run started and a Retried section shows how each resumed slice ended; findings T168.
-- 2026-10-30: R11 shipped (reject-by-n): `run reject-assumption` fires the plan event before writing the record and finds the plan entry by the key's number, adjusted for earlier rejections; findings T169.
+## Shipped
+- R1 guard-untracked-paths, 2026-10-30: the guard scans untracked files named on a `git commit <path>` line, with one extra `ls-files` call.
+- R2 commit-dir-retry, 2026-10-30: `run commit` refuses directory and glob paths and a landed phase commit is a no-op on retry.
+- R3 commit-after-success, 2026-10-30: a rejected run commit restores the branch and leaves the run record untouched.
+- R4 lane-m-slice-commit, 2026-10-30: lane M in `slice` mode commits its code once, then its closing docs.
+- R5 gate-orchestration, 2026-10-30: `run gate` and `run verify` live in `gate.mjs` as `runGate` and `runVerify` with unit tests.
+- R6 cap-checks, 2026-10-30: the audit cap refuses the round after it, a slice whose last allowed round passed ships, and `run next` stops at `max_slices`.
+- R7 loop-call-sites, 2026-10-30: the finish-it loop calls `run start`, `run verify`, `run audit` and `run gate`, `--resume` names the slice id, and tests check each stop code's call.
+- R8 review-diff-planning, 2026-10-30: the snapshot drops excluded planning paths, so `review-diff` never lists a committed plan file.
+- R9 final-review-change, 2026-10-30: `work.mjs run review-change` gives the final review the working tree against base or `<base>...HEAD`, planning files never in it.
+- R10 digest-run-scope, 2026-10-30: the digest's Rollback lists only this run's tags and a Retried section shows how each resumed slice ended.
+- R11 reject-by-n, 2026-10-30: `run reject-assumption` fires the plan event before writing the record and finds the plan entry by `n`.

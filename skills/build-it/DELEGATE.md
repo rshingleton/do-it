@@ -16,7 +16,8 @@ Pointers, not pasted content:
 
 ## 2. What main does with the report
 
-- `done`: `work.mjs verify-phase <id> <n> --brief -- "<commands>"`. Main owns
+- `done`: `work.mjs verify-phase <id> <n> --brief -- "<commands>"` (in a run,
+  `work.mjs run verify`). Main owns
   every state-block write.
 - `failed`: main may call the Skill tool with "debug-it" itself, then send
   the phase once more; a second `failed` is `blocked`.

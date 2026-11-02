@@ -196,14 +196,19 @@ test('parseFrontmatter handles CRLF, folded blocks with blank lines, quotes', ()
   assert.equal(parseFrontmatter('---\nd: plain value\n  continued here\n---\n').meta.d, 'plain value continued here');
 });
 
-function checkWith(files) {
+// A throwaway copy of the repo with `files` written into it: `add` writes more, `run` spawns one of its scripts.
+function repoWith(files = {}) {
   const repo = copyRepo(path.join(tmp('do-it-chk-'), 'r'));
-  for (const [rel, text] of Object.entries(files)) {
-    fs.mkdirSync(path.dirname(path.join(repo, rel)), { recursive: true });
-    fs.writeFileSync(path.join(repo, rel), text);
-  }
-  return spawnSync('node', [path.join(repo, 'scripts/check.mjs')], { encoding: 'utf8' });
+  const add = (more) => {
+    for (const [rel, text] of Object.entries(more)) {
+      fs.mkdirSync(path.dirname(path.join(repo, rel)), { recursive: true });
+      fs.writeFileSync(path.join(repo, rel), text);
+    }
+  };
+  add(files);
+  return { repo, add, run: (script) => spawnSync('node', [path.join(repo, script)], { encoding: 'utf8' }) };
 }
+const checkWith = (files) => repoWith(files).run('scripts/check.mjs');
 
 const SKILL = (body) => `---\nname: zz-it\ndescription: Test skill. Use when testing.\n---\n\n${body}\n`;
 
@@ -394,13 +399,11 @@ test('check.mjs: a model-invoked skill needs "Use when"; a typed one does not', 
 });
 
 test('eval-routing.mjs: a model-invoked skill with no routing entry exits 1; the shipped repo exits 0', () => {
-  const repo = copyRepo(path.join(tmp('do-it-rte-'), 'r'));
-  const run = () => spawnSync('node', [path.join(repo, 'scripts/eval-routing.mjs')], { encoding: 'utf8' });
-  const ok = run();
+  const { add, run } = repoWith();
+  const ok = run('scripts/eval-routing.mjs');
   assert.equal(ok.status, 0, ok.stdout);
-  fs.mkdirSync(path.join(repo, 'skills/zz-it'));
-  fs.writeFileSync(path.join(repo, 'skills/zz-it/SKILL.md'), SKILL('Body.'));
-  const bad = run();
+  add({ 'skills/zz-it/SKILL.md': SKILL('Body.') });
+  const bad = run('scripts/eval-routing.mjs');
   assert.equal(bad.status, 1, bad.stdout);
   assert.match(bad.stdout, /error zz-it: no routing entries/);
 });

@@ -6,8 +6,9 @@ Brief for a fresh-context `it-reviewer` agent (mid-tier model). Use the
 
 Scope: every module the change adds or touches.
 
-1. **Deletion test**, as defined in [design-it](../design-it/SKILL.md), for
-   each new or changed module.
+1. **Deletion test** ([design-it](../design-it/SKILL.md)) for each new or
+   changed module: picture it gone. Complexity that goes with it means a
+   pass-through; complexity that returns in every caller means it earns its place.
 2. **Classify** anything flagged:
 
    | Signal | Means |

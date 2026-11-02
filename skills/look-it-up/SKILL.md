@@ -31,6 +31,10 @@ Its brief:
 - separate what the sources say from any inference drawn from them;
 - write the file below and report its path plus a three-line answer.
 
+An agent that errors, times out or returns no path, or a path whose file is
+missing or empty, has found nothing: say the research failed (`failed`) and why.
+Never fill the gap from memory and present it as findings.
+
 ## 3. The file
 
 Write to the repo's existing research or notes location when there is one,

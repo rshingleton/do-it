@@ -35,6 +35,9 @@ Read, without writing anything:
   do-it section, the repo's own writing rules (the appended text follows
   them), and any other workflow already defined there that uses
   `docs/issues/` or `docs/planning/` (flag the overlap in the proposal).
+- **Protected branches:** `node <this skill's dir>/scripts/default-branch.mjs <repo root>`
+  prints the remote's default branch and the `DO_IT_PROTECTED_BRANCHES` value to
+  write; `write: false` means skip it.
 - **Compliance:** `.compliance-rules/` and any `checks.json`.
 - **OpenCode:** `node <this skill's dir>/scripts/opencode-check.mjs <repo root>`
   prints whether `external_directory` is safe; `applies: false` means skip it.

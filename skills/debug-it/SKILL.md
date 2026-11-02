@@ -70,7 +70,9 @@ been ruled out. If they are away, go with your ranking.
 
 Each probe tests one prediction and changes one thing. How to probe without
 leaving a mess, and the different approach for slowness:
-[INSTRUMENT.md](INSTRUMENT.md).
+[INSTRUMENT.md](INSTRUMENT.md). A probe that errored (the harness crashed, a
+delegated probe failed, a timeout) tested nothing: record the hypothesis as
+untested, never as ruled out.
 
 ## 5. Fix behind a test
 
@@ -78,7 +80,8 @@ Before fixing, look for a seam where a test reproduces the real failure
 pattern as it happens in use. A seam too shallow to show it (one caller when
 the bug needs two, a unit when the bug lives in the chain) gives false
 comfort. No honest seam is itself a finding: report it as an architecture
-problem rather than writing a hollow test.
+problem rather than writing a hollow test, and route it: file it with `log-it`,
+or point to `deepen-it` for the module that has no seam.
 
 With an honest seam: turn the shrunken repro into a failing test there, watch
 it fail (if you forced the failure by editing code or data, diff against a

@@ -252,6 +252,60 @@ test('roadmap: a dependent of an unmet-Verify slice is ready, with the unmet cla
   assert.deepEqual(out.slices.find((s) => s.id === 'R3').unmet, []);
 });
 
+const TABLE = '| Slice | Kind | Delivers | Covers | Blocked by | Verify | Risk | Status |\n|---|---|---|---|---|---|---|---|\n';
+
+function roadmapOf(body, front = '') {
+  const dir = tmpDir('do-it-rm-');
+  const planningDir = path.join(dir, 'docs/planning');
+  fs.mkdirSync(planningDir, { recursive: true });
+  const file = path.join(dir, 'billing.md');
+  fs.writeFileSync(file, `${front}### M1\n\n${TABLE}${body}`);
+  return roadmapSlices(file, { root: dir, planningDir, tracked: () => false });
+}
+
+test('roadmap: finished means slices exist, all shipped or dropped, no open decision', () => {
+  const done = ['| R1 | build | A | G1 | none | v | low | shipped 2026-10-20 x |', '| R2 | build | B | G1 | none | v | low | dropped 2026-10-21: no |'];
+  assert.equal(roadmapOf(done.join('\n')).finished, true);
+  assert.equal(roadmapOf([done[0], '| R2 | build | B | G1 | none | v | low | |'].join('\n')).finished, false, 'an unshipped slice');
+  assert.equal(roadmapOf(`${done.join('\n')}\n\n## Open decisions\n- D1: q?\n`).finished, false, 'an open decision');
+  assert.equal(roadmapOf('').finished, false, 'no slices');
+  assert.equal(roadmapOf(done.join('\n')).completed, null, 'no frontmatter');
+});
+
+test('roadmap: completed is the frontmatter value and empties next and ready', () => {
+  const rows = '| R1 | build | A | G1 | none | v | low | shipped 2026-10-20 x |\n| R2 | build | B | G1 | none | v | low | |';
+  const out = roadmapOf(rows, '---\ntitle: Billing\ncompleted: 2026-10-30\n---\n');
+  assert.equal(out.completed, '2026-10-30');
+  assert.equal(out.finished, false, 'derived, not marked');
+  assert.equal(out.next, null);
+  assert.deepEqual(out.ready, []);
+  assert.equal(roadmapOf(rows, '---\ntitle: Billing\ncompleted:\n---\n').completed, null, 'empty value');
+  assert.equal(roadmapOf(rows, '---\ntitle: Billing\n---\n').next, 'R2');
+});
+
+test('roadmap: a completed roadmap with an unshipped slice reports why nothing is offered', () => {
+  const shipped = '| R1 | build | A | G1 | none | v | low | shipped 2026-10-20 x |';
+  const open = '| R2 | build | B | G1 | none | v | low | |';
+  const front = '---\ntitle: Billing\ncompleted: 2026-10-30\n---\n';
+  const reopened = roadmapOf(`${shipped}\n${open}`, front);
+  assert.deepEqual([reopened.finished, reopened.next], [false, null]);
+  assert.match(reopened.reopened, /completed 2026-10-30 but 1 slice not shipped/);
+  assert.equal(roadmapOf(shipped, front).reopened, null, 'a fully shipped completed roadmap has nothing to reopen');
+  assert.equal(roadmapOf(`${shipped}\n${open}`, '---\ntitle: Billing\n---\n').reopened, null, 'not completed');
+  assert.equal(roadmapOf(`${shipped}\n${open}\n| R3 | build | C | G1 | none | v | low | |`, front).reopened.includes('2 slices'), true);
+});
+
+test('roadmap: a completed roadmap whose slices all shipped but a decision was opened later reports reopened', () => {
+  const shipped = '| R1 | build | A | G1 | none | v | low | shipped 2026-10-20 x |';
+  const front = '---\ntitle: Billing\ncompleted: 2026-10-30\n---\n';
+  const out = roadmapOf(`${shipped}\n\n## Open decisions\n- D1: q?\n`, front);
+  assert.equal(out.finished, false);
+  assert.match(out.reopened, /completed 2026-10-30 but 1 decision open/);
+  const both = roadmapOf(`${shipped}\n| R2 | build | B | G1 | none | v | low | |\n\n## Open decisions\n- D1: q?\n`, front);
+  assert.match(both.reopened, /1 slice not shipped and 1 decision open/);
+  assert.equal(roadmapOf(shipped, front).reopened, null, 'finished and completed: nothing to reopen');
+});
+
 test('skills: roadmap-it and do-it ask the decisions that block slices', () => {
   const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
   const next = read('skills/roadmap-it/SKILL.md');
@@ -520,6 +574,14 @@ test('work.mjs: roadmap reads the file relative to the current directory', () =>
   assert.equal(out.next, 'R2', 'no plans: R2 is ready and riskier than R4');
 });
 
+test('work.mjs: roadmap prints finished and completed', () => {
+  const dir = tempRepo();
+  fs.writeFileSync(path.join(dir, 'r.md'), `---\ncompleted: 2026-10-30\n---\n### M1\n\n${TABLE}| R1 | build | A | G1 | none | v | low | shipped 2026-10-20 x |\n`);
+  const r = work(dir, 'roadmap', 'r.md');
+  assert.equal(r.out.finished, true);
+  assert.equal(r.out.completed, '2026-10-30');
+});
+
 test('work.mjs: show --brief prints only status, lane, next moves and the blocker, before or after the id', () => {
   const dir = tempRepo();
   work(dir, 'new', 'feat-b', '--lane', 'm', '--title', 'Feature B');
@@ -590,6 +652,24 @@ test('ship-it: the question offers the audit leftovers, DOCS.md and prove-it nam
   const section = docs.slice(docs.indexOf('## Audit findings'));
   assert.match(section, /"log-it"[\s\S]*`source: <work id> audit`/, 'it logs through log-it with the audit source');
   assert.ok(flat(prove).includes('with no changelog offers to log them as to-dos'), 'prove-it names the home');
+});
+
+// Behaviour a finalize must keep: the five offers, the paths it stages and the skills that point at it.
+// Wording is free; npm run check holds the line budget.
+test('ship-it: FINALIZE.md keeps its five offers, its paths and its never-list, and ship, run mode, finish-it and roadmap-it point at it', () => {
+  const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
+  const ship = read('skills/ship-it/SKILL.md');
+  assert.match(ship, /^argument-hint:.*--roadmap <file>/m, 'the hint has the mode');
+  assert.ok(ship.includes('(FINALIZE.md)'), 'SKILL.md links FINALIZE.md');
+  const finalize = read('skills/ship-it/FINALIZE.md');
+  // The paths a finalize stages, named in one section that run mode points at.
+  const paths = flat(finalize.slice(finalize.indexOf('## Paths'), finalize.indexOf('## Offers')));
+  for (const want of ['roadmap file', 'ADR', 'docs/TODO.md']) assert.ok(paths.includes(want), `Paths names ${want}`);
+  assert.equal(finalize.slice(finalize.indexOf('## Never')).split('\n').filter((l) => l.startsWith('- Never')).length, 3, 'the never-list keeps its three rules');
+  for (const [letter, title] of [['a', 'ADRs'], ['b', 'Fog'], ['c', 'Shipped'], ['d', 'Completed'], ['e', 'Milestones']])
+    assert.match(read('skills/ship-it/FINALIZE.md'), new RegExp(`^${letter}\\. \\*\\*${title}:\\*\\*`, 'm'), `offer ${letter}`);
+  assert.match(flat(ship), /\b2\. .*finalize offers a to e/, 'the offers ride in the Ask list item 2, inside the three-ask cap');
+  for (const f of ['skills/ship-it/RUNMODE.md', 'skills/finish-it/SKILL.md', 'skills/roadmap-it/SKILL.md']) assert.ok(read(f).includes('FINALIZE.md'), `${f} points at it`);
 });
 
 test('closing Next: do-it §6 and ship-it §4 name a slash command, never a script', () => {
@@ -697,7 +777,7 @@ test('work.mjs run: new, show, set and slice round trip with config defaults', (
   let r = ok(work(dir, 'run', 'new', 'road', '--date', '2026-10-30'));
   assert.deepEqual(r, {
     id: 'road', level: 'full', commit: 'phase', branch: null, started: '2026-10-30', base: null,
-    max_slices: null, slice_cap_min: 120, audit_cap: 5, slices: [], assumptions: [], rejected: [], limits: [],
+    max_slices: null, slice_cap_min: 120, audit_cap: 3, final_audit_cap: 3, audit_total_cap: null, slices: [], assumptions: [], rejected: [], limits: [],
   });
   assert.ok(fs.existsSync(path.join(dir, 'docs/planning/road.run/RUN.md')));
   assert.equal(work(dir, 'run', 'new', 'road').status, 1, 'no second record');
@@ -707,9 +787,9 @@ test('work.mjs run: new, show, set and slice round trip with config defaults', (
   assert.deepEqual(ok(work(dir, 'run', 'show', 'flags')), r, 'read back equals written');
 
   ok(work(dir, 'run', 'set', 'road', 'branch', '"do-it/road"'));
-  ok(work(dir, 'run', 'set', 'road', 'assumptions', '["a (reversible: x)"]'));
+  ok(work(dir, 'run', 'add-assumptions', 'road', 'sweep', '["a (reversible: x)"]'));
   r = ok(work(dir, 'run', 'set', 'road', 'limits', '["no browser: UI not seen"]'));
-  assert.deepEqual([r.branch, r.assumptions, r.limits], ['do-it/road', ['a (reversible: x)'], ['no browser: UI not seen']]);
+  assert.deepEqual([r.branch, r.assumptions, r.limits], ['do-it/road', ['sweep#1: a (reversible: x)'], ['no browser: UI not seen']]);
   ok(work(dir, 'run', 'set', 'road', 'max_slices', '3'));
   assert.equal(ok(work(dir, 'run', 'show', 'road')).max_slices, 3);
 });
@@ -744,7 +824,7 @@ test('work.mjs run: unknown levels, commit modes and non-positive caps are refus
   assert.match(work(dir, 'run', 'show', 'none').out.error, /no run record/);
 
   ok(work(dir, 'run', 'new', 'x'));
-  for (const [key, val, re] of [['level', '"turbo"', /level must/], ['commit', '"all"', /commit must/], ['audit_cap', '0', /positive/], ['assumptions', '"text"', /array/], ['status', '"x"', /takes one of/]]) {
+  for (const [key, val, re] of [['level', '"turbo"', /level must/], ['commit', '"all"', /commit must/], ['audit_cap', '0', /positive/], ['limits', '"text"', /array/], ['assumptions', '["x"]', /add-assumptions/], ['status', '"x"', /takes one of/]]) {
     const r = work(dir, 'run', 'set', 'x', key, val);
     assert.equal(r.status, 1, key);
     assert.match(r.out.error, re);
@@ -776,4 +856,83 @@ test('work.mjs run: a run record never shows in list', () => {
   ok(work(dir, 'run', 'new', 'other'));
   assert.deepEqual(ok(work(dir, 'list')), without);
   assert.equal(without.length, 1);
+});
+
+
+test('roadmap-it FORMAT.md describes completed and Shipped and no longer shows Changes in its example', () => {
+  const format = fs.readFileSync(path.join(ROOT, 'skills/roadmap-it/FORMAT.md'), 'utf8');
+  const example = format.slice(format.indexOf('```markdown'), format.indexOf('```\n', format.indexOf('```markdown') + 5));
+  assert.doesNotMatch(example, /^## Changes/m, 'the example is a new roadmap: Changes comes with its first dated line');
+  assert.match(format, /`completed: <date>`/);
+  assert.match(format, /## Shipped/);
+  const lifecycle = format.slice(format.indexOf('Two more parts'));
+  assert.ok(lifecycle.includes('replan') && !lifecycle.includes('re-chart'), 'one word for the action, the one roadmap-it uses');
+  assert.ok(lifecycle.includes('`completed:`') && lifecycle.includes('`## Shipped`') && lifecycle.includes('`reopened`'), 'the keep rule and the reopened note are stated');
+});
+
+test('FINALIZE Paths names every file a finalize writes, the local issue files included', () => {
+  const doc = flat(fs.readFileSync(path.join(ROOT, 'skills/ship-it/FINALIZE.md'), 'utf8'));
+  const paths = doc.slice(doc.indexOf('## Paths'), doc.indexOf('## Offers'));
+  for (const piece of ['docs/TODO.md', 'docs/issues/*.md']) assert.ok(paths.includes(piece), piece);
+  assert.ok(!paths.includes('stages exactly'), 'no claim the list is exact when offer e edits more');
+});
+
+test('a roadmap finalize leaves no proposed ADR nobody accepts, and the two origin-only Execution notes are gone', () => {
+  const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
+  const offerA = flat(read('skills/ship-it/FINALIZE.md')).match(/a\. \*\*ADRs:\*\*.*?(?=b\. \*\*Fog)/)[0];
+  assert.match(offerA, /`accepted` ADR/);
+  assert.doesNotMatch(offerA, /proposed/);
+  for (const adr of ['0009-usage-ledger-records-tokens-only', '0010-unmet-verify-does-not-block-dependents']) {
+    const text = read(`docs/adr/${adr}.md`);
+    assert.match(text, /^status: accepted/m);
+    assert.doesNotMatch(text, /## Execution notes/);
+  }
+});
+
+test('review-it and sweep-it report a reviewer that failed as unverified, never as clean', () => {
+  const read = (f) => flat(fs.readFileSync(path.join(ROOT, f), 'utf8'));
+  const review = read('skills/review-it/SKILL.md');
+  for (const failure of ['errors', 'times out', 'returns nothing']) assert.ok(review.includes(failure), `review-it names a reviewer that ${failure}`);
+  assert.match(review, /\*\*unverified\*\*, never "no findings"/);
+  const sweep = read('skills/sweep-it/REPORT.md');
+  assert.match(sweep, /unverified: list it under Not checked/);
+  assert.match(sweep, /verdict is never "healthy" while one is/);
+});
+
+test('prove-it does not pass an audit whose review axis is unverified', () => {
+  const read = (f) => flat(fs.readFileSync(path.join(ROOT, f), 'utf8'));
+  const verdict = read('skills/prove-it/SKILL.md');
+  const section = verdict.slice(verdict.indexOf('## 4. Verdict'), verdict.indexOf('## 5. Route'));
+  assert.match(section, /unverified/i, 'the verdict step names an unverified axis');
+  assert.match(read('skills/prove-it/REPORT.md'), /UNVERIFIED: <why>/, 'the report table has a cell for it');
+  // The blocked return is a real event, so the item carries a blocker, and neither verdict event fires for it.
+  assert.match(section, /event <id> block "<axis> unverified/, 'the unverified axis fires the block event');
+  assert.match(section, /`audit-pass` and `audit-fail` stay un-fired/);
+  const route = verdict.slice(verdict.indexOf('## 5. Route'));
+  assert.match(route, /`unblock` then `build-done` re-audits/, 'and Route says how it re-audits');
+});
+
+test('every skill that fans out an agent names what a failed agent means, and a bare "No findings." reads as unverified', () => {
+  const read = (f) => flat(fs.readFileSync(path.join(ROOT, f), 'utf8'));
+  const doubt = read('skills/doubt-it/SKILL.md');
+  const reconcile = doubt.slice(doubt.indexOf('**Reconcile.**'), doubt.indexOf('**Stop.**'));
+  assert.match(reconcile, /errors, times out or returns nothing/);
+  assert.match(reconcile, /unverified/);
+  assert.doesNotMatch(reconcile, /None found: proceed/, 'a bare none-found no longer proceeds');
+  assert.match(read('skills/look-it-up/SKILL.md'), /errors, times out or returns no path/);
+  for (const f of ['skills/guard-it/SKILL.md', 'skills/review-it/SKILL.md']) assert.match(read(f), /unverified/i, f);
+  assert.match(read('skills/debug-it/SKILL.md'), /errored[^.]*tested nothing/);
+  assert.match(read('skills/review-it/SKILL.md'), /bare "No findings\."/);
+  assert.match(read('skills/prove-it/SKILL.md'), /bare "No findings\."/);
+});
+
+test('the architecture briefs carry the deletion test inline, and debug-it routes a missing seam', () => {
+  const read = (f) => flat(fs.readFileSync(path.join(ROOT, f), 'utf8'));
+  for (const f of ['skills/prove-it/ARCHITECTURE.md', 'skills/sweep-it/LENSES.md']) {
+    const text = read(f);
+    assert.match(text, /picture (it|the module) gone/, `${f} states the test in one sentence`);
+    assert.ok(text.includes('../design-it/SKILL.md'), `${f} still links design-it`);
+  }
+  const debug = read('skills/debug-it/SKILL.md');
+  assert.match(debug, /No honest seam is itself a finding[^.]*`log-it`[^.]*`deepen-it`/);
 });

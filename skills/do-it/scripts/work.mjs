@@ -10,7 +10,7 @@
 //   work.mjs review-diff <id>
 //   work.mjs verify-phase <id> [n] [--in dir] -- <command...>
 //   work.mjs roadmap <file>
-//   work.mjs run new <slug> [--level --commit --max-slices --slice-cap-min --audit-cap]
+//   work.mjs run new <slug> [--level --commit --max-slices --slice-cap-min --audit-cap --final-audit-cap --audit-total-cap]
 //   work.mjs run show <slug> | set <slug> <key> <json> | slice <slug> <id> <status> [--reason --needs]
 //   work.mjs run add-assumptions <slug> <work id> <json array>   (merges; kept as <id>#<n>: text)
 //   work.mjs run reject-assumption <slug> <id>#<n> <instead...>   (by key; reopens the item if its plan is still auditing or shipping)
@@ -18,9 +18,13 @@
 //   work.mjs run commit <slug> <id> [--phase n | --docs] --paths a,b [--limits <json>]
 //   work.mjs run review-change <slug>   (the final review's change: <base>...HEAD, or the working tree against base)
 //   work.mjs run digest <slug> [--usage <json>] [--findings <json>] [--retro <json>]   (markdown, saved uncommitted)
-//   work.mjs run start <slug> <slice> --work <id> [--at iso] | audit <slug> | gate <slug> <slice>
-//   work.mjs run verify <slug> <slice> [--phase n] [--in dir] -- <command...>   (reruns a failure once)
+//   work.mjs run start <slug> <slice> --work <id> [--at iso] | audit <slug> <slice>|--final | gate <slug> <slice>
+//   work.mjs run verify <slug> <slice> [--phase n] [--paths a,b] [--in dir] -- <command...>   (reruns a failure once)
 //   work.mjs close <id>
+//
+// `run audit` prints {audit_rounds, allow, reason, limit, detail}: `audit_rounds` is the slice's (or the
+// final review's) count after the call, `allow` false with `reason` AUDIT_CAP when a limit was spent,
+// `limit` names it (`slice R1`, `final review`, `run total`), `detail` says rounds against cap.
 //
 // The rules live in items.mjs and state.mjs (../STATE.md documents them);
 // this script parses arguments, gathers the git facts an event needs, and
@@ -36,12 +40,14 @@ import { needsUser } from './state.mjs';
 import { allowedMoves, firableEvents, workItems } from './items.mjs';
 import { roadmapSlices } from './roadmap.mjs';
 import { commitSlice } from './commit.mjs';
+import { git } from './git.mjs';
 import { buildDigest } from './digest.mjs';
-import { addAssumptions, createRun, nextSlice, runPath, setRun, showRun, sliceRun } from './run.mjs';
-import { countAudit, runGate, runRejectAssumption, runReviewChange, runVerify, startSlice } from './gate.mjs';
+import { addAssumptions, createRun, nextSlice, resumeSlice, runPath, setRun, showRun, sliceRun } from './run.mjs';
+import { countAudit, startSlice } from './gate.mjs';
+import { runGate, runRejectAssumption, runReviewChange, runVerify } from './runs.mjs';
 
 // Flags that take no value.
-const FLAGS = new Set(['brief', 'docs']);
+const FLAGS = new Set(['brief', 'docs', 'final']);
 
 function parseArgs(argv) {
   const pos = [];
@@ -82,8 +88,7 @@ function brief(item) {
 }
 
 function head(root) {
-  const r = spawnSync('git', ['rev-parse', '--verify', '--quiet', 'HEAD'], { cwd: root, encoding: 'utf8' });
-  return r.status === 0 ? r.stdout.trim() : EMPTY_TREE;
+  return baseRef(root) ?? EMPTY_TREE;
 }
 
 // Hash of the change since the item's base, planning files excluded.
@@ -92,9 +97,18 @@ function planningExclude(ctx) {
   return rel ? [rel] : [];
 }
 
+// The change fingerprint also leaves out what ship-it's closing docs write (the item's roadmap file,
+// the to-do list, the ADR directory), or closing them would read as moved code. A hand edit to
+// those files after verify goes unseen, by decision.
+function closingDocsExclude(ctx, item) {
+  const rel = (p) => path.relative(ctx.root, path.resolve(ctx.root, p)).split(path.sep).join('/');
+  const roadmap = String(item.state.roadmap ?? '').split('#')[0];
+  return [roadmap, ctx.config.DO_IT_TODO_FILE || 'docs/TODO.md', ctx.config.DO_IT_ADR_DIR || 'docs/adr'].filter(Boolean).map(rel).filter((p) => p && !p.startsWith('..'));
+}
+
 function itemFingerprint(ctx, item) {
   if (!item.state.base_ref) throw new Error(`${item.state.id} has no base_ref yet: run event start first`);
-  return fingerprint(ctx.root, item.state.base_ref, { exclude: planningExclude(ctx) });
+  return fingerprint(ctx.root, item.state.base_ref, { exclude: [...planningExclude(ctx), ...closingDocsExclude(ctx, item)] });
 }
 
 function shellQuote(arg) {
@@ -142,7 +156,7 @@ function eventArgs(ctx, item, event, rest, opts) {
 
 // HEAD's commit, or null outside a git repo or before the first commit.
 function baseRef(root) {
-  const r = spawnSync('git', ['rev-parse', '--verify', '--quiet', 'HEAD'], { cwd: root, encoding: 'utf8' });
+  const r = git(root, ['rev-parse', '--verify', '--quiet', 'HEAD']);
   return r.status === 0 ? r.stdout.trim() : null;
 }
 
@@ -227,6 +241,7 @@ export async function run(argv, { cwd = process.cwd() } = {}) {
         case 'reject-assumption':
           return runRejectAssumption({ planningDir: ctx.planningDir, slug, key: args[0], instead: args.slice(1).join(' '), items, date: opts.date });
         case 'slice':
+          if (args[1] === 'ready') return resumeSlice(ctx.planningDir, slug, args[0]);
           return sliceRun(ctx.planningDir, slug, args[0], args[1], { reason: opts.reason, needs: opts.needs });
         case 'next': {
           if (!args[0]) throw new Error('run next needs a roadmap file');
@@ -234,9 +249,9 @@ export async function run(argv, { cwd = process.cwd() } = {}) {
           return nextSlice(roadmapSlices(file, ctx), showRun(ctx.planningDir, slug));
         }
         case 'start':
-          return startSlice(ctx.planningDir, slug, args[0], { work: opts.work, at: opts.at });
+          return startSlice(ctx.planningDir, slug, args[0], { work: opts.work, at: opts.at ?? new Date().toISOString() });
         case 'audit':
-          return countAudit(ctx.planningDir, slug);
+          return countAudit(ctx.planningDir, slug, { id: args[0], final: opts.final === true });
         case 'gate':
           return runGate({ planningDir: ctx.planningDir, slug, id: args[0], items, fingerprintOf: (item) => itemFingerprint(ctx, item) });
         case 'verify':
@@ -255,7 +270,7 @@ export async function run(argv, { cwd = process.cwd() } = {}) {
           });
         }
         case 'digest': {
-          const tags = spawnSync('git', ['tag', '-l', 'do-it/*/phase-*'], { cwd: ctx.root, encoding: 'utf8' }).stdout.split('\n').filter(Boolean).sort();
+          const tags = git(ctx.root, ['tag', '-l', 'do-it/*/phase-*']).stdout.split('\n').filter(Boolean).sort();
           const arg = (k, d) => (opts[k] === undefined ? d : json(opts[k]));
           const text = buildDigest({ record: showRun(ctx.planningDir, slug), tags, usage: arg('usage', null), findings: arg('findings', []), retro: arg('retro', []) });
           fs.writeFileSync(path.join(path.dirname(runPath(ctx.planningDir, slug)), 'DIGEST.md'), text);

@@ -20,7 +20,7 @@ Level full, commit phase, started 2026-10-30.
 
 ## Assumptions taken (2)
 
-- Retry once on timeout
+- sweep #1: Retry once on timeout
 - feat #2: Cache 5 min
 
 ## Assumptions rejected (1)

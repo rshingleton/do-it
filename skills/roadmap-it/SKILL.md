@@ -91,10 +91,13 @@ After a slice ships, a spike or decision answers, or the destination moves:
 3. Turn sharp fog into slices or decisions; drop slices the shipped work made
    unnecessary (`dropped <date>: <why>`); re-cut any that grew past lane M.
 4. Re-run the §5 checks, add a dated line to Decisions so far and to Changes,
-   and show the diff for approval.
+   and show the diff for approval. A roadmap that already has `## Shipped`
+   keeps it: the new line goes in a `## Changes` section after it (the first
+   dated line creates one), never in a second Changes beside an existing one.
+   Leave `completed:` as the owner set it.
 
 ## Rules
 
 - No code here: the roadmap decides what and in which order; scope-it decides
   how. Each slice is at most lane M.
-- ship-it marks a slice `shipped`; the roadmap is never deleted at ship.
+- ship-it finalizes a finished roadmap ([FINALIZE.md](../ship-it/FINALIZE.md)).

@@ -44,7 +44,9 @@ holds under the expected load, tested, fast, lean.
 
 ## Architecture (brief)
 
-8. Apply the deletion test ([design-it](../design-it/SKILL.md)) to the
-   modules the scope leans on; note shallow modules, leaky seams and
-   hypothetical seams in one line each, in the `design-it` vocabulary. Do not
-   design fixes here; point to `deepen-it` for anything worth deepening.
+8. Apply the deletion test (picture the module gone: complexity that goes with
+   it was a pass-through, complexity that returns in every caller means it earns
+   its place; [design-it](../design-it/SKILL.md)) to the modules the scope leans
+   on; note shallow modules, leaky seams and hypothetical seams in one line
+   each, in the `design-it` vocabulary. Do not design fixes here; point to
+   `deepen-it` for anything worth deepening.

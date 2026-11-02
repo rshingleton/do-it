@@ -2,80 +2,125 @@
 // a safe branch. Only a run record opts in; without one nothing here runs.
 // It stages the paths it is given and never anything else, tags each phase
 // commit locally, and never pushes. The message ends with the single do-it
-// attribution line (the user's commit rule), so the commit guard allows it.
+// attribution line (ATTRIBUTION below), which the commit guard allows.
 
-import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { git, gitOut, LITERAL } from './git.mjs';
 import { showRun, setRun } from './run.mjs';
 
 export const ATTRIBUTION = 'Build assistance with do-it: https://github.com/rshingleton/do-it';
 
-// Literal pathspecs: a named path is a file name, never a glob, so `src/*`
-// cannot stage what the slice did not map.
-const ENV = { ...process.env, GIT_LITERAL_PATHSPECS: '1' };
-
-function git(cwd, args, input) {
-  const r = spawnSync('git', args, { cwd, encoding: 'utf8', input, env: ENV });
-  if (r.status !== 0) throw new Error(`git ${args[0]} failed: ${(r.stderr || r.stdout).trim()}`);
-  return r.stdout.trim();
-}
+// Every git call here runs with literal pathspecs: a named path is a file name, never a glob, so `src/*`
+// cannot stage what the slice did not map. `git` is the shared wrapper, `gitResult` its result under LITERAL,
+// `gitText` the trimmed stdout of a call that must succeed, `gitRaw` the same untrimmed (NUL-separated lists,
+// megabytes of status).
+const gitResult = (cwd, args, input) => git(cwd, args, 'utf8', LITERAL, { input });
+const gitText = (cwd, args, input) => gitOut(cwd, args, LITERAL, input).trim();
+const gitRaw = (cwd, args, input) => gitOut(cwd, args, LITERAL, input);
 
 const lines = (s) => s.split('\n').filter(Boolean);
 
+// A named path as the records and git list it: relative to the repo root.
+export const relative = (root, p) => path.relative(root, path.resolve(root, p));
+
 function currentBranch(cwd) {
-  const r = spawnSync('git', ['symbolic-ref', '--quiet', '--short', 'HEAD'], { cwd, encoding: 'utf8' });
+  const r = gitResult(cwd, ['symbolic-ref', '--quiet', '--short', 'HEAD']);
   return r.status === 0 ? r.stdout.trim() : null;
 }
 
 function branchExists(cwd, name) {
-  return spawnSync('git', ['show-ref', '--verify', '--quiet', `refs/heads/${name}`], { cwd }).status === 0;
+  return gitResult(cwd, ['show-ref', '--verify', '--quiet', `refs/heads/${name}`]).status === 0;
 }
 
 // The current branch when it is unprotected, else do-it/<roadmap-slug>,
 // created (or switched to) before the first commit. A detached HEAD counts as
-// protected. `undo` puts the repo back as it was found.
+// protected. `undo` puts the repo back as it was found and returns what it could not
+// undo (a failed switch back, a branch kept because it gained commits), else ''.
 function safeBranch(cwd, slug, protectedList) {
   const now = currentBranch(cwd);
   const blocked = protectedList.split(',').map((b) => b.trim()).filter(Boolean);
-  if (now && !blocked.includes(now)) return { name: now, undo() {} };
+  if (now && !blocked.includes(now)) return { name: now, undo: () => '' };
   const name = `do-it/${slug}`;
-  if (now === name) return { name, undo() {} };
+  if (now === name) return { name, undo: () => '' };
   const made = !branchExists(cwd, name);
-  const from = now || git(cwd, ['rev-parse', 'HEAD']);
-  git(cwd, made ? ['switch', '-q', '-c', name] : ['switch', '-q', name]);
+  // Empty with no commit yet: then there is no branch tip to compare, and a detached start cannot exist.
+  const start = gitResult(cwd, ['rev-parse', '-q', '--verify', 'HEAD']).stdout.trim();
+  const from = now || start;
+  gitText(cwd, made ? ['switch', '-q', '-c', name] : ['switch', '-q', name]);
   return {
     name,
     undo() {
-      spawnSync('git', ['switch', '-q', ...(now ? [] : ['--detach']), from], { cwd, env: ENV });
-      if (made) spawnSync('git', ['branch', '-q', '-D', name], { cwd, env: ENV });
+      const back = gitResult(cwd, ['switch', '-q', '--no-guess', ...(now ? [] : ['--detach']), from]);
+      // Still on the scratch branch: it cannot be deleted, and the caller is told where the repo is.
+      if (back.status !== 0) return ` (could not switch back to ${now ?? from}, still on ${name}: ${back.stderr.trim()})`;
+      if (!made) return '';
+      // A hook that committed on the branch it was given leaves work there; only an untouched branch is removed.
+      const tip = gitResult(cwd, ['rev-parse', '-q', '--verify', `refs/heads/${name}`]).stdout.trim();
+      if (tip !== start) return ` (${name} gained commits and was kept)`;
+      gitResult(cwd, ['branch', '-q', '-D', name]);
+      return '';
     },
   };
 }
 
-// Every file the working tree changes, each with a hash of its content ('gone'
-// when it is deleted), as `run verify` saw it. A rename is its new path plus its
-// old path gone. Nothing is matched as a pattern: names are read, never expanded.
-export function dirtyHashes(root) {
-  const recs = spawnSync('git', ['status', '--porcelain', '-z', '-uall'], { cwd: root, encoding: 'utf8', env: ENV }).stdout.split('\0').filter(Boolean);
+// Every file the working tree changes, each as `<755|644>:<blob hash>` ('gone' when it is deleted, 'dir'
+// for a directory, `sub:<hash>` for a submodule's own state), as `run verify` saw it. A link is its target's hash, never what it points at, so a
+// retargeted or dangling link and a mode-only change both show. A rename is its new path plus its old
+// path gone. Nothing is matched as a pattern: names are read, never expanded. `only` (repo-relative
+// names) keeps just those entries, a rename counting when either side is named, so the record never
+// holds another slice's or the user's files. Throws when git fails.
+//
+// A dirty submodule's state: its HEAD plus a hash of its own status and diff, so an edit inside it shows.
+// shortcut: an untracked file inside the submodule counts by name only, so a re-edit of it goes unseen; hash its content if a slice ever edits one.
+function submoduleState(abs) {
+  const sub = (args) => gitRaw(abs, args);
+  const text = [sub(['rev-parse', 'HEAD']), sub(['status', '--porcelain', '-z', '-uall']), sub(['diff', 'HEAD'])].join('\n--\n');
+  return gitRaw(abs, ['hash-object', '--stdin'], text).trim();
+}
+
+export function dirtyHashes(root, only = null) {
+  const wanted = only && new Set(only);
+  const recs = [];
+  const all = gitRaw(root, ['status', '--porcelain', '-z', '-uall']).split('\0').filter(Boolean);
+  for (let i = 0; i < all.length; i++) {
+    const renamed = /[RC]/.test(all[i][0]);
+    const pair = renamed ? [all[i], all[++i]] : [all[i]];
+    if (!wanted || pair.some((r, k) => wanted.has(k === 0 ? r.slice(3) : r))) recs.push(...pair);
+  }
   const files = {};
-  const hash = (f) => {
+  const modes = {};
+  const plain = [];
+  const stamp = (f) => {
     const abs = path.resolve(root, f);
-    if (!fs.statSync(abs, { throwIfNoEntry: false })?.isFile()) return 'gone';
-    return spawnSync('git', ['hash-object', '--no-filters', '--', abs], { cwd: root, encoding: 'utf8' }).stdout.trim() || 'gone';
+    const st = fs.lstatSync(abs, { throwIfNoEntry: false });
+    if (!st) return 'gone';
+    // Git tracks the executable bit and nothing else of the mode, so a `chmod g+w` or a umask change is no change.
+    modes[f] = st.isSymbolicLink() ? '120000' : st.mode & 0o100 ? '755' : '644';
+    if (st.isSymbolicLink()) return `${modes[f]}:${gitRaw(root, ['hash-object', '--stdin'], fs.readlinkSync(abs)).trim()}`;
+    if (st.isDirectory() && fs.existsSync(path.join(abs, '.git'))) return `sub:${submoduleState(abs)}`;
+    if (!st.isFile()) return 'dir';
+    plain.push(f);
+    return null;
   };
   for (let i = 0; i < recs.length; i++) {
     const f = recs[i].slice(3);
-    files[f] = hash(f);
+    files[f] = stamp(f);
     if (/[RC]/.test(recs[i][0])) files[recs[++i]] = 'gone';
   }
+  // Regular files hash in one call; a name with a newline or a carriage return cannot ride a line-based list.
+  const lined = plain.filter((f) => !/[\r\n]/.test(f));
+  const out = lined.length ? gitRaw(root, ['hash-object', '--no-filters', '--stdin-paths'], lined.map((f) => path.resolve(root, f)).join('\n') + '\n').split('\n') : [];
+  lined.forEach((f, i) => {
+    files[f] = `${modes[f]}:${out[i]}`;
+  });
+  for (const f of plain.filter((x) => /[\r\n]/.test(x))) files[f] = `${modes[f]}:${gitRaw(root, ['hash-object', '--no-filters', '--', path.resolve(root, f)]).trim()}`;
   return files;
 }
 
-// `paths` are the files the boundary check mapped to the slice. Returns the
-// commit and its tag; throws, changing nothing in HEAD, when a gate fails.
-export function commitSlice({ root, planningDir, config, items, slug, id, phase, docs = false, paths, limits = [] }) {
-  const run = showRun(planningDir, slug);
+// Every gate a commit passes before anything is staged: the run's mode, the item's verified state,
+// and the named paths. Returns the commit's subject (and the earlier commit when this is a retry of one that landed); throws, touching nothing, when one fails.
+function assertCommittable({ root, run, slug, items, id, phase, docs, paths, retry }) {
   if (run.commit === 'none') throw new Error(`run ${slug} has commit mode none: nothing is committed`);
   if (run.commit === 'slice' && phase !== undefined) throw new Error(`run ${slug} commits one commit per slice, not per phase`);
   if (docs && phase !== undefined) throw new Error('--docs and --phase are separate commits');
@@ -106,59 +151,97 @@ export function commitSlice({ root, planningDir, config, items, slug, id, phase,
   if (paths.some((p) => p === '.' || p === '-A' || p === '--all' || p.startsWith('-') || p.startsWith(':'))) {
     throw new Error(`commit stages named files only, got ${paths.join(',')}`);
   }
+  // Every lane commits files inside the repo; a path spelled through a symlinked root reads as outside it.
+  const outside = paths.map((p) => relative(root, p)).filter((p) => p.startsWith('..') || path.isAbsolute(p));
+  if (outside.length) throw new Error(`commit stages files inside the repo, ${outside.join(', ')} is not; nothing committed`);
   // A directory, even one deleted from disk, would stage every edit under it, other slices' included.
+  // `ls-files -z` reads names unquoted; they are compared with the path's repo-relative form.
   for (const p of paths) {
     const onDisk = fs.statSync(path.resolve(root, p), { throwIfNoEntry: false })?.isDirectory();
-    if (onDisk || lines(git(root, ['ls-files', '--', p])).some((f) => f !== path.normalize(p))) throw new Error(`commit stages named files only, ${p} is a directory`);
+    if (onDisk || gitRaw(root, ['ls-files', '-z', '--', p]).split('\0').filter(Boolean).some((f) => f !== relative(root, p))) throw new Error(`commit stages named files only, ${p} is a directory`);
   }
+  // A commit that already landed is a retry: it is answered before the verify compare, which a landed
+  // commit (its files now clean) would fail.
+  const landed = retry?.(subject);
+  if (landed) return { subject, landed };
   // Lane M's code commit follows its last verify: a named file that differs from what `run verify` saw refuses.
   // Files outside the named paths (the closing docs, a user's own edit) are not compared.
   if (!docs && phase === undefined && state.lane === 'm') {
     const seen = (run.gates ?? []).find((x) => x.work === id)?.verified_files;
-    if (!seen) throw new Error(`${id} has no verify record from run verify; run it, nothing committed`);
-    const now = dirtyHashes(root);
-    const moved = paths.map((p) => path.normalize(p)).filter((p) => (now[p] ?? 'clean') !== (seen[p] ?? 'clean'));
-    if (moved.length) throw new Error(`${moved.join(', ')} changed since the last passing verify; run verify again, nothing committed`);
-  }
-  // A phase retried after its commit landed: the commit is HEAD, so nothing is left to stage and the tag may be the
-  // only thing missing. Anything else under that tag (a new edit, another commit) is refused, never skipped.
-  if (phase !== undefined) {
-    const tag = `do-it/${id}/phase-${phase}`;
-    const head = spawnSync('git', ['rev-parse', '-q', '--verify', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim();
-    const tagged = spawnSync('git', ['rev-parse', '-q', '--verify', `refs/tags/${tag}^{commit}`], { cwd: root, encoding: 'utf8' }).stdout.trim();
-    const landed =
-      head && git(root, ['log', '-1', '--format=%s']) === subject && git(root, ['log', '-1', '--format=%B']).endsWith(ATTRIBUTION) &&
-      !git(root, ['status', '--porcelain', '--', ...paths]);
-    if (landed && (!tagged || tagged === head)) {
-      if (!tagged) git(root, ['tag', tag, head]);
-      return { commit: head, branch: currentBranch(root), tag, subject, limits: run.limits };
+    if (!seen) throw new Error(`${id} has no verify record from run verify; run it with --paths a,b (the slice's files), nothing committed`);
+    // The records key on repo-relative names, so an absolute in-repo path is compared by its relative form.
+    const named = paths.map((p) => relative(root, p));
+    let now;
+    try {
+      now = dirtyHashes(root, named);
+    } catch (e) {
+      throw new Error(`could not read the working tree to compare with ${id}'s verified_files (${e.message}); nothing committed`);
     }
-    if (tagged) throw new Error(`phase ${phase} is already committed as ${tag}; nothing committed`);
+    const moved = named.filter((p) => (now[p] ?? 'clean') !== (seen[p] ?? 'clean'));
+    if (moved.length) throw new Error(`${moved.join(', ')} changed since the last passing verify; run verify again, nothing committed`);
+    // A name in neither record reads clean on both sides; it is only clean when git tracks it exactly so
+    // (a case variant or a typo is not).
+    const unknown = named.filter((p) => !(p in now) && !(p in seen));
+    const untrusted = unknown.filter((p) => !gitRaw(root, ['ls-files', '-z', '--', p]).split('\0').filter(Boolean).includes(p) || gitRaw(root, ['status', '--porcelain', '--', p]).trim());
+    if (untrusted.length) throw new Error(`${untrusted.join(', ')} is in neither verify record and is not a tracked, clean file; nothing committed`);
   }
-  if (lines(git(root, ['diff', '--cached', '--name-only'])).length) throw new Error('the index already holds staged files; unstage them first');
+  return { subject };
+}
+
+// A commit retried after it landed (a phase, a lane S slice or the closing docs): it is HEAD with this subject,
+// attribution and exactly these paths, so nothing is left to stage and a phase's tag may be the only thing
+// missing. Returns its result then, null when this is a first commit; anything else under that tag (a new
+// edit, another commit) throws, never skipped.
+function phaseAlreadyLanded({ root, run, tag, phase, subject, paths }) {
+  const rev = (ref) => gitResult(root, ['rev-parse', '-q', '--verify', ref]).stdout.trim();
+  const head = rev('HEAD');
+  const tagged = tag && rev(`refs/tags/${tag}^{commit}`);
+  const landed =
+    head && gitText(root, ['log', '-1', '--format=%s']) === subject && gitText(root, ['log', '-1', '--format=%B']).endsWith(ATTRIBUTION) &&
+    !gitText(root, ['status', '--porcelain', '--', ...paths]) &&
+    gitRaw(root, ['show', '--no-renames', '--name-only', '--format=', '-z', 'HEAD']).split('\0').filter(Boolean).sort().join('\n') === [...new Set(paths.map((p) => relative(root, p)))].sort().join('\n');
+  if (landed && (!tagged || tagged === head)) {
+    if (tag && !tagged) gitText(root, ['tag', tag, head]);
+    return { commit: head, branch: currentBranch(root), tag, subject, limits: run.limits };
+  }
+  if (tagged) throw new Error(`phase ${phase} is already committed as ${tag}; nothing committed`);
+  return null;
+}
+
+// `paths` are the files the boundary check mapped to the slice. Returns the
+// commit and its tag; throws, changing nothing in HEAD, when a gate fails.
+export function commitSlice({ root, planningDir, config, items, slug, id, phase, docs = false, paths, limits = [] }) {
+  const run = showRun(planningDir, slug);
+  const tag = phase === undefined ? null : `do-it/${id}/phase-${phase}`;
+  const { subject, landed } = assertCommittable({ root, run, slug, items, id, phase, docs, paths, retry: (s) => phaseAlreadyLanded({ root, run, tag, phase, subject: s, paths }) });
+  if (landed) return landed;
+  if (lines(gitText(root, ['diff', '--cached', '--name-only'])).length) throw new Error('the index already holds staged files; unstage them first');
   for (const p of paths) {
-    if (!git(root, ['status', '--porcelain', '--', p])) throw new Error(`${p} has no change to commit`);
+    if (!gitText(root, ['status', '--porcelain', '--', p])) throw new Error(`${p} has no change to commit`);
   }
   const onto = safeBranch(root, slug, config.DO_IT_PROTECTED_BRANCHES);
   const body = limits.length ? `Verification limits:\n${limits.map((l) => `- ${l}`).join('\n')}` : null;
   const message = [subject, body, ATTRIBUTION].filter(Boolean).join('\n\n');
   try {
-    git(root, ['add', '--', ...paths]);
-    git(root, ['commit', '-q', '-F', '-'], message);
+    gitText(root, ['add', '--', ...paths]);
+    gitText(root, ['commit', '-q', '-F', '-'], message);
   } catch (e) {
-    spawnSync('git', ['reset', '-q', '--', ...paths], { cwd: root, env: ENV });
-    onto.undo();
-    throw e;
+    gitResult(root, ['reset', '-q', '--', ...paths]);
+    throw new Error(`${e.message}${onto.undo()}`);
   }
   // The run record follows the commit, so a rejected commit leaves it as it was.
   const branch = onto.name;
   if (run.branch !== branch) setRun(planningDir, slug, 'branch', branch);
   const known = limits.length ? setRun(planningDir, slug, 'limits', [...new Set([...run.limits, ...limits])]).limits : run.limits;
-  const sha = git(root, ['rev-parse', 'HEAD']);
-  let tag = null;
-  if (phase !== undefined) {
-    tag = `do-it/${id}/phase-${phase}`;
-    git(root, ['tag', tag, sha]);
+  const sha = gitText(root, ['rev-parse', 'HEAD']);
+  // The commit has landed, so a tag that fails is reported with the commit, not as a failed commit; the
+  // same call again finds the commit at HEAD and only tags it.
+  if (tag) {
+    try {
+      gitText(root, ['tag', tag, sha]);
+    } catch (e) {
+      throw new Error(`committed ${sha} on ${branch} but ${e.message}; run the same command again to tag it`);
+    }
   }
   return { commit: sha, branch, tag, subject, limits: known };
 }

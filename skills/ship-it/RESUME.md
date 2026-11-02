@@ -10,7 +10,8 @@ Detail for [SKILL.md](SKILL.md) §1 and §3 step 2.
   closes, leave those edits uncommitted and say so, then close the remote
   tracker (§3 step 4).
 
-Lane XS with no id: "file one" calls `log-it`; the ref given or filed is
+Lane XS with no id: the question always asks, no default: the ref to use, or
+"file one" with `log-it`? "File one" calls `log-it`; the ref given or filed is
 the commit id and joins `--ref` from here on.
 
 ## Resumed after review

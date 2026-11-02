@@ -13,6 +13,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { allowedEvents, emptyBlock, normalize, transition } from './state.mjs';
 import { readItem, writeItem } from './block.mjs';
+import { isId } from './ids.mjs';
 
 const SETTABLE = ['title', 'lane', 'tracker', 'sources', 'roadmap', 'todo', 'blocked_by', 'phases', 'assumptions', 'defects'];
 const LANE_RANK = { s: 1, m: 2 };
@@ -25,7 +26,7 @@ function layout(planningDir, id, lane) {
 // The directory first: after an interrupted lane move it holds the newer plan.
 // An id names a file under the planning directory, so it may not carry a path.
 function checkId(id) {
-  if (!id || !/^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(id)) throw new Error('needs an id (kebab-case slug or tracker ref)');
+  if (!isId(id)) throw new Error('needs an id (kebab-case slug or tracker ref)');
 }
 
 export function planPath(planningDir, id) {
@@ -106,6 +107,8 @@ export function workItems({ planningDir, write = writeItem }) {
       if (!LANE_RANK[lane]) throw new Error('new needs --lane s or --lane m');
       if (!id) throw new Error('new needs an id (kebab-case slug or tracker ref)');
       checkId(id);
+      // The run sweep records its defaults under this id (`run add-assumptions <slug> sweep`), so no item may take it.
+      if (id === 'sweep') throw new Error('sweep is reserved for the run sweep\'s assumptions: pick another id');
       if (planPath(planningDir, id)) throw new Error(`${id} already has a plan`);
       title ??= id;
       const item = { path: layout(planningDir, id, lane), state: emptyBlock({ id, title, lane }), body: `\n# ${title}\n` };
@@ -164,6 +167,15 @@ export function workItems({ planningDir, write = writeItem }) {
     verifyPhase(id, n, run, { date } = {}) {
       const state = get(id).state;
       if (state.lane === 'm' && !Number.isInteger(n)) throw new Error('lane M: verify-phase needs a phase number');
+      // Before the check runs: past building the move is refused anyway, and the refusal should say why.
+      if (state.status !== 'building') {
+        const how = {
+          draft: `approve it, then start it (work.mjs event ${id} approve, then start)`,
+          planned: `start it (work.mjs event ${id} start)`,
+          blocked: `unblock it (work.mjs event ${id} unblock)`,
+        }[state.status] ?? `a replan reopens it (work.mjs event ${id} replan, then approve and start)`;
+        throw new Error(`verify-phase needs ${id} building, but it is ${state.status}: ${how}; no check ran`);
+      }
       transition(state, 'phase-done', { n, verified: 'dry run', date });
       const r = run();
       if (!r.ok) throw new Error(`verify-phase: ${r.why}; nothing recorded`);

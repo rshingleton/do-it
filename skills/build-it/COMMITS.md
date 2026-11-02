@@ -15,15 +15,20 @@ then the closing docs.
 
 ## After a phase passes
 
-1. `work.mjs verify-phase` must have passed for this phase (lane S: the
-   item). A failed, skipped or stale verify never commits.
+1. `work.mjs verify-phase` (in a run, `work.mjs run verify`) must have passed
+   for this phase (lane S: the item). A failed, skipped or stale verify never commits.
 2. Run the commit boundary check in [STANDARDS.md](STANDARDS.md) §4 and keep
    the mapped file list.
 3. `work.mjs run commit <slug> <id> --phase <n> --paths a,b` (lane S, or lane M
-   in mode `slice`: no `--phase`; code changed since its last verify refuses). It picks the branch, stages those paths only, commits and, for
-   a phase, tags `do-it/<id>/phase-<n>`.
-4. Closing docs (lane M after the last phase; lane S after its code commit): `work.mjs run commit <slug>
-   <id> --docs --paths a,b`. Subject `<id>: closing docs`, no tag.
+   in mode `slice`: no `--phase`; code changed since its last verify refuses).
+   It picks the branch, stages those paths only, commits and, for a phase,
+   tags `do-it/<id>/phase-<n>`.
+   A lane M slice-mode commit needs the same mapped list given earlier to
+   `work.mjs run verify <slug> <slice> --paths a,b`, which records only those
+   files' hashes (never the user's or another slice's).
+4. Closing docs (lane M after the last phase; lane S after its code commit):
+   `work.mjs run commit <slug> <id> --docs --paths a,b`. Subject
+   `<id>: closing docs`, no tag.
 5. A check that could not run (no browser, no service): pass
    `--limits '["<what was not checked>"]'`. It goes in the run record and the
    commit body, never a trailer.
@@ -33,7 +38,7 @@ then the closing docs.
 - Branch: the current one when unprotected (`main`, `master`,
   `DO_IT_PROTECTED_BRANCHES` are not), else `do-it/<roadmap-slug>`, made first.
 - Message `<id>: phase <n> <title>` (lane S: `<id>: <title>`), then the single
-  do-it line from the user's rules, and no other trailer.
+  do-it line (the `ATTRIBUTION` constant in `commit.mjs`), and no other trailer.
 - Never `git add -A` or `.`, a push, an amend or a force operation. Tags stay local.
 - Staged files already in the index, or a path with no change: it stops and
   commits nothing.

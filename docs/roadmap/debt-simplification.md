@@ -1,6 +1,7 @@
 ---
 title: Debt and simplification
 approved: 2026-10-27
+completed: 2026-10-30
 ---
 
 # Debt and simplification
@@ -92,19 +93,19 @@ None.
 
 ## Decisions so far
 - 2026-10-27 Decision: the next destination is removals and tightenings of the audit leftovers, no features (T64).
-- 2026-10-27 Decision: D1 settled: a dependent of a slice shipped with Verify unmet does not wait; `roadmap` lists the unmet clause beside it. R12 is unblocked.
+- 2026-10-27 Decision: D1 settled: a dependent of a slice shipped with Verify unmet does not wait; `roadmap` lists the unmet clause beside it. R12 is unblocked. (ADR [0010](../adr/0010-unmet-verify-does-not-block-dependents.md))
 - 2026-10-27 Decision: T110 and T103 dropped; T107, T130 and T115 sit in Fog.
 
-## Changes
-- 2026-10-27: charted from T89 to T130 after backlog-hardening shipped.
-- 2026-10-27: R1 shipped as T100 (one home helper, `cleanEnv` strips at call time; T100, T101, T102 closed). Verify unmet: `tests/env.test.mjs` keeps one `{ ...process.env, HOME` on purpose, to feed a hostile environment to its probe.
-- 2026-10-27: R3 shipped as T91 (spawn-cap check reads "N in all" caps and every `>` paragraph, owner computed once; T91 to T93 closed).
-- 2026-10-27: R7 shipped as T97 (ship-it DOCS, do-it and deepen-it point at one home for each repeated rule; T97, T98, T106, T108, T121 closed). "Surfaced defects" now references the "Audit findings" wording instead of merging into one paragraph, because the R22 pin test slices on both headings; R8 can revisit.
-- 2026-10-27: R9 shipped as T109 (DESIGN.md section 8 labels the 1,250-token figure an estimate and the usage paragraph is rewrapped; T109 was already fixed; T109, T112, T120 closed).
-- 2026-10-27: R10 shipped as T116 (OpenCode usage `runs` map capped at 256 with LRU eviction, a run's `day` fixed at its first write, `prunedDay` set after a successful prune, `hooked` renamed, `ev.data` dropped; T116, T118, T119, T128, T129 closed). Eviction is a recorded shortcut: an evicted session that speaks again restarts its totals.
-- 2026-10-27: R12 shipped as T99 (`roadmap.mjs` gives each slice an `unmet` list and `blocking` reuses `done`; T99, T122 closed).
-- 2026-10-27: R4 shipped as routing-missing-entry (a dedicated `evaluate()` case and an `eval-routing.mjs` CLI test for a skill with no routing entry; T94, T95 closed; T131, T132 logged).
-- 2026-10-28: R5 shipped as unified-files-state (`unifiedFiles` keeps one `embed` state object, computes the old path once, folds the `''` scan into `addLine` and scans an in-hunk dev-null pair's own line under the old path; T123 to T126 closed; T133, T134 logged).
-- 2026-10-27: R2 shipped as T100 (shared `tests/fakes.mjs`, self-cleaning `tmpDir`, `config-precedence` split by layer; T104, T105, T111 closed).
-- 2026-10-28: R8 shipped as T96 (the R22 and R24 pin tests flatten whitespace before matching, so a rewrap of ship-it section 2 keeps them green and deleting the offer turns one red; T96 closed).
-- 2026-10-28: R11 shipped as R11 (`setup` returns a cleanup that aborts the `ctx.event.subscribe` signal; T117 closed). Run on OpenCode 2.1.2 through a probe plugin wrapping the real one: the host called the cleanup on plugin reload and the signal aborted, so no Verify is left unmet.
+## Shipped
+- R1 T100, 2026-10-27, Verify unmet: one deliberate hostile-env literal stays in `tests/env.test.mjs`: one home helper, and `cleanEnv` strips `DO_IT_*` at call time.
+- R2 T100, 2026-10-27: shared `tests/fakes.mjs`, a self-cleaning `tmpDir` and `config-precedence` split by layer.
+- R3 T91, 2026-10-27: the spawn-cap check reads "N in all" caps and every `>` paragraph, with `owner` computed once.
+- R4 routing-missing-entry, 2026-10-27: a dedicated `evaluate()` case and an `eval-routing.mjs` CLI test for a skill with no routing entry.
+- R5 unified-files-state, 2026-10-28: `unifiedFiles` keeps one `embed` state object and scans an in-hunk dev-null pair's own line under the old path.
+- R6 T89, 2026-10-28: `work.mjs show`, `event` and `close` run the id check `new` does.
+- R7 T97, 2026-10-27: ship-it DOCS, do-it and deepen-it point at one home for each repeated rule.
+- R8 T96, 2026-10-28: the R22 and R24 pin tests flatten whitespace, so a rewrap keeps them green and deleting the offer turns one red.
+- R9 T109, 2026-10-27: DESIGN.md section 8 labels the 1,250-token figure an estimate and the usage paragraph is rewrapped.
+- R10 T116, 2026-10-27: the OpenCode usage `runs` map is capped at 256 with LRU eviction and `prunedDay` is set after a successful prune.
+- R11 R11, 2026-10-28: `setup` returns a cleanup that aborts the `ctx.event.subscribe` signal, confirmed on OpenCode 2.1.2.
+- R12 T99, 2026-10-27: `roadmap.mjs` gives each slice an `unmet` list and `blocking` reuses `done`; a dependent of an unmet-Verify slice does not wait (ADR [0010](../adr/0010-unmet-verify-does-not-block-dependents.md)).

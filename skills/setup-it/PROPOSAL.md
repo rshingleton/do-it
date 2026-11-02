@@ -25,6 +25,9 @@ DO_IT_LINT_CMD=npx eslint --max-warnings=0 {file}
   trusts them (the track-it skill's CONFIG.md, Trust). Say so in the
   proposal; after writing, offer `tracker.mjs trust` and run it only on the
   user's "do it".
+- `DO_IT_PROTECTED_BRANCHES`: only when `default-branch.mjs` says `write` (the
+  remote's default branch is not `main` or `master`): the `value` it prints,
+  so a run's commits never land on that branch.
 - Doc paths (`DO_IT_CONTEXT`, `DO_IT_CHANGELOG`, `DO_IT_ADR_DIR`,
   `DO_IT_REFERENCE_DIR`): only when detection picked the wrong file.
 - `DO_IT_CONTEXT_MAP`: only when the repo's map exists at a path other than

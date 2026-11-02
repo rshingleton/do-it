@@ -6,6 +6,7 @@ import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { DEFAULTS } from '../skills/track-it/scripts/config.mjs';
+import { dirtyHashes } from '../skills/do-it/scripts/commit.mjs';
 import { loadChecks } from '../hooks/lib/checks.mjs';
 import { beforeShell } from '../hooks/lib/guard.mjs';
 
@@ -55,6 +56,8 @@ function fixture({ branch = 'main', config = '' } = {}) {
   return { dir, remote };
 }
 const verify = (dir, n = 1) => ok(work(dir, 'verify-phase', 'feat', String(n), '--', 'true'));
+// The files a slice maps, as `run verify --paths` takes them; the fixtures' other dirty files stay out.
+const SLICE_FILES = 'a.js,b.js,c.js,link,a b.js,unrelated.txt';
 const refs = (remote) => git(remote, 'for-each-ref');
 
 test('a verified phase on a protected branch commits on do-it/<slug>, staged by path, tagged, nothing pushed', () => {
@@ -221,10 +224,10 @@ test('lane M in slice mode commits its code once after the last phase verifies, 
   // unrelated.txt is dirty at verify time and never named: it must not matter.
   ok(work(dir, 'run', 'new', 'road', '--commit', 'slice'));
   ok(work(dir, 'run', 'start', 'road', 'R1', '--work', 'feat'));
-  ok(work(dir, 'run', 'verify', 'road', 'R1', '--phase', '1', '--', 'true'));
+  ok(work(dir, 'run', 'verify', 'road', 'R1', '--phase', '1', '--paths', SLICE_FILES, '--', 'true'));
   assert.match(work(dir, 'run', 'commit', 'road', 'feat', '--paths', 'a.js,b.js').out.error, /phase 2|not verified/, 'a phase is still open');
   write(dir, 'c.js', 'phase two\n');
-  ok(work(dir, 'run', 'verify', 'road', 'R1', '--phase', '2', '--', 'true'));
+  ok(work(dir, 'run', 'verify', 'road', 'R1', '--phase', '2', '--paths', SLICE_FILES, '--', 'true'));
   // Closing docs are written before the code commit; they are not code.
   write(dir, 'notes.md', 'closing docs\n');
   // Code changed after its verify is refused, and nothing is committed.
@@ -246,6 +249,25 @@ test('lane M in slice mode commits its code once after the last phase verifies, 
   const docs = ok(work(dir, 'run', 'commit', 'road', 'feat', '--docs', '--paths', 'notes.md'));
   assert.equal(docs.subject, 'feat: closing docs');
   assert.equal(git(dir, 'show', '--name-only', '--format=', 'HEAD'), 'notes.md');
+});
+
+test('run verify records only the mapped paths: an unrelated dirty file and another slice\'s file stay out of RUN.md', () => {
+  const { dir } = fixture();
+  ok(work(dir, 'run', 'new', 'road', '--commit', 'slice'));
+  ok(work(dir, 'run', 'start', 'road', 'R1', '--work', 'feat'));
+  write(dir, 'other-slice.js', 'theirs\n');
+  ok(work(dir, 'run', 'verify', 'road', 'R1', '--phase', '1', '--paths', 'a.js,b.js', '--', 'true'));
+  const seen = ok(work(dir, 'run', 'show', 'road')).gates.find((g) => g.id === 'R1').verified_files;
+  assert.deepEqual(Object.keys(seen).sort(), ['a.js', 'b.js']);
+  const text = fs.readFileSync(path.join(dir, 'docs/planning/road.run/RUN.md'), 'utf8');
+  assert.doesNotMatch(text, /unrelated\.txt|other-slice\.js/);
+  // Another dirty file edited later does not block the commit of the named ones.
+  write(dir, 'other-slice.js', 'edited again\n');
+  write(dir, 'c.js', 'phase two\n');
+  ok(work(dir, 'run', 'verify', 'road', 'R1', '--phase', '2', '--paths', 'a.js,b.js,c.js', '--', 'true'));
+  write(dir, 'other-slice.js', 'edited a third time\n');
+  ok(work(dir, 'run', 'commit', 'road', 'feat', '--paths', 'a.js,b.js,c.js'));
+  assert.deepEqual(git(dir, 'show', '--name-only', '--format=', 'HEAD').split('\n').sort(), ['a.js', 'b.js', 'c.js']);
 });
 
 test('lane M in slice mode refuses a code commit whose phases were verified without run verify', () => {
@@ -372,9 +394,285 @@ test('lane M closing docs commit with --docs after every phase passed, untagged'
 test('run add-assumptions merges per work id and is idempotent', () => {
   const { dir } = fixture();
   ok(work(dir, 'run', 'new', 'road'));
-  ok(work(dir, 'run', 'set', 'road', 'assumptions', '["sweep default"]'));
+  ok(work(dir, 'run', 'add-assumptions', 'road', 'sweep', '["sweep default"]'));
   ok(work(dir, 'run', 'add-assumptions', 'road', 'feat', '["a","b"]'));
   ok(work(dir, 'run', 'add-assumptions', 'road', 'other', '["c"]'));
   const r = ok(work(dir, 'run', 'add-assumptions', 'road', 'feat', '["a2"]'));
-  assert.deepEqual(r.assumptions, ['sweep default', 'other#1: c', 'feat#1: a2']);
+  assert.deepEqual(r.assumptions, ['sweep#1: sweep default', 'other#1: c', 'feat#1: a2']);
+});
+
+// Lane M in slice mode with both phases verified through `run verify`, `setup` run in between.
+function verifiedSlice(setup = () => {}) {
+  const { dir } = fixture();
+  setup(dir);
+  ok(work(dir, 'run', 'new', 'road', '--commit', 'slice'));
+  ok(work(dir, 'run', 'start', 'road', 'R1', '--work', 'feat'));
+  ok(work(dir, 'run', 'verify', 'road', 'R1', '--phase', '1', '--paths', SLICE_FILES, '--', 'true'));
+  write(dir, 'c.js', 'phase two\n');
+  ok(work(dir, 'run', 'verify', 'road', 'R1', '--phase', '2', '--paths', SLICE_FILES, '--', 'true'));
+  return dir;
+}
+const commit = (dir, paths) => work(dir, 'run', 'commit', 'road', 'feat', '--paths', paths.join(','));
+
+test('slice mode compares an absolute in-repo path by its repo-relative name', () => {
+  const dir = verifiedSlice();
+  write(dir, 'b.js', 'edited after verify\n');
+  assert.match(commit(dir, [path.join(fs.realpathSync(dir), 'b.js'), 'a.js', 'c.js']).out.error, /b\.js changed since/);
+  assert.match(commit(dir, ['../outside.js', 'a.js']).out.error, /outside repository|inside the repo/);
+});
+
+test('slice mode refuses a name that is in neither record unless git tracks it exactly', () => {
+  const dir = verifiedSlice();
+  assert.match(commit(dir, ['A.JS', 'a.js', 'b.js', 'c.js']).out.error, /A\.JS is in neither verify record/);
+  assert.match(commit(dir, ['nope.js', 'a.js']).out.error, /nope\.js is in neither verify record/);
+});
+
+test('slice mode sees a retargeted link and a mode-only change after verify', () => {
+  const dir = verifiedSlice((d) => fs.symlinkSync('missing-one', path.join(d, 'link')));
+  fs.chmodSync(path.join(dir, 'b.js'), 0o755);
+  assert.match(commit(dir, ['a.js', 'b.js', 'c.js', 'link']).out.error, /b\.js changed since/);
+  fs.chmodSync(path.join(dir, 'b.js'), 0o644);
+  fs.rmSync(path.join(dir, 'link'));
+  fs.symlinkSync('missing-two', path.join(dir, 'link'));
+  assert.match(commit(dir, ['a.js', 'b.js', 'c.js', 'link']).out.error, /link changed since/);
+});
+
+test('slice mode commits a rename, a delete and a spaced name; a file clean at verify then edited is refused', () => {
+  const dir = verifiedSlice((d) => {
+    git(d, 'checkout', '--', 'unrelated.txt');
+    fs.renameSync(path.join(d, 'a.js'), path.join(d, 'a b.js'));
+    fs.rmSync(path.join(d, 'b.js'));
+  });
+  write(dir, 'unrelated.txt', 'edited after verify\n');
+  assert.match(commit(dir, ['a.js', 'a b.js', 'c.js', 'unrelated.txt']).out.error, /unrelated\.txt changed since/);
+  fs.writeFileSync(path.join(dir, 'unrelated.txt'), 'mine\n');
+  const code = ok(commit(dir, ['a.js', 'a b.js', 'c.js']));
+  assert.equal(code.subject, 'feat: Feature');
+  assert.deepEqual(git(dir, 'show', '--name-only', '--format=', 'HEAD').split('\n').sort(), ['a b.js', 'a.js', 'c.js']);
+});
+
+test('slice mode: a clean tracked file whose name has a newline commits; chmod g+w is no change; a \\r name is hashed', () => {
+  const dir = verifiedSlice((d) => {
+    write(d, 'new\nline.js', 'tracked\n');
+    git(d, 'add', 'new\nline.js');
+    git(d, 'commit', '-qm', 'add newline name');
+    write(d, 'cr\r.js', 'carriage\n');
+  });
+  fs.chmodSync(path.join(dir, 'b.js'), 0o664);
+  // Past the neither-record gate (a tracked clean name is trusted), it stops only at "nothing to commit".
+  assert.match(commit(dir, ['a.js', 'new\nline.js']).out.error, /new\nline\.js has no change to commit/);
+  const code = ok(commit(dir, ['a.js', 'b.js', 'c.js']));
+  assert.equal(code.subject, 'feat: Feature', 'g+w on b.js is not a change since verify');
+  const seen = dirtyHashes(dir);
+  assert.deepEqual(Object.keys(seen).filter((f) => f.includes('\r')), ['cr\r.js']);
+  assert.match(seen['cr\r.js'], /^644:[0-9a-f]{40}$/);
+  fs.chmodSync(path.join(dir, 'cr\r.js'), 0o654);
+  assert.match(dirtyHashes(dir)['cr\r.js'], /^644:/, 'a group or other execute bit is not the executable bit git tracks');
+  fs.chmodSync(path.join(dir, 'cr\r.js'), 0o755);
+  assert.match(dirtyHashes(dir)['cr\r.js'], /^755:/, 'the executable bit is recorded as 755');
+});
+
+test('dirtyHashes sees an edit inside a dirty submodule', () => {
+  const dir = tmpDir('do-it-submod-');
+  const inner = tmpDir('do-it-submod-inner-');
+  for (const d of [dir, inner]) {
+    git(d, 'init', '-q', '-b', 'main');
+    git(d, 'config', 'user.name', 't');
+    git(d, 'config', 'user.email', 't@t');
+    git(d, 'config', 'commit.gpgsign', 'false');
+  }
+  write(inner, 'f.txt', '1\n');
+  git(inner, 'add', '-A');
+  git(inner, 'commit', '-qm', 'inner');
+  write(dir, 'x.txt', '1\n');
+  git(dir, 'add', '-A');
+  git(dir, 'commit', '-qm', 'outer');
+  execFileSync('git', ['-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', inner, 'sub'], { cwd: dir });
+  git(dir, 'commit', '-qm', 'add sub');
+  write(dir, 'sub/f.txt', '2\n');
+  const one = dirtyHashes(dir, ['sub'])['sub'];
+  assert.match(one, /^sub:[0-9a-f]{40}$/);
+  write(dir, 'sub/f.txt', '3\n');
+  assert.notEqual(dirtyHashes(dir, ['sub'])['sub'], one, 'a second edit inside the submodule changes the record');
+});
+
+test('dirtyHashes reads past 1 MB of status output and fails when git does', () => {
+  const dir = tmpDir('do-it-bigstatus-');
+  git(dir, 'init', '-q');
+  // About 5000 names of 200 characters put the status past 1 MB with a fifth of the files.
+  const many = 5000;
+  const name = (i) => `${'x'.repeat(190)}-${String(i).padStart(6, '0')}.txt`;
+  for (let i = 0; i < many; i++) fs.writeFileSync(path.join(dir, name(i)), `${i}\n`);
+  const seen = dirtyHashes(dir);
+  assert.equal(Object.keys(seen).length, many, 'every file is recorded, none read as clean');
+  assert.match(seen[name(7)], /^644:[0-9a-f]{40}$/);
+  assert.throws(() => dirtyHashes(tmpDir('do-it-notrepo-')), /git status failed/);
+});
+
+// A repo on `topic` with x.js and y.js committed and a started lane S item "small"; `edit` makes
+// the slice's changes before the item is verified and a slice-mode run "sl" is recorded.
+function laneS(edit) {
+  const dir = tmpDir('do-it-runcommit-paths-');
+  git(dir, 'init', '-q', '-b', 'topic');
+  git(dir, 'config', 'user.name', 't');
+  git(dir, 'config', 'user.email', 't@t');
+  git(dir, 'config', 'commit.gpgsign', 'false');
+  write(dir, 'x.js', '1\n');
+  write(dir, 'y.js', 'untouched\n');
+  git(dir, 'add', '-A');
+  git(dir, 'commit', '-qm', 'init');
+  ok(work(dir, 'new', 'small', '--lane', 's', '--title', 'Small fix'));
+  ok(work(dir, 'event', 'small', 'approve'));
+  ok(work(dir, 'event', 'small', 'start'));
+  edit(dir);
+  ok(work(dir, 'run', 'new', 'sl', '--commit', 'slice'));
+  ok(work(dir, 'verify-phase', 'small', '--', 'true'));
+  return dir;
+}
+const sliceCommit = (dir, paths, ...flags) => work(dir, 'run', 'commit', 'sl', 'small', ...flags, '--paths', paths.join(','));
+const names = (dir) => git(dir, 'show', '--no-renames', '--name-only', '--format=', '-z', 'HEAD').split('\0').filter(Boolean).sort();
+
+test('a tracked name git quotes and an absolute in-repo path commit; neither reads as a directory', () => {
+  const dir = laneS((d) => {
+    write(d, 'é.txt', 'accent\n');
+    write(d, 'a\nb.txt', 'newline\n');
+    write(d, 'x.js', '2\n');
+  });
+  ok(sliceCommit(dir, ['é.txt', 'a\nb.txt', path.join(fs.realpathSync(dir), 'x.js')]));
+  assert.deepEqual(names(dir), ['a\nb.txt', 'x.js', 'é.txt'].sort());
+  write(dir, 'é.txt', 'edited\n');
+  assert.match(sliceCommit(dir, ['é.txt', 'x.js']).out.error, /x\.js has no change/, 'a tracked quoted name is a file, so only the clean one is refused');
+});
+
+test('a retry after the commit landed succeeds for lane S and --docs, and a different path set is refused', () => {
+  const dir = laneS((d) => {
+    write(d, 'x.js', '2\n');
+    write(d, 'z.js', 'new\n');
+  });
+  const code = ok(sliceCommit(dir, ['x.js', 'z.js']));
+  assert.equal(ok(sliceCommit(dir, ['x.js', 'z.js'])).commit, code.commit, 'lane S retry returns the same commit');
+  assert.match(sliceCommit(dir, ['x.js']).out.error, /no change to commit/, 'a subset is not a retry');
+  assert.match(sliceCommit(dir, ['y.js']).out.error, /no change to commit/, 'a clean tracked file is not a retry');
+  assert.equal(git(dir, 'rev-list', '--count', 'HEAD'), '2');
+  write(dir, 'notes.md', 'closing\n');
+  const docs = ok(sliceCommit(dir, ['notes.md'], '--docs'));
+  assert.equal(ok(sliceCommit(dir, ['notes.md'], '--docs')).commit, docs.commit, 'a docs retry returns the same commit');
+  assert.equal(git(dir, 'rev-list', '--count', 'HEAD'), '3');
+});
+
+test('a retry names the same files however they are spelled: repeated and ./ forms read as the one set', () => {
+  const dir = laneS((d) => {
+    write(d, 'x.js', '2\n');
+    write(d, 'z.js', 'new\n');
+  });
+  const code = ok(sliceCommit(dir, ['x.js', 'z.js']));
+  assert.equal(ok(sliceCommit(dir, ['x.js', 'x.js', './z.js'])).commit, code.commit);
+  assert.equal(git(dir, 'rev-list', '--count', 'HEAD'), '2');
+});
+
+test('a lane M phase retry with a different clean path set reads already committed', () => {
+  const { dir } = fixture();
+  ok(work(dir, 'run', 'new', 'road'));
+  verify(dir);
+  ok(work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'a.js,b.js'));
+  assert.match(work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'a.js').out.error, /already committed/);
+  assert.match(work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'a.js,b.js,unrelated.txt').out.error, /already committed/);
+});
+
+test('a lane M slice-mode retry after the commit landed returns it instead of failing the verify compare', () => {
+  const dir = verifiedSlice();
+  const code = ok(commit(dir, ['a.js', 'b.js', 'c.js']));
+  assert.equal(ok(commit(dir, ['a.js', 'b.js', 'c.js'])).commit, code.commit);
+  assert.equal(git(dir, 'rev-list', '--count', 'HEAD'), '2');
+});
+
+test('lane S refuses a path spelled through a symlinked root, naming it as outside the repo', () => {
+  const dir = laneS((d) => write(d, 'x.js', '2\n'));
+  const link = path.join(tmpDir('do-it-rootlink-'), 'root');
+  fs.symlinkSync(dir, link);
+  assert.match(sliceCommit(dir, [path.join(link, 'x.js')]).out.error, /inside the repo/);
+  assert.equal(git(dir, 'diff', '--cached', '--name-only'), '');
+});
+
+test('a rename is committed as its new path and its old path, and its retry is a no-op', () => {
+  const dir = laneS((d) => fs.renameSync(path.join(d, 'x.js'), path.join(d, 'moved.js')));
+  const code = ok(sliceCommit(dir, ['x.js', 'moved.js']));
+  assert.deepEqual(names(dir), ['moved.js', 'x.js']);
+  assert.equal(ok(sliceCommit(dir, ['x.js', 'moved.js'])).commit, code.commit);
+});
+
+test('a submodule path is a directory: naming it stages nothing inside it', () => {
+  const sub = tmpDir('do-it-sub-');
+  git(sub, 'init', '-q', '-b', 'main');
+  git(sub, 'config', 'user.name', 't');
+  git(sub, 'config', 'user.email', 't@t');
+  write(sub, 'f.txt', 'inner\n');
+  git(sub, 'add', '-A');
+  git(sub, 'commit', '-qm', 'sub');
+  const dir = laneS((d) => {
+    git(d, '-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', sub, 'mod');
+    git(d, 'reset', '-q');
+    write(d, 'mod/f.txt', 'edited inside\n');
+    write(d, 'x.js', '2\n');
+  });
+  assert.match(sliceCommit(dir, ['mod', 'x.js']).out.error, /mod is a directory/);
+  assert.match(sliceCommit(dir, ['mod/f.txt', 'x.js']).out.error, /mod\/f\.txt has no change to commit/, 'a file inside it is refused too: the outer repo sees no change there');
+  assert.equal(git(dir, 'diff', '--cached', '--name-only'), '', 'nothing was staged');
+});
+
+// A protected-branch run whose phase 1 commit is rejected by a pre-commit hook that runs `hook`.
+function rejectedCommit(hook, setup = () => {}) {
+  const { dir } = fixture();
+  ok(work(dir, 'run', 'new', 'road'));
+  verify(dir);
+  setup(dir);
+  write(dir, '.git/hooks/pre-commit', `#!/bin/sh\n${hook}\nexit 1\n`);
+  fs.chmodSync(path.join(dir, '.git/hooks/pre-commit'), 0o755);
+  const r = work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'a.js');
+  assert.equal(r.status, 1);
+  return { dir, error: r.out.error };
+}
+
+test('a rejected commit that cannot switch back says where the repo is and keeps the branch it is on', () => {
+  const { dir, error } = rejectedCommit('git branch -m main gone-main');
+  assert.match(error, /could not switch back to main, still on do-it\/road/);
+  assert.equal(git(dir, 'branch', '--show-current'), 'do-it/road');
+  assert.equal(git(dir, 'diff', '--cached', '--name-only'), '');
+});
+
+test('a rejected commit keeps a scratch branch a hook committed on, and says so', () => {
+  const { dir, error } = rejectedCommit('c=$(git commit-tree -m hook "$(git rev-parse HEAD^{tree})" -p HEAD) && git update-ref HEAD "$c"');
+  assert.match(error, /do-it\/road gained commits and was kept/);
+  assert.equal(git(dir, 'branch', '--show-current'), 'main', 'back on the protected branch');
+  assert.equal(git(dir, 'log', '-1', '--format=%s', 'do-it/road'), 'hook');
+});
+
+test('a rejected commit on a reused scratch branch switches back and keeps the branch', () => {
+  const { dir, error } = rejectedCommit(':', (d) => git(d, 'branch', 'do-it/road'));
+  assert.doesNotMatch(error, /kept|could not/);
+  assert.equal(git(dir, 'branch', '--show-current'), 'main');
+  assert.equal(git(dir, 'branch', '--list', 'do-it/road').trim(), 'do-it/road', 'a branch it did not make stays');
+});
+
+test('a rejected commit from a detached start returns to the same commit and removes the branch it made', () => {
+  let head;
+  const { dir } = rejectedCommit(':', (d) => {
+    head = git(d, 'rev-parse', 'HEAD');
+    git(d, 'checkout', '-q', '--detach');
+  });
+  assert.equal(git(dir, 'branch', '--show-current'), '', 'still detached');
+  assert.equal(git(dir, 'rev-parse', 'HEAD'), head);
+  assert.equal(git(dir, 'branch', '--list', 'do-it/road'), '');
+});
+
+test('a tag that cannot be made after the commit landed is reported with the commit', () => {
+  const { dir } = fixture();
+  ok(work(dir, 'run', 'new', 'road'));
+  verify(dir);
+  // A ref under the tag's own name makes `git tag` fail after the commit has landed.
+  write(dir, '.git/refs/tags/do-it/feat/phase-1/blocker', '0'.repeat(40) + '\n');
+  const r = work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'a.js');
+  assert.equal(r.status, 1);
+  assert.match(r.out.error, /committed [0-9a-f]{40} on do-it\/road but .*run the same command again to tag it/);
+  assert.equal(git(dir, 'log', '-1', '--format=%s'), 'feat: phase 1 Limiter', 'the commit landed');
 });

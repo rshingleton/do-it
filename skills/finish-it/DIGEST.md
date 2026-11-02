@@ -13,8 +13,9 @@ committed work) or `worktree` (the working tree against base: commit mode
 `none`, or closing docs not yet committed). A null `base` (no git): review the
 working tree.
 
-- Fix only Must findings, then review again. At most the record's `audit_cap`
-  rounds across the run; a Must left at the cap goes in the digest as open.
+- Fix only Must findings, then review again. Before each round,
+  `work.mjs run audit <slug> --final`; at the record's `final_audit_cap` it is
+  refused, and a Must left then goes in the digest as open.
 - Should and Nice findings and surfaced defects: `log-it`, never fixed. Keep
   each filed ref for the digest's findings list.
 
@@ -31,7 +32,9 @@ working tree.
 It lists slices shipped, parked and blocked with reasons, retried slices and
 how each retry ended, assumptions, verification limits, findings filed, the
 `shortcut:` ledger (`no-trigger` flagged), tokens, rollback commands per phase
-tag of this run's work items only, and four retro lines.
+tag of this run's work items only, and four retro lines. It prints only
+well-formed phase tags and one-line text: a newline in a reason, limit,
+assumption, finding or retro line is folded into its line.
 
 ## 3. Assumption review
 
@@ -42,5 +45,6 @@ store, so it works after the item closed. It leaves the entry out of
 Assumptions and lists it under Assumptions rejected, numbers unchanged. An item
 still auditing or shipping returns to building and the run is not shipped until
 it passes again. A closed item has no plan to reopen: the user's follow-up is a
-`fix:` or `log-it` entry. A line with no id came from the sweep: note it for the
+`fix:` or `log-it` entry. A plan still `building` is not reopened either: its
+`fix:` list gets the change. A line with no id came from the sweep: note it for the
 user. No rejection: the run is final.

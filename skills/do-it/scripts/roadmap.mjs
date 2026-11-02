@@ -3,8 +3,9 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { git } from './git.mjs';
 import { listItems } from './items.mjs';
+import { splitFrontmatter, parseFlat } from '../../track-it/scripts/frontmatter.mjs';
 
 const RISK = { high: 0, med: 1, medium: 1, low: 2 };
 
@@ -64,7 +65,7 @@ export function parseRoadmap(text) {
 }
 
 function isTracked(root, file) {
-  const r = spawnSync('git', ['ls-files', '--error-unmatch', '--', path.relative(root, file)], { cwd: root, encoding: 'utf8' });
+  const r = git(root, ['ls-files', '--error-unmatch', '--', path.relative(root, file)]);
   return r.status === 0;
 }
 
@@ -72,7 +73,10 @@ function isTracked(root, file) {
 // A plan that git tracks was committed outside ship-it (the flow never
 // commits a plan), so its slice is reported stale instead of in flight.
 export function roadmapSlices(file, { root, planningDir, tracked = (f) => isTracked(root, f) }) {
-  const { slices, openDecisions } = parseRoadmap(fs.readFileSync(file, 'utf8'));
+  const text = fs.readFileSync(file, 'utf8');
+  const { slices, openDecisions } = parseRoadmap(text);
+  const front = splitFrontmatter(text);
+  const completed = (front && parseFlat(front.yaml).meta?.completed) || null;
   const target = path.resolve(root, file);
   const plans = new Map();
   for (const item of listItems(planningDir)) {
@@ -123,5 +127,13 @@ export function roadmapSlices(file, { root, planningDir, tracked = (f) => isTrac
     .map((id) => ({ id, blocks: out.filter((s) => !done(s.id) && s.blocked_by.includes(id)).map((s) => s.id) }))
     .filter((d) => d.blocks.length)
     .sort((a, b) => b.blocks.length - a.blocks.length || a.id.localeCompare(b.id, undefined, { numeric: true }));
-  return { slices: out, openDecisions, blocking, next: ready[0]?.id ?? null, ready: ready.map((s) => s.id) };
+  // finished is derived; completed is the owner's mark and ends the offers.
+  const finished = out.length > 0 && out.every((s) => s.state === 'shipped' || s.state === 'dropped') && !openDecisions.length;
+  const offer = completed ? [] : ready;
+  // A completed roadmap offers no slice; one that still has unshipped slices says why, or `next: null`
+  // beside `finished: false` reads as "all blocked". The owner clears `completed:` to work them.
+  const left = out.filter((s) => s.state !== 'shipped' && s.state !== 'dropped').length;
+  const parts = [left ? `${left} slice${left === 1 ? '' : 's'} not shipped` : null, openDecisions.length ? `${openDecisions.length} decision${openDecisions.length === 1 ? '' : 's'} open` : null].filter(Boolean);
+  const reopened = completed && !finished && parts.length ? `completed ${completed} but ${parts.join(' and ')}: clear completed: in the frontmatter to work them` : null;
+  return { slices: out, openDecisions, blocking, finished, completed, reopened, next: offer[0]?.id ?? null, ready: offer.map((s) => s.id) };
 }

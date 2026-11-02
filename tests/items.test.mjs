@@ -121,7 +121,7 @@ test('items: verifyPhase refuses an illegal record before running any check', ()
   let ran = 0;
   const run = () => { ran++; return { ok: true, text: 'npm test' }; };
   items.create('early', { lane: 's', title: 'Early' });
-  assert.throws(() => items.verifyPhase('early', undefined, run), /not allowed from draft/);
+  assert.throws(() => items.verifyPhase('early', undefined, run), /needs early building, but it is draft: approve it, then start it/);
   building(items, 'm', 'm', [{ n: 1, title: 'One' }, { n: 2, title: 'Two', blocked_by: [1] }]);
   assert.throws(() => items.verifyPhase('m', 2, run), /blocked by phase\(s\) 1/);
   assert.throws(() => items.verifyPhase('m', 3, run), /no phase 3/);
