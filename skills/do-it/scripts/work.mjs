@@ -94,7 +94,9 @@ function head(root) {
 // Hash of the change since the item's base, planning files excluded.
 function planningExclude(ctx) {
   const rel = path.relative(ctx.root, ctx.planningDir).split(path.sep).join('/');
-  return rel ? [rel] : [];
+  // A planning dir outside the repo (a separate ops repository) has nothing in the repo to exclude,
+  // and git refuses an :(exclude) pathspec that points outside it.
+  return rel && !rel.startsWith('..') && !path.isAbsolute(rel) ? [rel] : [];
 }
 
 // The change fingerprint also leaves out what ship-it's closing docs write (the item's roadmap file,
