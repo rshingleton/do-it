@@ -56,6 +56,9 @@ function auditLimits(record, id, final, { create = true } = {}) {
 
 const spent = (l) => Number(l.at[l.rounds]) || 0;
 const describe = (l) => `${l.limit}: ${spent(l)} audit rounds, cap ${l.cap}`;
+// A slice's own cap parks that slice and the run goes on; the final review and the run total stop the run.
+const isSliceLimit = (l) => l.limit.startsWith('slice ');
+export const auditCode = (l) => (isSliceLimit(l) ? 'SLICE_AUDIT_CAP' : 'AUDIT_CAP');
 
 // `audit_refused` (and `final_audit_refused`) is the marker of a round `run audit` turned away: it holds
 // the rounds spent then. A limit is exhausted past its cap, or at it while the marker still equals the
@@ -78,13 +81,19 @@ export function countAudit(planningDir, slug, { id, final = false } = {}) {
       refused = hit;
       hit.at[hit.refused] = spent(hit);
       r.audit_stop = describe(hit);
+      // The loop's own stop would end the whole run on one slice stuck in a failing audit. Park it
+      // instead (resume gives it fresh rounds); a slice already shipped or parked stays as it is.
+      if (isSliceLimit(hit) && !r.slices.some((s) => s.id === id && (s.status === 'shipped' || s.status === 'parked'))) {
+        const parked = { id, status: 'parked', reason: `${describe(hit)}; its last audit did not pass`, needs: 'decision' };
+        r.slices = r.slices.some((s) => s.id === id) ? r.slices.map((s) => (s.id === id ? parked : s)) : [...r.slices, parked];
+      }
     } else for (const l of limits) l.at[l.rounds] = spent(l) + 1;
   });
   const mine = auditLimits(record, id, final)[0];
   return {
     audit_rounds: spent(mine),
     allow: !refused,
-    reason: refused && 'AUDIT_CAP',
+    reason: refused && auditCode(refused),
     limit: refused?.limit ?? null,
     detail: refused && describe(refused),
   };
@@ -98,7 +107,7 @@ export function gate(record, id, { current, now = Date.now() }) {
   if (record.max_slices != null && shipped >= record.max_slices) return stop('MAX_SLICES', `${shipped} shipped, cap ${record.max_slices}`);
   // Past a cap, never at it: a slice whose last allowed round passed still ships.
   const spentLimit = auditLimits(record, id, false, { create: false }).find(exhausted);
-  if (spentLimit) return stop('AUDIT_CAP', describe(spentLimit));
+  if (spentLimit) return stop(auditCode(spentLimit), describe(spentLimit));
   const g = (record.gates ?? []).find((x) => x.id === id);
   if (g?.started) {
     const mins = (now - Date.parse(g.started)) / 60000;
