@@ -15,11 +15,12 @@ Before chaining a slice to ship, `work.mjs run gate <slug> <slice>` prints
 - `FLAKY` (park): `run verify` reran a failing check once and it passed. Never rerun again.
 - `SLICE_CAP` (park): the slice ran past `slice_cap_min`.
 - `MAX_SLICES` (stop): shipped slices reached `max_slices` while a slice is left. `run next` returns no slice and a `stop` with this code, and the detail names a slice already in flight. With nothing left to build the run finishes, with no `stop`.
-- `AUDIT_CAP` (stop): `run audit` is refused (`allow` false) because a limit that applies is spent. `limit` and `detail` name which: `slice <slice>` (`audit_cap`, default 3, rounds on that slice), `final review` (`final_audit_cap`, default 3) or `run total` (`audit_total_cap`, else `max_slices` x `audit_cap`, else none). A slice whose last allowed round passed still ships. `run set` on any cap clears the refusal; the digest repeats the limit under "Limit fired".
+- `SLICE_AUDIT_CAP` (park): `run audit` is refused because the slice spent its `audit_cap` (default 3, rounds on that slice). The script parks the slice (needs `decision`) and the run goes on with the others. A slice whose last allowed round passed still ships. Before moving on, re-run `run slice <slug> <slice> parked --needs decision --reason "<detail>; open Must: <findings>"` so the park says what the audit found. `--resume` gives it fresh rounds; the digest repeats the limit under "Limit fired".
+- `AUDIT_CAP` (stop): `run audit` is refused because the `final review` (`final_audit_cap`, default 3) or the `run total` (`audit_total_cap`, else `max_slices` x `audit_cap`, else none) is spent. `limit` and `detail` name which. `run set` on any cap clears the refusal.
 
 Calls: `run start <slug> <slice> --work <work id>` when a slice begins,
 `run verify <slug> <slice> [--phase n] [--paths a,b] -- <checks>` instead of `verify-phase`,
-`run audit <slug> <slice>` before each slice audit round (`run audit <slug> --final` for the final review's); a refusal stops the run.
+`run audit <slug> <slice>` before each slice audit round (`run audit <slug> --final` for the final review's); a refusal parks the slice (`SLICE_AUDIT_CAP`) or, for the final review and run total, stops the run.
 
 ## Judgment (no script sees these)
 

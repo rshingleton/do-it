@@ -152,19 +152,40 @@ test('audit cap: the round after a slice\'s cap is refused and uncounted, naming
   assert.equal(audit(dir, 'R1').allow, true);
   assert.equal(gate(dir).allow, true, 'the 2nd of 2 rounds passed: the slice ships');
   const over = audit(dir, 'R1');
-  assert.deepEqual([over.allow, over.reason, over.audit_rounds, over.limit], [false, 'AUDIT_CAP', 2, 'slice R1']);
+  assert.deepEqual([over.allow, over.reason, over.audit_rounds, over.limit], [false, 'SLICE_AUDIT_CAP', 2, 'slice R1']);
   assert.match(over.detail, /slice R1: 2 audit rounds, cap 2/);
   // A caller that ignores the refusal is still stopped at the gate; a raised cap clears it.
   assert.match(gate(dir).detail, /slice R1/);
-  assert.equal(gate(dir).reason, 'AUDIT_CAP');
+  assert.equal(gate(dir).reason, 'SLICE_AUDIT_CAP');
   ok(work(dir, 'run', 'set', 'road', 'audit_cap', '3'));
   assert.equal(gate(dir).allow, true);
   assert.equal(audit(dir, 'R1').allow, true);
   assert.equal(gate(dir).allow, true, 'the 3rd of 3 rounds passed: the slice ships');
   ok(work(dir, 'run', 'set', 'road', 'audit_cap', '1'));
-  assert.equal(gate(dir).reason, 'AUDIT_CAP', 'a cap lowered below the rounds spent stops the gate');
+  assert.equal(gate(dir).reason, 'SLICE_AUDIT_CAP', 'a cap lowered below the rounds spent stops the gate');
   const fresh = ok(work(tmpRepo(), 'run', 'new', 'x'));
   assert.deepEqual([fresh.audit_cap, fresh.final_audit_cap, fresh.audit_total_cap], [3, 3, null]);
+});
+
+test('audit cap: a slice at its cap parks and the run goes on; resume gives it fresh rounds', () => {
+  const dir = fixture(['--audit-cap', '1']);
+  assert.equal(audit(dir, 'R1').allow, true);
+  const over = audit(dir, 'R1');
+  assert.deepEqual([over.allow, over.reason], [false, 'SLICE_AUDIT_CAP']);
+  const parked = ok(work(dir, 'run', 'show', 'road')).slices.find((s) => s.id === 'R1');
+  assert.deepEqual([parked.status, parked.needs], ['parked', 'decision']);
+  assert.match(parked.reason, /slice R1: 1 audit rounds, cap 1/);
+  assert.equal(audit(dir, 'R2').allow, true, 'another slice still audits');
+  ok(work(dir, 'run', 'slice', 'road', 'R1', 'ready'));
+  assert.equal(audit(dir, 'R1').allow, true, 'resume zeroes the slice\'s rounds');
+});
+
+test('audit cap: the final review and run total still stop the run without parking a slice', () => {
+  const dir = fixture(['--audit-cap', '2', '--max-slices', '1']);
+  for (const id of ['R1', 'R1']) assert.equal(audit(dir, id).allow, true);
+  const r = audit(dir, 'R2');
+  assert.deepEqual([r.allow, r.reason, r.limit], [false, 'AUDIT_CAP', 'run total']);
+  assert.equal(ok(work(dir, 'run', 'show', 'road')).slices.length, 0);
 });
 
 test('audit cap: a round needs a slice or --final', () => {
@@ -296,7 +317,7 @@ test('audit cap: a record already past the cap still stops the gate', () => {
   assert.equal(gate(dir).allow, true, 'one round at a cap of one is not over it');
   const rec2 = JSON.parse(JSON.stringify(rec));
   rec2.gates.find((g) => g.id === 'R1').audit_rounds = 2;
-  assert.equal(gateRule(rec2, 'R1', { current: 'fp' }).reason, 'AUDIT_CAP');
+  assert.equal(gateRule(rec2, 'R1', { current: 'fp' }).reason, 'SLICE_AUDIT_CAP');
 });
 
 test('run next: stops handing out slices once max_slices shipped, and says why', () => {
@@ -420,7 +441,7 @@ test('every reason the gate and run next return is a code in STOPS, shared with 
   const soon = { current: 'fp', now: Date.parse('2026-01-01T00:00:30Z') };
   stop(gateRule({ ...rec, max_slices: null, audit_cap: 9, slice_cap_min: 99 }, 'R1', soon));
   stop(gateRule({ ...rec, max_slices: null, audit_cap: 9, slice_cap_min: 99, gates: [{ id: 'R1', verified_fingerprint: 'old' }] }, 'R1', soon));
-  assert.deepEqual([...seen].sort(), ['AUDIT_CAP', 'MAX_SLICES', 'SLICE_CAP', 'STALE_VERIFY', 'UNVERIFIED']);
+  assert.deepEqual([...seen].sort(), ['MAX_SLICES', 'SLICE_AUDIT_CAP', 'SLICE_CAP', 'STALE_VERIFY', 'UNVERIFIED']);
   for (const code of seen) assert.equal(STOPS[code]?.how, 'gate', `${code} is a gate stop in STOPS`);
 });
 
@@ -439,6 +460,7 @@ const CALL_SITE = {
   FLAKY: 'verify',
   MAX_SLICES: 'next',
   AUDIT_CAP: 'audit',
+  SLICE_AUDIT_CAP: 'audit',
 };
 const section = (doc, title) => doc.slice(doc.indexOf(`## ${title}`)).split(/\n## /)[0];
 

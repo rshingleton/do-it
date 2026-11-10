@@ -55,8 +55,10 @@ stops: go on to the next slice.
    - (d) Before each prove-it round, `work.mjs run audit <slug> <slice>`. It
      counts every round started, a re-audit after a fix included; prove-it's own
      `round` counts only consecutive failed audits, so the two differ and the
-     run's caps follow `run audit`. `allow` false: never start the round; stop
-     the run per [STOPS.md](STOPS.md).
+     run's caps follow `run audit`. `allow` false: never start the round; act on
+     `reason` per [STOPS.md](STOPS.md): `SLICE_AUDIT_CAP` parks this slice (the
+     script did it; add the open Must findings to the reason) and the loop goes
+     on, `AUDIT_CAP` stops the run.
    - (e) [prove-it](../prove-it/SKILL.md). Wait for each reviewer's final
      completion notice: a first hand-back with an agent still running is not
      the verdict.
