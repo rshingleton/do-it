@@ -157,6 +157,7 @@ skeleton first.
 |-------|------|
 | `/map-it [area] [--chat]` | Maps the repo or an area as `docs/reference/` (facts only), or in chat; for an area, also writes its `CONTEXT.md` and `CONTEXT-MAP.md` row, and reports drift between the map and the files on disk |
 | `/sweep-it [path \| --hot]` | Audits existing code for bugs, risks, test gaps, debt, drift and dead weight; files the findings you pick |
+| `/link-it [peer]` | Works live with the agent session in a related repo: terse peer messages, and the agreed interface kept in one shared contract file that survives compaction (Claude Code only) |
 | `/deepen-it [area]` | Finds deepening opportunities, shows them as an HTML report, grills the one you pick, hands it to `/do-it` or `log-it` |
 | `/look-it-up` | Answers library, API and standards questions from primary sources |
 
