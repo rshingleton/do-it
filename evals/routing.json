@@ -189,6 +189,19 @@
       "negative": [
         { "prompt": "review my branch before merging", "owner": "review-it" }
       ]
+    },
+    "link-it": {
+      "positive": [
+        "I need to agree the API shape with the agent working in the billing repo, can you coordinate with its session",
+        "check what the other repo's agent said about the invoice endpoint",
+        "work with the sibling project's session to settle the shared interface",
+        "message the web-app session and keep the agreed contract in a shared file"
+      ],
+      "negative": [
+        { "prompt": "file an issue in the billing repo for the missing pagination", "owner": "log-it" },
+        { "prompt": "which tracker config is in effect and fetch ticket ABC-123", "owner": "track-it" },
+        { "prompt": "map how the billing area is structured", "owner": "map-it" }
+      ]
     }
   }
 }

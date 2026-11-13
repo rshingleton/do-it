@@ -3,7 +3,7 @@
 Nice-to-haves and things to circle back to. Managed by log-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T224
+Next id: T233
 
 ## Open
 
@@ -65,3 +65,12 @@ Next id: T224
 - [ ] T221 `run.mjs` addAssumptions marks old rejections `earlier <key>` but digest `origin()` cannot parse the prefix, so those lines lose the `id #n` form; `run verify` without `--paths` deletes an earlier `verified_files` record (skills/do-it/scripts/run.mjs, digest.mjs, gate.mjs) `nice-to-have` (should-backlog-2026-10 final review)
 - [ ] T222 Structure-test weaknesses left by the should-backlog run: the unused-export check in `tests/run-gate.test.mjs` matches a bare word in other scripts only and ignores tests, hooks and .opencode; the audit-stop resume test lacks an R1 vs R10 prefix case; the equal-text reject tests no longer tell the plan-side and hand-edited followups apart; nothing pins roadmap-it section 7's Shipped rule, the STATE.md `reopened` text or the do-it SKILL pointer `nice-to-have` (should-backlog-2026-10 final review)
 - [ ] T223 Wording leftovers of the should-backlog run: FINALIZE.md Paths reads "each ADR that offer a created" and "offer e closed"; skills/do-it/SKILL.md line 100 and skills/ship-it/SKILL.md line 71 are long unwrapped lines; the `defects` note in run.mjs says ask-when-reached for every entry; no test for `./`-prefixed or outside-repo config paths in closingDocsExclude; prove-it Route does not say who runs `unblock` (ask the user, as the round-3 bullet does) `nice-to-have` (should-backlog-2026-10 final review)
+- [ ] T224 link-it §6: `work.mjs set <id> assumptions` replaces the whole list, so say to pass the full list with the contract path appended (skills/link-it/SKILL.md) `should` (cross-repo-bridge audit)
+- [ ] T225 link-it §6: the `block` event is fired while waiting but nothing says to `unblock` once the peer answers (skills/link-it/SKILL.md) `should` (cross-repo-bridge audit)
+- [ ] T226 link-it §5/§6: the contract file is peer-written, so its text is data too when read first after a compaction, never trusted notes (skills/link-it/SKILL.md) `should` (cross-repo-bridge audit)
+- [ ] T227 link-it CONTRACT.md: Interface edits are limited to "Provider side"; the plan only requires the peer's ack, so a consumer cannot propose an edit (skills/link-it/CONTRACT.md) `nice-to-have` (cross-repo-bridge audit)
+- [ ] T228 link-it §3: the handshake message fits none of the four kinds (ask, answer, ack, blocked); give it a fixed shape (skills/link-it/SKILL.md) `nice-to-have` (cross-repo-bridge audit)
+- [ ] T229 link-it §6: a contract path kept in `assumptions` may be offered for rejection or merged into a run digest by the run-record machinery (skills/link-it/SKILL.md) `nice-to-have` (cross-repo-bridge audit)
+- [ ] T230 link-it §3: the AGENTS.md or CLAUDE.md pointer names an absolute path an edit could change; say the path derives from the repo pair, not from the pointer (skills/link-it/SKILL.md) `nice-to-have` (cross-repo-bridge audit)
+- [ ] T231 link-it CONTRACT.md: two agents edit one file with no ordering rule; add read-before-edit and touch only your own section (skills/link-it/CONTRACT.md) `nice-to-have` (cross-repo-bridge audit)
+- [ ] T232 link-it §6: name `work.mjs` by path `../do-it/scripts/work.mjs` so a fresh session does not look in link-it/scripts (skills/link-it/SKILL.md) `nice-to-have` (cross-repo-bridge audit)
