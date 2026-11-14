@@ -57,6 +57,9 @@ already enforces.
 Start both as `it-reviewer` agents in the same turn (mid-tier model, reports
 in its `## Report` shape under 400 words each); each reads one diff against one source, which does not need the top tier. Give each
 the diff commands and file list, never this conversation.
+A caller may also pass a settled list (findings already fixed or accepted) and
+the paths to read: tell both reviewers not to re-raise the list and to read only
+those paths, plus what they need to check them.
 
 **Spec reviewer** gets the spec (path or fetched text) and this brief:
 

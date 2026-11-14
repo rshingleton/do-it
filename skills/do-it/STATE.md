@@ -44,10 +44,10 @@ only what the caller reads, so they have no brief form. Free text in the block
 | `block <why> [--phase n]` | planned, building, auditing, shipping | blocked | `blocker`; with `--phase`, only that phase is blocked and the item keeps building |
 | `unblock [--phase n]` | blocked (phase: building) | building | clears `blocker` |
 | `build-done` | building | auditing | needs every phase done (lane S: `verified`); in fix mode it needs a `verify-phase` that passed since the fix began (`fix_verified`, dropped with the fix) and clears `fix` |
-| `audit-pass [fingerprint]` | auditing | shipping | `audit`: PASS, `round` 0, `must` [], `fingerprint` (computed when omitted), `at` |
-| `audit-fail <must...>` | auditing | building; blocked at round 3 or later | `audit`: FAIL, `round` + 1, `must`, `at`; from round 3 a `blocker` asking the user |
+| `audit-pass [fingerprint]` | auditing | shipping | `audit`: PASS, `round` 0, `must` [], `fingerprint` (computed when omitted), `at`, `clean_passes` + 1 |
+| `audit-fail <must...>` | auditing | building; blocked at round 3 or later | `audit`: FAIL, `round` + 1, `must`, `at`, drops `clean_passes`; from round 3 a `blocker` asking the user |
 | `ship-prepared [fingerprint]` | shipping | shipping | `ship`: `prepared`, `fingerprint` (computed when omitted), `tree` (a snapshot of the working tree, written through a throwaway index) |
-| `reaudit` | shipping | auditing | clears `ship`: the user wants their review edits audited |
+| `reaudit [--again]` | shipping | auditing | clears `ship`: the user wants their review edits audited. Refused (exit 1) at 3 `clean_passes`; `--again` allows one more round |
 | `reject-assumption <n> <instead>` | auditing, shipping | building | moves assumption `n` to `fix` with what replaces it, clears `ship` |
 | `replan` | any but draft | draft | clears `approvals.plan`, `audit`, `fix` and `ship`; scope-it re-plans, the work so far and done phases stay |
 
@@ -56,6 +56,10 @@ fixes those and nothing else. **Needs the user** (`needs_user: true`) when
 `status: blocked`, including after the third (or any later) failed audit in
 a row; the user's answer is recorded by `unblock` (or `replan`), so each
 failed round asks once.
+
+`audit.clean_passes` is absent until the first pass. It counts consecutive
+`audit-pass` events; a FAIL or `replan` drops it. At 3, `reaudit` is refused
+unless `--again` is passed; `audit.round` still counts only failed audits.
 
 ## Where
 

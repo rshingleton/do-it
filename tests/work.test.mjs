@@ -936,3 +936,61 @@ test('the architecture briefs carry the deletion test inline, and debug-it route
   const debug = read('skills/debug-it/SKILL.md');
   assert.match(debug, /No honest seam is itself a finding[^.]*`log-it`[^.]*`deepen-it`/);
 });
+
+// Clean passes: consecutive audit-pass events. The reaudit after the third is refused;
+// --again grants one more round. A FAIL or a replan restarts the count.
+// n audit-pass events, with a reaudit between each pair.
+const passes = (s, n) => {
+  for (let i = 0; i < n; i++) {
+    if (i > 0) s = walk(s, [['reaudit']]);
+    s = walk(s, [['audit-pass', { fingerprint: `f${i}` }]]);
+  }
+  return s;
+};
+const auditing = () => walk(emptyBlock({ id: 'x', title: 'X', lane: 's' }), [['approve'], ['start', { head: 'a' }], ['phase-done', { verified: 'ok' }], ['build-done']]);
+
+test('clean passes: audit-pass counts, reaudit refuses at the cap, --again grants one round', () => {
+  let s = passes(auditing(), 3);
+  assert.equal(s.audit.clean_passes, 3);
+  assert.equal(s.status, 'shipping');
+  assert.throws(() => transition(s, 'reaudit'), /3 clean passes.*ship.*--again.*replan/s);
+  s = walk(s, [['reaudit', { again: true }]]);
+  assert.equal(s.status, 'auditing');
+  assert.equal(s.audit.clean_passes, 2, '--again sets the count to cap minus one');
+  assert.equal(s.audit.round, 0, '--again leaves the failed-round count alone');
+  s = walk(s, [['audit-pass', { fingerprint: 'g' }]]);
+  assert.equal(s.audit.clean_passes, 3);
+  assert.throws(() => transition(s, 'reaudit'), /--again/, 'the extra round spends the allowance');
+});
+
+test('clean passes: a FAIL or a replan restarts the count; an old block reads as 0', () => {
+  const old = auditing();
+  assert.equal('clean_passes' in old.audit, false, 'not written until nonzero');
+  let s = passes(old, 2);
+  assert.equal(s.audit.clean_passes, 2);
+  s = walk(s, [['reaudit'], ['audit-fail', { must: ['M1'] }]]);
+  assert.equal('clean_passes' in s.audit, false, 'a FAIL resets it');
+  s = walk(passes(old, 2), [['replan']]);
+  assert.equal('clean_passes' in s.audit, false, 'a replan resets it');
+  assert.equal(normalize({ ...old, audit: { ...old.audit } }).audit.clean_passes, undefined);
+});
+
+test('work.mjs: reaudit exits 1 at the clean-pass cap, 0 with --again', () => {
+  const dir = tempRepo();
+  fs.writeFileSync(path.join(dir, 'a.js'), 'one\n');
+  execFileSync('git', ['add', 'a.js'], { cwd: dir });
+  execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '-m', 'base'], { cwd: dir });
+  work(dir, 'new', 'cap', '--lane', 's', '--title', 'Cap');
+  for (const e of ['approve', 'start']) work(dir, 'event', 'cap', e);
+  fs.writeFileSync(path.join(dir, 'a.js'), 'two\n');
+  work(dir, 'verify-phase', 'cap', '--', 'node -e "process.exit(0)"');
+  work(dir, 'event', 'cap', 'build-done');
+  for (let i = 0; i < 2; i++) for (const e of ['audit-pass', 'reaudit']) assert.equal(work(dir, 'event', 'cap', e).status, 0);
+  work(dir, 'event', 'cap', 'audit-pass');
+  const refused = work(dir, 'event', 'cap', 'reaudit');
+  assert.equal(refused.status, 1);
+  assert.match(JSON.stringify(refused.out), /--again/);
+  const again = work(dir, 'event', 'cap', 'reaudit', '--again');
+  assert.equal(again.status, 0, JSON.stringify(again.out));
+  assert.equal(again.out.status, 'auditing');
+});

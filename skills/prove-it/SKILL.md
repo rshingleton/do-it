@@ -22,11 +22,11 @@ block.
 
 Empty change: stop and say so.
 
-## 2. Mechanical (main context)
+## 2. Mechanical (main context, last)
 
-Re-run the project's test, lint, format and type-check commands. Do not trust
-the build's `verified:` lines. A failure is a **Must** with the command and
-failing test as its case.
+After §3, once, and only when no Must stands: re-run the project's test, lint,
+format and type-check commands; do not trust `verified:` lines. A failure is a
+**Must** with the command and failing test as its case ([ROUNDS.md](ROUNDS.md)).
 
 ## 3. Reviewers (fresh context, in parallel)
 
@@ -39,8 +39,8 @@ An agent cannot call a skill, so run two of these here and start the third:
 - **Architecture (lane M only):** start one `it-reviewer` agent (mid-tier
   model, `## Report` shape, under 400 words) on [ARCHITECTURE.md](ARCHITECTURE.md) for every touched module.
 
-Give the agent pointers (the diff command, the untracked file list, the plan
-path), never the build transcript.
+Give each reviewer pointers (diff command, untracked files, plan path), never the
+build transcript, plus, after round 1, the scope and Settled list ([ROUNDS.md](ROUNDS.md)).
 
 Lane XS is not audited here; `ship-it` does its self-review.
 
@@ -62,8 +62,8 @@ the code alone; rejected ones move to **Not confirmed** and stop blocking.
   name the axis. `audit-pass` and `audit-fail` stay un-fired.
 - Otherwise `PASS`.
 
-Lane S: findings go in chat and a short `## Audit` section appended to the
-plan file. Lane M: `docs/planning/<id>/audit-report.md`.
+Lane S: findings go in chat and a short `## Audit` section in the plan file;
+lane M: `audit-report.md`. Round 1 adds `### Settled` and `### Touched` there.
 
 Record the verdict with the work-item script ([STATE.md](../do-it/STATE.md)):
 
@@ -82,7 +82,7 @@ A refused event (the script exits 1) is `blocked`.
   **Next:** `/ship-it <id>`.
 - `FAIL`, round 1 or 2: return `failed` with the Must numbers. `do-it` sends
   them to `build-it`, which fixes only those (its fix mode) and hands back
-  for a full re-audit (every check, every time).
+  for a re-audit scoped and ordered per [ROUNDS.md](ROUNDS.md).
 - `FAIL`, round 3 or later (the script sets `status: blocked`): return `blocked`.
   Show the Musts and ask the user whether to fix (`unblock`; the round
   count continues), accept with a recorded decision (add it to the plan's
@@ -92,7 +92,7 @@ A refused event (the script exits 1) is `blocked`.
   above set `status: blocked` and the blocker). Once the cause is fixed,
   `unblock` then `build-done` re-audits.
 
-Should and Nice findings never block. `ship-it` carries them into the
+Should and Nice findings never block or start a re-audit. `ship-it` carries them into the
 changelog or ADR notes, and with no changelog offers to log them as
 to-dos. Mechanical rules that keep failing are listed as
 **Guardrail candidates**: rules for `.compliance-rules/checks.json` or the
