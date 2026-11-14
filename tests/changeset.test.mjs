@@ -265,7 +265,7 @@ test('a file whose diff is over the cap keeps path rules only; a large file with
   });
 });
 
-test('works with a git that predates --no-relative', () => {
+test('works with a git that predates --no-relative', { skip: process.platform === 'win32' && 'a shell-script git stand-in cannot run as git.exe' }, () => {
   const { dir, git, write, commit } = gitRepo();
   commit();
   write('a.js', 'a\n');
@@ -373,7 +373,7 @@ test('a binary with a textconv driver is read raw and through the driver', () =>
   ]);
 });
 
-test('a binary costs two diffs: the listing view, then as text', () => {
+test('a binary costs two diffs: the listing view, then as text', { skip: process.platform === 'win32' && 'a shell-script git stand-in cannot run as git.exe' }, () => {
   const { dir, git, write, commit } = gitRepo();
   write('.gitattributes', '*.tx diff=tx\n');
   git('config', 'diff.tx.textconv', 'cat');

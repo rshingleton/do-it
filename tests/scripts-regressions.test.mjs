@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { parseFrontmatter } from '../scripts/lib/skills.mjs';
 import { linkDir, standsFor, present } from './links.mjs';
 import { fingerprint as fp } from '../skills/do-it/scripts/changeset.mjs';
+import { checkShell } from '../skills/do-it/scripts/check-shell.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const KEY = ['AKIA', 'ABCDEFGHIJKLMNOP'].join('');
@@ -71,7 +72,10 @@ test('uninstall removes every link into this checkout, including renamed skills'
   assert.ok(fs.existsSync(path.join(ROOT, 'skills/do-it')), 'the checkout is never followed into');
 });
 
-const HAS_BASH = spawnSync('bash', ['--version']).status === 0;
+// On Windows `bash` on PATH can be WSL's, which cannot run install.sh against
+// this checkout; use the Git Bash the check shell finds, else the bare name.
+const BASH = typeof checkShell() === 'string' ? checkShell() : 'bash';
+const HAS_BASH = spawnSync(BASH, ['--version']).status === 0;
 
 test('install.sh run from a pipe clones the repo, installs from the clone, and pulls on a re-run', { skip: HAS_BASH ? false : 'bash is not on PATH' }, () => {
   // The source is on a branch, as GitHub's default branch is; cloning ROOT
@@ -85,7 +89,7 @@ test('install.sh run from a pipe clones the repo, installs from the clone, and p
   const clone = path.join(home, 'share/do-it');
   const env = cleanEnv({ DO_IT_REPO: source, DO_IT_HOME: clone }, home);
   const piped = (...args) =>
-    spawnSync('bash', ['-s', '--', ...args], { cwd: home, input: fs.readFileSync(path.join(ROOT, 'scripts/install.sh')), encoding: 'utf8', env });
+    spawnSync(BASH, ['-s', '--', ...args], { cwd: home, input: fs.readFileSync(path.join(ROOT, 'scripts/install.sh')), encoding: 'utf8', env });
 
   const dry = piped('--dry-run');
   assert.equal(dry.status, 0, dry.stderr);
