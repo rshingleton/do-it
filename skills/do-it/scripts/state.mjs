@@ -81,6 +81,9 @@ function phase(state, n) {
   return p;
 }
 
+// Consecutive audit passes allowed before reaudit asks the user.
+const CLEAN_PASS_CAP = 3;
+
 const fixMode = (s) => s.audit.verdict === 'FAIL' || s.fix.length > 0;
 
 // Each event: the statuses it may fire from, and what it does. `apply`
@@ -175,8 +178,8 @@ const EVENTS = {
     from: ['auditing'],
     apply: (s, a) => {
       if (!a.fingerprint) throw new Error('audit-pass needs the fingerprint');
-      // round counts consecutive failed audits.
-      Object.assign(s.audit, { verdict: 'PASS', round: 0, must: [], fingerprint: a.fingerprint, at: a.date });
+      // round counts consecutive failed audits; clean_passes consecutive passes.
+      Object.assign(s.audit, { verdict: 'PASS', round: 0, must: [], fingerprint: a.fingerprint, at: a.date, clean_passes: (s.audit.clean_passes || 0) + 1 });
       return 'shipping';
     },
   },
@@ -192,6 +195,7 @@ const EVENTS = {
         at: a.date,
       });
       delete s.fix_verified;
+      delete s.audit.clean_passes;
       // The third failed round in a row waits for the user; unblock is their answer.
       if (s.audit.round >= 3) {
         s.blocker = `audit failed ${s.audit.round} times in a row: fix, accept with a recorded decision, or re-plan`;
@@ -224,8 +228,17 @@ const EVENTS = {
   },
   reaudit: {
     from: ['shipping'],
-    apply: (s) => {
-      // The review changed code the user wants checked again.
+    apply: (s, a) => {
+      // The review changed code the user wants checked again. Passes that
+      // only leave Should and Nice findings must end: refuse at the cap
+      // unless the user asks for one more round.
+      const passes = s.audit.clean_passes || 0;
+      if (passes >= CLEAN_PASS_CAP) {
+        if (!a.again) {
+          throw new Error(`${passes} clean passes in a row: ship it (log the rest as to-dos), run one more round with reaudit --again, or replan`);
+        }
+        s.audit.clean_passes = CLEAN_PASS_CAP - 1;
+      }
       s.ship = { prepared: null, fingerprint: null };
       return 'auditing';
     },

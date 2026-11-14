@@ -33,8 +33,8 @@ Builds what the plan approved, nothing else, uncommitted; `ship-it` commits.
   is only the Must findings listed in `audit.must`, read from the audit
   report (lane M) or the plan's `## Audit` section (lane S), and each `fix:`
   entry (an assumption the user rejected at ship). Fix each one test-first
-  where it has a seam, run the project's checks, then go to §5. Phases are
-  not rebuilt.
+  where it has a seam, run the checks, record `### Settled` and `### Touched`
+  ([ROUNDS.md](../prove-it/ROUNDS.md)), then go to §5. Phases are not rebuilt.
 - Lane S: the plan's steps, in order, as one unit.
 - Lane M: the **frontier**, every phase not `done` whose `blocked_by` phases
   are all `done`. With `phase N`, just that phase if it is on the frontier.
