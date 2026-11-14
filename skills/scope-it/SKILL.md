@@ -75,8 +75,8 @@ the `/map-it <area>` context step when §2 proposed it, the assumptions, and any
 builder-check questions (each with a recommended answer). The plan stays `draft`.
 End the turn; lane M makes this its last grill round ([GRILL.md](GRILL.md)).
 
-On approval, `work.mjs event <id> approve --brief`. Edits the user asks for are made
-and re-presented; approval of the edited plan counts.
+Only an explicit accept approves ([grill-it](../grill-it/SKILL.md#what-counts-as-acceptance)):
+then `work.mjs event <id> approve --brief`. Any other reply is folded in and re-presented.
 
 ## 6. Publish (optional)
 

@@ -3,7 +3,7 @@
 Nice-to-haves and things to circle back to. Managed by log-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T236
+Next id: T237
 
 ## Open
 
@@ -68,3 +68,5 @@ Next id: T236
 - [ ] T233 link-it v1 limit: an agreed Interface edit whose proposer never writes it stays unapplied (skills/link-it/CONTRACT.md Rules) `debt` (link-it-todos audit)
 - [ ] T234 link-it v1 limit: a compaction landing exactly between two adjacent file operations of one side is not guaranteed recoverable beyond what the rules say; run the two-session hand test with a named repo pair to see whether this and T233 matter (skills/link-it) `debt` (link-it-todos audit)
 - [ ] T235 The `## Link` plan-body section link-it uses to keep the contract path is in no schema or doc, so a re-plan may drop it (skills/do-it/STATE.md, skills/link-it/SKILL.md section 6) `debt` (link-it-todos audit)
+- [ ] T236 Behavioural eval for the grill acceptance rule: a grill reply that only adds scope must produce a re-presented round, not `approve` or plan files; today only tests/grill-acceptance.test.mjs pins the text `nice-to-have` (grill-acceptance ship)
+  - Related: T23 (behaviour evals).
