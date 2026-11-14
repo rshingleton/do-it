@@ -47,7 +47,7 @@ import { countAudit, startSlice } from './gate.mjs';
 import { runGate, runRejectAssumption, runReviewChange, runVerify } from './runs.mjs';
 
 // Flags that take no value.
-const FLAGS = new Set(['brief', 'docs', 'final']);
+const FLAGS = new Set(['brief', 'docs', 'final', 'again']);
 
 function parseArgs(argv) {
   const pos = [];
@@ -143,6 +143,9 @@ function eventArgs(ctx, item, event, rest, opts) {
     case 'ship-prepared':
       a.fingerprint ??= rest[0] ?? itemFingerprint(ctx, item);
       a.tree = snapshot(ctx.root, { exclude: planningExclude(ctx) });
+      break;
+    case 'reaudit':
+      a.again = opts.again === true;
       break;
     case 'audit-fail':
       a.must = rest.map((m) => (/^\d+$/.test(m) ? Number(m) : m));
