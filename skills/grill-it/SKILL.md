@@ -64,6 +64,21 @@ ready set and ask the next round.
 Domain words that shift meaning during the grill belong to `name-it`: call
 the Skill tool with "name-it" when a term needs pinning down.
 
+## What counts as acceptance
+
+Only an explicit accept is acceptance: "do it", or an explicit yes to the
+plan or summary shown. Answering some questions, adding scope, changing an
+answer, or saying nothing is not.
+
+A reply that is not an explicit accept is folded into the tree and the round
+or plan is presented again. Every recommendation stays marked as a
+recommendation. A reply that adds scope reopens branches, so no plan files are
+written, and nothing is treated as approved, until the ready set is empty and
+the user then gives an explicit accept. Fire `approve` only on that signal; the
+plan stays `draft` until then. A "do it" to a mid-grill round settles that
+round's recommendations; only a "do it" to the plan approves it. No cap is put on rounds: keep asking while real
+decisions are open.
+
 ## Done
 
 The grill ends when the ready set is empty and nothing material is being
@@ -72,4 +87,4 @@ confirm the shared understanding. When a caller supplied a final artefact to
 approve (a phase breakdown, a chosen interface), put it in the same message so
 one confirmation covers both.
 
-Act on nothing until that confirmation arrives.
+Act on nothing until that confirmation arrives; what counts as one is above.

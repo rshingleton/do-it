@@ -75,8 +75,8 @@ Each step ends with an outcome: `done`, `blocked` or `failed`.
 
 Only these points wait for the user:
 
-- `scope-it`: lane S's 0-3 questions (skipped when nothing is open) and its
-  plan approval; lane M's grill rounds, the last of which approves the plan.
+- `scope-it`: lane S's 0-3 questions (skipped when nothing is open); lane M's grill
+  rounds; plan approval, an [explicit accept](../grill-it/SKILL.md#what-counts-as-acceptance) only.
 - Lane L: roadmap approval in `roadmap-it`, and a blocking decision (§3) before a slice and after a ship. `--complete`: only finish-it's two turns.
 - `build-it`: a stop condition it reports as `blocked`.
 - `prove-it`: round 3 of a failing audit.

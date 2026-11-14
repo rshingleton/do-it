@@ -21,5 +21,6 @@ Add these branches to the `grill-it` design tree:
 When the open branches are down to confirmations, write the plan and run its
 checks (scope-it §3) before asking again. That last round is the plan
 approval: the phases with `Blocked by`, the assumptions and any builder
-questions, in one turn. The user's "do it" approves both; there is no separate
-approval stop.
+questions, in one turn. An explicit accept
+([grill-it](../grill-it/SKILL.md#what-counts-as-acceptance)) approves both;
+there is no separate approval stop.
