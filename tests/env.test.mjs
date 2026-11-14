@@ -4,16 +4,17 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const HELPER = path.join(path.dirname(fileURLToPath(import.meta.url)), 'env.mjs');
+const HELPER_URL = pathToFileURL(HELPER).href;
 
 test('importing the helper hides the developer environment from this process and its children', () => {
   const real = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-real-'));
   const gitconfig = path.join(real, 'gitconfig');
   fs.writeFileSync(gitconfig, '[commit]\n\tgpgsign = true\n');
   const probe = `
-    await import(${JSON.stringify(HELPER)});
+    await import(${JSON.stringify(HELPER_URL)});
     const { spawnSync } = await import('node:child_process');
     const e = process.env;
     console.log(JSON.stringify({
@@ -30,7 +31,7 @@ test('importing the helper hides the developer environment from this process and
   assert.notEqual(out.home, real);
   assert.ok(out.home.startsWith(os.tmpdir()) || fs.realpathSync(out.home).startsWith(fs.realpathSync(os.tmpdir())));
   assert.equal(out.xdg, path.join(out.home, '.config'));
-  assert.equal(out.gcg, '/dev/null');
+  assert.equal(out.gcg, process.platform === 'win32' ? 'NUL' : os.devNull);
   assert.equal(out.nosys, '1');
   assert.deepEqual(out.leaked, []);
   assert.equal(out.sign, null, 'the global gpgsign setting did not reach git');
@@ -54,7 +55,7 @@ test('cleanEnv strips do-it and tracker variables set after import, and takes th
 
 test('tmpDir directories are removed when the process exits', () => {
   const probe = `
-    const { tmpDir } = await import(${JSON.stringify(HELPER)});
+    const { tmpDir } = await import(${JSON.stringify(HELPER_URL)});
     const dir = tmpDir('do-it-probe-');
     (await import('node:fs')).writeFileSync(dir + '/f', 'x');
     console.log(dir);`;
@@ -62,4 +63,36 @@ test('tmpDir directories are removed when the process exits', () => {
   const dir = r.stdout.trim().split('\n').pop();
   assert.match(path.basename(dir), /^do-it-probe-/, r.stderr);
   assert.equal(fs.existsSync(dir), false);
+});
+
+const underTmp = (p) => fs.realpathSync(p).startsWith(fs.realpathSync(os.tmpdir()));
+const homedirProbe = "console.log(JSON.stringify((await import('node:os')).homedir()))";
+
+test('the process home and a cleanEnv child home are both under the temp dir', async () => {
+  const { cleanEnv } = await import('./env.mjs');
+  assert.ok(underTmp(os.homedir()), os.homedir());
+  const r = spawnSync(process.execPath, ['--input-type=module', '-e', homedirProbe], { encoding: 'utf8', env: cleanEnv() });
+  const child = JSON.parse(r.stdout.trim());
+  assert.ok(underTmp(child), child);
+  assert.notEqual(child, os.homedir(), 'each cleanEnv call gets a fresh home');
+});
+
+test('git global config read through cleanEnv comes from no real file', async () => {
+  const { cleanEnv } = await import('./env.mjs');
+  const r = spawnSync('git', ['config', '--global', '--list'], { encoding: 'utf8', env: cleanEnv() });
+  assert.equal(r.stdout.trim(), '', r.stderr);
+});
+
+test('the helper throws at import when the home variable os.homedir() reads is not isolated', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-copy-'));
+  const key = process.platform === 'win32' ? 'USERPROFILE' : 'HOME';
+  const lines = fs.readFileSync(HELPER, 'utf8').split('\n');
+  const kept = lines.filter((l) => !l.trim().startsWith(key + ': home,'));
+  assert.equal(kept.length, lines.length - 1, 'the helper has one ' + key + ' line');
+  const copy = path.join(dir, 'env.mjs');
+  fs.writeFileSync(copy, kept.join('\n'));
+  const r = spawnSync(process.execPath, ['--input-type=module', '-e', `await import(${JSON.stringify(pathToFileURL(copy).href)})`], { encoding: 'utf8' });
+  fs.rmSync(dir, { recursive: true, force: true });
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /os\.homedir\(\) is/);
 });

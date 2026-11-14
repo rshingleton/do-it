@@ -50,7 +50,7 @@ test('commit detection: global options, no false hits on strings or commit-tree'
   fs.writeFileSync(path.join(dir, 'a.js'), `k = "${KEY}"\n`);
   git('add', 'a.js');
   const ctx = ctxFor(os.tmpdir());
-  assert.equal(beforeShell(ctx, `git -C ${dir} commit -m wip`).action, 'block');
+  assert.equal(beforeShell(ctx, `git -C ${dir.replaceAll('\\', '/')} commit -m wip`).action, 'block');
   const here = ctxFor(dir);
   assert.equal(beforeShell(here, 'git -c user.name=x commit -m wip').action, 'block');
   assert.equal(beforeShell(here, "echo 'later: git commit'").action, 'allow');
@@ -69,7 +69,7 @@ test('lint command quotes paths so $ and backticks are not expanded', () => {
   const file = path.join(dir, 'app/routes/$id.tsx');
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, 'x');
-  assert.equal(afterEdit(ctxFor(dir, { DO_IT_LINT_CMD: 'ls {file}' }), { file_path: file }).action, 'allow');
+  assert.equal(afterEdit(ctxFor(dir, { DO_IT_LINT_CMD: 'node -e "require(\'fs\').statSync(process.argv[1])" {file}' }), { file_path: file }).action, 'allow');
 });
 
 test('interpolated credentials in URLs are not secrets', () => {
@@ -113,7 +113,7 @@ test('claude post-tool reports lint failures as additionalContext', () => {
   const r = spawnSync('node', [path.join(ROOT, 'hooks/claude.mjs'), 'post-tool'], {
     input: JSON.stringify({ cwd: dir, tool_name: 'Edit', tool_input: { file_path: 'a.js', new_string: 'x' } }),
     encoding: 'utf8',
-    env: { ...process.env, DO_IT_LINT_CMD: 'echo bad; exit 1' },
+    env: { ...process.env, DO_IT_LINT_CMD: 'echo bad && exit 1' },
   });
   const out = JSON.parse(r.stdout);
   assert.equal(out.hookSpecificOutput.hookEventName, 'PostToolUse');
@@ -176,12 +176,12 @@ test('lint results for several files come back in edit order (audit 1)', () => {
   const spawn = (cmd) => (cmd.includes('a.js') ? { signal: 'SIGTERM' } : { status: 1, stdout: 'bad' });
   const r = afterEdit(ctxFor(dir, { DO_IT_LINT_CMD: 'lint {file}' }), { patchText: twoFilePatch('x = 1') }, { spawn });
   assert.equal(r.action, 'feedback');
-  assert.match(r.message, /^do-it lint timed out[^\n]*a\.js'\n\ndo-it lint failed for b\.py/);
+  assert.match(r.message, /^do-it lint timed out[^\n]*a\.js['"]\n\ndo-it lint failed for b\.py/);
 });
 
 test('every file in a patch is linted', () => {
   const { dir } = repo();
-  const ctx = ctxFor(dir, { DO_IT_LINT_CMD: 'case {file} in *.py) echo bad {file}; exit 1;; esac' });
+  const ctx = ctxFor(dir, { DO_IT_LINT_CMD: 'node -e "if (process.argv[1].endsWith(\'.py\')) process.exit(1)" {file}' });
   const r = afterEdit(ctx, { patchText: twoFilePatch('x = 1') });
   assert.equal(r.action, 'feedback');
   assert.match(r.message, /lint failed for b\.py/);
@@ -236,7 +236,7 @@ test('a file that is gone after the edit is not linted (audit 3)', () => {
   const patch = ['*** Begin Patch', '*** Update File: old.js', '*** Move to: new.js', '*** Delete File: dead.js', '*** End Patch'].join('\n');
   afterEdit(ctxFor(repo().dir, { DO_IT_LINT_CMD: 'lint {file}' }), { patchText: patch }, { spawn });
   assert.equal(linted.length, 1);
-  assert.match(linted[0], /new\.js'$/);
+  assert.match(linted[0], /new\.js['"]$/);
 });
 
 test('a header pair inside a hunk still names its file (audit 4)', () => {
@@ -360,7 +360,7 @@ test('anchored patterns still match where the old ones did', () => {
 function b64Driver(dir, git) {
   fs.writeFileSync(path.join(dir, 'dec.mjs'), "import fs from 'node:fs';\nprocess.stdout.write(Buffer.from(fs.readFileSync(process.argv[2], 'utf8').trim(), 'base64'));\n");
   fs.writeFileSync(path.join(dir, '.gitattributes'), '*.b64 diff=b64\n');
-  git('config', 'diff.b64.textconv', `node ${path.join(dir, 'dec.mjs')}`);
+  git('config', 'diff.b64.textconv', `node ${path.join(dir, 'dec.mjs').replaceAll('\\', '/')}`); // git runs a driver through sh
 }
 
 test('an unresolvable earlier git add may stage an untracked file: its secret blocks the commit', () => {
@@ -446,7 +446,7 @@ test('path rules match a backslash path (T87)', () => {
   const ctx = ctxFor(repo().dir);
   const r = beforeEdit(ctx, { file_path: 'app\\.env', content: '' });
   assert.equal(r.action, 'block');
-  assert.match(r.reason, /env-file in app\\\.env/);
+  assert.match(r.reason, /env-file in app[\\/]\.env/);
   assert.equal(beforeEdit(ctx, { file_path: 'app\\.env.example', content: '' }).action, 'allow');
 });
 

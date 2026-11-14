@@ -11,6 +11,8 @@ import { runGate, runRejectAssumption, runVerify } from '../skills/do-it/scripts
 import { nextSlice, showRun } from '../skills/do-it/scripts/run.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+// A path as a bash check spells it: forward slashes.
+const sh = (p) => p.replaceAll('\\', '/');
 const WORK = path.join(ROOT, 'skills/do-it/scripts/work.mjs');
 const git = (dir, ...args) => execFileSync('git', args, { cwd: dir, encoding: 'utf8' }).trim();
 
@@ -74,7 +76,7 @@ test('run verify on an item past building says it must be building and that a re
   ok(verify(dir));
   ok(work(dir, 'event', 'feat', 'build-done'));
   const marker = path.join(dir, 'check-ran');
-  const r = work(dir, 'run', 'verify', 'road', 'R1', '--', `touch ${marker}`);
+  const r = work(dir, 'run', 'verify', 'road', 'R1', '--', `touch ${sh(marker)}`);
   assert.equal(r.status, 1);
   assert.match(r.out.error, /needs feat building, but it is auditing/);
   assert.match(r.out.error, /a replan reopens it/);
@@ -87,7 +89,7 @@ test('flaky: a failure that passes on its one rerun parks the slice and records 
   const dir = fixture();
   // Fails the first run, passes the second: exactly one rerun.
   const marker = path.join(dir, '.attempt');
-  const cmd = `test -f ${marker} || { touch ${marker}; exit 1; }`;
+  const cmd = `test -f ${sh(marker)} || { touch ${sh(marker)}; exit 1; }`;
   const r = verify(dir, cmd);
   assert.equal(r.status, 1);
   assert.match(r.out.error, /FLAKY/);
@@ -101,7 +103,7 @@ test('flaky: a failure that passes on its one rerun parks the slice and records 
 test('flaky: a check that fails twice is a plain failure, rerun only once, slice not parked', () => {
   const dir = fixture();
   const count = path.join(dir, '.count');
-  const r = verify(dir, `echo x >> ${count}; exit 1`);
+  const r = verify(dir, `echo x >> ${sh(count)}; exit 1`);
   assert.equal(r.status, 1);
   assert.doesNotMatch(r.out.error, /FLAKY/);
   assert.equal(fs.readFileSync(count, 'utf8').trim().split('\n').length, 2);

@@ -1,0 +1,11 @@
+* text=auto
+skills/** text eol=lf
+agents/** text eol=lf
+.opencode/** text eol=lf
+scripts/** text eol=lf
+hooks/** text eol=lf
+tests/** text eol=lf
+*.md text eol=lf
+*.mjs text eol=lf
+*.sh text eol=lf
+*.json text eol=lf

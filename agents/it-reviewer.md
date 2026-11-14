@@ -1,6 +1,6 @@
 ---
 name: it-reviewer
-description: Fresh-context reviewer on the mid tier: checks one change against one source, or confirms one finding from the code alone. Use only when a do-it skill names it.
+description: "Fresh-context reviewer on the mid tier: checks one change against one source, or confirms one finding from the code alone. Use only when a do-it skill names it."
 model: sonnet
 tools: Read, Grep, Glob, Bash
 ---

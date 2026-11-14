@@ -34,7 +34,7 @@ export function beforeEdit(ctx, input) {
   if (!ctx.enabled) return { action: 'allow' };
   const findings = [];
   for (const { file, added } of editParts(input)) {
-    const rel = file && path.relative(ctx.root, path.resolve(ctx.root, file));
+    const rel = file && path.relative(ctx.root, path.resolve(ctx.root, file)).split(path.sep).join('/');
     for (const f of scan(added, ctx.rules, rel)) findings.push({ ...f, file: rel });
   }
   const list = (fs) => fs.map((f) => format([f], f.file)).join('\n');
@@ -57,20 +57,27 @@ export function hookTimeout(cfg) {
   return Number.isFinite(n) && n > 0 ? n : DEFAULT_HOOK_TIMEOUT;
 }
 
+// A path as one shell word. Posix: single quotes, because the shell expands $
+// and backticks inside double quotes and paths like app/routes/$id.tsx are
+// common. Windows: the command runs under cmd.exe, which has no single quotes;
+// double quotes, with an embedded quote escaped.
+export function quoteArg(abs, platform = process.platform) {
+  if (platform === 'win32') return `"${abs.replaceAll('"', '\\"')}"`;
+  return `'${abs.replaceAll("'", `'\\''`)}'`;
+}
+
 // After a file edit: run the configured per-file lint command on every file
 // the edit leaves behind, in edit order.
 // shortcut: each file gets its own timeout and there is no total cap, so a
 // large patch can stall the hook; add a total budget when that bites.
-export function afterEdit(ctx, input, { spawn = spawnSync } = {}) {
+export function afterEdit(ctx, input, { spawn = spawnSync, platform = process.platform } = {}) {
   if (!ctx.enabled || !ctx.cfg.DO_IT_LINT_CMD) return { action: 'allow' };
   const messages = [];
   let failed = false;
   for (const { file, gone } of editParts(input)) {
     if (!file || gone) continue;
     const abs = path.resolve(ctx.root, file);
-    // Single quotes: the shell expands $ and backticks inside double quotes,
-    // and paths like app/routes/$id.tsx are common.
-    const cmd = ctx.cfg.DO_IT_LINT_CMD.replaceAll('{file}', `'${abs.replaceAll("'", `'\\''`)}'`);
+    const cmd = ctx.cfg.DO_IT_LINT_CMD.replaceAll('{file}', quoteArg(abs, platform));
     const res = spawn(cmd, {
       cwd: ctx.root,
       shell: true,
@@ -81,7 +88,7 @@ export function afterEdit(ctx, input, { spawn = spawnSync } = {}) {
       messages.push(`do-it lint timed out after ${hookTimeout(ctx.cfg)}s: ${cmd}`);
     } else if (res.status !== 0) {
       const out = `${res.stdout || ''}${res.stderr || ''}`.trim().slice(-3000);
-      messages.push(`do-it lint failed for ${path.relative(ctx.root, abs)} (\`${ctx.cfg.DO_IT_LINT_CMD}\`):\n${out}`);
+      messages.push(`do-it lint failed for ${path.relative(ctx.root, abs).split(path.sep).join('/')} (\`${ctx.cfg.DO_IT_LINT_CMD}\`):\n${out}`);
       failed = true;
     }
   }

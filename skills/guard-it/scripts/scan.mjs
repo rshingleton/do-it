@@ -6,12 +6,12 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const HERE = path.dirname(fs.realpathSync(fileURLToPath(import.meta.url)));
-const { loadConfig } = await import(path.join(HERE, '../../track-it/scripts/config.mjs'));
-const { loadChecks, scan, format } = await import(path.join(HERE, '../../../hooks/lib/checks.mjs'));
-const { addedLines } = await import(path.join(HERE, '../../do-it/scripts/changeset.mjs'));
+const { loadConfig } = await import(pathToFileURL(path.join(HERE, '../../track-it/scripts/config.mjs')).href);
+const { loadChecks, scan, format } = await import(pathToFileURL(path.join(HERE, '../../../hooks/lib/checks.mjs')).href);
+const { addedLines } = await import(pathToFileURL(path.join(HERE, '../../do-it/scripts/changeset.mjs')).href);
 
 const args = process.argv.slice(2);
 const at = args.indexOf('--since');

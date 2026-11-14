@@ -56,3 +56,17 @@ export const readsOnly = (agent) => {
 export function userInvoked(skill) {
   return String(skill.meta['disable-model-invocation']) === 'true';
 }
+
+// Top-level header lines whose plain (unquoted) value strict YAML rejects:
+// a `: ` or ` #` inside it. Returns the offending keys.
+export function unsafePlainScalars(raw) {
+  const parts = splitFrontmatter(raw.replace(/\r\n?/g, '\n'));
+  if (!parts) return [];
+  const bad = [];
+  for (const line of parts.yaml.split('\n')) {
+    const kv = line.match(/^([A-Za-z_][\w-]*):[ \t]+(.*)$/);
+    if (!kv || /^["'>|\[{&*!]/.test(kv[2])) continue;
+    if (/:(\s|$)| #/.test(kv[2])) bad.push(kv[1]);
+  }
+  return bad;
+}

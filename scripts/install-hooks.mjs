@@ -49,19 +49,23 @@ function writeJson(file, before, data) {
   console.log(`updated ${file}${fs.existsSync(backup) ? ` (original kept in ${backup})` : ''}`);
 }
 
+// One separator style in a registered command: forward slashes, which node,
+// cmd and bash all accept, so a Windows root never mixes the two.
+const posix = (p) => p.replaceAll('\\', '/');
+
 // hooks/hooks.json with ${CLAUDE_PLUGIN_ROOT} resolved to this checkout.
 export function claudeHooks(root) {
   const { hooks } = JSON.parse(fs.readFileSync(path.join(root, 'hooks', 'hooks.json'), 'utf8'));
   for (const groups of Object.values(hooks)) {
     for (const group of groups) {
-      for (const h of group.hooks) h.command = h.command.replaceAll('${CLAUDE_PLUGIN_ROOT}', root);
+      for (const h of group.hooks) h.command = h.command.replaceAll('${CLAUDE_PLUGIN_ROOT}', posix(root));
     }
   }
   return hooks;
 }
 
 export function mergeClaude(settings, root, { strip = false } = {}) {
-  const mine = (h) => String(h.command || '').includes(path.join(root, 'hooks', 'claude.mjs'));
+  const mine = (h) => posix(String(h.command || '')).includes(posix(path.join(root, 'hooks', 'claude.mjs')));
   const hooks = { ...(settings.hooks || {}) };
   for (const event of Object.keys(hooks)) {
     hooks[event] = hooks[event]

@@ -13,6 +13,8 @@ import { DEFAULTS, loadConfig, trust } from '../skills/track-it/scripts/config.m
 import { run } from '../skills/track-it/scripts/tracker.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+// A path as a bash command line spells it: forward slashes, as Git Bash takes them.
+const sh = (p) => p.replaceAll('\\', '/');
 
 // Fake secrets are assembled at runtime so this file never holds one literally.
 const FAKE_AWS = ['AKIA', 'ABCDEFGHIJKLMNOP'].join('');
@@ -128,7 +130,7 @@ test('OpenCode plugin only translates: tool kinds in, throw, append and stderr o
 test('OpenCode plugin puts lint failures before compliance notes', async () => {
   const root = repo();
   const env = process.env.DO_IT_LINT_CMD;
-  process.env.DO_IT_LINT_CMD = 'echo lint says no; exit 1';
+  process.env.DO_IT_LINT_CMD = 'echo lint says no && exit 1';
   try {
     const { DoItPlugin: plugin } = await import('../.opencode/plugins/do-it.mjs');
     const hooks = await plugin({ directory: root });
@@ -240,18 +242,25 @@ test('a commit with no earlier index-changing command makes the same git calls a
   fs.writeFileSync(path.join(root, 'a.js'), 'ok2\n');
   const bin = tmpDir('do-it-shim-');
   const log = path.join(bin, 'log');
-  const real = execFileSync('which', ['git'], { encoding: 'utf8' }).trim();
-  fs.writeFileSync(path.join(bin, 'git'), `#!/bin/sh\necho x >> '${log}'\nexec '${real}' "$@"\n`, { mode: 0o755 });
+  // Count git processes: a shim on PATH where it can run, git's own trace on Windows,
+  // where PATH cannot hold a script named git.
+  if (process.platform !== 'win32') {
+    const real = execFileSync('which', ['git'], { encoding: 'utf8' }).trim();
+    fs.writeFileSync(path.join(bin, 'git'), `#!/bin/sh\necho x >> '${log}'\nexec '${real}' "$@"\n`, { mode: 0o755 });
+  }
   const calls = (cmd) => {
     fs.rmSync(log, { force: true });
     const old = process.env.PATH;
-    process.env.PATH = `${bin}${path.delimiter}${old}`;
+    if (process.platform === 'win32') process.env.GIT_TRACE2_EVENT = log;
+    else process.env.PATH = `${bin}${path.delimiter}${old}`;
     try {
       beforeShell(ctxFor(root), cmd);
     } finally {
       process.env.PATH = old;
+      delete process.env.GIT_TRACE2_EVENT;
     }
-    return fs.readFileSync(log, 'utf8').split('\n').filter(Boolean).length;
+    const lines = fs.readFileSync(log, 'utf8').split('\n').filter(Boolean);
+    return process.platform === 'win32' ? lines.filter((l) => l.includes('"event":"version"')).length : lines.length;
   };
   // Counts measured on the guard before index-changing commands were read,
   // plus the one lookup for textconv drivers when a listing has files.
@@ -461,7 +470,7 @@ test('a cd before the commit moves where its paths and repo are read', () => {
   git(other, 'add', '.');
   git(other, 'commit', '-qm', 'init');
   fs.writeFileSync(path.join(other, 'o.js'), `const t = "${FAKE_SLACK}";\n`);
-  assert.equal(beforeShell(ctx, `cd ${other} && git commit -am x`).action, 'block');
+  assert.equal(beforeShell(ctx, `cd ${sh(other)} && git commit -am x`).action, 'block');
   // A cd the hook cannot follow scans every tracked change from the root.
   assert.equal(beforeShell(ctx, 'cd "$DIR" && git commit -m x x.js').action, 'block');
 });
@@ -498,11 +507,11 @@ test('every step of a cd chain is scanned, and cd after { then do is seen', () =
   git(b, 'add', 'f.js');
   const ctx = ctxFor(start);
   for (const cmd of [
-    `cd ${b} && (cd ${c}); git commit -m x`,
-    `cd ${b}; (cd ${c}) && git commit -m x`,
-    `{ cd ${b}; }; git commit -m x`,
-    `if true; then cd ${b}; fi; git commit -m x`,
-    `builtin cd ${b} && git commit -m x`,
+    `cd ${sh(b)} && (cd ${sh(c)}); git commit -m x`,
+    `cd ${sh(b)}; (cd ${sh(c)}) && git commit -m x`,
+    `{ cd ${sh(b)}; }; git commit -m x`,
+    `if true; then cd ${sh(b)}; fi; git commit -m x`,
+    `builtin cd ${sh(b)} && git commit -m x`,
   ]) {
     assert.equal(beforeShell(ctx, cmd).action, 'block', cmd);
   }
@@ -549,7 +558,7 @@ test('commit guard scans a renamed file whole', () => {
   assert.match(r.reason, /slack-token in new\.js:1:/);
 });
 
-test('commit guard still blocks beside a type change or an unmerged path', () => {
+test('commit guard still blocks beside a type change or an unmerged path', { skip: process.platform === 'win32' && 'unprivileged symlinks' }, () => {
   const root = repo();
   fs.writeFileSync(path.join(root, 'f'), 'f\n');
   fs.symlinkSync('f', path.join(root, 'l'));
@@ -706,7 +715,7 @@ test('parseGitCommits reads prefixed and nested forms', () => {
     assert.equal(parseGitCommits(cmd).length, 1, cmd);
   }
   assert.equal(parseGitCommits('git -c "k=a b" -C sub commit')[0].dir, 'sub');
-  assert.equal(parseGitCommits('git -C a -C b commit')[0].dir, 'a/b');
+  assert.equal(parseGitCommits('git -C a -C b commit')[0].dir, path.join('a', 'b'));
   for (const cmd of ['git commit-tree HEAD', "echo 'later: git commit'", 'git status', 'echo git commit', 'sudo git status', '']) {
     assert.deepEqual(parseGitCommits(cmd), [], cmd);
   }

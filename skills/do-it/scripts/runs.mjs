@@ -8,6 +8,7 @@ import { snapshot, treeDiff } from './changeset.mjs';
 import { dirtyHashes, relative } from './commit.mjs';
 import { checkWithRerun, gate, recordVerified } from './gate.mjs';
 import { git } from './git.mjs';
+import { checkShell } from './check-shell.mjs';
 import { rejectAssumption, showRun, sliceRun } from './run.mjs';
 import { splitKey } from './ids.mjs';
 
@@ -32,7 +33,7 @@ export function runVerify({ planningDir, root, cwd, slug, id, opts, items, finge
   const text = command.length === 1 ? command[0] : command.map(quote).join(' ');
   let flaky = false;
   const attempt = () => {
-    const r = spawnSync(text, { cwd: where, shell: true, stdio: ['ignore', 2, 2] });
+    const r = spawnSync(text, { cwd: where, shell: checkShell(), stdio: ['ignore', 2, 2] });
     if (r.error) return { ok: false, why: `${text}: ${r.error.message}` };
     return r.status === 0 ? { ok: true, text } : { ok: false, why: `${text} exited ${r.status ?? r.signal}` };
   };

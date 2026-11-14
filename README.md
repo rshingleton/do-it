@@ -211,8 +211,10 @@ Requires Node 18+. Pick one.
 bash <(curl -fsSL 'https://raw.githubusercontent.com/rshingleton/do-it/main/scripts/install.sh')
 ```
 
-It clones the repo into `~/.local/share/do-it` (or pulls it when the clone is
-there), then installs from the clone; re-run it to update. Options pass
+`install.sh` is a thin bootstrap. It clones the repo into
+`~/.local/share/do-it` (or pulls it when the clone is there), then runs
+`scripts/install.mjs` from the clone, which does the linking on every
+platform; re-run it to update. Options pass
 through: append `--no-hooks`, `--dry-run` or `--uninstall`. `DO_IT_REPO`
 points it at a mirror, `DO_IT_HOME` at another clone directory.
 
@@ -226,6 +228,9 @@ scripts/install.sh --dry-run  # show what it would do
 scripts/install.sh --no-hooks
 scripts/install.sh --uninstall
 ```
+
+`scripts/install.sh` hands off to `node scripts/install.mjs`, which you can
+also run directly with the same options.
 
 Skills link into `~/.claude/skills` and `~/.agents/skills` (OpenCode reads
 both). The five role agents in `agents/` (`it-scout`, `it-reviewer`,
@@ -243,6 +248,24 @@ pass `--force`. Hooks register in `~/.claude/settings.json` and
 `~/.config/opencode/opencode.json`; each file is backed up as `*.bak-do-it`
 first.
 
+**Windows (PowerShell):**
+
+Requires Node 18+ and Git for Windows, which provides Git Bash; the skills'
+scripts and the hooks call `bash`.
+
+```powershell
+git clone https://github.com/rshingleton/do-it.git $HOME\.local\share\do-it; node $HOME\.local\share\do-it\scripts\install.mjs
+```
+
+The options are the same (`--no-hooks`, `--dry-run`, `--uninstall`). Linking
+tries a symlink first. Without Developer Mode a symlink needs a privilege most
+accounts lack, so a directory falls back to a junction (live, no privilege
+needed) and a file falls back to a copy. Turn on Developer Mode to get real
+symlinks everywhere. A copy does not follow edits to the clone: to update,
+`git pull` in the clone and run `node scripts\install.mjs` again, which
+refreshes any copy whose source changed. The commit and secret guard covers
+the Bash tool only on Windows, not PowerShell.
+
 **Claude Code plugin:**
 
 ```text
@@ -254,8 +277,8 @@ The plugin carries skills, agents and hooks (its agents are namespaced, for
 example `do-it:it-reviewer`). Use it or the symlinks for Claude Code,
 not both. Using OpenCode too? Use the symlink install; it covers both hosts.
 
-**Update:** re-run the one-liner, `git pull` in the clone (symlinks pick it
-up), or `/plugin marketplace update do-it` for the plugin.
+**Update:** re-run the one-liner, `git pull` in the clone (symlinks and
+junctions pick it up; copies need the installer re-run), or `/plugin marketplace update do-it` for the plugin.
 
 ## Hooks
 
@@ -400,7 +423,7 @@ entries in `evals/routing.json`.
 
 CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs `npm test`,
 `npm run check` and an install dry run on every push and pull request, on
-Ubuntu and macOS (bash 3.2 for `install.sh`) with Node 18 and 22.
+Ubuntu, macOS (bash 3.2 for `install.sh`) and Windows with Node 18 and 22.
 
 Design: [docs/DESIGN.md](docs/DESIGN.md). Decisions: [docs/adr/](docs/adr/).
 

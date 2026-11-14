@@ -21,9 +21,22 @@ export function tmpDir(prefix = 'do-it-') {
 
 const freshHome = () => tmpDir('do-it-home-');
 
-const homeVars = (home) => ({ HOME: home, XDG_CONFIG_HOME: path.join(home, '.config') });
+// os.homedir() reads HOME on POSIX and USERPROFILE on Windows; set both.
+const homeVars = (home) => ({
+  HOME: home,
+  USERPROFILE: home,
+  ...(process.platform === 'win32' ? { HOMEDRIVE: path.parse(home).root.slice(0, 2), HOMEPATH: home.slice(2) } : {}),
+  XDG_CONFIG_HOME: path.join(home, '.config'),
+});
 
-Object.assign(process.env, homeVars(freshHome()), { GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' });
+const home0 = freshHome();
+Object.assign(process.env, homeVars(home0), { GIT_CONFIG_GLOBAL: process.platform === 'win32' ? 'NUL' : os.devNull, GIT_CONFIG_NOSYSTEM: '1' });
+
+// Fail loudly if the process home is still the developer's: a test would
+// otherwise write into the real config.
+if (path.resolve(os.homedir()) !== path.resolve(home0)) {
+  throw new Error(`tests/env.mjs: os.homedir() is ${os.homedir()}, not the temp home ${home0}`);
+}
 
 process.on('exit', () => {
   for (const d of temps) {

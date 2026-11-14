@@ -9,6 +9,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 import { parseFrontmatter } from '../scripts/lib/skills.mjs';
+import { linkDir, standsFor, present } from './links.mjs';
 import { fingerprint as fp } from '../skills/do-it/scripts/changeset.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -60,15 +61,19 @@ test('uninstall removes every link into this checkout, including renamed skills'
   const env = cleanEnv({}, home);
   fs.mkdirSync(path.join(home, '.claude/skills'), { recursive: true });
   const stale = path.join(home, '.claude/skills/diagnosing-bugs');
-  fs.symlinkSync(path.join(ROOT, 'skills/diagnosing-bugs'), stale);
+  linkDir(path.join(ROOT, 'skills/diagnosing-bugs'), stale);
   const foreign = path.join(home, '.claude/skills/other');
-  fs.symlinkSync('/nowhere/else', foreign);
-  spawnSync('bash', [path.join(ROOT, 'scripts/install.sh'), '--uninstall'], { encoding: 'utf8', env });
-  assert.equal(fs.existsSync(stale) || fs.lstatSync(stale, { throwIfNoEntry: false }) !== undefined, false);
-  assert.ok(fs.lstatSync(foreign, { throwIfNoEntry: false }), 'foreign link must stay');
+  linkDir(path.join(tmp('do-it-else-'), 'else'), foreign);
+  const r = spawnSync('node', [path.join(ROOT, 'scripts/install.mjs'), '--uninstall'], { encoding: 'utf8', env });
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(present(stale), false);
+  assert.ok(present(foreign), 'foreign link must stay');
+  assert.ok(fs.existsSync(path.join(ROOT, 'skills/do-it')), 'the checkout is never followed into');
 });
 
-test('install.sh run from a pipe clones the repo, installs from the clone, and pulls on a re-run', () => {
+const HAS_BASH = spawnSync('bash', ['--version']).status === 0;
+
+test('install.sh run from a pipe clones the repo, installs from the clone, and pulls on a re-run', { skip: HAS_BASH ? false : 'bash is not on PATH' }, () => {
   // The source is on a branch, as GitHub's default branch is; cloning ROOT
   // itself fails in CI, where a pull request checks out a detached merge commit.
   const source = copyRepo(tmp('do-it-src-'));
@@ -90,7 +95,7 @@ test('install.sh run from a pipe clones the repo, installs from the clone, and p
   const first = piped('--no-hooks');
   assert.equal(first.status, 0, first.stderr);
   assert.ok(fs.existsSync(path.join(clone, '.git')));
-  assert.equal(fs.readlinkSync(path.join(home, '.claude/skills/do-it')), path.join(clone, 'skills/do-it'));
+  assert.ok(standsFor(path.join(home, '.claude/skills/do-it'), path.join(clone, 'skills/do-it')));
 
   const again = piped('--no-hooks');
   assert.equal(again.status, 0, again.stderr);
@@ -102,10 +107,12 @@ function scan(dir, ...args) {
 }
 
 test('scan.mjs finds secrets in files with quoted or non-ASCII names', () => {
+  // NTFS refuses a double quote in a name; an apostrophe stands in.
+  const quoted = process.platform === 'win32' ? "q'uote.js" : 'q"uote.js';
   const { dir, git, commit } = gitRepo();
   commit();
   fs.writeFileSync(path.join(dir, 'naïve.js'), `k = "${KEY}"\n`);
-  fs.writeFileSync(path.join(dir, 'q"uote.js'), `k = "${KEY}"\n`);
+  fs.writeFileSync(path.join(dir, quoted), `k = "${KEY}"\n`);
   assert.equal(scan(dir).status, 1, scan(dir).stdout);
   git('add', '-A');
   commit();
@@ -143,7 +150,7 @@ test('scan.mjs rejects an unknown --since ref instead of reporting clean', () =>
 
 const fingerprint = (cwd, base = 'HEAD') => fp(cwd, base, { exclude: ['docs/planning'] });
 
-test('fingerprint is the same from any directory and handles odd entries', () => {
+test('fingerprint is the same from any directory and handles odd entries', { skip: process.platform === 'win32' && 'unprivileged symlinks' }, () => {
   const { dir, commit } = gitRepo();
   fs.mkdirSync(path.join(dir, 'sub'));
   fs.writeFileSync(path.join(dir, 'sub/.keep'), '');
@@ -252,25 +259,25 @@ test('check.mjs validates agent files: name, model; tools may be a list', () => 
   assert.equal(planner.status, 0, planner.stdout);
 });
 
-test('install.sh links agents into ~/.claude/agents and uninstall removes only ours', () => {
+test('install.mjs links agents into ~/.claude/agents and uninstall removes only ours', () => {
   const home = tmp('do-it-home-');
   const env = cleanEnv({}, home);
-  const run = (...a) => spawnSync('bash', [path.join(ROOT, 'scripts/install.sh'), ...a], { encoding: 'utf8', env });
+  const run = (...a) => spawnSync('node', [path.join(ROOT, 'scripts/install.mjs'), ...a], { encoding: 'utf8', env });
   assert.equal(run('--no-hooks').status, 0);
   const link = path.join(home, '.claude/agents/it-scout.md');
-  assert.equal(fs.readlinkSync(link), path.join(ROOT, 'agents/it-scout.md'));
+  assert.ok(standsFor(link, path.join(ROOT, 'agents/it-scout.md')));
   assert.equal(fs.existsSync(path.join(home, '.agents/agents')), false, 'agents go to Claude Code only');
   const foreign = path.join(home, '.claude/agents/mine.md');
   fs.writeFileSync(foreign, 'x');
   run('--uninstall');
-  assert.equal(fs.lstatSync(link, { throwIfNoEntry: false }), undefined);
+  assert.equal(present(link), false);
   assert.ok(fs.existsSync(foreign), 'foreign agent must stay');
 });
 
-test('install.sh links OpenCode commands (both dirs) and agents, and uninstall removes only ours', () => {
+test('install.mjs links OpenCode commands (both dirs) and agents, and uninstall removes only ours', () => {
   const home = tmp('do-it-home-');
   const env = cleanEnv({}, home);
-  const run = (...a) => spawnSync('bash', [path.join(ROOT, 'scripts/install.sh'), ...a], { encoding: 'utf8', env });
+  const run = (...a) => spawnSync('node', [path.join(ROOT, 'scripts/install.mjs'), ...a], { encoding: 'utf8', env });
   assert.equal(run('--no-hooks').status, 0);
   const oc = path.join(home, '.config/opencode');
   const links = [
@@ -278,11 +285,11 @@ test('install.sh links OpenCode commands (both dirs) and agents, and uninstall r
     ['commands/do-it.md', '.opencode/commands/do-it.md'],
     ['agents/it-scout.md', '.opencode/agents/it-scout.md'],
   ];
-  for (const [at, to] of links) assert.equal(fs.readlinkSync(path.join(oc, at)), path.join(ROOT, to));
+  for (const [at, to] of links) assert.ok(standsFor(path.join(oc, at), path.join(ROOT, to)), at);
   const foreign = path.join(oc, 'agents/mine.md');
   fs.writeFileSync(foreign, 'x');
   run('--uninstall');
-  for (const [at] of links) assert.equal(fs.lstatSync(path.join(oc, at), { throwIfNoEntry: false }), undefined, at);
+  for (const [at] of links) assert.equal(present(path.join(oc, at)), false, at);
   assert.ok(fs.existsSync(foreign), 'foreign agent must stay');
 });
 

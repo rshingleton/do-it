@@ -54,7 +54,7 @@ test('before a shell command, a commit staging a secret blocks', () => {
 
 test('after an edit, lint failures come before compliance notes', () => {
   const { dir } = repo();
-  const env = cleanEnv({ DO_IT_LINT_CMD: 'echo lint says no; exit 1' });
+  const env = cleanEnv({ DO_IT_LINT_CMD: 'echo lint says no && exit 1' });
   const r = decide('after', { kind: 'edit', args: { file_path: 'a.js', content: PLACEHOLDER }, cwd: dir }, { env });
   assert.equal(r.block, undefined);
   assert.match(r.context, /^do-it lint failed for a\.js[\s\S]*lint says no[\s\S]*\n\ndo-it compliance notes:\n.*credential-placeholder/);

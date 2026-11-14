@@ -41,6 +41,7 @@ import { allowedMoves, firableEvents, workItems } from './items.mjs';
 import { roadmapSlices } from './roadmap.mjs';
 import { commitSlice } from './commit.mjs';
 import { git } from './git.mjs';
+import { checkShell } from './check-shell.mjs';
 import { buildDigest } from './digest.mjs';
 import { addAssumptions, createRun, nextSlice, resumeSlice, runPath, setRun, showRun, sliceRun } from './run.mjs';
 import { countAudit, startSlice } from './gate.mjs';
@@ -66,6 +67,9 @@ function parseArgs(argv) {
   return { pos, opts };
 }
 
+// Recorded and printed paths use / on every platform.
+const toPosix = (p) => p.split(path.sep).join('/');
+
 function context(cwd) {
   const { root, values } = loadConfig({ cwd });
   const planningDir = path.resolve(root, values.DO_IT_PLANNING_DIR);
@@ -74,7 +78,7 @@ function context(cwd) {
 
 function view(ctx, item) {
   return {
-    path: path.relative(ctx.root, item.path),
+    path: toPosix(path.relative(ctx.root, item.path)),
     ...item.state,
     allowed: allowedMoves(item.state.status),
     needs_user: needsUser(item.state),
@@ -93,7 +97,7 @@ function head(root) {
 
 // Hash of the change since the item's base, planning files excluded.
 function planningExclude(ctx) {
-  const rel = path.relative(ctx.root, ctx.planningDir).split(path.sep).join('/');
+  const rel = toPosix(path.relative(ctx.root, ctx.planningDir));
   // A planning dir outside the repo (a separate ops repository) has nothing in the repo to exclude,
   // and git refuses an :(exclude) pathspec that points outside it.
   return rel && !rel.startsWith('..') && !path.isAbsolute(rel) ? [rel] : [];
@@ -103,7 +107,7 @@ function planningExclude(ctx) {
 // the to-do list, the ADR directory), or closing them would read as moved code. A hand edit to
 // those files after verify goes unseen, by decision.
 function closingDocsExclude(ctx, item) {
-  const rel = (p) => path.relative(ctx.root, path.resolve(ctx.root, p)).split(path.sep).join('/');
+  const rel = (p) => toPosix(path.relative(ctx.root, path.resolve(ctx.root, p)));
   const roadmap = String(item.state.roadmap ?? '').split('#')[0];
   return [roadmap, ctx.config.DO_IT_TODO_FILE || 'docs/TODO.md', ctx.config.DO_IT_ADR_DIR || 'docs/adr'].filter(Boolean).map(rel).filter((p) => p && !p.startsWith('..'));
 }
@@ -175,7 +179,7 @@ export async function run(argv, { cwd = process.cwd() } = {}) {
     case 'show':
       return shown(items.get(id));
     case 'list':
-      return items.list().map((i) => (opts.brief ? { id: i.id, lane: i.lane, status: i.status } : { ...i, path: path.relative(ctx.root, i.path) }));
+      return items.list().map((i) => (opts.brief ? { id: i.id, lane: i.lane, status: i.status } : { ...i, path: toPosix(path.relative(ctx.root, i.path)) }));
     case 'event': {
       const item = items.get(id);
       const [event, ...args] = rest;
@@ -216,7 +220,7 @@ export async function run(argv, { cwd = process.cwd() } = {}) {
       // quoted back, so `-- sh -c "exit 3"` still fails.
       const text = command.length === 1 ? command[0] : command.map(shellQuote).join(' ');
       const check = () => {
-        const r = spawnSync(text, { cwd: where, shell: true, stdio: ['ignore', 2, 2] });
+        const r = spawnSync(text, { cwd: where, shell: checkShell(), stdio: ['ignore', 2, 2] });
         if (r.error) return { ok: false, why: `${text}: ${r.error.message}` };
         if (r.status !== 0) return { ok: false, why: `${text} exited ${r.status ?? r.signal}` };
         return { ok: true, text };
@@ -226,7 +230,7 @@ export async function run(argv, { cwd = process.cwd() } = {}) {
     case 'roadmap': {
       if (!id) throw new Error('roadmap needs a roadmap file');
       const file = path.resolve(cwd, id);
-      return { file: path.relative(ctx.root, file), ...roadmapSlices(file, ctx) };
+      return { file: toPosix(path.relative(ctx.root, file)), ...roadmapSlices(file, ctx) };
     }
     case 'run': {
       // A complete run's record: id is the subcommand here, rest[0] the roadmap slug.
@@ -285,7 +289,7 @@ export async function run(argv, { cwd = process.cwd() } = {}) {
     case 'close': {
       const item = items.close(id);
       const s = item.state;
-      return { closed: s.id, removed: path.relative(ctx.root, item.path), todo: s.todo, roadmap: s.roadmap, tracker: s.tracker, sources: s.sources };
+      return { closed: s.id, removed: toPosix(path.relative(ctx.root, item.path)), todo: s.todo, roadmap: s.roadmap, tracker: s.tracker, sources: s.sources };
     }
     default:
       throw new Error('usage: work.mjs new|show|list|event|set|fingerprint|review-diff|verify-phase|roadmap|run|close ...');

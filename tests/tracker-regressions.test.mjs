@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { fakeFetch, fakeGh } from './fakes.mjs';
 import { parseEnv, resolveDocs, redact, DEFAULTS } from '../skills/track-it/scripts/config.mjs';
@@ -185,7 +185,7 @@ test('GitHub publish that fails partway returns the refs it made', () => {
   assert.deepEqual(r, { parent: null, phases: { 1: 'o/r#1' }, error: 'HTTP 502' });
 });
 
-test('CLI: a publish that fails partway prints the refs made and exits 1', () => {
+test('CLI: a publish that fails partway prints the refs made and exits 1', { skip: process.platform === 'win32' && 'a shell-script gh stand-in cannot run as gh.exe' }, () => {
   const root = tmpRepo();
   const bin = tmpDir('do-it-gh-');
   const gh = path.join(bin, 'gh');
@@ -232,7 +232,7 @@ test('credentials in JIRA_BASE_URL never reach output', async () => {
 
 test('importing tracker.mjs from stdin does not crash the main-module check', () => {
   const r = spawnSync('node', ['--input-type=module', '-'], {
-    input: `await import(${JSON.stringify(path.join(ROOT, 'skills/track-it/scripts/tracker.mjs'))}); console.log('ok');`,
+    input: `await import(${JSON.stringify(pathToFileURL(path.join(ROOT, 'skills/track-it/scripts/tracker.mjs')).href)}); console.log('ok');`,
     encoding: 'utf8',
   });
   assert.equal(r.stdout.trim(), 'ok', r.stderr);

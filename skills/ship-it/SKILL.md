@@ -1,6 +1,6 @@
 ---
 name: ship-it
-description: Close a do-it work item after its audit passes: confirm assumptions, finalize ADRs, area contexts and changelog, update the tracker, and prepare one commit, which is made only when the user says so.
+description: "Close a do-it work item after its audit passes: confirm assumptions, finalize ADRs, area contexts and changelog, update the tracker, and prepare one commit, which is made only when the user says so."
 disable-model-invocation: true
 argument-hint: "<work id> | --lane xs [--ref <tracker ref>] [--todo <id>] | --roadmap <file>"
 model: sonnet

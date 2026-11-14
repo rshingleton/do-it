@@ -1,0 +1,29 @@
+// Link helpers for tests that must pass where symlinks are refused (Windows
+// without Developer Mode): make a link by symlink, else junction, and read
+// what an installed entry stands for whether it is a link or a copy.
+import fs from 'node:fs';
+import path from 'node:path';
+
+// A directory link to `target`; the target is created when absent so a
+// junction (which needs an absolute, existing directory) can stand in.
+export function linkDir(target, at) {
+  try {
+    fs.symlinkSync(target, at, 'dir');
+  } catch (e) {
+    if (e.code !== 'EPERM') throw e;
+    fs.mkdirSync(target, { recursive: true });
+    fs.symlinkSync(target, at, 'junction');
+  }
+}
+
+const norm = (p) => path.resolve(String(p).replace(/^\\\\\?\\/, '')).toLowerCase();
+
+// True when `at` is a link to `src`, or (a file) an up-to-date copy of it.
+export function standsFor(at, src) {
+  const st = fs.lstatSync(at, { throwIfNoEntry: false });
+  if (!st) return false;
+  if (st.isSymbolicLink()) return norm(fs.readlinkSync(at)) === norm(src);
+  return st.isFile() && fs.readFileSync(at).equals(fs.readFileSync(src));
+}
+
+export const present = (at) => fs.lstatSync(at, { throwIfNoEntry: false }) !== undefined;

@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { withVoice } from './lib/voice.mjs';
 import { VOICE_FILE } from '../hooks/lib/context.mjs';
-import { ROOT, SKILLS_DIR, agentTools, listSkills, listAgents, userInvoked } from './lib/skills.mjs';
+import { ROOT, SKILLS_DIR, agentTools, listSkills, listAgents, userInvoked, unsafePlainScalars } from './lib/skills.mjs';
 import { splitFrontmatter } from '../skills/track-it/scripts/frontmatter.mjs';
 
 const SKILL_LINE_BUDGET = 100;
@@ -21,7 +21,7 @@ const CAP = /\b\d+[- ]words?\b/i;
 
 const errors = [];
 const warnings = [];
-const rel = (p) => path.relative(ROOT, p);
+const rel = (p) => path.relative(ROOT, p).split(path.sep).join('/');
 
 const skills = listSkills();
 const agents = listAgents();
@@ -44,6 +44,7 @@ function markdownFiles(dir) {
 
 for (const s of skills) {
   const where = rel(s.file);
+  for (const k of unsafePlainScalars(s.text)) errors.push(`${where}: frontmatter "${k}" is an unquoted value with ": " or " #"; wrap it in double quotes`);
   if (!s.meta.name) errors.push(`${where}: missing name`);
   else if (s.meta.name !== s.dir) errors.push(`${where}: name "${s.meta.name}" does not match directory "${s.dir}"`);
   if (s.meta.name && !/(^|-)it(-|$)/.test(s.meta.name)) errors.push(`${where}: name "${s.meta.name}" is not an -it name`);
@@ -61,6 +62,7 @@ const voice = fs.existsSync(VOICE_FILE) ? fs.readFileSync(VOICE_FILE, 'utf8') : 
 
 for (const a of agents) {
   const where = rel(a.file);
+  for (const k of unsafePlainScalars(a.text)) errors.push(`${where}: frontmatter "${k}" is an unquoted value with ": " or " #"; wrap it in double quotes`);
   if (voice === null) errors.push('skills/it-core/VOICE.md: missing');
   else if (withVoice(a.text, voice) !== a.text) errors.push(`${where}: voice block missing or out of date; run npm run gen`);
   if (a.meta.name !== a.name) errors.push(`${where}: name "${a.meta.name ?? ''}" does not match file "${a.name}"`);
