@@ -14,7 +14,10 @@ const MAX_OUT = 512 * 1024 * 1024;
 // `isTracked`, work.mjs `baseRef` and `digest`, the commit rollback) let that propagate on purpose, since a
 // missing git is a broken install and no state to recover from.
 export function git(cwd, args, encoding = 'utf8', env = process.env, limits = {}) {
-  const r = spawnSync('git', args, { cwd, encoding, env, maxBuffer: MAX_OUT, ...limits });
+  // On Windows git refuses a path past 260 characters unless core.longpaths is on, and a file list piped
+  // to `hash-object --stdin-paths` then fails the whole call (`spawnSync git EOF`, git gone mid-write).
+  const argv = process.platform === 'win32' ? ['-c', 'core.longpaths=true', ...args] : args;
+  const r = spawnSync('git', argv, { cwd, encoding, env, maxBuffer: MAX_OUT, ...limits });
   if (r.error) throw r.error;
   return r;
 }

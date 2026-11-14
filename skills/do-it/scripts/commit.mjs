@@ -22,7 +22,7 @@ const gitRaw = (cwd, args, input) => gitOut(cwd, args, LITERAL, input);
 const lines = (s) => s.split('\n').filter(Boolean);
 
 // A named path as the records and git list it: relative to the repo root.
-export const relative = (root, p) => path.relative(root, path.resolve(root, p));
+export const relative = (root, p) => path.relative(root, path.resolve(root, p)).split(path.sep).join('/');
 
 function currentBranch(cwd) {
   const r = gitResult(cwd, ['symbolic-ref', '--quiet', '--short', 'HEAD']);

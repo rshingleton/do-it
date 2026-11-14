@@ -236,10 +236,11 @@ test('lane M in slice mode commits its code once after the last phase verifies, 
   assert.match(work(dir, 'run', 'commit', 'road', 'feat', '--paths', 'a.js,b.js,c.js').out.error, /changed since/);
   assert.equal(git(dir, 'rev-parse', 'HEAD'), head);
   // A glob-named dirty file hides nothing: an unverified file named on the line is still refused.
-  write(dir, '*.js', 'decoy\n');
+  const decoy = process.platform === 'win32' ? 'decoy.js' : '*.js'; // NTFS refuses * in a name
+  write(dir, decoy, 'decoy\n');
   write(dir, 'evil.js', 'never verified\n');
   assert.match(work(dir, 'run', 'commit', 'road', 'feat', '--paths', 'a.js,b.js,c.js,evil.js').out.error, /changed since/);
-  fs.rmSync(path.join(dir, '*.js'));
+  fs.rmSync(path.join(dir, decoy));
   fs.rmSync(path.join(dir, 'evil.js'));
   write(dir, 'b.js', 'new file\n');
   const code = ok(work(dir, 'run', 'commit', 'road', 'feat', '--paths', 'a.js,b.js,c.js'));
@@ -427,7 +428,7 @@ test('slice mode refuses a name that is in neither record unless git tracks it e
   assert.match(commit(dir, ['nope.js', 'a.js']).out.error, /nope\.js is in neither verify record/);
 });
 
-test('slice mode sees a retargeted link and a mode-only change after verify', () => {
+test('slice mode sees a retargeted link and a mode-only change after verify', { skip: process.platform === 'win32' && 'unprivileged symlinks' }, () => {
   const dir = verifiedSlice((d) => fs.symlinkSync('missing-one', path.join(d, 'link')));
   fs.chmodSync(path.join(dir, 'b.js'), 0o755);
   assert.match(commit(dir, ['a.js', 'b.js', 'c.js', 'link']).out.error, /b\.js changed since/);
@@ -451,7 +452,7 @@ test('slice mode commits a rename, a delete and a spaced name; a file clean at v
   assert.deepEqual(git(dir, 'show', '--name-only', '--format=', 'HEAD').split('\n').sort(), ['a b.js', 'a.js', 'c.js']);
 });
 
-test('slice mode: a clean tracked file whose name has a newline commits; chmod g+w is no change; a \\r name is hashed', () => {
+test('slice mode: a clean tracked file whose name has a newline commits; chmod g+w is no change; a \\r name is hashed', { skip: process.platform === 'win32' && 'newline in a file name' }, () => {
   const dir = verifiedSlice((d) => {
     write(d, 'new\nline.js', 'tracked\n');
     git(d, 'add', 'new\nline.js');
@@ -532,7 +533,7 @@ function laneS(edit) {
 const sliceCommit = (dir, paths, ...flags) => work(dir, 'run', 'commit', 'sl', 'small', ...flags, '--paths', paths.join(','));
 const names = (dir) => git(dir, 'show', '--no-renames', '--name-only', '--format=', '-z', 'HEAD').split('\0').filter(Boolean).sort();
 
-test('a tracked name git quotes and an absolute in-repo path commit; neither reads as a directory', () => {
+test('a tracked name git quotes and an absolute in-repo path commit; neither reads as a directory', { skip: process.platform === 'win32' && 'newline in a file name' }, () => {
   const dir = laneS((d) => {
     write(d, 'é.txt', 'accent\n');
     write(d, 'a\nb.txt', 'newline\n');
@@ -586,7 +587,7 @@ test('a lane M slice-mode retry after the commit landed returns it instead of fa
   assert.equal(git(dir, 'rev-list', '--count', 'HEAD'), '2');
 });
 
-test('lane S refuses a path spelled through a symlinked root, naming it as outside the repo', () => {
+test('lane S refuses a path spelled through a symlinked root, naming it as outside the repo', { skip: process.platform === 'win32' && 'unprivileged symlinks' }, () => {
   const dir = laneS((d) => write(d, 'x.js', '2\n'));
   const link = path.join(tmpDir('do-it-rootlink-'), 'root');
   fs.symlinkSync(dir, link);

@@ -37,7 +37,7 @@ test('fingerprint changes with tracked and untracked edits, ignores planning', (
   assert.notEqual(fp(), withNew);
 });
 
-test('tracker CLI runs through a symlink and prints JSON', () => {
+test('tracker CLI runs through a symlink and prints JSON', { skip: process.platform === 'win32' && 'unprivileged symlinks' }, () => {
   const dir = tmpDir('do-it-cli-');
   fs.mkdirSync(path.join(dir, '.git'));
   const link = path.join(dir, 'tracker-link');

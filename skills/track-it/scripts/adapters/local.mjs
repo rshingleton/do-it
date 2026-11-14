@@ -62,7 +62,7 @@ function appendLog(body, line) {
 
 export function localTracker(cfg, { root }) {
   const dir = path.resolve(root, cfg.DO_IT_ISSUES_DIR);
-  const rel = (file) => path.relative(root, file);
+  const rel = (file) => path.relative(root, file).split(path.sep).join('/');
 
   // A ref names an .md file inside the issues dir; anything else (a plan, a
   // roadmap, a path that climbs out) is refused before it is read or changed.

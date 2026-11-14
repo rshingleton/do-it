@@ -3,6 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
+import { unsafePlainScalars } from '../scripts/lib/skills.mjs';
 import { splitFrontmatter, joinFrontmatter, parseFlat, writeFlat } from '../skills/track-it/scripts/frontmatter.mjs';
 
 test('split reads the block and body, and reports the file line ending', () => {
@@ -82,4 +83,11 @@ test('writeFlat leaves safe values bare, quotes the rest and drops empty ones', 
 test('writeFlat output reads back unchanged', () => {
   const meta = { a: 'Fix "login": broken', b: "Fix the users'", c: 'Has # hash', d: 'trailing ', e: 'line\nbreak', f: 'Plain', g: '\\back', h: 'bell\b form\f feed', i: 'ctl\u0001x' };
   assert.deepEqual(parseFlat(writeFlat(meta)).meta, meta);
+});
+
+test('unsafePlainScalars flags an unquoted value with ": " or " #" and passes the quoted form', () => {
+  assert.deepEqual(unsafePlainScalars('---\nname: x\ndescription: Set up once: tracker\n---\n'), ['description']);
+  assert.deepEqual(unsafePlainScalars('---\ndescription: has a # comment\n---\n'), ['description']);
+  assert.deepEqual(unsafePlainScalars('---\ndescription: "Set up once: tracker"\n---\n'), []);
+  assert.deepEqual(unsafePlainScalars('---\ndescription: plain, with colon:inside and a#b\n---\n'), []);
 });

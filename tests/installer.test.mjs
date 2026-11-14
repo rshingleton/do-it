@@ -18,7 +18,7 @@ function setup(settings) {
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, settings);
   }
-  const run = (...args) => spawnSync('node', [INSTALL, 'claude', ...args], { encoding: 'utf8', env: cleanEnv({ HOME: home }) });
+  const run = (...args) => spawnSync('node', [INSTALL, 'claude', ...args], { encoding: 'utf8', env: cleanEnv({}, home) });
   return { home, file, backup: `${file}.bak-do-it`, run };
 }
 

@@ -7,7 +7,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 import { BUILTIN, scan, loadChecks, editParts } from '../hooks/lib/checks.mjs';
-import { beforeEdit, afterEdit, beforeShell } from '../hooks/lib/guard.mjs';
+import { beforeEdit, afterEdit, beforeShell, quoteArg } from '../hooks/lib/guard.mjs';
 import { DEFAULTS } from '../skills/track-it/scripts/config.mjs';
 import { sessionContext, voiceText } from '../hooks/lib/context.mjs';
 import { mergeClaude, mergeOpencode } from '../scripts/install-hooks.mjs';
@@ -105,14 +105,46 @@ test('beforeEdit blocks HIGH, warns on MEDIUM, allows clean', () => {
   assert.equal(beforeEdit({ ...ctx, enabled: false }, { file_path: '.env', content: '' }).action, 'allow');
 });
 
+// A portable lint command: node parses the same under sh and cmd.exe.
+const NODE_LINT = (code) => `node -e "${code}"`;
+
 test('afterEdit runs the lint command with {file} and feeds failures back', () => {
   const root = repo();
-  const ctx = ctxFor(root, { DO_IT_LINT_CMD: 'echo checking {file}; exit 3' });
+  const ctx = ctxFor(root, { DO_IT_LINT_CMD: `${NODE_LINT('console.log(process.argv[1]); process.exit(3)')} {file}` });
   const r = afterEdit(ctx, { file_path: 'src/a.js' });
   assert.equal(r.action, 'feedback');
-  assert.match(r.message, /checking .*src\/a\.js/);
-  assert.equal(afterEdit(ctxFor(root, { DO_IT_LINT_CMD: 'true {file}' }), { file_path: 'a.js' }).action, 'allow');
+  assert.match(r.message, /src[\\/]a\.js/);
+  assert.equal(afterEdit(ctxFor(root, { DO_IT_LINT_CMD: `${NODE_LINT('0')} {file}` }), { file_path: 'a.js' }).action, 'allow');
   assert.equal(afterEdit(ctxFor(root), { file_path: 'a.js' }).action, 'allow');
+});
+
+test('quoteArg quotes one shell word per platform', () => {
+  assert.equal(quoteArg('/r/app/routes/$id.tsx', 'linux'), "'/r/app/routes/$id.tsx'");
+  assert.equal(quoteArg('/r/my dir/a.js', 'darwin'), "'/r/my dir/a.js'");
+  assert.equal(quoteArg("/r/it's.js", 'linux'), `'/r/it'\\''s.js'`);
+  assert.equal(quoteArg('C:\\r\\$id.tsx', 'win32'), '"C:\\r\\$id.tsx"');
+  assert.equal(quoteArg('C:\\my dir\\a.js', 'win32'), '"C:\\my dir\\a.js"');
+  assert.equal(quoteArg("C:\\it's.js", 'win32'), `"C:\\it's.js"`);
+  assert.equal(quoteArg('C:\\a"b.js', 'win32'), '"C:\\a\\"b.js"');
+});
+
+test('afterEdit hands the platform quoting to the shell', () => {
+  const seen = [];
+  const spawn = (cmd) => (seen.push(cmd), { status: 0 });
+  const ctx = ctxFor(repo(), { DO_IT_LINT_CMD: 'lint {file}' });
+  afterEdit(ctx, { file_path: 'a b.js' }, { spawn, platform: 'linux' });
+  afterEdit(ctx, { file_path: 'a b.js' }, { spawn, platform: 'win32' });
+  assert.match(seen[0], /^lint '.*a b\.js'$/);
+  assert.match(seen[1], /^lint ".*a b\.js"$/);
+});
+
+test('afterEdit lints a spaced path through the real shell', () => {
+  const root = repo();
+  fs.mkdirSync(path.join(root, 'my dir'));
+  fs.writeFileSync(path.join(root, 'my dir', 'a$b.js'), 'x');
+  const check = "process.exit(process.argv[1].includes('my dir') && process.argv[1].endsWith('b.js') ? 0 : 5)";
+  const cmd = `${NODE_LINT(check)} {file}`;
+  assert.equal(afterEdit(ctxFor(root, { DO_IT_LINT_CMD: cmd }), { file_path: 'my dir/a$b.js' }).action, 'allow');
 });
 
 test('beforeShell scans the staged diff on git commit only', () => {
@@ -198,7 +230,7 @@ test('install-hooks merges idempotently and removes only its own entries', () =>
   const twice = mergeClaude(once, ROOT);
   assert.deepEqual(once, twice);
   assert.equal(twice.hooks.PostToolUse.length, 2);
-  assert.ok(twice.hooks.SessionStart[0].hooks[0].command.includes(path.join(ROOT, 'hooks', 'claude.mjs')));
+  assert.ok(twice.hooks.SessionStart[0].hooks[0].command.includes(`${ROOT.replaceAll('\\', '/')}/hooks/claude.mjs`));
   assert.ok(!JSON.stringify(twice).includes('CLAUDE_PLUGIN_ROOT'));
   assert.deepEqual(mergeClaude(twice, ROOT, { strip: true }), settings);
 

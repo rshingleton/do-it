@@ -55,14 +55,18 @@ test('an added line that starts with ++ is kept', () => {
   });
 });
 
+// NTFS refuses a double quote or a tab in a name; an apostrophe and a space stand in.
+const QUOTED = process.platform === 'win32' ? "q'uote.js" : 'q"uote.js';
+const TABBED = process.platform === 'win32' ? 'sp ace.js' : 'tab\there.js';
+
 test('non-ASCII and quote-bearing names come back exact', () => {
   const { dir, git, write, commit } = gitRepo();
   commit();
   write('naïve.js', 'a\n');
-  write('q"uote.js', 'b\n');
-  write('tab\there.js', 'c\n');
+  write(QUOTED, 'b\n');
+  write(TABBED, 'c\n');
   git('add', '-A');
-  assert.deepEqual(addedLines(dir, { against: 'staged' }).map((f) => f.file).sort(), ['naïve.js', 'q"uote.js', 'tab\there.js']);
+  assert.deepEqual(addedLines(dir, { against: 'staged' }).map((f) => f.file).sort(), ['naïve.js', QUOTED, TABBED].sort());
 });
 
 test('staged sees only the index; a ref sees the working tree', () => {
@@ -92,7 +96,7 @@ test('paths resolve against cwd and names come back top-relative', () => {
   assert.deepEqual(addedLines(sub).map((f) => f.file), ['sub/x.js', 'top.js']);
 });
 
-test('a mode change and an empty new file are listed with no lines', () => {
+test('a mode change and an empty new file are listed with no lines', { skip: process.platform === 'win32' && 'POSIX mode bits' }, () => {
   const { dir, git, write, commit } = gitRepo();
   write('run.sh', 'echo\n');
   commit();
@@ -157,7 +161,7 @@ test('an unknown base ref throws instead of reporting no change', () => {
   assert.throws(() => addedLines(dir, { against: 'nosuchref' }), /unknown base ref: nosuchref/);
 });
 
-test('untracked regular files are read whole; other entries get no lines', () => {
+test('untracked regular files are read whole; other entries get no lines', { skip: process.platform === 'win32' && 'unprivileged symlinks' }, () => {
   const { dir, write, commit } = gitRepo();
   commit();
   write('new.js', 'one\ntwo\n');
@@ -185,7 +189,7 @@ test('untracked as pathspecs reads only the untracked files they match', () => {
   assert.deepEqual(addedLines(dir, { untracked: ['nothing.js'] }), []);
 });
 
-test('a type change and an unmerged path still list every file with its lines', () => {
+test('a type change and an unmerged path still list every file with its lines', { skip: process.platform === 'win32' && 'unprivileged symlinks' }, () => {
   const { dir, git, write, commit } = gitRepo();
   write('f', 'f\n');
   fs.symlinkSync('f', path.join(dir, 'l'));
@@ -234,12 +238,12 @@ test('a submodule bump under diff.submodule=log does not hide other files', () =
 test('a file git treats as binary is read as text', () => {
   const { dir, git, write, commit } = gitRepo();
   commit();
-  write('nul.dat', 'x\0y\nseen\n');
+  write('zero.dat', 'x\0y\nseen\n');
   write('a.js', 'a\n');
   git('add', '-A');
   assert.deepEqual(byFile(addedLines(dir, { against: 'staged' })), {
     'a.js': [{ n: 1, text: 'a' }],
-    'nul.dat': [
+    'zero.dat': [
       { n: 1, text: 'x\0y' },
       { n: 2, text: 'seen' },
     ],
@@ -261,7 +265,7 @@ test('a file whose diff is over the cap keeps path rules only; a large file with
   });
 });
 
-test('works with a git that predates --no-relative', () => {
+test('works with a git that predates --no-relative', { skip: process.platform === 'win32' && 'a shell-script git stand-in cannot run as git.exe' }, () => {
   const { dir, git, write, commit } = gitRepo();
   commit();
   write('a.js', 'a\n');
@@ -336,7 +340,7 @@ test('a file that is slow to diff gets path rules only and does not hold up the 
   assert.deepEqual(files['slow.txt'], []);
 });
 
-test('a file whose diff fails is listed with no lines and the rest are still read', () => {
+test('a file whose diff fails is listed with no lines and the rest are still read', { skip: process.platform === 'win32' && 'POSIX mode bits' }, () => {
   const { dir, git, write, commit } = gitRepo();
   write('a.txt', 'a\n');
   write('locked/z.txt', 'z\n');
@@ -369,7 +373,7 @@ test('a binary with a textconv driver is read raw and through the driver', () =>
   ]);
 });
 
-test('a binary costs two diffs: the listing view, then as text', () => {
+test('a binary costs two diffs: the listing view, then as text', { skip: process.platform === 'win32' && 'a shell-script git stand-in cannot run as git.exe' }, () => {
   const { dir, git, write, commit } = gitRepo();
   write('.gitattributes', '*.tx diff=tx\n');
   git('config', 'diff.tx.textconv', 'cat');
@@ -382,15 +386,20 @@ test('a binary costs two diffs: the listing view, then as text', () => {
   const real = execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
   const log = path.join(bin, 'calls');
   fs.writeFileSync(path.join(bin, 'git'), `#!/bin/sh\necho x >> "${log}"\nexec "${real}" "$@"\n`, { mode: 0o755 });
+  // Where PATH cannot hold a script named git (Windows), git's own trace counts the processes.
+  const win = process.platform === 'win32';
   const saved = process.env.PATH;
-  process.env.PATH = `${bin}${path.delimiter}${saved}`;
+  if (win) process.env.GIT_TRACE2_EVENT = log;
+  else process.env.PATH = `${bin}${path.delimiter}${saved}`;
   try {
     const files = byFile(addedLines(dir, { against: 'staged' }));
     assert.equal(Object.keys(files).length, 20);
   } finally {
     process.env.PATH = saved;
+    delete process.env.GIT_TRACE2_EVENT;
   }
-  const calls = fs.readFileSync(log, 'utf8').split('\n').filter(Boolean).length;
+  const lines = fs.readFileSync(log, 'utf8').split('\n').filter(Boolean);
+  const calls = win ? lines.filter((l) => l.includes('"event":"version"')).length : lines.length;
   // Two diffs per file, plus the listing and a few lookups.
   assert.ok(calls <= 2 * 20 + 6, `${calls} git calls for 20 binaries`);
 });
@@ -421,7 +430,7 @@ test('GIT_DIFF_OPTS and diff.suppressBlankEmpty do not lose or shift lines', () 
 function b64Driver({ dir, git, write }, sleepMs = 0) {
   write('dec.mjs', `import fs from 'node:fs';\nAtomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ${sleepMs});\nprocess.stdout.write(Buffer.from(fs.readFileSync(process.argv[2], 'utf8').trim(), 'base64'));\n`);
   write('.gitattributes', '*.b64 diff=b64\n');
-  git('config', 'diff.b64.textconv', `node ${path.join(dir, 'dec.mjs')}`);
+  git('config', 'diff.b64.textconv', `node ${path.join(dir, 'dec.mjs').replaceAll('\\', '/')}`);
 }
 
 test('an untracked file with a textconv driver is read raw and through the driver', () => {

@@ -42,7 +42,7 @@ export function mapFromContextMap(root, cfg, budget = MAP_BUDGET) {
   }
   const lines = text.split(/\r?\n/).filter((l) => /^\s*(\||##)/.test(l));
   if (!lines.some((l) => /^\s*\|/.test(l))) return '';
-  const head = `From \`${path.relative(root, file)}\` (read it, then the area's CONTEXT.md, for the rest):\n\n`;
+  const head = `From \`${path.relative(root, file).split(path.sep).join('/')}\` (read it, then the area's CONTEXT.md, for the rest):\n\n`;
   const body = (rows) => rows.map((l) => (l.startsWith('#') ? `\n${l}` : l)).join('\n').trim();
   const full = head + body(lines);
   if (full.length <= budget) return full;
@@ -63,7 +63,7 @@ export function mapFromReference(root, cfg, budget = MAP_BUDGET) {
   }
   const rows = text.split(/\r?\n/).filter((l) => /^\s*\|/.test(l));
   if (rows.length < 3) return '';
-  const rel = path.relative(root, file);
+  const rel = path.relative(root, file).split(path.sep).join('/');
   const body = rows.map((r) => (r.length > 200 ? `${r.slice(0, 197)}...|` : r)).join('\n');
   return clip(`From \`${rel}\` (read it for the full map):\n\n${body}`, budget);
 }

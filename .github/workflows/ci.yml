@@ -15,7 +15,7 @@ jobs:
       fail-fast: false
       matrix:
         # macOS covers bash 3.2, which install.sh must support.
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
         node: [18, 22]
     steps:
       - uses: actions/checkout@v4
@@ -27,4 +27,7 @@ jobs:
       - name: Checks (frontmatter, links, skill calls, OpenCode commands, routing eval)
         run: npm run check
       - name: Install dry run
+        run: node scripts/install.mjs --dry-run --no-hooks
+      - name: Install dry run (bash bootstrap)
+        if: runner.os != 'Windows'
         run: bash scripts/install.sh --dry-run --no-hooks

@@ -3,7 +3,7 @@
 Nice-to-haves and things to circle back to. Managed by log-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T237
+Next id: T246
 
 ## Open
 
@@ -70,3 +70,12 @@ Next id: T237
 - [ ] T235 The `## Link` plan-body section link-it uses to keep the contract path is in no schema or doc, so a re-plan may drop it (skills/do-it/STATE.md, skills/link-it/SKILL.md section 6) `debt` (link-it-todos audit)
 - [ ] T236 Behavioural eval for the grill acceptance rule: a grill reply that only adds scope must produce a re-presented round, not `approve` or plan files; today only tests/grill-acceptance.test.mjs pins the text `nice-to-have` (grill-acceptance ship)
   - Related: T23 (behaviour evals).
+- [ ] T237 install.mjs does not read or default DO_IT_HOME although the phase-4 note says it does; only install.sh reads it `debt` (scripts/install.mjs:1; windows-support audit)
+- [ ] T238 The PowerShell-guard issue carries source: user instead of windows-support `debt` (docs/issues/powershell-aware-commit-and-secret-guard.md:5; windows-support audit)
+- [ ] T239 install() holds the uninstall and install paths in one 130-line function; lift uninstall into a sibling `debt` (scripts/install.mjs:135-267; windows-support audit)
+- [ ] T240 tests/links.mjs has its own norm that lowercases on every platform; export norm and sameTarget from install.mjs and import them `debt` (tests/links.mjs:19, scripts/install.mjs:80-85; windows-support audit)
+- [ ] T241 The path.sep-to-slash idiom is written inline about eight times beside the toPosix and posix helpers; share one helper if hooks and scripts can share an import `debt` (hooks/lib/guard.mjs:37 and others; windows-support audit)
+- [ ] T242 ledger.mjs spawns claude with shell: true on win32 (a fix outside the plan phases); check other shell: true callers with bash syntax the way check-shell.mjs covers work.mjs and runs.mjs `nice-to-have` (skills/usage-it/scripts/ledger.mjs:352; windows-support audit)
+- [ ] T243 check-shell.mjs covers only work.mjs and runs.mjs; other shell: true users with bash-syntax commands are unchecked on Windows `nice-to-have` (skills/do-it/scripts/check-shell.mjs:1; windows-support audit)
+- [ ] T244 On uninstall a failed Claude hook removal skips the OpenCode removal; the old install.sh ran both `nice-to-have` (scripts/install.mjs:182; windows-support audit)
+- [ ] T245 The spawn-a-check block is duplicated in runs.mjs and work.mjs; share it when a third caller appears `nice-to-have` (skills/do-it/scripts/runs.mjs:35-39, work.mjs:222-226; windows-support audit)

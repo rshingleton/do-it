@@ -106,7 +106,7 @@ test('subagentTranscript prefers the hook path, else derives the subagents path'
   assert.equal(subagentTranscript({ agent_transcript_path: '/x/a.jsonl' }), '/x/a.jsonl');
   assert.equal(
     subagentTranscript({ transcript_path: '/p/s1.jsonl', agent_id: 'abc' }),
-    '/p/s1/subagents/agent-abc.jsonl',
+    path.join('/p/s1', 'subagents', 'agent-abc.jsonl'),
   );
   assert.equal(subagentTranscript({}), null);
 });
@@ -469,7 +469,9 @@ test('the stop hook and the report take Claude Code\'s cached reading, and the r
 test('refreshUtilization runs `claude -p /usage` only when the cached reading is stale, and can be turned off', () => {
   const bin = tmp();
   const marker = path.join(bin, 'ran');
-  fs.writeFileSync(path.join(bin, 'claude'), `#!/bin/sh\necho "$@" >> ${marker}\n`, { mode: 0o755 });
+  // A shim the shell finds: npm installs claude as claude.cmd on Windows.
+  if (process.platform === 'win32') fs.writeFileSync(path.join(bin, 'claude.cmd'), `@echo %* >> "${marker}"\r\n`);
+  else fs.writeFileSync(path.join(bin, 'claude'), `#!/bin/sh\necho "$@" >> ${marker}\n`, { mode: 0o755 });
   const cfg = tmp();
   const base = { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}`, CLAUDE_CONFIG_DIR: cfg };
   const env = { ...base, DO_IT_USAGE_REFRESH: '1' };

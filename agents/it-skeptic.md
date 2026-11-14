@@ -1,6 +1,6 @@
 ---
 name: it-skeptic
-description: Adversarial checker on the top tier: tries to prove one claim or design wrong. Use only when a do-it skill names it (doubt-it, competing designs).
+description: "Adversarial checker on the top tier: tries to prove one claim or design wrong. Use only when a do-it skill names it (doubt-it, competing designs)."
 model: opus
 tools: Read, Grep, Glob, Bash
 ---

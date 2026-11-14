@@ -1,6 +1,6 @@
 ---
 name: setup-it
-description: Set up a repo for do-it once: tracker, lint command, doc paths, compliance checks and the AGENTS.md section, detected first and written only on your approval.
+description: "Set up a repo for do-it once: tracker, lint command, doc paths, compliance checks and the AGENTS.md section, detected first and written only on your approval."
 disable-model-invocation: true
 argument-hint: "[--tracker local|github|jira]"
 ---

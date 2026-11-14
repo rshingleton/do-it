@@ -349,7 +349,7 @@ export function refreshUtilization({ maxAgeMin = 10, env = process.env, now = Da
   const u = readUtilization(claudeConfigFile(env));
   if (u && now - Date.parse(u.fetchedAt) < maxAgeMin * 60000) return false;
   try {
-    const r = spawnSync('claude', ['-p', '/usage'], { cwd: os.tmpdir(), env, timeout: 30000, stdio: 'ignore' });
+    const r = spawnSync('claude', ['-p', '/usage'], { cwd: os.tmpdir(), env, timeout: 30000, stdio: 'ignore', shell: process.platform === 'win32' });
     return r.status === 0;
   } catch {
     return false;
