@@ -61,6 +61,10 @@ A caller may also pass a settled list (findings already fixed or accepted) and
 the paths to read: tell both reviewers not to re-raise the list and to read only
 those paths, plus what they need to check them.
 
+Both reviewers read the diff and the named paths themselves, in one batch.
+Send pointers and the settled list, never a file body, an earlier report or the
+build transcript; findings name paths and lines, not pasted code.
+
 **Spec reviewer** gets the spec (path or fetched text) and this brief:
 
 > Find (a) requirements missing or only partly done, (b) behaviour added that

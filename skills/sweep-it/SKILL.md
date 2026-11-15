@@ -30,7 +30,9 @@ drift, lean, and a short architecture pass. A repo-wide sweep on a host with
 subagents: one fresh-context `it-reviewer` agent (mid-tier model) per group of
 lenses (correctness and risk; tests; debt, drift and lean), each reporting
 in its `## Report` shape under 500 words and given the scope, the assumed load and
-[LENSES.md](LENSES.md); merge their findings here and re-check each one.
+[LENSES.md](LENSES.md); merge their findings here and re-check each one. Give
+each agent pointers to its paths, never the conversation or a pasted file; it
+reads its own scope once and batches searches.
 
 Compliance: call the Skill tool with "guard-it" on the scope, so repo
 rules and the mechanical checks are applied the same way as in `prove-it`.
