@@ -67,9 +67,9 @@ to the last alone keeps the defaults:
    commit holds it all (a user commit after review included):
    - the refs to close: `todo`, `roadmap` and `tracker` from
      `work.mjs show <id>`; lane XS: `--todo` and `--ref`;
-   - each roadmap slice: Status `shipped <date> <work id>` (unmet Verify: DOCS.md),
-     a dated line in its Changes (the first dated line creates `## Changes`);
-     each to-do id: call the Skill tool with "log-it"
+   - each roadmap slice: Status `shipped <date> <work id>` (unmet Verify:
+     DOCS.md), a dated line in its Changes (the first dated line creates
+     `## Changes`); each to-do id: call the Skill tool with "log-it"
      to mark it done with the work id (lane XS: the commit);
    - a local-tracker ref: `tracker.mjs close <ref>`, deleting the issue file
      (already gone: an earlier run closed it);

@@ -2,7 +2,7 @@
 title: PowerShell-aware commit and secret guard
 type: feature
 status: open
-source: user
+source: windows-support
 ---
 
 ## Context

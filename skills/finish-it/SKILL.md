@@ -59,9 +59,9 @@ stops: go on to the next slice.
      `reason` per [STOPS.md](STOPS.md): `SLICE_AUDIT_CAP` parks this slice (the
      script did it; add the open Must findings to the reason) and the loop goes
      on, `AUDIT_CAP` stops the run.
-   - (e) [prove-it](../prove-it/SKILL.md). Wait for each reviewer's final
-     completion notice: a first hand-back with an agent still running is not
-     the verdict.
+   - (e) [prove-it](../prove-it/SKILL.md). The reviewer's final report is the
+     result: a first hand-back with an agent still running is not the verdict,
+     and a later completion notice with no new report adds nothing.
    - (f) Before ship-it, `work.mjs run gate <slug> <slice>`. `allow` false: ship
      nothing; park or stop per [STOPS.md](STOPS.md), which lists every stop
      reason.
@@ -95,8 +95,11 @@ code and detail when `run next` or `run audit` returned one (`MAX_SLICES`,
 `work.mjs run set <slug> max_slices|audit_cap|final_audit_cap|audit_total_cap <n>`
 before resuming). Then each
 parked slice with its `needs` and reason, and the slices still waiting on
-them. Then `Skipped / Not checked / Risk`. Last line, `Next:` the command that
-resumes: `/finish-it <file> --resume`, or nothing when every slice shipped.
+them. Then each open decision `run next` lists under `defects`, with the slices
+it holds: a slice also parked or waiting is named once, not twice, and no other
+line reports these. Then `Skipped / Not checked / Risk`. Last line, `Next:` the
+command that resumes: `/finish-it <file> --resume`, or nothing when every slice
+shipped.
 When the last slice shipped, say what ship-it finalized for the roadmap
 ([FINALIZE.md](../ship-it/FINALIZE.md)).
 

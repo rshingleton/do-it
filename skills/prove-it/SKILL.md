@@ -89,8 +89,8 @@ A refused event (the script exits 1) is `blocked`.
   `## Decisions`, creating the section in a lane S plan, then `unblock` and
   `build-done` to re-audit), or re-plan (`replan`, then scope-it).
 - An axis still unverified after its retry: return `blocked` (the `block` event
-  above set `status: blocked` and the blocker). Once the cause is fixed,
-  `unblock` then `build-done` re-audits.
+  above set `status: blocked` and the blocker). Once the cause is fixed, the
+  user answers: `unblock` then `build-done` re-audits.
 
 Should and Nice findings never block or start a re-audit. `ship-it` carries them into the
 changelog or ADR notes, and with no changelog offers to log them as
