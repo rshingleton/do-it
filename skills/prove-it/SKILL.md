@@ -17,8 +17,8 @@ block.
   `git diff <base_ref>` plus untracked files
   (`git ls-files --others --exclude-standard`), excluding `docs/planning/`.
   Any phase not `done`: stop, `blocked`.
-- `--since <ref>`: the same, from that ref, with no plan. The Spec axis then
-  uses whatever spec the user names, or is skipped.
+- `--since <ref>`: a track's path: the same change, run from its worktree, with
+  no plan read and no state written. The Spec axis uses the spec the user names, or is skipped.
 
 Empty change: stop and say so.
 

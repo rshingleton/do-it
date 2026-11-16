@@ -26,15 +26,41 @@ export function startSlice(planningDir, slug, id, { work, at }) {
   });
 }
 
-// What `run verify` saw: the slice's `verified_fingerprint` (its work item's change now) and
-// `verified_files`, `{<repo-relative name>: <755|644|120000>:<blob hash> | 'sub:<hash>' | 'gone' | 'dir'}` from commit.mjs
+// What `run verify` saw: the slice's `verified_fingerprint` (its work item's change now),
+// `verified_root` (the tree it ran in, from the coordinator: `.` for its own checkout, else
+// `run verify --in` or a track's worktree) and `verified_files`,
+// `{<repo-relative name>: <755|644|120000>:<blob hash> | 'sub:<hash>' | 'gone' | 'dir'}` from commit.mjs
 // `dirtyHashes`, which the lane M code commit compares its named paths against.
-export function recordVerified(planningDir, slug, id, fingerprint, files) {
+export function recordVerified(planningDir, slug, id, fingerprint, files, root) {
   return updateRun(planningDir, slug, (r) => {
-    entry(r, id).verified_fingerprint = fingerprint;
+    const g = entry(r, id);
+    g.verified_fingerprint = fingerprint;
+    if (root) g.verified_root = root;
+    else delete g.verified_root;
+    // A verify of the slice's own tree drops an older merged fact: the merged tree no longer
+    // holds what just passed, so the coordinator merges again and re-runs the merged check.
+    delete g.merged_fingerprint;
     // A verify without --paths records no files, and must not leave an older record standing.
-    if (files) entry(r, id).verified_files = files;
-    else delete entry(r, id).verified_files;
+    if (files) g.verified_files = files;
+    else delete g.verified_files;
+  });
+}
+
+// The suite on the merged tree: `run verify --merged`. It says the merge passed too, on the
+// slice's gate entry; the work item's status and phases stay as its own verify left them.
+export function recordMerged(planningDir, slug, id, fingerprint) {
+  return updateRun(planningDir, slug, (r) => {
+    entry(r, id).merged_fingerprint = fingerprint;
+  });
+}
+
+// The time a check spent queuing for the run's check slot, added to the slice's gate entry: it is not
+// work, so `gate` measures the cap from `started` plus it. A check that did not wait records nothing.
+export function recordWaited(planningDir, slug, id, ms) {
+  if (!ms) return;
+  return updateRun(planningDir, slug, (r) => {
+    const g = entry(r, id);
+    g.waited_ms = (Number(g.waited_ms) || 0) + Math.round(ms);
   });
 }
 
@@ -56,6 +82,8 @@ function auditLimits(record, id, final, { create = true } = {}) {
 
 const spent = (l) => Number(l.at[l.rounds]) || 0;
 const describe = (l) => `${l.limit}: ${spent(l)} audit rounds, cap ${l.cap}`;
+// No round is left: the cap is spent, whether or not a round was already refused at it.
+const atCap = (l) => spent(l) >= l.cap;
 // A slice's own cap parks that slice and the run goes on; the final review and the run total stop the run.
 const isSliceLimit = (l) => l.limit.startsWith('slice ');
 export const auditCode = (l) => (isSliceLimit(l) ? 'SLICE_AUDIT_CAP' : 'AUDIT_CAP');
@@ -76,7 +104,7 @@ export function countAudit(planningDir, slug, { id, final = false } = {}) {
   let refused = null;
   const record = updateRun(planningDir, slug, (r) => {
     const limits = auditLimits(r, id, final);
-    const hit = limits.find((l) => spent(l) >= l.cap);
+    const hit = limits.find(atCap);
     if (hit) {
       refused = hit;
       hit.at[hit.refused] = spent(hit);
@@ -99,9 +127,18 @@ export function countAudit(planningDir, slug, { id, final = false } = {}) {
   };
 }
 
+// The round a slice has left, from the same limits `run audit` refuses at. `run tracks` asks before it
+// dispatches a track, so a spent cap stops the work before a round is spent, not after. It reads the
+// record and creates nothing; `reason` is the gate's own code for the limit that fired.
+export function auditRoom(record, id) {
+  const hit = auditLimits(record, id, false, { create: false }).find(atCap);
+  return hit ? { allow: false, reason: auditCode(hit), limit: hit.limit, detail: describe(hit) } : { allow: true, reason: null, limit: null, detail: null };
+}
+
 // {allow, reason, detail}: reason is a code from stops.mjs. `current` is the
-// slice's fingerprint now. Caps first, then freshness of the last verify.
-export function gate(record, id, { current, now = Date.now() }) {
+// slice's fingerprint in the tree its verify recorded; `merged` is the merged tree's now, when
+// the caller has one. Caps first, then freshness of the last verify, then the merged tree.
+export function gate(record, id, { current, merged, now = Date.now() }) {
   const stop = (reason, detail) => ({ allow: false, reason, detail });
   const shipped = record.slices.filter((s) => s.status === 'shipped').length;
   if (record.max_slices != null && shipped >= record.max_slices) return stop('MAX_SLICES', `${shipped} shipped, cap ${record.max_slices}`);
@@ -110,11 +147,21 @@ export function gate(record, id, { current, now = Date.now() }) {
   if (spentLimit) return stop(auditCode(spentLimit), describe(spentLimit));
   const g = (record.gates ?? []).find((x) => x.id === id);
   if (g?.started) {
-    const mins = (now - Date.parse(g.started)) / 60000;
+    // Queue time is not work time: a check that waited for the run's slot spent that wait here, so the
+    // cap is measured from `started` plus what it queued (`waited_ms`).
+    const mins = (now - Date.parse(g.started) - (Number(g.waited_ms) || 0)) / 60000;
     if (mins > record.slice_cap_min) return stop('SLICE_CAP', `${Math.floor(mins)} min, cap ${record.slice_cap_min}`);
   }
   if (!g?.verified_fingerprint) return stop('UNVERIFIED', `${id} has no passing verify-phase`);
   if (g.verified_fingerprint !== current) return stop('STALE_VERIFY', `${id} changed since its last passing verify-phase`);
+  // A slice verified in another tree (a track's worktree) is merged back, so its ship needs the
+  // suite on the merged tree as well; the coordinator's own checkout is the merged tree.
+  if (g.verified_root !== undefined && g.verified_root !== '.' && !g.merged_fingerprint) {
+    return stop('UNVERIFIED', `${id} ran in ${g.verified_root} and has no passing check on the merged tree: run verify --merged <dir>`);
+  }
+  if (g.merged_fingerprint && merged !== undefined && g.merged_fingerprint !== merged) {
+    return stop('STALE_VERIFY', `${id}'s merged tree changed since its passing merged check`);
+  }
   return { allow: true, reason: null, detail: null };
 }
 

@@ -39,6 +39,13 @@ at plan approval and at the final review. `lite` keeps a human gate after each
 slice. Without the flag lane L is unchanged: one slice per `/do-it`. A
 `--complete` run commits locally, per phase by default (`--commit phase|slice|none`) (ADR 0008); a run never pushes or opens a PR.
 
+With `--tracks N` above 1, a complete run hands independent slices to worktree
+tracks ([TRACKS.md](../finish-it/TRACKS.md)): each track builds and audits one
+slice on its own branch, while the coordinator keeps scope, the run record, the
+gate, the merges and the ship. Width is bounded by the free slices, the machine
+and `DO_IT_TRACKS` (default 3, ceiling 5). A run that commits nothing holds one
+track, since a track would have no branch to merge.
+
 ## Raising the lane
 
 Raise it when the build finds more than the plan said: a second seam, a risk

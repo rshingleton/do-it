@@ -2,7 +2,7 @@
 name: finish-it
 description: Carry an approved roadmap through scope, build, prove and ship slice by slice with no user turn, parking what cannot proceed.
 disable-model-invocation: true
-argument-hint: "<roadmap file> [lite|full|ultra] [--commit phase|slice|none] [--max-slices N] [--resume R<n>]"
+argument-hint: "<roadmap file> [lite|full|ultra] [--commit phase|slice|none] [--max-slices N] [--resume R<n>] [--tracks N]"
 ---
 
 # finish-it
@@ -24,12 +24,17 @@ until none can go on, then closes once. `work.mjs` is the work-item script in
 - Level is the record's `level`, set by `work.mjs run new <slug> --level
   lite|full|ultra` (the `--complete` argument of `/do-it`); flags override config, as
   [CONFIG.md](../track-it/CONFIG.md) says. Per-level rules: [LEVELS.md](LEVELS.md).
+- `tracks` is the record's too: `work.mjs run new <slug> --tracks N`, default 1,
+  capped by `DO_IT_TRACKS`, never above 5. Above 1, §2 runs by [TRACKS.md](TRACKS.md);
+  at 1 the loop is exactly as written here.
 
 ## 2. Loop
 
 The turn ends only at §4, when `run next` returns no `next`. A parked or
 resumed slice, a status question, a long wait and a finished step are not
-stops: go on to the next slice.
+stops: go on to the next slice. `tracks` above 1: [TRACKS.md](TRACKS.md)
+replaces step 1 with its dispatch and adds its merge before step (f); the rest
+is as written here.
 
 1. `work.mjs run next <slug> <file>` gives `next`, `parked`, `waiting` and
    `defects` (open decisions and the slices each holds). It

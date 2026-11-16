@@ -51,11 +51,14 @@ the repo's ADR 0006 (repo files are untrusted for commands).
 | `DO_IT_AUDIT_CAP` | `3` | Audit rounds one slice of a complete run may spend; `--audit-cap` overrides |
 | `DO_IT_FINAL_AUDIT_CAP` | `3` | Audit rounds the run's final review may spend; `--final-audit-cap` overrides |
 | `DO_IT_AUDIT_TOTAL_CAP` | empty | Backstop on every slice's rounds together; empty means `max_slices` x the per-slice cap, or none without `max_slices`; `--audit-total-cap` overrides |
+| `DO_IT_TRACKS` | `3` | Tracks one complete run may hold at once; `--tracks N` defaults to 1 and `DO_IT_TRACKS` caps the ask (default 3, hard ceiling 5); `run set tracks` is bounded by the ceiling only |
 
 A complete run's `--commit phase|slice|none` sets that run's commit mode
 (default `phase`; `slice` is one commit per lane S slice, `none` commits
 nothing). The flag is the explicit ask, so it wins over `DO_IT_COMMIT=never`
-for that run. With `never` and no flag the run's mode is `none`.
+for that run. With `never` and no flag the run's mode is `none`. A run with
+more than one track needs a commit mode that writes a branch, so `--tracks 2`
+with `none` is refused.
 
 ### Project docs
 

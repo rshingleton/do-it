@@ -15,7 +15,9 @@ const LEVELS = ['lite', 'full', 'ultra'];
 const COMMIT_MODES = ['phase', 'slice', 'none'];
 const SLICE_STATUSES = ['shipped', 'parked', 'blocked'];
 const NEEDS = ['user', 'decision'];
-const SETTABLE = ['level', 'commit', 'branch', 'max_slices', 'slice_cap_min', 'audit_cap', 'final_audit_cap', 'audit_total_cap', 'limits'];
+const SETTABLE = ['level', 'commit', 'branch', 'tracks', 'max_slices', 'slice_cap_min', 'audit_cap', 'final_audit_cap', 'audit_total_cap', 'limits'];
+// The hard ceiling on tracks, whatever the flag, the environment or the record says.
+export const TRACKS_CEILING = 5;
 // Changing a cap puts every refusal marker back to unset, so lowering a cap to the value
 // it once refused at cannot revive an old refusal.
 const CAPS = ['max_slices', 'audit_cap', 'final_audit_cap', 'audit_total_cap'];
@@ -51,6 +53,35 @@ function list(name, value) {
   return value;
 }
 
+// `--tracks` is the run's ask and defaults to 1, so a run changes nothing unless it asks.
+// DO_IT_TRACKS caps the ask (default 3, the measured value) and 5 caps both.
+function tracksValue(flag, room) {
+  const ask = flag === undefined || flag === null || flag === '' ? 1 : cap('tracks', flag);
+  const ceiling = room === undefined || room === null || room === '' ? 3 : cap('DO_IT_TRACKS', room);
+  return Math.min(ask, ceiling, TRACKS_CEILING);
+}
+
+// A track commits on its own `do-it/<slug>--<slice>` branch, so a run that commits nothing leaves it
+// no branch to merge: refuse the ask instead of starting a track that cannot land. `--tracks 1` is
+// unchanged, because it builds in place and merges nothing.
+export function requireTrackBranch(commit, tracks) {
+  if (commit !== 'none' || tracks <= 1) return;
+  throw new Error(
+    `--tracks ${tracks} needs a commit mode that writes a branch: this run's commit mode is none (--commit none, or DO_IT_COMMIT=never), so its tracks would have no branch to merge; pass --commit phase or slice, or hold one track`,
+  );
+}
+
+// How many tracks the run starts now: none at `tracks` 1 (the run builds in place, exactly as a run
+// that never asked), else min(the ready slices, the machine's resource cap, `tracks`). The hard
+// ceiling holds whatever the record says; `resource` stands for the heavy suites the machine runs at
+// once, and the ceiling stands in when the caller does not know it.
+export function trackWidth({ ready, tracks = 1, resource = TRACKS_CEILING }) {
+  const n = cap('tracks', tracks);
+  if (n === 1) return 0;
+  const room = resource === undefined || resource === null ? TRACKS_CEILING : cap('resource', resource);
+  return Math.max(0, Math.min(Number(ready) || 0, n, room, TRACKS_CEILING));
+}
+
 function validate(key, value) {
   switch (key) {
     case 'level':
@@ -60,6 +91,9 @@ function validate(key, value) {
     case 'branch':
       if (value !== null && (typeof value !== 'string' || !value.trim())) throw new Error('branch must be a non-empty string or null');
       return value;
+    // A set is the user's word for this record: the hard ceiling holds, the environment's does not.
+    case 'tracks':
+      return Math.min(cap('tracks', value), TRACKS_CEILING);
     case 'max_slices':
       return cap('max_slices', value, { optional: true });
     case 'slice_cap_min':
@@ -119,11 +153,16 @@ export function createRun(planningDir, slug, opts, defaults, { now = () => new D
   checkSlug(slug);
   const file = runPath(planningDir, slug);
   if (fs.existsSync(file)) throw new Error(`${slug} already has a run record`);
+  // A commit flag wins over DO_IT_COMMIT=never; without one, never means none.
+  const commit = oneOf('commit', opts.commit ?? (defaults.DO_IT_COMMIT === 'never' ? 'none' : 'phase'), COMMIT_MODES);
+  // Tracks this run may hold at once: `--tracks` (default 1) under DO_IT_TRACKS and the ceiling of 5.
+  const tracks = tracksValue(opts.tracks, defaults.DO_IT_TRACKS);
+  requireTrackBranch(commit, tracks);
   const record = {
     id: slug,
     level: oneOf('level', opts.level ?? 'full', LEVELS),
-    // A commit flag wins over DO_IT_COMMIT=never; without one, never means none.
-    commit: oneOf('commit', opts.commit ?? (defaults.DO_IT_COMMIT === 'never' ? 'none' : 'phase'), COMMIT_MODES),
+    commit,
+    tracks,
     branch: null,
     started: opts.date ?? now(),
     // The commit HEAD resolved to at run new: the final review's fixed point. null outside git.
@@ -234,11 +273,17 @@ export function resumeSlice(planningDir, slug, id) {
   });
 }
 
-// The slice a run builds next. `road` is roadmapSlices' result, `record` the run
+// The slices a run builds next. `road` is roadmapSlices' result, `record` the run
 // record. A parked or blocked slice is skipped, and so is anything that waits on
 // one (through any chain of Blocked-by); every other slice goes on. A slice
 // already in flight resumes before a new one starts.
-export function nextSlice(road, record) {
+// `batch` (from `run next --batch n`) asks for the next n free slices in the order
+// `road.ready` holds them (milestone, risk, blocks, id), after the free in-flight ones;
+// without it `next` is the one id it has always been.
+export function nextSlice(road, record, { batch } = {}) {
+  if (batch !== undefined && (!Number.isInteger(batch) || batch < 1)) {
+    throw new Error(`run next --batch needs a positive whole number, got ${batch}`);
+  }
   const held = new Set(record.slices.filter((s) => s.status === 'parked' || s.status === 'blocked').map((s) => s.id));
   const byId = new Map(road.slices.map((s) => [s.id, s]));
   const waitsOnHeld = (s, seen = new Set()) =>
@@ -251,8 +296,14 @@ export function nextSlice(road, record) {
   const open = road.slices.filter((s) => !['shipped', 'dropped'].includes(s.state));
   const waiting = open.filter((s) => !held.has(s.id) && waitsOnHeld(s)).map((s) => s.id);
   const free = (id) => !held.has(id) && !waiting.includes(id);
-  const flying = open.find((s) => s.state === 'in flight' && free(s.id));
-  const next = flying?.id ?? road.ready.find(free) ?? null;
+  const flying = open.filter((s) => s.state === 'in flight' && free(s.id));
+  // A batch takes every free in-flight slice first, in roadmap order: a track run holds several at
+  // once. Without one, the first only, so one slice still resumes before a new one starts.
+  const lead = (batch === undefined ? flying.slice(0, 1) : flying).map((s) => s.id);
+  const queue = [...lead, ...road.ready.filter((id) => !lead.includes(id) && free(id))];
+  const picks = batch === undefined ? queue.slice(0, 1) : queue.slice(0, batch);
+  // `next` is a list only when the caller asked for a batch; the cap stop keeps that shape too.
+  const shape = (ids) => (batch === undefined ? (ids[0] ?? null) : ids);
   // The slice cap is checked before a slice is built, not when it comes to ship, and only when a
   // slice is left: a run that has nothing more to build finishes, it is not stopped. A slice
   // already in flight at the cap is named, so it is not dropped without a word.
@@ -260,9 +311,9 @@ export function nextSlice(road, record) {
   // decision and the slices it holds, or they would never be offered, parked or reported.
   const defects = (road.blocking ?? []).map((d) => ({ decision: d.id, blocks: d.blocks, note: 'ask-when-reached: settle the decision, then the slices can run' }));
   const shipped = record.slices.filter((s) => s.status === 'shipped').length;
-  if (next && record.max_slices != null && shipped >= record.max_slices) {
-    const inFlight = flying ? `; ${flying.id} is in flight` : '';
-    return { next: null, parked: [...held], waiting, defects, stop: { reason: 'MAX_SLICES', detail: `${shipped} shipped, cap ${record.max_slices}${inFlight}` } };
+  if (picks.length && record.max_slices != null && shipped >= record.max_slices) {
+    const inFlight = flying.length ? `; ${flying[0].id} is in flight` : '';
+    return { next: shape([]), parked: [...held], waiting, defects, stop: { reason: 'MAX_SLICES', detail: `${shipped} shipped, cap ${record.max_slices}${inFlight}` } };
   }
-  return { next, parked: [...held], waiting, defects };
+  return { next: shape(picks), parked: [...held], waiting, defects };
 }

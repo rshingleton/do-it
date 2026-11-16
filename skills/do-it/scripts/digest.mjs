@@ -40,6 +40,13 @@ export function buildDigest({ record, tags = [], usage = null, findings = [], re
     return s ? `${s.status}${s.reason ? ` (${oneLine(s.reason)})` : ''}` : 'not run again yet';
   };
   const retried = (record.retries ?? []).map((r) => `${r.id}: was ${r.was}${r.reason ? ` (${oneLine(r.reason)})` : ''}, now ${now(r.id)}`);
+  // The audit rounds the one record holds: the run total, then each slice's share. A track run counts
+  // every track's rounds here, because the coordinator records them; no lane record is read.
+  const shares = (record.gates ?? []).filter((g) => Number(g.audit_rounds) > 0).map((g) => `${g.id}: ${Number(g.audit_rounds)}`);
+  const perSlice = (record.gates ?? []).reduce((n, g) => n + (Number(g.audit_rounds) || 0), 0);
+  const counted = Number(record.audit_rounds) || 0;
+  // A resume clears a slice's own count, so the run total can hold rounds no slice still shows.
+  if (counted > perSlice) shares.push(`${counted - perSlice} before a resume`);
   const limits = record.limits.filter((l) => !l.startsWith('marker:'));
   const out = [`# Run digest: ${record.id}`, '', `Level ${record.level}, commit ${record.commit}, started ${record.started}.`, ''];
   const sec = (title, lines) => out.push(`## ${title}`, '', ...lines, '');
@@ -49,6 +56,7 @@ export function buildDigest({ record, tags = [], usage = null, findings = [], re
   sec(`Parked (${by('parked').length})`, bullets(by('parked').map(why)));
   sec(`Blocked (${by('blocked').length})`, bullets(by('blocked').map(why)));
   sec(`Retried (${retried.length})`, bullets(retried));
+  sec(`Audit rounds (${Math.max(counted, perSlice)})`, bullets(shares));
   sec(`Assumptions taken (${record.assumptions.length})`, bullets(record.assumptions.map(origin)));
   sec(`Assumptions rejected (${record.rejected.length})`, bullets(record.rejected.map(origin)));
   sec(`Verification limits (${limits.length})`, bullets(limits));

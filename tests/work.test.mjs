@@ -776,7 +776,7 @@ test('work.mjs run: new, show, set and slice round trip with config defaults', (
   const dir = tempRepo();
   let r = ok(work(dir, 'run', 'new', 'road', '--date', '2026-10-30'));
   assert.deepEqual(r, {
-    id: 'road', level: 'full', commit: 'phase', branch: null, started: '2026-10-30', base: null,
+    id: 'road', level: 'full', commit: 'phase', tracks: 1, branch: null, started: '2026-10-30', base: null,
     max_slices: null, slice_cap_min: 120, audit_cap: 3, final_audit_cap: 3, audit_total_cap: null, slices: [], assumptions: [], rejected: [], limits: [],
   });
   assert.ok(fs.existsSync(path.join(dir, 'docs/planning/road.run/RUN.md')));

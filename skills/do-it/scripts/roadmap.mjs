@@ -13,7 +13,8 @@ function cells(row) {
   return row.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map((c) => c.trim());
 }
 
-function sectionLines(text, heading) {
+// The lines under one `## <heading>`, up to the next `##`, as a plan's body is read too.
+export function sectionLines(text, heading) {
   const lines = text.split(/\r?\n/);
   const start = lines.findIndex((l) => new RegExp(`^##\\s+${heading}\\s*$`, 'i').test(l));
   if (start < 0) return [];
@@ -23,6 +24,17 @@ function sectionLines(text, heading) {
     out.push(l);
   }
   return out;
+}
+
+// The order the ready frontier holds, and the merge order a run's contract prints: milestone, risk,
+// blocks, then slice number. `run contract` imports it, so the merge order is the build order.
+export function readyOrder(a, b) {
+  return (
+    a.milestone - b.milestone ||
+    (RISK[a.risk] ?? 1) - (RISK[b.risk] ?? 1) ||
+    a.blocked_by.length - b.blocked_by.length ||
+    Number(a.id.slice(1)) - Number(b.id.slice(1))
+  );
 }
 
 export function parseRoadmap(text) {
@@ -116,13 +128,7 @@ export function roadmapSlices(file, { root, planningDir, tracked = (f) => isTrac
 
   const ready = out
     .filter((s) => s.state === 'ready' || s.state === 'refine')
-    .sort(
-      (a, b) =>
-        a.milestone - b.milestone ||
-        (RISK[a.risk] ?? 1) - (RISK[b.risk] ?? 1) ||
-        a.blocked_by.length - b.blocked_by.length ||
-        Number(a.id.slice(1)) - Number(b.id.slice(1)),
-    );
+    .sort(readyOrder);
   const blocking = openDecisions
     .map((id) => ({ id, blocks: out.filter((s) => !done(s.id) && s.blocked_by.includes(id)).map((s) => s.id) }))
     .filter((d) => d.blocks.length)

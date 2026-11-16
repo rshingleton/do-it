@@ -30,7 +30,9 @@ working tree.
    uncommitted. Never commit it.
 
 It lists slices shipped, parked and blocked with reasons, retried slices and
-how each retry ended, assumptions, verification limits, findings filed, the
+how each retry ended, the audit rounds the run's one record holds (the run
+total, every track's rounds included, and each slice's share), assumptions,
+verification limits, findings filed, the
 `shortcut:` ledger (`no-trigger` flagged), tokens, rollback commands per phase
 tag of this run's work items only, and four retro lines. It does not list the
 `defects` `run next` returns (open decisions and the slices they hold):

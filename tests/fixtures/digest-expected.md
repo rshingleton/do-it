@@ -18,6 +18,10 @@ Level full, commit phase, started 2026-10-30.
 
 - none
 
+## Audit rounds (0)
+
+- none
+
 ## Assumptions taken (2)
 
 - sweep #1: Retry once on timeout
