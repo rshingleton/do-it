@@ -23,7 +23,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { ROOT } from './lib/skills.mjs';
-import { hashFile, readManifest, sameTarget, under, writeManifest } from './lib/install-state.mjs';
+import { hashFile, norm, readManifest, sameTarget, under, writeManifest } from './lib/install-state.mjs';
 // doctor.mjs imports this module's plan, so the two read each other; both
 // imports are function declarations, available before either body runs.
 import { ageOf, readRef } from './doctor.mjs';
@@ -97,8 +97,23 @@ function removeEntry(p) {
   }
 }
 
-function runHooks(args) {
-  return spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'install-hooks.mjs'), ...args], { stdio: 'inherit' }).status ?? 1;
+function runHooks(args, home) {
+  // The hook step resolves the host's home itself (`os.homedir`), so a caller
+  // installing into another home has to carry it in the environment, or the
+  // step edits the real host config.
+  const elsewhere = home && norm(home) !== norm(os.homedir());
+  const env = elsewhere
+    ? {
+        ...process.env,
+        HOME: home,
+        USERPROFILE: home,
+        ...(process.platform === 'win32'
+          ? { HOMEDRIVE: path.parse(home).root.slice(0, 2), HOMEPATH: home.slice(2) }
+          : {}),
+        XDG_CONFIG_HOME: path.join(home, '.config'),
+      }
+    : process.env;
+  return spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'install-hooks.mjs'), ...args], { stdio: 'inherit', env }).status ?? 1;
 }
 
 // The checkout's ref, as the doctor reads it: local reads only, so an install
@@ -186,9 +201,10 @@ export function install({ root = ROOT, home = os.homedir(), configHome, hooks = 
       }
     }
     if (!dry) writeManifest(home, kept);
-    const claude = runHooks(['claude', '--remove', ...(dry ? ['--dry-run'] : [])]);
+    if (!hooks) return 0;
+    const claude = runHooks(['claude', '--remove', ...(dry ? ['--dry-run'] : [])], home);
     if (claude) return claude;
-    return runHooks(['opencode', '--remove', ...(dry ? ['--dry-run'] : [])]);
+    return runHooks(['opencode', '--remove', ...(dry ? ['--dry-run'] : [])], home);
   }
 
   const copies = new Map(manifest.map((c) => [c.dst, c]));
@@ -259,9 +275,9 @@ export function install({ root = ROOT, home = os.homedir(), configHome, hooks = 
 
   if (hooks) {
     const extra = dry ? ['--dry-run'] : [];
-    const claude = runHooks(['claude', ...extra]);
+    const claude = runHooks(['claude', ...extra], home);
     if (claude) return claude;
-    if (runHooks(['opencode', ...extra])) say('OpenCode hooks not registered; see README');
+    if (runHooks(['opencode', ...extra], home)) say('OpenCode hooks not registered; see README');
   }
   return 0;
 }

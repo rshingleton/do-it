@@ -133,6 +133,34 @@ test('a real run into a temp home then --uninstall leaves no do-it links or file
   assert.deepEqual(left.filter((p) => !/\.bak-do-it$/.test(p) && !configs.includes(p)), [], 'no other files or links remain');
 });
 
+test('an uninstall with hooks off runs no hook step, so no host config is touched', () => {
+  const home = tmpDir('do-it-home-');
+  const root = miniRoot();
+  const up = quiet(() => install({ root, home, hooks: false }));
+  assert.equal(up, 0);
+  const { code, lines } = quiet(() => {
+    const said = [];
+    const log = console.log;
+    console.log = (...a) => said.push(a.join(' '));
+    try {
+      return { code: install({ root, home, hooks: false, uninstall: true }), lines: said };
+    } finally {
+      console.log = log;
+    }
+  });
+  assert.equal(code, 0);
+  assert.deepEqual(lines.filter((l) => /settings\.json|opencode\.json/.test(l)), [], 'the hook step did not run');
+});
+
+test('a home other than the real one carries into the hook step, so the host config lands there', () => {
+  const home = tmpDir('do-it-home-');
+  const root = miniRoot();
+  const code = quiet(() => install({ root, home }));
+  assert.equal(code, 0);
+  const settings = JSON.parse(fs.readFileSync(path.join(home, '.claude', 'settings.json'), 'utf8'));
+  assert.ok(Object.keys(settings.hooks ?? {}).length > 0, 'the hooks were written into the temporary home');
+});
+
 // ---- The checkout's ref in the install's closing line ----
 
 // A one-skill checkout pushed to a bare remote, and a clone of it: the clone is
@@ -223,19 +251,11 @@ test('a run whose hooks fail still prints the ref line, because it prints before
   // A settings file the hooks step refuses: claude returns 1, so the installer
   // returns before its own last statement. A line printed after the hooks block
   // would never appear.
-  const hooksHome = tmpDir('do-it-hooks-home-');
-  fs.mkdirSync(path.join(hooksHome, '.claude'), { recursive: true });
-  fs.writeFileSync(path.join(hooksHome, '.claude', 'settings.json'), '{ not json');
-  const saved = { HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE };
-  process.env.HOME = hooksHome;
-  process.env.USERPROFILE = hooksHome;
-  let out;
-  try {
-    out = printed(() => install({ root, home, hooks: true }));
-  } finally {
-    process.env.HOME = saved.HOME;
-    process.env.USERPROFILE = saved.USERPROFILE;
-  }
+  // The hook step now follows the install home, so the broken file that makes
+  // it fail is the one in that home.
+  fs.mkdirSync(path.join(home, '.claude'), { recursive: true });
+  fs.writeFileSync(path.join(home, '.claude', 'settings.json'), '{ not json');
+  const out = printed(() => install({ root, home, hooks: true }));
   assert.equal(out.code, 1, 'the hook failure is still the exit code');
   assert.equal(refLine(out.lines), `installed from ${root} at ${shortSha(root)} (main), up to date with origin/main; never fetched`);
 });
