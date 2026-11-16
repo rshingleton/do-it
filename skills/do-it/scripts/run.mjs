@@ -23,6 +23,20 @@ export const TRACKS_CEILING = 5;
 // it once refused at cannot revive an old refusal.
 const CAPS = ['max_slices', 'audit_cap', 'final_audit_cap', 'audit_total_cap'];
 
+// A path a record stores uses / on every platform, as runs.mjs does.
+const toPosix = (p) => p.split(path.sep).join('/');
+
+// The repo root a record stores: the real path, in posix form, so a symlink, a Windows
+// short name or another spelling of the same checkout does not read as a different repo.
+export function repoRoot(root) {
+  if (root === null || root === undefined || root === '') return null;
+  try {
+    return toPosix(fs.realpathSync.native(root));
+  } catch {
+    return toPosix(path.resolve(root));
+  }
+}
+
 export function runPath(planningDir, slug) {
   return path.join(planningDir, `${slug}.run`, 'RUN.md');
 }
@@ -150,7 +164,7 @@ export function updateRun(planningDir, slug, change) {
 }
 
 // `defaults` carries the config's caps; a flag in `opts` wins over it.
-export function createRun(planningDir, slug, opts, defaults, { now = () => new Date().toISOString() } = {}) {
+export function createRun(planningDir, slug, opts, defaults, { now = () => new Date().toISOString(), root = null } = {}) {
   checkSlug(slug);
   const file = runPath(planningDir, slug);
   if (fs.existsSync(file)) throw new Error(`${slug} already has a run record`);
@@ -161,6 +175,9 @@ export function createRun(planningDir, slug, opts, defaults, { now = () => new D
   requireTrackBranch(commit, tracks);
   const record = {
     id: slug,
+    // The repo this run belongs to: it is not settable, and a command from another
+    // checkout is refused (work.mjs) rather than reading a record that is not its own.
+    root: repoRoot(root),
     level: oneOf('level', opts.level ?? 'full', LEVELS),
     commit,
     tracks,

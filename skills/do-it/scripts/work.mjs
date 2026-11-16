@@ -10,7 +10,7 @@
 //   work.mjs review-diff <id>
 //   work.mjs verify-phase <id> [n] [--in dir] -- <command...>
 //   work.mjs roadmap <file>
-//   work.mjs run new <slug> [--level --commit --tracks --max-slices --slice-cap-min --audit-cap --final-audit-cap --audit-total-cap]
+//   work.mjs run new <slug> [--roadmap <file>] [--level --commit --tracks --max-slices --slice-cap-min --audit-cap --final-audit-cap --audit-total-cap]
 //   work.mjs run show <slug> | set <slug> <key> <json> | slice <slug> <id> <status> [--reason --needs]
 //   work.mjs run add-assumptions <slug> <work id> <json array>   (merges; kept as <id>#<n>: text)
 //   work.mjs run reject-assumption <slug> <id>#<n> <instead...>   (by key; reopens the item if its plan is still auditing or shipping)
@@ -45,7 +45,7 @@ import { commitSlice } from './commit.mjs';
 import { git } from './git.mjs';
 import { checkShell } from './check-shell.mjs';
 import { buildDigest } from './digest.mjs';
-import { addAssumptions, createRun, nextSlice, resumeSlice, runPath, setRun, showRun, sliceRun } from './run.mjs';
+import { addAssumptions, createRun, nextSlice, repoRoot, resumeSlice, runPath, setRun, showRun, sliceRun } from './run.mjs';
 import { countAudit, startSlice } from './gate.mjs';
 import { runContract, runGate, runRejectAssumption, runReviewChange, runTracks, runVerify, runVerifyMerged } from './runs.mjs';
 
@@ -71,6 +71,30 @@ function parseArgs(argv) {
 
 // Recorded and printed paths use / on every platform.
 const toPosix = (p) => p.split(path.sep).join('/');
+
+// Two checkouts differ by spelling: the record's posix realpath against the caller's,
+// case-folded on win32, where `C:/x` and `c:/x` are one repo.
+function sameRoot(recorded, root) {
+  const here = repoRoot(root);
+  return process.platform === 'win32' ? recorded.toLowerCase() === here.toLowerCase() : recorded === here;
+}
+
+// A roadmap belongs to the repo root it sits under: `../other/road.md` is another repo's.
+// Both sides are real paths, so a symlink or a Windows short name cannot pose as inside.
+function within(file, root) {
+  const rel = path.relative(root, repoRoot(file));
+  return !path.isAbsolute(rel) && !/^\.\.(?:[\\/]|$)/.test(rel);
+}
+
+// The roadmap a run subcommand reads must sit inside the record's repo root. `run contract`
+// without one has nothing to check.
+function runRoadmap(record, file) {
+  if (!file || !record.root) return file;
+  if (!within(file, record.root)) {
+    throw new Error(`the roadmap ${repoRoot(file)} is outside the run's repo root ${record.root}; a run in another repo starts from that repo`);
+  }
+  return file;
+}
 
 function context(cwd) {
   const { root, values } = loadConfig({ cwd });
@@ -243,9 +267,24 @@ export async function run(argv, { cwd = process.cwd() } = {}) {
     case 'run': {
       // A complete run's record: id is the subcommand here, rest[0] the roadmap slug.
       const [slug, ...args] = rest;
+      // The record names the repo it belongs to: a command from another checkout refuses,
+      // naming both, instead of reading a record that is not its own. `new` makes the
+      // record, a record without `root` (an older one) keeps working, and a missing one
+      // is the subcommand's own error.
+      const record = id !== 'new' && slug && fs.existsSync(runPath(ctx.planningDir, slug)) ? showRun(ctx.planningDir, slug) : null;
+      if (record?.root && !sameRoot(record.root, ctx.root)) {
+        throw new Error(`${slug} is a run of ${record.root}; this checkout is ${repoRoot(ctx.root)}. A run in another repo starts from that repo`);
+      }
       switch (id) {
-        case 'new':
-          return createRun(ctx.planningDir, slug, { ...opts, base: baseRef(ctx.root) }, ctx.config);
+        case 'new': {
+          // finish-it always passes the roadmap it resolved: a file outside this checkout is
+          // a run in another repo, refused before the record is made.
+          if (opts.roadmap !== undefined && !within(path.resolve(cwd, opts.roadmap), repoRoot(ctx.root))) {
+            const file = repoRoot(path.resolve(cwd, opts.roadmap));
+            throw new Error(`the roadmap ${file} is outside the repo root ${repoRoot(ctx.root)}; a run in another repo starts from that repo`);
+          }
+          return createRun(ctx.planningDir, slug, { ...opts, base: baseRef(ctx.root) }, ctx.config, { root: ctx.root });
+        }
         case 'show':
           return showRun(ctx.planningDir, slug);
         case 'set':
@@ -259,21 +298,24 @@ export async function run(argv, { cwd = process.cwd() } = {}) {
           return sliceRun(ctx.planningDir, slug, args[0], args[1], { reason: opts.reason, needs: opts.needs });
         case 'next': {
           if (!args[0]) throw new Error('run next needs a roadmap file');
-          const file = path.resolve(cwd, args[0]);
+          const rec = record ?? showRun(ctx.planningDir, slug);
+          const file = runRoadmap(rec, path.resolve(cwd, args[0]));
           // --batch n asks for the next n free slices; without the flag `next` is one id, as before.
           const batch = Object.hasOwn(opts, 'batch') ? Number(opts.batch) : undefined;
-          return nextSlice(roadmapSlices(file, ctx), showRun(ctx.planningDir, slug), { batch });
+          return nextSlice(roadmapSlices(file, ctx), rec, { batch });
         }
         case 'contract': {
           // The roadmap is optional: without it the order is the run's own start order.
-          const road = args[0] ? roadmapSlices(path.resolve(cwd, args[0]), ctx) : null;
+          const file = args[0] ? runRoadmap(record ?? showRun(ctx.planningDir, slug), path.resolve(cwd, args[0])) : null;
+          const road = file ? roadmapSlices(file, ctx) : null;
           return runContract({ planningDir: ctx.planningDir, root: ctx.root, slug, road, items });
         }
         case 'tracks': {
           // The tracks this run starts now: the roadmap is required, because a track holds a ready
           // slice and pairs by its plan.
           if (!args[0]) throw new Error('run tracks needs a roadmap file');
-          return runTracks({ planningDir: ctx.planningDir, root: ctx.root, slug, road: roadmapSlices(path.resolve(cwd, args[0]), ctx), items });
+          const file = runRoadmap(record ?? showRun(ctx.planningDir, slug), path.resolve(cwd, args[0]));
+          return runTracks({ planningDir: ctx.planningDir, root: ctx.root, slug, road: roadmapSlices(file, ctx), items });
         }
         case 'start':
           return startSlice(ctx.planningDir, slug, args[0], { work: opts.work, at: opts.at ?? new Date().toISOString() });

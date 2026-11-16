@@ -16,8 +16,14 @@ until none can go on, then closes once. `work.mjs` is the work-item script in
 - Input is a roadmap file. A request with no file: read
   [roadmap-it](../roadmap-it/SKILL.md) and chart one first. The slug is the
   file name without `.md`.
-- `work.mjs run show <slug>`. No record: `work.mjs run new <slug>` with the
-  flags given, then the decision sweep in
+- Resolve it against the working tree and refuse a path outside the repo root,
+  naming both: "the roadmap `<path>` is outside the repo root `<root>`". This
+  comes before `run new` and before any slice is scoped. A roadmap in another
+  repo starts there with a `cd`, never by moving the session: this skill never
+  moves it.
+- The run's first notice names its repo root: `<root>`, then the roadmap slug.
+- `work.mjs run show <slug>`. No record: `work.mjs run new <slug> --roadmap
+  <file>` with the flags given, then the decision sweep in
   [SWEEP.md](../roadmap-it/SWEEP.md) and its approval turn. That turn and the
   final one are the only two the run waits on.
 - A record exists but the sweep never ran or was not approved: run it now.
