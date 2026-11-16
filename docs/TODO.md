@@ -3,7 +3,7 @@
 Nice-to-haves and things to circle back to. Managed by log-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T299
+Next id: T302
 
 ## Open
 
@@ -95,3 +95,6 @@ Next id: T299
 - [ ] T296 `README.md:322` restates the Update section's CLI refresh facts at `README.md:352-354` `nice-to-have` (install-routes audit, 2026-11-16)
 - [ ] T297 `README.md:288` puts shell commands in a `text` fence while sibling install and check blocks use `bash` `nice-to-have` (install-routes audit, 2026-11-16)
 - [ ] T298 A complete run defaults to three tracks and no ask below three is accepted, except a commit mode that writes no branch `debt` (sweep 2026-11-16, user request; roadmap todo-clearance-2026-11 R67)
+- [ ] T299 `docs/reference/roadmap-history.md:8` says every file was removed after the record was written, false for backlog-cleanup-2026-11 (deleted in 0d2a310, its section added in 8157e83) `nice-to-have` (R4 ship review)
+- [ ] T300 `tests/roadmap-coverage.test.mjs:102` pins the words "R2 to R16", so a reword to "R2 through R16" fails with "the open slices are named" `nice-to-have` (R4 ship review)
+- [ ] T301 `tests/roadmap-coverage.test.mjs:110` accepts any mention, so moving T234 from R63's Items into a Fog bullet stays green while "each owns a slice" becomes false `nice-to-have` (R4 ship review)
