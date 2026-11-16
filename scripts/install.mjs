@@ -100,8 +100,12 @@ function removeEntry(p) {
 function runHooks(args, home) {
   // The hook step resolves the host's home itself (`os.homedir`), so a caller
   // installing into another home has to carry it in the environment, or the
-  // step edits the real host config.
+  // step edits the real host config. OpenCode writes its runtime log under the
+  // data home, so route it into the same temp home and clear it after.
   const elsewhere = home && norm(home) !== norm(os.homedir());
+  const dataHome = elsewhere ? path.join(home, '.local', 'share') : undefined;
+  const cacheHome = elsewhere ? path.join(home, '.cache') : undefined;
+  const stateHome = elsewhere ? path.join(home, '.local', 'state') : undefined;
   const env = elsewhere
     ? {
         ...process.env,
@@ -111,9 +115,22 @@ function runHooks(args, home) {
           ? { HOMEDRIVE: path.parse(home).root.slice(0, 2), HOMEPATH: home.slice(2) }
           : {}),
         XDG_CONFIG_HOME: path.join(home, '.config'),
+        XDG_DATA_HOME: dataHome,
+        XDG_CACHE_HOME: cacheHome,
+        XDG_STATE_HOME: stateHome,
       }
     : process.env;
-  return spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'install-hooks.mjs'), ...args], { stdio: 'inherit', env }).status ?? 1;
+  const status = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'install-hooks.mjs'), ...args], { stdio: 'inherit', env }).status ?? 1;
+  const runtimeDirs = new Set([
+    path.join(home, '.local', 'share', 'opencode'),
+    path.join(home, '.cache', 'opencode'),
+    path.join(home, '.local', 'state', 'opencode'),
+  ]);
+  if (dataHome) runtimeDirs.add(path.join(dataHome, 'opencode'));
+  if (cacheHome) runtimeDirs.add(path.join(cacheHome, 'opencode'));
+  if (stateHome) runtimeDirs.add(path.join(stateHome, 'opencode'));
+  for (const dir of runtimeDirs) fs.rmSync(dir, { recursive: true, force: true });
+  return status;
 }
 
 // The checkout's ref, as the doctor reads it: local reads only, so an install

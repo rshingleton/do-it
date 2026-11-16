@@ -10,7 +10,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { install } from '../scripts/install.mjs';
-import { under, readManifestState } from '../scripts/lib/install-state.mjs';
+import { sameTarget, under, readManifestState } from '../scripts/lib/install-state.mjs';
 import { eperm, miniRoot, quiet } from './mini-root.mjs';
 import { linkDir } from './links.mjs';
 
@@ -146,4 +146,16 @@ test('under treats a sibling directory with a shared prefix as outside', () => {
   const base = tmpDir('do-it-under-');
   assert.equal(under(path.join(base, 'a', 'b'), path.join(base, 'a')), true);
   assert.equal(under(path.join(base, 'ab'), path.join(base, 'a')), false);
+});
+
+test('sameTarget resolves a link, and a path that does not exist yet through its nearest ancestor', () => {
+  const real = tmpDir('do-it-same-');
+  fs.mkdirSync(path.join(real, 'skills'));
+  const alias = path.join(tmpDir('do-it-same-alias-'), 'link');
+  linkDir(real, alias); // the alias `/var` is to `/private/var`, or a Windows short name to its long one
+
+  assert.equal(sameTarget(alias, real), true);
+  // A skill since renamed is gone, so each side resolves as far as its parent.
+  assert.equal(sameTarget(path.join(alias, 'skills', 'gone-it'), path.join(real, 'skills', 'gone-it')), true);
+  assert.equal(sameTarget(real, tmpDir('do-it-same-other-')), false);
 });

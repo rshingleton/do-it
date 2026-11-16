@@ -6,11 +6,39 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 
+// The path the filesystem answers with, or null when nothing can resolve it.
+// `.native` comes first because it expands the 8.3 short names Windows hands
+// out for long temp paths, which the JavaScript fallback leaves alone.
+const realpath = (p) => {
+  try {
+    return fs.realpathSync.native(p);
+  } catch {
+    try {
+      return fs.realpathSync(p);
+    } catch {
+      return null;
+    }
+  }
+};
+
 // A path in the shape a comparison wants: absolute, without the \\?\ prefix a
-// junction reads back with, lower-cased where the filesystem folds case.
+// junction reads back with, lower-cased where the filesystem folds case, and
+// resolved through the filesystem so `/var` and `/private/var`, or a short name
+// and the long one it stands for, compare equal. A path that does not exist yet
+// resolves as far as its nearest existing ancestor.
 export const norm = (p) => {
-  const r = path.resolve(String(p).replace(/^\\\\\?\\/, ''));
-  return process.platform === 'win32' ? r.toLowerCase() : r;
+  const raw = String(p ?? '').replace(/^\\\\\?\\/, '');
+  const r = path.resolve(raw);
+  let cursor = r;
+  const parts = [];
+  while (!fs.existsSync(cursor) && path.dirname(cursor) !== cursor) {
+    parts.unshift(path.basename(cursor));
+    cursor = path.dirname(cursor);
+  }
+  const base = realpath(cursor);
+  if (base === null) return process.platform === 'win32' ? r.toLowerCase() : r;
+  const real = (parts.length ? path.join(base, ...parts) : base).replace(/^\\\\\?\\/, '');
+  return process.platform === 'win32' ? real.toLowerCase() : real;
 };
 
 export const sameTarget = (a, b) => norm(a) === norm(b);

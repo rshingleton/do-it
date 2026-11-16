@@ -180,14 +180,6 @@ function scanFindings(plan, copyAt, root, fix) {
 // a person reads it.
 const firstLine = (text) => String(text ?? '').trim().split('\n')[0].replace(/^fatal: /, '');
 
-const real = (p) => {
-  try {
-    return fs.realpathSync(p);
-  } catch {
-    return p;
-  }
-};
-
 // The checkout's ref, read through the one git wrapper (it passes
 // safe.bareRepository, which a fixture bare repo needs). Every read is a local
 // one: the remote moves only when `fetch` asks it to. Each count comes from a
@@ -208,7 +200,7 @@ export function readRef({ root, fetch = false } = {}) {
   const toplevel = top.stdout.trim();
   // git walks up from a subdirectory; a ref belongs to the checkout only when
   // that checkout is the repository's top level.
-  if (!sameTarget(real(toplevel), real(root))) return { unknown: `not the root of a git checkout (its top level is ${toplevel})` };
+  if (!sameTarget(toplevel, root)) return { unknown: `not the root of a git checkout (its top level is ${toplevel})` };
 
   let fetchError = null;
   if (fetch) {
@@ -391,7 +383,7 @@ function pluginRoute({ root, exec }) {
   if (!state.installed) return absent;
   const version = manifestVersion(root);
   if (!version) return { route: 'plugin', state: 'unknown', detail: 'cannot read the version in .claude-plugin/plugin.json', fix: null };
-  const inPlace = state.readFromFolder !== null && sameTarget(real(state.readFromFolder), real(root));
+  const inPlace = state.readFromFolder !== null && sameTarget(state.readFromFolder, root);
   const loaded = inPlace ? state.folderVersion : state.version;
   if (loaded === null || loaded === undefined) {
     return { route: 'plugin', state: 'unknown', detail: 'the host reported no version for do-it@do-it', fix: null };
@@ -462,12 +454,12 @@ function originForms(root) {
 function namesCheckout(entry, { root, home, lockDir, origins }) {
   const sources = [entry.source, entry.sourceUrl].filter(Boolean);
   if (entry.sourceType === 'local') {
-    return sources.some((v) => sameTarget(real(sourcePath(v, { home, lockDir })), real(root)));
+    return sources.some((v) => sameTarget(sourcePath(v, { home, lockDir }), root));
   }
   if (entry.sourceType === 'node_modules') return false;
   if (sources.map(repoForm).some((f) => f && origins.includes(f))) return true;
   // A git entry written as the checkout's own path.
-  return sources.some((v) => path.isAbsolute(v) && sameTarget(real(v), real(root)));
+  return sources.some((v) => path.isAbsolute(v) && sameTarget(v, root));
 }
 
 // The date of the checkout's HEAD commit, as git stores it.
@@ -482,7 +474,7 @@ function commitDate(root) {
 }
 
 // One stored entry, as stored, with its scope in front of it.
-function cliLine(entry, { home, checkout }) {
+function cliLine(entry, { checkout, root }) {
   const hash = entry.skillFolderHash ?? entry.computedHash ?? entry.hash ?? null;
   const recorded = utcStamp(entry.updatedAt);
   const parts = [
@@ -497,7 +489,7 @@ function cliLine(entry, { home, checkout }) {
   ];
   const line = parts.filter(Boolean).join(' ');
   if (entry.sourceType !== 'local') return line;
-  const add = `npx skills@latest add ${quote(sourcePath(entry.source ?? entry.sourceUrl, { home, lockDir: entry.lockDir }))}`;
+  const add = `npx skills@latest add ${quote(root)}`;
   return `${line}; skills update never touches a local install, re-run ${add}`;
 }
 
@@ -524,10 +516,8 @@ function cliRoute({ root, home, env = process.env, cwd = process.cwd() }) {
   const checkout = commitDate(root);
   const local = entries.filter((e) => e.sourceType === 'local');
   const state = local.length === entries.length ? 'local' : local.length ? 'mixed' : 'git';
-  const fix = local.length
-    ? `npx skills@latest add ${quote(sourcePath(local[0].source ?? local[0].sourceUrl, { home, lockDir: local[0].lockDir }))}`
-    : 'npx skills@latest update';
-  return { route: 'skills CLI', state, detail: entries.map((e) => cliLine(e, { home, checkout })).join('; '), fix };
+  const fix = local.length ? `npx skills@latest add ${quote(root)}` : 'npx skills@latest update';
+  return { route: 'skills CLI', state, detail: entries.map((e) => cliLine(e, { checkout, root })).join('; '), fix };
 }
 
 // The install's findings for one home and one checkout, in print order, with

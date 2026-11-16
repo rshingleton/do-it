@@ -13,6 +13,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { ROOT } from './lib/skills.mjs';
+import { sameTarget } from './lib/install-state.mjs';
 import { isMain } from '../skills/it-core/scripts/is-main.mjs';
 
 const [host, ...flags] = process.argv.slice(2);
@@ -49,23 +50,23 @@ function writeJson(file, before, data) {
   console.log(`updated ${file}${fs.existsSync(backup) ? ` (original kept in ${backup})` : ''}`);
 }
 
-// One separator style in a registered command: forward slashes, which node,
-// cmd and bash all accept, so a Windows root never mixes the two.
-const posix = (p) => p.replaceAll('\\', '/');
-
 // hooks/hooks.json with ${CLAUDE_PLUGIN_ROOT} resolved to this checkout.
 export function claudeHooks(root) {
   const { hooks } = JSON.parse(fs.readFileSync(path.join(root, 'hooks', 'hooks.json'), 'utf8'));
   for (const groups of Object.values(hooks)) {
     for (const group of groups) {
-      for (const h of group.hooks) h.command = h.command.replaceAll('${CLAUDE_PLUGIN_ROOT}', posix(root));
+      for (const h of group.hooks) h.command = h.command.replaceAll('${CLAUDE_PLUGIN_ROOT}', root);
     }
   }
   return hooks;
 }
 
 export function mergeClaude(settings, root, { strip = false } = {}) {
-  const mine = (h) => posix(String(h.command || '')).includes(posix(path.join(root, 'hooks', 'claude.mjs')));
+  const mine = (h) => {
+    const command = String(h.command || '');
+    const target = path.join(root, 'hooks', 'claude.mjs');
+    return sameTarget(command, target) || command.includes(target);
+  };
   const hooks = { ...(settings.hooks || {}) };
   for (const event of Object.keys(hooks)) {
     hooks[event] = hooks[event]
@@ -96,7 +97,12 @@ export function mergeOpencode(config, root, { strip = false, major = 1 } = {}) {
   const file = path.join(dir, 'do-it.mjs');
   const next = { ...config };
   for (const key of ['plugin', 'plugins']) {
-    if (Array.isArray(next[key])) next[key] = next[key].filter((p) => p !== dir && p !== file);
+    if (Array.isArray(next[key])) {
+      next[key] = next[key].filter((p) => {
+        if (p === dir || p === file) return false;
+        return !sameTarget(p, dir) && !sameTarget(p, file);
+      });
+    }
   }
   if (!strip) {
     const key = major >= 2 ? 'plugins' : 'plugin';
