@@ -39,8 +39,8 @@ Builds what the plan approved, nothing else, uncommitted; `ship-it` commits.
 - Lane M: the **frontier**, every phase not `done` whose `blocked_by` phases
   are all `done`. With `phase N`, just that phase if it is on the frontier.
 - More than one frontier phase, a host that runs background subagents, and no
-  uncommitted changes outside `docs/planning/` and the item's own `sources:`
-  issue files (which the tracker `start` may have edited): build them in
+  uncommitted changes outside `docs/planning/` and the issue store
+  (`docs/issues/`, which the tracker `start` and `log-it` write): build them in
   parallel per [PARALLEL.md](PARALLEL.md). Otherwise build them one at a
   time in place, each in an `it-builder` agent per [DELEGATE.md](DELEGATE.md)
   (main builds when it says so: lane S, fix mode, no subagents).

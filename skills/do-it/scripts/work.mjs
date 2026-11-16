@@ -106,12 +106,13 @@ function planningExclude(ctx) {
 }
 
 // The change fingerprint also leaves out what ship-it's closing docs write (the item's roadmap file,
-// the to-do list, the ADR directory), or closing them would read as moved code. A hand edit to
-// those files after verify goes unseen, by decision.
+// the to-do list, the ADR directory) and the issue store, which any session's `log-it` may add to, or
+// closing them (or filing a backlog item) would read as moved code. A hand edit to those files after
+// verify goes unseen, by decision.
 function closingDocsExclude(ctx, item) {
   const rel = (p) => toPosix(path.relative(ctx.root, path.resolve(ctx.root, p)));
   const roadmap = String(item.state.roadmap ?? '').split('#')[0];
-  return [roadmap, ctx.config.DO_IT_TODO_FILE || 'docs/TODO.md', ctx.config.DO_IT_ADR_DIR || 'docs/adr'].filter(Boolean).map(rel).filter((p) => p && !p.startsWith('..'));
+  return [roadmap, ctx.config.DO_IT_TODO_FILE || 'docs/TODO.md', ctx.config.DO_IT_ADR_DIR || 'docs/adr', ctx.config.DO_IT_ISSUES_DIR || 'docs/issues'].filter(Boolean).map(rel).filter((p) => p && !p.startsWith('..'));
 }
 
 // The fingerprint of the item's change since its base, planning files excluded. `at` is the tree it

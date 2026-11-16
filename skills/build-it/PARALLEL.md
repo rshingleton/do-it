@@ -7,8 +7,10 @@ The scratch commits never reach the user's branch.
 ## Preconditions
 
 - More than one frontier phase.
-- The user's tree has no uncommitted changes outside `docs/planning/`. If
-  earlier phases were built in place, build the rest in place too.
+- The user's tree has no uncommitted changes outside `docs/planning/` and the
+  issue store (`docs/issues/`, `DO_IT_ISSUES_DIR`): a backlog record there
+  cannot collide with code. If earlier phases were built in place, build the
+  rest in place too.
 - The host can run background subagents. Otherwise build sequentially.
 
 ## 1. Scratch integration branch
