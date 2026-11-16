@@ -123,7 +123,12 @@ export function countAudit(planningDir, slug, { id, final = false, items } = {})
       // The cap still refuses the round, but a slice whose last allowed round passed keeps no marker,
       // so the gate can ship it; run-total and final-review refusals are unchanged.
       const passed = isSliceLimit(hit) && lastRoundPassed(items, hit.at);
-      if (!passed) {
+      if (passed) {
+        // The passing round excuses the cap, so a marker an earlier refused round left must not
+        // outlive it: the gate would read the stale marker as a spent cap.
+        delete hit.at[hit.refused];
+        if (r.audit_stop?.startsWith(`slice ${id}:`)) delete r.audit_stop;
+      } else {
         hit.at[hit.refused] = spent(hit);
         r.audit_stop = describe(hit);
         // The loop's own stop would end the whole run on one slice stuck in a failing audit. Park it

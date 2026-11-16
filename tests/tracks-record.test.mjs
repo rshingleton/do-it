@@ -113,7 +113,11 @@ test('a refused round after a passing last round leaves the slice unparked and s
 
 test('a failed last round still parks the slice at the cap', () => {
   const dir = fixture(['--audit-cap', '1']);
+  ok(work(dir, 'verify-phase', 'api', '--', 'true'));
+  ok(work(dir, 'event', 'api', 'build-done'));
   assert.equal(audit(dir, 'R1').allow, true, 'its one round');
+  ok(work(dir, 'event', 'api', 'audit-fail', '1'));
+  assert.equal(ok(work(dir, 'show', 'api')).audit.verdict, 'FAIL', 'the last allowed round failed');
   const refused = audit(dir, 'R1');
   assert.deepEqual([refused.allow, refused.reason], [false, 'SLICE_AUDIT_CAP']);
   const rec = show(dir);
@@ -122,6 +126,24 @@ test('a failed last round still parks the slice at the cap', () => {
   const parked = rec.slices.find((s) => s.id === 'R1');
   assert.deepEqual([parked.status, parked.needs], ['parked', 'decision']);
   assert.match(parked.reason, /its last audit did not pass/);
+});
+
+test('a passing round clears the refusal marker an earlier refused round left', () => {
+  const dir = fixture(['--audit-cap', '1']);
+  ok(work(dir, 'verify-phase', 'api', '--', 'true'));
+  ok(work(dir, 'event', 'api', 'build-done'));
+  assert.equal(audit(dir, 'R1').allow, true, 'its one round');
+  assert.equal(audit(dir, 'R1').reason, 'SLICE_AUDIT_CAP', 'the extra round is refused and marked');
+  let rec = show(dir);
+  assert.equal(rec.gates.find((g) => g.id === 'R1').audit_refused, 1);
+  assert.match(rec.audit_stop, /^slice R1: 1 audit rounds, cap 1/);
+  ok(work(dir, 'event', 'api', 'audit-pass'));
+  const refused = audit(dir, 'R1');
+  assert.deepEqual([refused.allow, refused.reason], [false, 'SLICE_AUDIT_CAP'], 'the refusal shape stays');
+  rec = show(dir);
+  assert.equal(rec.gates.find((g) => g.id === 'R1').audit_refused, undefined, 'the stale marker is cleared');
+  assert.equal(rec.audit_stop, undefined, 'the stale stop is cleared');
+  assert.notEqual(ok(work(dir, 'run', 'gate', 'road', 'R1')).reason, 'SLICE_AUDIT_CAP', 'the stale cap no longer blocks the gate');
 });
 
 test('a spent run total refuses every track and names the run total', () => {
