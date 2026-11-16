@@ -203,9 +203,21 @@ collides with another skill repo installed beside this one.
 
 ## Install
 
-Requires Node 18+. Pick one.
+Requires Node 18+. do-it reaches a host by one of three routes, and manages one.
+The symlink install is the managed route: it is the only one that carries the
+OpenCode commands and agents, and the only one that serves both hosts at once,
+and it is what the one-liner runs. The Claude Code plugin and a `skills` CLI
+install are supported and reported, not managed. What each route carries, how it
+updates and what each host answers when asked what it loaded:
+[docs/reference/install-routes.md](docs/reference/install-routes.md).
 
-**One-liner (Claude Code and OpenCode):**
+Claude Code takes the symlink install or the plugin, never both. OpenCode takes
+the symlink install, which also carries its commands and agents. Gemini CLI,
+GitHub Copilot and Antigravity read `~/.agents/skills`, which the same install
+fills, so that path alone serves four hosts, and the install serves Claude Code
+through `~/.claude/skills` as well.
+
+**Symlink install, one-liner (Claude Code and OpenCode):**
 
 ```bash
 bash <(curl -fsSL 'https://raw.githubusercontent.com/rshingleton/do-it/main/scripts/install.sh')
@@ -233,7 +245,8 @@ scripts/install.sh --uninstall
 also run directly with the same options.
 
 Skills link into `~/.claude/skills` and `~/.agents/skills` (OpenCode reads
-both). The five role agents in `agents/` (`it-scout`, `it-reviewer`,
+both, and the other three hosts read the second). The five role agents in
+`agents/` (`it-scout`, `it-reviewer`,
 `it-builder`, `it-planner`, `it-skeptic`) link into `~/.claude/agents`; each
 pins its own model, so skills that delegate pick the tier by naming the agent.
 For OpenCode, `.opencode/command/` (OpenCode 1) and `.opencode/commands/`
@@ -276,9 +289,39 @@ the Bash tool only on Windows, not PowerShell.
 The plugin carries skills, agents and hooks (its agents are namespaced, for
 example `do-it:it-reviewer`). Use it or the symlinks for Claude Code,
 not both. Using OpenCode too? Use the symlink install; it covers both hosts.
+Claude Code decides an update from `version` in `.claude-plugin/plugin.json`,
+not from the files, so a skill changed here reaches plugin users only when that
+string moves. `scripts/version-gate.mjs` fails a change under `skills/`,
+`agents/` or `hooks/` that leaves it alone, and CI runs the gate.
 
-**Update:** re-run the one-liner, `git pull` in the clone (symlinks and
-junctions pick it up; copies need the installer re-run), or `/plugin marketplace update do-it` for the plugin.
+**Check:**
+
+```bash
+node scripts/doctor.mjs          # every route; exit 1 when a finding is not ok
+node scripts/doctor.mjs --fetch  # refresh the remote refs first
+node scripts/doctor.mjs --json   # the same report, for a script
+```
+
+It prints one line per link and per recorded copy, a summary, the checkout's ref
+and fetch age, and one line for each of the other two routes. Every finding
+names its fix: `node <clone>/scripts/install.mjs` for the symlink route,
+`git -C <clone> pull --ff-only` when the checkout is behind the ref its install
+follows (`origin/main` when it exists, else the branch's upstream),
+`/plugin marketplace update do-it` for the plugin (or
+`claude plugin update do-it@do-it` for a cached copy),
+`npx skills@latest update` for a CLI git install, or `npx skills@latest add
+<path>` for a CLI install from a local path. It runs none of them.
+
+**Update:** re-run the one-liner, which pulls the clone and re-links; or
+`git -C ~/.local/share/do-it pull --ff-only` then
+`node ~/.local/share/do-it/scripts/install.mjs`, which adds links for skills
+added since and refreshes any copy whose source changed. Symlinks and junctions
+follow the pull on their own; a copy does not. The plugin updates with
+`/plugin marketplace update do-it`, and a cached install with
+`claude plugin update do-it@do-it`: neither brings new content until the
+version moves. A `skills` CLI install of a git source updates with
+`npx skills@latest update`; from a local path, `npx skills@latest add <path>`
+re-reads it. Run the doctor after any of them.
 
 ## Hooks
 

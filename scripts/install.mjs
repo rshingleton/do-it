@@ -21,9 +21,12 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { ROOT } from './lib/skills.mjs';
+import { hashFile, norm, readManifest, sameTarget, under, writeManifest } from './lib/install-state.mjs';
+// doctor.mjs imports this module's plan, so the two read each other; both
+// imports are function declarations, available before either body runs.
+import { ageOf, readRef } from './doctor.mjs';
 import { isMain } from '../skills/it-core/scripts/is-main.mjs';
 
 const USAGE = 'usage: install.mjs [--no-hooks] [--force] [--dry-run] [--uninstall]';
@@ -77,15 +80,7 @@ export function place(src, dst, { fs: f = fs, platform = process.platform } = {}
   }
 }
 
-const norm = (p) => {
-  const r = path.resolve(String(p).replace(/^\\\\\?\\/, ''));
-  return process.platform === 'win32' ? r.toLowerCase() : r;
-};
-const sameTarget = (a, b) => norm(a) === norm(b);
-const under = (target, prefix) => norm(target).startsWith(norm(prefix) + (process.platform === 'win32' ? '\\' : '/'));
-
 const lstat = (p) => fs.lstatSync(p, { throwIfNoEntry: false });
-const hashFile = (p) => crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex');
 
 // Remove an entry without ever following a link into what it points at.
 function removeEntry(p) {
@@ -102,34 +97,68 @@ function removeEntry(p) {
   }
 }
 
-const manifestPath = (home) => path.join(home, '.claude', 'do-it', 'install.json');
+function runHooks(args, home) {
+  // The hook step resolves the host's home itself (`os.homedir`), so a caller
+  // installing into another home has to carry it in the environment, or the
+  // step edits the real host config. OpenCode writes its runtime log under the
+  // data home, so route it into the same temp home and clear it after.
+  const elsewhere = home && norm(home) !== norm(os.homedir());
+  const dataHome = elsewhere ? path.join(home, '.local', 'share') : undefined;
+  const cacheHome = elsewhere ? path.join(home, '.cache') : undefined;
+  const stateHome = elsewhere ? path.join(home, '.local', 'state') : undefined;
+  const env = elsewhere
+    ? {
+        ...process.env,
+        HOME: home,
+        USERPROFILE: home,
+        ...(process.platform === 'win32'
+          ? { HOMEDRIVE: path.parse(home).root.slice(0, 2), HOMEPATH: home.slice(2) }
+          : {}),
+        XDG_CONFIG_HOME: path.join(home, '.config'),
+        XDG_DATA_HOME: dataHome,
+        XDG_CACHE_HOME: cacheHome,
+        XDG_STATE_HOME: stateHome,
+      }
+    : process.env;
+  const status = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'install-hooks.mjs'), ...args], { stdio: 'inherit', env }).status ?? 1;
+  const runtimeDirs = new Set([
+    path.join(home, '.local', 'share', 'opencode'),
+    path.join(home, '.cache', 'opencode'),
+    path.join(home, '.local', 'state', 'opencode'),
+  ]);
+  if (dataHome) runtimeDirs.add(path.join(dataHome, 'opencode'));
+  if (cacheHome) runtimeDirs.add(path.join(cacheHome, 'opencode'));
+  if (stateHome) runtimeDirs.add(path.join(stateHome, 'opencode'));
+  for (const dir of runtimeDirs) fs.rmSync(dir, { recursive: true, force: true });
+  return status;
+}
 
-function readManifest(home) {
+// The checkout's ref, as the doctor reads it: local reads only, so an install
+// never fetches. A directory that is not a repository, or a machine without
+// git, comes back `unknown`; a reader that throws anyway still leaves an
+// install to finish.
+function checkoutRef(root) {
   try {
-    const m = JSON.parse(fs.readFileSync(manifestPath(home), 'utf8'));
-    return Array.isArray(m.copies) ? m.copies : [];
+    return readRef({ root });
   } catch {
-    return [];
+    return { unknown: 'git cannot answer' };
   }
 }
 
-function writeManifest(home, copies) {
-  const file = manifestPath(home);
-  if (!copies.length) {
-    fs.rmSync(file, { force: true });
-    try {
-      fs.rmdirSync(path.dirname(file));
-    } catch {
-      /* not empty or absent */
-    }
-    return;
-  }
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, `${JSON.stringify({ version: 1, copies }, null, 2)}\n`);
-}
-
-function runHooks(args) {
-  return spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'install-hooks.mjs'), ...args], { stdio: 'inherit' }).status ?? 1;
+// The line an install ends with: the commit it came from, and how far this
+// checkout is behind the ref the install follows. Null when git cannot answer,
+// so an install prints what it always printed and carries on. `dry` says what
+// would be installed rather than what was.
+function installLine(ref, { root, dry }) {
+  if (ref.unknown) return null;
+  const at = `${dry ? 'would install from' : 'installed from'} ${root} at ${ref.sha} (${ref.branch ?? 'detached HEAD'})`;
+  const followed = ref.followed;
+  if (!followed) return at;
+  const where = followed.behind > 0
+    ? `${followed.behind} ${followed.behind === 1 ? 'commit' : 'commits'} behind ${followed.name}`
+    : `up to date with ${followed.name}`;
+  const fetched = ref.fetchedAt ? `last fetch ${ageOf(ref.fetchedAt)}` : 'never fetched';
+  return `${at}, ${where}; ${fetched}`;
 }
 
 export function install({ root = ROOT, home = os.homedir(), configHome, hooks = true, force = false, dry = false, uninstall = false, placeFs } = {}) {
@@ -189,9 +218,10 @@ export function install({ root = ROOT, home = os.homedir(), configHome, hooks = 
       }
     }
     if (!dry) writeManifest(home, kept);
-    const claude = runHooks(['claude', '--remove', ...(dry ? ['--dry-run'] : [])]);
+    if (!hooks) return 0;
+    const claude = runHooks(['claude', '--remove', ...(dry ? ['--dry-run'] : [])], home);
     if (claude) return claude;
-    return runHooks(['opencode', '--remove', ...(dry ? ['--dry-run'] : [])]);
+    return runHooks(['opencode', '--remove', ...(dry ? ['--dry-run'] : [])], home);
   }
 
   const copies = new Map(manifest.map((c) => [c.dst, c]));
@@ -256,13 +286,16 @@ export function install({ root = ROOT, home = os.homedir(), configHome, hooks = 
     if (live.length !== manifest.length || made.length) writeManifest(home, live);
   }
 
+  // Before the hooks block: a hook failure returns early, and the line is the
+  // one fact an install must not lose.
+  say(installLine(checkoutRef(root), { root, dry }) ?? `do-it installed from ${root}`);
+
   if (hooks) {
     const extra = dry ? ['--dry-run'] : [];
-    const claude = runHooks(['claude', ...extra]);
+    const claude = runHooks(['claude', ...extra], home);
     if (claude) return claude;
-    if (runHooks(['opencode', ...extra])) say('OpenCode hooks not registered; see README');
+    if (runHooks(['opencode', ...extra], home)) say('OpenCode hooks not registered; see README');
   }
-  say(`do-it installed from ${root}`);
   return 0;
 }
 

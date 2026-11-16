@@ -28,3 +28,15 @@ _Not_: file set, contract
 The lock a run's checks take so heavy suites queue instead of competing for the
 machine. Waiting for it does not spend a slice's cap.
 _Not_: queue, lock
+
+**Route**:
+One way do-it's files reach a host: the symlink install, the Claude Code
+plugin, or a `skills` CLI install. One host is installed on one route; two
+copies of a skill load twice, at two versions.
+_Not_: method, channel, installer
+
+**Stale install**:
+An install whose content no longer matches the checkout it came from: the
+checkout is behind its remote, a link points at another checkout or names a
+skill since renamed, or a copy differs from its source.
+_Not_: outdated, out of date, old

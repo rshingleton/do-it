@@ -19,6 +19,10 @@ jobs:
         node: [18, 22]
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The version gate reads a merge base against origin/main: a depth-1
+          # checkout has neither, and the gate would exit 2 on every run.
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
@@ -26,6 +30,8 @@ jobs:
         run: npm test
       - name: Checks (frontmatter, links, skill calls, OpenCode commands, routing eval)
         run: npm run check
+      - name: Version gate
+        run: node scripts/version-gate.mjs
       - name: Install dry run
         run: node scripts/install.mjs --dry-run --no-hooks
       - name: Install dry run (bash bootstrap)

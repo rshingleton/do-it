@@ -3,7 +3,7 @@
 Nice-to-haves and things to circle back to. Managed by log-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T273
+Next id: T288
 
 ## Open
 
@@ -45,15 +45,6 @@ Next id: T273
   - Related: T23 (behaviour evals).
 - [ ] T245 The spawn-a-check block is duplicated in runs.mjs and work.mjs; share it when a third caller appears `nice-to-have` (skills/do-it/scripts/runs.mjs:35-39, work.mjs:222-226; windows-support audit)
 - [ ] T247 The R1 wraps leave `skills/do-it/SKILL.md` at 103 lines and `skills/finish-it/SKILL.md` at 111; R3's repo-wide line count brings both under 100 `nice-to-have` (source: r1-text-truth)
-- [ ] T250 Detect when an installation is out of date with the repo it links into and offer an update; research how mattpocock/skills updates an install from a terminal and whether that approach fits `idea` (session 2026-11-15, user request; https://github.com/mattpocock/skills)
-  - Nothing today compares an installed home with its checkout: install.mjs links skills, agents and commands and writes a manifest, so a stale install and a current one look the same to the user.
-  - Shape it like the install test run against rshingleton/game-skillet on 2026-11-15: one managed route per agent, staleness read from stored values instead of inferred, and every route proved by asking the host to list its skills. That test caught a wrong sentence about what the lock file records and a claim that had gone stale, and the same probes apply here (game-skillet `docs/research/installer-updater-facts.md` and its README "Install" section).
-  - Three staleness cases, not one. The clone is behind its remote (`git rev-list --count HEAD..@{u}` in the checkout). A link or junction points at another checkout, or names a skill since renamed; read the link target and compare it under the checkout root. A copy drifted from its source; `install.json` already stores `hash` per copy, so compare `hash(src)` with `hash(dst)` and report an edited copy as its own finding rather than as staleness.
-  - The plugin route needs a version gate before an update can mean anything. Claude Code compares `.claude-plugin/plugin.json`'s `version` string and nothing else, and this repo's version has not moved since the initial commit while 122 commits have changed `skills/`, so `/plugin marketplace update` reaches every plugin user with 0.1.0's content. game-skillet's `scripts/version-gate.mjs` fails a change under `skills/` that leaves the version alone; do-it needs the same gate, and a `versiongate` line in CI. A marketplace added from a local path loads the checkout in place, so there the checkout's git state is the thing to report.
-  - A local install has no commit to compare. The `skills` CLI records `sourceType: local`, `ref: null` and a content hash per skill, and `skills update` never touches a local install. So report the source path and the hash on both sides and offer to re-run the installer; do not offer an update command this install shape does not have.
-  - Prove a route by asking the host, not by listing files. Two headless probes settled game-skillet's open question in minutes: `claude -p "List the exact names of every available skill whose name starts with it- or do-it-" --output-format json` for the plugin route (names come back namespaced, `do-it:it-...`) and `opencode run -m <provider/model> "<same>"` from a neutral directory (bare names, global paths included). A file under `~/.claude/skills` says nothing about what the host loaded.
-  - Two host behaviours to design around. `~/.agents/skills` is universal: a skill linked there is also read by Gemini CLI, GitHub Copilot and Antigravity, which `npx skills list` credits, so one host's install quietly becomes four unless the README says which paths are shared. And a frontmatter field outside the portable core is ignored silently: a copy carrying `allowed-tools` and `model` still loaded and ran in OpenCode 2.3.0 with no warning, so `check.mjs` has to assert the core and no README may promise a warning.
-  - Fit: doctor-shaped, beside T78 (install doctor: Node, host, agent and skill link health, hook registration, `checks.json`). Detect and report; offer the `install.mjs` re-run, a `git pull`, or the plugin update, never run one silently.
 - [ ] T251 The contract plan path in `run tracks` is relativised twice, so the brief names a path that does not exist below the repo root `debt` (tracks-mode audit; runs.mjs:71)
 - [ ] T252 Give `trackWidth`'s resource term a producer, or drop it: `run tracks` passes none and `tracks` is already capped at 5, so the machine cap never binds `debt` (tracks-mode audit; runs.mjs:108,118)
 - [ ] T253 `run tracks` asks for only the ceiling's worth of free slices, so a sixth ready slice is in neither `tracks` nor `waiting` `debt` (tracks-mode audit; runs.mjs:108)
@@ -76,3 +67,20 @@ Next id: T273
 - [ ] T270 `parseFileList` takes text while every caller already holds section lines; accept an array of lines too `nice-to-have` (planning-locality audit; fileset.mjs:19)
 - [ ] T271 `tests/roadmap-locality.test.mjs` dereferences `match(...)[0]` before asserting it, so a renamed heading throws instead of naming the field `nice-to-have` (planning-locality audit; tests/roadmap-locality.test.mjs:131)
 - [ ] T272 `PLAN-FORMAT.md` says "every phase file states its own list" without naming `## Files`, so a reader can add `## Interfaces` per phase `nice-to-have` (planning-locality audit; skills/scope-it/PLAN-FORMAT.md:124)
+- [ ] T273 `scripts/install.mjs` and `scripts/doctor.mjs` import each other (`readRef` against `planLinks`), which works only because both are hoisted declarations `debt` (install-freshness phase 5)
+  - Move one side into `scripts/lib/` so the import graph is a DAG.
+- [ ] T274 `tests/links.mjs` keeps its own always-lowercasing `norm`, so it now disagrees with `scripts/lib/install-state.mjs` on POSIX `nice-to-have` (install-freshness phase 2)
+- [ ] T275 A fresh clone has no `FETCH_HEAD`, so `scripts/doctor.mjs` reports `never fetched` for a checkout that was just cloned `nice-to-have` (install-freshness phase 3)
+- [ ] T276 The doctor resolves `claude` from PATH entries, so a PATH entry with a stray quote hides it while `where` still finds it `nice-to-have` (install-freshness phase 4)
+- [ ] T277 A commented `opencode.json` fails the OpenCode hook step on a real install while the exit stays 0 `debt` (install-freshness phase 5, pre-existing)
+  - T78's hook-registration check is where this belongs.
+- [ ] T278 The probe prompt "skills whose name starts with it- or do-it-" matches no do-it skill, since the names end in `-it`; the same probe written as a suffix lists 16 `nice-to-have` (install-freshness phase 6; copied from the T250 notes)
+- [ ] T279 An empty untracked `skills/<name>` directory gets an `ok` link from the doctor, so a stray empty directory reads as installed `nice-to-have` (install-freshness phase 6)
+- [ ] T280 `tests/install-links.test.mjs` rebuilds `checkout()`, `seed()` and `clone()` from `tests/doctor-routes.test.mjs`, the same duplicated-fixture class as T274 `nice-to-have` (install-freshness audit round 2)
+  - One shared helper, as `tests/mini-root.mjs` already did for the two install fixtures.
+- [ ] T281 `docs/DESIGN.md`'s `scripts/` tree names neither `doctor.mjs` nor `version-gate.mjs`, the two files a reader would look for `nice-to-have` (install-freshness audit 10)
+- [ ] T282 `docs/reference/install-routes.md` quotes a home path and this checkout's branch as evidence, which no other doc does and no reader can reproduce `nice-to-have` (install-freshness audit 11)
+- [ ] T283 `plural` is copied from `scripts/doctor.mjs` into `scripts/install.mjs`; a wording change to "one commit" lands in two files `nice-to-have` (install-freshness audit 20; doctor.mjs:557, install.mjs:126)
+- [ ] T284 `tests/doctor-routes.test.mjs` keeps a third copy of `quiet`, now that `tests/mini-root.mjs` exports one `nice-to-have` (install-freshness audit 21)
+- [ ] T285 `install-hooks.mjs` falls back to the OpenCode 1 form silently when `opencode --version` cannot run, writing `plugin` plus a file path that OpenCode 2 skips; it should ask, or read the form from another signal `debt` (install-freshness ship, 2026-11-16)
+- [ ] T286 `install-hooks.mjs` reports every parse failure as "not plain JSON (comments?)", so a UTF-8 BOM reads as comments `nice-to-have` (install-freshness ship, 2026-11-16; install-hooks.mjs:29)

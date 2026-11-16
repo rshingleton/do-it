@@ -12,6 +12,14 @@ import { splitFrontmatter } from '../skills/track-it/scripts/frontmatter.mjs';
 const SKILL_LINE_BUDGET = 100;
 const SKILL_LINE_LIMIT = 150;
 
+// The frontmatter keys a SKILL.md may carry, by where each comes from:
+// name and description are the portable core; disable-model-invocation,
+// argument-hint, model and allowed-tools are Claude Code's (two shipped skills
+// carry model, and Claude Code scopes tools with allowed-tools); license and
+// compatibility are portability fields a host accepts without acting on them.
+// A key no host reads loads silently and is not worth trusting.
+const SKILL_KEYS = new Set(['name', 'description', 'disable-model-invocation', 'argument-hint', 'model', 'allowed-tools', 'license', 'compatibility']);
+
 // Files that talk about subagents without starting one.
 const TIER_EXEMPT = new Set(['skills/skill-it/SKILL-MECHANICS.md', 'skills/it-core/SKILL.md', 'skills/do-it/BOUNDARIES.md']);
 // A paragraph that starts or sends a subagent (not one that only mentions them).
@@ -45,6 +53,9 @@ function markdownFiles(dir) {
 for (const s of skills) {
   const where = rel(s.file);
   for (const k of unsafePlainScalars(s.text)) errors.push(`${where}: frontmatter "${k}" is an unquoted value with ": " or " #"; wrap it in double quotes`);
+  for (const k of Object.keys(s.meta)) {
+    if (!SKILL_KEYS.has(k)) errors.push(`${where}: unknown frontmatter key "${k}"; a skill may carry only ${[...SKILL_KEYS].join(', ')}`);
+  }
   if (!s.meta.name) errors.push(`${where}: missing name`);
   else if (s.meta.name !== s.dir) errors.push(`${where}: name "${s.meta.name}" does not match directory "${s.dir}"`);
   if (s.meta.name && !/(^|-)it(-|$)/.test(s.meta.name)) errors.push(`${where}: name "${s.meta.name}" is not an -it name`);

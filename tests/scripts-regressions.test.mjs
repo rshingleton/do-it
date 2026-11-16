@@ -409,6 +409,17 @@ test('check.mjs: a model-invoked skill needs "Use when"; a typed one does not', 
   assert.equal(typed.status, 0, typed.stdout);
 });
 
+test('check.mjs: a skill frontmatter key no host reads fails and the known keys, including allowed-tools, pass', () => {
+  const skill = (extra) => `---\nname: zz-it\ndescription: T. Use when testing.\n${extra}---\n\nBody.\n`;
+  const bad = checkWith({ 'skills/zz-it/SKILL.md': skill('foo: Read\n') });
+  assert.equal(bad.status, 1, bad.stdout);
+  assert.match(bad.stdout, /skills\/zz-it\/SKILL\.md: unknown frontmatter key "foo"/);
+  for (const extra of ['model: sonnet\n', 'argument-hint: <id>\n', 'allowed-tools: Read\n', 'license: MIT\n', 'compatibility: Requires git.\n']) {
+    const ok = checkWith({ 'skills/zz-it/SKILL.md': skill(extra) });
+    assert.equal(ok.status, 0, ok.stdout);
+  }
+});
+
 test('eval-routing.mjs: a model-invoked skill with no routing entry exits 1; the shipped repo exits 0', () => {
   const { add, run } = repoWith();
   const ok = run('scripts/eval-routing.mjs');
