@@ -240,6 +240,22 @@ test('install-hooks merges idempotently and removes only its own entries', () =>
   assert.deepEqual(mergeOpencode({}, ROOT, { major: 2 }).plugins, [path.join(ROOT, '.opencode', 'plugins')]);
 });
 
+test('a registered command keeps one separator style, whatever the checkout path uses', { skip: process.platform === 'win32' && 'a name holding a backslash cannot exist here' }, () => {
+  // A POSIX name may hold a backslash, so a root shaped like a Windows one is
+  // legal here: the registered command must still come out with forward
+  // slashes, or a Windows entry is written twice and never recognised again.
+  const base = tmpDir('do-it-hooks-slash-');
+  const root = path.join(base, 'a\\b');
+  fs.mkdirSync(path.join(root, 'hooks'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'hooks', 'hooks.json'), JSON.stringify({
+    hooks: { SessionStart: [{ hooks: [{ type: 'command', command: 'node "${CLAUDE_PLUGIN_ROOT}/hooks/claude.mjs"' }] }] },
+  }));
+
+  const once = mergeClaude({}, root);
+  assert.equal(once.hooks.SessionStart[0].hooks[0].command, `node "${base}/a/b/hooks/claude.mjs"`);
+  assert.deepEqual(mergeClaude(once, root), once, 'the entry is recognised on a second run');
+});
+
 test('OpenCode plugin injects context and throws on HIGH edits', async () => {
   const root = repo();
   const { DoItPlugin: plugin } = await import('../.opencode/plugins/do-it.mjs');

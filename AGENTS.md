@@ -45,5 +45,13 @@ skills, file layout, line budget, `-it` names) is in
 npm test && npm run check
 ```
 
+Pushed means the commit is on the remote: `git status --short` is empty and
+`git log origin/<branch> -1` names it. `Everything up-to-date` while anything
+is staged means nothing was committed.
+
+After a push to a PR branch, read the checks before calling it fixed
+(`gh pr view <n> --json statusCheckRollup`) and confirm `.headRefOid` is the
+sha you pushed.
+
 Add an ADR in `docs/adr/` for a decision that is hard to reverse, surprising
 without context, and the result of a real trade-off.
