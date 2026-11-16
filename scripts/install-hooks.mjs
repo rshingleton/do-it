@@ -50,22 +50,34 @@ function writeJson(file, before, data) {
   console.log(`updated ${file}${fs.existsSync(backup) ? ` (original kept in ${backup})` : ''}`);
 }
 
+// One separator style in a registered command: forward slashes, which node,
+// cmd and bash all accept, so a Windows root never mixes the two.
+const posix = (p) => p.replaceAll('\\', '/');
+
+// The path a `node "<path>" <event>` command runs, or null for another shape.
+const commandPath = (command) => command.match(/^\s*node\s+"([^"]+)"/)?.[1] ?? command.match(/^\s*node\s+(\S+)/)?.[1] ?? null;
+
 // hooks/hooks.json with ${CLAUDE_PLUGIN_ROOT} resolved to this checkout.
 export function claudeHooks(root) {
   const { hooks } = JSON.parse(fs.readFileSync(path.join(root, 'hooks', 'hooks.json'), 'utf8'));
   for (const groups of Object.values(hooks)) {
     for (const group of groups) {
-      for (const h of group.hooks) h.command = h.command.replaceAll('${CLAUDE_PLUGIN_ROOT}', root);
+      for (const h of group.hooks) h.command = h.command.replaceAll('${CLAUDE_PLUGIN_ROOT}', posix(root));
     }
   }
   return hooks;
 }
 
 export function mergeClaude(settings, root, { strip = false } = {}) {
+  const target = path.join(root, 'hooks', 'claude.mjs');
+  // An entry is ours when its path is this checkout's, however the command
+  // spells it: forward or back slashes, `/var` or `/private/var`, a Windows
+  // short name or the long one it stands for.
   const mine = (h) => {
     const command = String(h.command || '');
-    const target = path.join(root, 'hooks', 'claude.mjs');
-    return sameTarget(command, target) || command.includes(target);
+    if (posix(command).includes(posix(target))) return true;
+    const named = commandPath(command);
+    return named !== null && sameTarget(named, target);
   };
   const hooks = { ...(settings.hooks || {}) };
   for (const event of Object.keys(hooks)) {
