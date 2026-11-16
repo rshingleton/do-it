@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { git } from './git.mjs';
 import { listItems } from './items.mjs';
+import { parseFileList } from './fileset.mjs';
 import { splitFrontmatter, parseFlat } from '../../track-it/scripts/frontmatter.mjs';
 
 const RISK = { high: 0, med: 1, medium: 1, low: 2 };
@@ -63,6 +64,9 @@ export function parseRoadmap(text) {
       milestone,
       kind: get('kind'),
       delivers: get('delivers'),
+      // An optional hint: the files the slice expects to touch, from scouting. The plan's `## Files`
+      // stays the contract, so a wrong hint costs ordering, never a merge.
+      files: parseFileList(get('files')),
       risk: get('risk').toLowerCase(),
       blocked_by: /^(none|-|)$/i.test(blockedBy) ? [] : [...blockedBy.matchAll(/\b([RD]\d+)\b/g)].map((m) => m[1]),
       status: get('status'),

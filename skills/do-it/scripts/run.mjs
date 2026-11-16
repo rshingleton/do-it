@@ -10,6 +10,7 @@ import path from 'node:path';
 import { parseBlock, writeBlock } from './block.mjs';
 import { splitFrontmatter, joinFrontmatter } from '../../track-it/scripts/frontmatter.mjs';
 import { isId } from './ids.mjs';
+import { sharedPaths } from './fileset.mjs';
 
 const LEVELS = ['lite', 'full', 'ultra'];
 const COMMIT_MODES = ['phase', 'slice', 'none'];
@@ -273,13 +274,36 @@ export function resumeSlice(planningDir, slug, id) {
   });
 }
 
+// A batch's picks. The lead (the free in-flight slices) is taken before any hint is read, then each
+// slice in queue order whose file hint shares no path with one already picked. A colliding slice is set
+// aside and, if the queue cannot fill the batch, backfills a slot in queue order: the batch keeps the
+// size it has today, and a hint only changes which slices fill it. A slice with no hint never collides.
+function hintBatch(ids, leadCount, filesOf, batch) {
+  const picked = ids.slice(0, leadCount);
+  const taken = () => picked.flatMap((id) => filesOf(id));
+  const aside = [];
+  for (const id of ids.slice(leadCount)) {
+    if (picked.length >= batch) break;
+    if (sharedPaths(filesOf(id), taken()).length) aside.push(id);
+    else picked.push(id);
+  }
+  for (const id of aside) {
+    if (picked.length >= batch) break;
+    picked.push(id);
+  }
+  return picked.slice(0, batch);
+}
+
 // The slices a run builds next. `road` is roadmapSlices' result, `record` the run
 // record. A parked or blocked slice is skipped, and so is anything that waits on
 // one (through any chain of Blocked-by); every other slice goes on. A slice
 // already in flight resumes before a new one starts.
 // `batch` (from `run next --batch n`) asks for the next n free slices in the order
-// `road.ready` holds them (milestone, risk, blocks, id), after the free in-flight ones;
-// without it `next` is the one id it has always been.
+// `road.ready` holds them (milestone, risk, blocks, id), after the free in-flight ones,
+// a slice whose `files` hint shares no path with one already picked displacing a colliding
+// one; without it `next` is the one id it has always been.
+// A slice's `files` hint lets a batch prefer a slice that shares no file with one already
+// picked, and backfill a set-aside collider when the queue cannot fill the batch.
 export function nextSlice(road, record, { batch } = {}) {
   if (batch !== undefined && (!Number.isInteger(batch) || batch < 1)) {
     throw new Error(`run next --batch needs a positive whole number, got ${batch}`);
@@ -301,7 +325,7 @@ export function nextSlice(road, record, { batch } = {}) {
   // once. Without one, the first only, so one slice still resumes before a new one starts.
   const lead = (batch === undefined ? flying.slice(0, 1) : flying).map((s) => s.id);
   const queue = [...lead, ...road.ready.filter((id) => !lead.includes(id) && free(id))];
-  const picks = batch === undefined ? queue.slice(0, 1) : queue.slice(0, batch);
+  const picks = batch === undefined ? queue.slice(0, 1) : hintBatch(queue, lead.length, (id) => byId.get(id)?.files ?? [], batch);
   // `next` is a list only when the caller asked for a batch; the cap stop keeps that shape too.
   const shape = (ids) => (batch === undefined ? (ids[0] ?? null) : ids);
   // The slice cap is checked before a slice is built, not when it comes to ship, and only when a

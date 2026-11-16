@@ -26,12 +26,12 @@ contacting support.
 ### M1: Change plan end to end
 Exit: an owner upgrades on staging and the next invoice is prorated.
 
-| Slice | Kind | Delivers | Covers | Blocked by | Verify | Risk | Status | Ref |
-|-------|------|----------|--------|------------|--------|------|--------|-----|
-| R1 | spike | Can the provider prorate mid-cycle? | G1 | none | Answer recorded in ADR-0014 | high | shipped 2026-10-22 proration-spike | CDS-201 |
-| R2 | build | Plan picker, upgrades only | G1 | R1 (proration answer) | Upgrade applies; invoice shows proration | med | | CDS-202 |
-| R3 | build | Downgrades at end of cycle | G1 | R2 (plan picker) | Downgrade scheduled; owner sees the date | low | | CDS-203 |
-| R5 | build | Change payment method | G2 | R4 (payment module), D1 | New card charged on next invoice | med | refine | |
+| Slice | Kind | Delivers | Covers | Files | Blocked by | Verify | Risk | Status | Ref |
+|-------|------|----------|--------|-------|------------|--------|------|--------|-----|
+| R1 | spike | Can the provider prorate mid-cycle? | G1 | docs/adr/0014-proration.md | none | Answer recorded in ADR-0014 | high | shipped 2026-10-22 proration-spike | CDS-201 |
+| R2 | build | Plan picker, upgrades only | G1 | src/billing/plan-picker.js, src/billing/plans.js | R1 (proration answer) | Upgrade applies; invoice shows proration | med | | CDS-202 |
+| R3 | build | Downgrades at end of cycle | G1 | src/billing/downgrade.js | R2 (plan picker) | Downgrade scheduled; owner sees the date | low | | CDS-203 |
+| R5 | build | Change payment method | G2 | src/billing/payment-method.js | R4 (payment module), D1 | New card charged on next invoice | med | refine | |
 
 ## Open decisions
 - D1: Who may change billing: owner only, or admins too? Answer by: grill with product. Blocks R5.
@@ -50,6 +50,11 @@ Exit: an owner upgrades on staging and the next invoice is prorated.
 
 - **Covers:** the `G` ids the slice moves forward. Every `G` is covered by a
   slice, waits in Fog, or is moved to Out of scope.
+- **Files:** optional, the repo-relative paths the slice expects to touch, comma
+  separated, written from scouting. It is a hint: `run next --batch` prefers a
+  slice that shares no file with one already picked, so it orders a run's batch.
+  The plan's `## Files` stays the contract; a wrong hint costs ordering, never a
+  merge.
 - **Blocked by:** slices or decisions this slice truly cannot start without,
   each with a few words on what it needs. Order alone is not a block.
 - **Verify:** the observable check that says the slice is done, in the same

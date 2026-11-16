@@ -7,20 +7,13 @@ import fs from 'node:fs';
 import { isMain } from '../../it-core/scripts/is-main.mjs';
 import { splitFrontmatter } from '../../track-it/scripts/frontmatter.mjs';
 import { sectionLines } from './roadmap.mjs';
-
-const clean = (line) => line.replace(/^[-\s]+/, '').replace(/`/g, '').replace(/\s+/g, ' ').trim();
-
-// One repo-relative file per line. `./x` and `x` are the same path; a comment is not a file.
-function fileOf(line) {
-  const text = clean(line);
-  return text && !text.startsWith('#') ? text.replace(/^\.\//, '') : null;
-}
+import { cleanLine, parseFileList, sharedPaths } from './fileset.mjs';
 
 // One interface per line: `<signature> -> <what it produces>`. The left of `->` is what a caller
 // passes, the right the shape this slice produces; `pinned` says the plan states that shape. The
 // name is compared lowercased, so two spellings of one interface still meet.
 function interfaceOf(line) {
-  const text = clean(line);
+  const text = cleanLine(line);
   if (!text || text.startsWith('#')) return null;
   const arrow = text.indexOf('->');
   const name = (arrow < 0 ? text : text.slice(0, arrow)).trim().toLowerCase();
@@ -28,7 +21,7 @@ function interfaceOf(line) {
 }
 
 export function parseContract(text) {
-  const files = sectionLines(text, 'Files').map(fileOf).filter(Boolean);
+  const files = parseFileList(sectionLines(text, 'Files').join('\n'));
   const interfaces = sectionLines(text, 'Interfaces').map(interfaceOf).filter(Boolean);
   const gaps = [];
   // Every slice changes at least one file, so an empty `## Files` is a plan that forgot it.
@@ -52,8 +45,8 @@ export function pairSlices(a, b) {
   if (gaps.length) {
     return { allow: false, reason: 'NO_CONTRACT', detail: `${gaps.map((s) => `${s.id} has no ${s.gaps.map((g) => `## ${g}`).join(' or ')}`).join('; ')}: nothing to check the pair against` };
   }
-  const mine = new Set(a.files);
-  const shared = b.files.find((f) => mine.has(f));
+  // `b`'s order names the path, as this pre-flight always has.
+  const [shared] = sharedPaths(b.files, a.files);
   if (shared) return { allow: false, reason: 'SHARED_FILE', detail: `${a.id} and ${b.id} both change ${shared}` };
   const open = a.interfaces.find((x) => !x.pinned && b.interfaces.some((y) => !y.pinned && y.name === x.name));
   if (open) return { allow: false, reason: 'UNPINNED_INTERFACE', detail: `${a.id} and ${b.id} both use ${open.text}, and neither plan pins what it produces` };

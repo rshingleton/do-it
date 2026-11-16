@@ -121,8 +121,11 @@ test/limiter.test.mjs
 ## Non-goals
 ```
 
-The README's `## Files` and `## Interfaces` are the union of its phases': a
-phase file needs neither.
+The README's `## Files` is the union of its phases' files, while `## Interfaces`
+stays at the README: every phase file states its own list, and the README
+states what a track pairs the whole slice by. Two phases with no dependency
+path between them must not share a file, or one blocks the other: cut along the
+file boundary, or add the `blocked_by` edge that makes the pair serial.
 
 Each `phase-N.md`:
 
@@ -134,6 +137,8 @@ Plan: <id>. Blocked by: <phases or none>.
 ## Goal
 ## Scope
 What changes, and what is explicitly left alone.
+## Files
+src/limiter.js
 ## Seams
 One line per seam: interface, what a test there catches, what it misses.
 ## Steps
@@ -142,6 +147,9 @@ One line per seam: interface, what a test there catches, what it misses.
 ## Starting points
 Files worth reading first.
 ```
+
+Each phase's `## Files` lists one repo-relative path per line: every file the
+phase changes, tests included.
 
 ## Slices that compare or measure
 

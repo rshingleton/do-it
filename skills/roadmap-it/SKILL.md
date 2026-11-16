@@ -49,8 +49,8 @@ run, settle every decision now: [SWEEP.md](SWEEP.md).
 ## 4. Sequence
 
 Group slices into milestones, each ending in something a user or operator can
-see. Order by blocks, then risk (spikes and risky slices early), then value.
-The first milestone proves the path end to end.
+see; the first proves the path end to end. Order by blocks, then risk (spikes
+and risky slices early), then value; a file hint lets a batch prefer disjoint work.
 
 ## 5. Check, write, approve
 

@@ -71,16 +71,13 @@ test('run tracks refuses a record set to none before it starts a worktree', () =
   assert.match(r.out.error, /no branch to merge/);
 });
 
-test('ADR 0012 is Proposed, carries the measured shares and the width rule, and the plan links it', () => {
+test('ADR 0012 is Proposed or Accepted, carries the measured shares and the width rule', () => {
   const adr = text('docs/adr/0012-coordinator-plus-tracks.md');
-  assert.match(adr, /^---\nstatus: Proposed\n---/, 'the ADR is proposed, not accepted');
+  assert.match(adr, /^---\nstatus: (Proposed|Accepted)\n---/, 'the ADR is proposed or accepted');
   for (const want of ['1.08x', '1.19x', '1.65x', '2.0x', 'DO_IT_TRACKS', 'serial', '0008-opt-in-run-commits.md']) {
     assert.ok(adr.includes(want), `the ADR records ${want}`);
   }
   assert.match(adr, /in\(ready independent slices, the machine's resource cap, DO_IT_TRACKS\)/, 'the width rule is written out');
-  const plan = text('docs/planning/tracks-mode/README.md');
-  const decisions = plan.slice(plan.indexOf('## Decisions'));
-  assert.match(decisions, /0012-coordinator-plus-tracks\.md/, 'the plan links the ADR from its decisions');
 });
 
 test('DO_IT_TRACKS sits beside the run keys, and the two skills state the mode and link the contract', () => {

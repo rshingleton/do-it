@@ -18,6 +18,12 @@ interfaces each slice changes, and the merge order. It is produced from the
 plans, never written by hand.
 _Not_: lane file, lanes.md
 
+**File hint**:
+The repo-relative paths a roadmap slice expects to touch, written from
+scouting in the slice's `Files` cell. It orders a run's batch; a plan's
+`## Files` is the contract.
+_Not_: file set, contract
+
 **Check slot**:
 The lock a run's checks take so heavy suites queue instead of competing for the
 machine. Waiting for it does not spend a slice's cap.
