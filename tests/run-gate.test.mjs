@@ -57,15 +57,17 @@ test('gate: unverified, then allowed after a passing verify, then stale once cod
   assert.equal(gate(dir).allow, true, 'a new pass refreshes the gate');
 });
 
-test('gate: closing docs (the roadmap file, the to-do list, ADRs) do not make a verified slice stale; code still does', () => {
+test('gate: closing docs (the roadmap file, the to-do list, ADRs) and filed issues do not make a verified slice stale; code still does', () => {
   const dir = fixture();
   ok(work(dir, 'set', 'feat', 'roadmap', JSON.stringify('docs/roadmap/r.md#R1')));
   ok(verify(dir));
   fs.mkdirSync(path.join(dir, 'docs/roadmap'), { recursive: true });
   fs.mkdirSync(path.join(dir, 'docs/adr'), { recursive: true });
+  fs.mkdirSync(path.join(dir, 'docs/issues'), { recursive: true });
   fs.writeFileSync(path.join(dir, 'docs/roadmap/r.md'), '| R1 | shipped |\n');
   fs.writeFileSync(path.join(dir, 'docs/TODO.md'), '- [ ] T1 x\n');
   fs.writeFileSync(path.join(dir, 'docs/adr/0001-x.md'), '# x\n');
+  fs.writeFileSync(path.join(dir, 'docs/issues/filed-by-another-session.md'), '---\ntitle: x\n---\n');
   assert.deepEqual(gate(dir), { allow: true, reason: null, detail: null });
   fs.writeFileSync(path.join(dir, 'a.js'), 'four\n');
   assert.equal(gate(dir).reason, 'STALE_VERIFY', 'a code edit after verify still reads stale');
