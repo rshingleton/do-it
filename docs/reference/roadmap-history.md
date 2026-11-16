@@ -4,10 +4,10 @@ title: Roadmap history
 
 # Roadmap history
 
-Durable record of the roadmaps that finished before 2026-11-16. Each file was
-removed after this record was written; git history still holds the roadmaps
-themselves. A finished roadmap is not work: `work.mjs roadmap` offers no slice
-from one.
+Durable record of the roadmaps closed by 2026-11-16: five finished, one
+superseded. Each file was removed after this record was written; git history
+still holds the roadmaps themselves. A closed roadmap is not work:
+`work.mjs roadmap` offers no slice from one.
 
 | Roadmap | File removed | Approved | Completed | Slices in Shipped |
 |---------|--------------|----------|-----------|-------------------|
@@ -16,9 +16,10 @@ from one.
 | Open backlog 2026-10 | open-backlog-2026-10.md | 2026-10-30 | 2026-10-31 | 28 |
 | Run lane hardening | run-lane-hardening.md | 2026-10-30 | 2026-10-30 | 11 |
 | Should backlog 2026-10 | should-backlog-2026-10.md | 2026-10-31 | 2026-10-31 | 15 |
+| Backlog cleanup 2026-11 | backlog-cleanup-2026-11.md | 2026-11-15 | superseded 2026-11-16 | 1 |
 
-Every open item these roadmaps named is on `docs/TODO.md` or recorded below
-in Fog.
+Every open item these roadmaps named is on `docs/TODO.md`, in the roadmap that
+carried it, or recorded below in Fog.
 ## Backlog hardening
 
 Source file removed: `docs/roadmap/backlog-hardening.md` (approved 2026-10-25, completed 2026-10-30).
@@ -324,3 +325,28 @@ records and digest behave on the states the audits named, and the skill text,
 
 - The `idea` and `question` items stay on `docs/TODO.md`.
 - T214, T62, T78, T2 and any new skill.
+
+## Backlog cleanup 2026-11
+
+Source file removed: `docs/roadmap/backlog-cleanup-2026-11.md` (approved
+2026-11-15, superseded 2026-11-16).
+
+### Destination
+
+The 2026-11 audit leftovers in skill text, tests, the run scripts, install and
+the link-it limits.
+It did not finish: its open items moved to
+[todo-clearance-2026-11](../roadmap/todo-clearance-2026-11.md) at that
+roadmap's approval, so this record says what shipped, not that the destination
+was reached.
+
+### Shipped
+
+- R1 r1-text-truth, 2026-11-15: ship-it, finish-it and prove-it text leftovers, and the issue's `source:` names `windows-support` (T208, T211, T216, T223, T238).
+
+### Superseded
+
+- The roadmap promoted 36 items. R1 shipped five (see Shipped); the other 31,
+  R2 to R16, were carried into
+  [todo-clearance-2026-11](../roadmap/todo-clearance-2026-11.md) when it was
+  approved on 2026-11-16, where each owns a slice. None was dropped here.
