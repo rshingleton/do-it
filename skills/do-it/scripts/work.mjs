@@ -278,7 +278,7 @@ export async function run(argv, { cwd = process.cwd() } = {}) {
         case 'start':
           return startSlice(ctx.planningDir, slug, args[0], { work: opts.work, at: opts.at ?? new Date().toISOString() });
         case 'audit':
-          return countAudit(ctx.planningDir, slug, { id: args[0], final: opts.final === true });
+          return countAudit(ctx.planningDir, slug, { id: args[0], final: opts.final === true, items });
         case 'gate':
           return runGate({ planningDir: ctx.planningDir, root: ctx.root, slug, id: args[0], items, fingerprintOf: (item, at) => itemFingerprint(ctx, item, at) });
         case 'verify': {
