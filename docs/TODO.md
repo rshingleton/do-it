@@ -3,7 +3,7 @@
 Nice-to-haves and things to circle back to. Managed by log-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T288
+Next id: T298
 
 ## Open
 
@@ -84,3 +84,13 @@ Next id: T288
 - [ ] T284 `tests/doctor-routes.test.mjs` keeps a third copy of `quiet`, now that `tests/mini-root.mjs` exports one `nice-to-have` (install-freshness audit 21)
 - [ ] T285 `install-hooks.mjs` falls back to the OpenCode 1 form silently when `opencode --version` cannot run, writing `plugin` plus a file path that OpenCode 2 skips; it should ask, or read the form from another signal `debt` (install-freshness ship, 2026-11-16)
 - [ ] T286 `install-hooks.mjs` reports every parse failure as "not plain JSON (comments?)", so a UTF-8 BOM reads as comments `nice-to-have` (install-freshness ship, 2026-11-16; install-hooks.mjs:29)
+- [ ] T288 `scripts/doctor.mjs` reports an absent plugin or `skills` CLI route with `fix: null`, so the one route a new user has not installed gets no install command while every broken entry does `nice-to-have` (install-routes review, 2026-11-16; doctor.mjs `pluginRoute`, the `absent` object)
+- [ ] T289 `docs/reference/install-routes.md:242` says a machine with either lock gets a `skills CLI:` line, but the doctor reads the project lock only at `cwd` and a project lock stores no date `nice-to-have` (install-routes audit, 2026-11-16)
+- [ ] T290 `docs/reference/install-routes.md:240` leaves the sixth CLI host unnamed and credits six hosts to one `.agents/skills` install `nice-to-have` (install-routes audit, 2026-11-16)
+- [ ] T291 `docs/reference/install-routes.md:41` says "the symlink install command", which now reads as the Install column's one-liner, not the doctor's `node <checkout>/scripts/install.mjs` `nice-to-have` (install-routes audit, 2026-11-16)
+- [ ] T292 `docs/reference/install-routes.md:212` records a macOS probe under "The CLI route on this machine", beside the doc's Windows facts `nice-to-have` (install-routes audit, 2026-11-16)
+- [ ] T293 `docs/reference/install-routes.md:28` opens with "One route per host." and closes with "Either way, one route per host" `nice-to-have` (install-routes audit, 2026-11-16)
+- [ ] T294 `README.md:214,310` leaves `-a claude-code`, which writes `~/.claude/skills`, outside the one-route rule while the CLI heading says "any host the CLI supports" `nice-to-have` (install-routes audit, 2026-11-16)
+- [ ] T295 `README.md:293,306` says a local marketplace "follows edits with no version bump", then says a skill reaches plugin users only when the version moves; both need their scope `nice-to-have` (install-routes audit, 2026-11-16)
+- [ ] T296 `README.md:322` restates the Update section's CLI refresh facts at `README.md:352-354` `nice-to-have` (install-routes audit, 2026-11-16)
+- [ ] T297 `README.md:288` puts shell commands in a `text` fence while sibling install and check blocks use `bash` `nice-to-have` (install-routes audit, 2026-11-16)

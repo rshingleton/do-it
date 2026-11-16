@@ -19,31 +19,33 @@ names that fetch's age.
 
 ## What each route carries
 
-| Route | Host | Carries | Update command | Check | Managed |
-|-------|------|---------|----------------|-------|---------|
-| Symlink install | Claude Code and OpenCode | Skills, the five agents, the OpenCode commands and agents, hooks | `git -C <checkout> pull --ff-only`, then `node <checkout>/scripts/install.mjs` | `node scripts/doctor.mjs`, the entry table and the `ref:` footer | Yes |
-| Claude Code plugin | Claude Code only | Skills, agents (namespaced, `do-it:it-reviewer`), hooks | `/plugin marketplace update do-it` | `node scripts/doctor.mjs`, the `plugin:` line | No, reported |
-| `skills` CLI | Any host the CLI supports | Skills only | `npx skills@latest update` for a git source; `npx skills@latest add <path>` for a local one | `node scripts/doctor.mjs`, the `skills CLI:` line | No, reported |
+| Route | Host | Carries | Install command | Update command | Check | Managed |
+|-------|------|---------|-----------------|----------------|-------|---------|
+| Symlink install | Claude Code and OpenCode | Skills, the five agents, the OpenCode commands and agents, hooks | `bash <(curl -fsSL 'https://raw.githubusercontent.com/rshingleton/do-it/main/scripts/install.sh')` | `git -C <checkout> pull --ff-only`, then `node <checkout>/scripts/install.mjs` | `node scripts/doctor.mjs`, the entry table and the `ref:` footer | Yes |
+| Claude Code plugin | Claude Code only | Skills, agents (namespaced, `do-it:it-reviewer`), hooks | `claude plugin marketplace add rshingleton/do-it`, then `claude plugin install do-it@do-it` | `/plugin marketplace update do-it` | `node scripts/doctor.mjs`, the `plugin:` line | No, reported |
+| `skills` CLI | Any host the CLI supports | Skills only | `npx skills@latest add rshingleton/do-it -a opencode` (add `-g` for the global install) | `npx skills@latest update` for a git source; `npx skills@latest add <path>` for a local one | `node scripts/doctor.mjs`, the `skills CLI:` line | No, reported |
 
-Why the symlink install is the managed one: it is the only route that carries
-the OpenCode commands and agents, and the only one that serves both hosts at
-once, and it is what the one-liner bootstrap runs. A `skills` CLI install
-carries skills alone from a local path that `skills update` never touches, so
-adopting it would put every skill on the machine twice and let the client's
-precedence order decide which copy wins
+One route per host. Why the symlink install is the managed one: it is the only
+route that carries the OpenCode commands and agents, and the only one that
+serves both hosts at once, and it is what the one-liner bootstrap runs. A
+project `skills` CLI install carries skills alone and puts a second copy in
+that project's `.agents/skills`, where OpenCode's precedence order decides
+which copy wins. A global CLI install (`-g`) writes into `~/.agents/skills`,
+the same folder the symlink install fills, and replaces its links with copies.
+Either way, one route per host
 ([ADR 0013](../adr/0013-routes-and-the-version-gate.md)).
 
-Every command in the table is one `node scripts/doctor.mjs` prints, on the
-finding it fixes. With all 110 entries ok, the plugin current and no CLI entry
+Every command in the Update column is one `node scripts/doctor.mjs` prints, on
+the finding it fixes. With all 110 entries ok, the plugin current and no CLI entry
 recorded, this checkout's own run prints one of them: the ref fix in the footer.
-The others print on their own finding: the installer command on any entry that
-is not ok (shown below), `/plugin marketplace update do-it` on a stale plugin the
-host reads in place, `claude plugin update do-it@do-it` on a stale cached one,
-`npx skills@latest update` on a recorded CLI git entry, and
+The others print on their own finding: the symlink install command on any entry
+that is not ok (shown below), `/plugin marketplace update do-it` on a stale
+plugin the host reads in place, `claude plugin update do-it@do-it` on a stale
+cached one, `npx skills@latest update` on a recorded CLI git entry, and
 `npx skills@latest add <path>` on a recorded local one (`scripts/doctor.mjs`,
 the plugin and CLI route sections).
 
-An empty home shows the installer fix on all 110 entries:
+An empty home shows the install fix on all 110 entries:
 
 ```powershell
 $h = Join-Path $env:TEMP 'do-it-probe-home'
@@ -207,6 +209,36 @@ re-run after an update is the doctor plus the same two commands above.
 
 ## The CLI route on this machine
 
-Not installed. A machine that has one gets a `skills CLI:` line naming the lock
-file's scope, source, path, hash, commit and date, plus the command that
-refreshes it, and the doctor never runs it.
+Probed on 2026-11-16 with `skills` CLI 1.9.0 on macOS, in a temp directory
+outside this checkout and with a temp `HOME` for the global run, both with
+`DO_NOT_TRACK=1`:
+
+```bash
+npx skills@latest add rshingleton/do-it -a opencode -y
+npx skills@latest add rshingleton/do-it -a opencode -g -y
+```
+
+Each run installed all 30 skills and exited 0. The project run wrote
+`./.agents/skills/<name>/` as real directories, copies rather than links, and
+`./skills-lock.json` at version 2 with one entry per skill:
+
+```text
+source        rshingleton/do-it
+sourceType    github
+commit        0b5e4e12fd63aeedb9e5a77cea273967962d43a9
+skillPath     skills/<name>/SKILL.md
+computedHash  <64 hex, a content hash>
+```
+
+The global run (`-g`) wrote `~/.agents/skills/<name>/` and
+`~/.agents/.skill-lock.json` at version 3, whose entry carries `sourceUrl`,
+`skillFolderHash` (40 hex, a git tree SHA), `installedAt` and `updatedAt`. It
+is not `~/.config/opencode/skills`: on 1.9.0 the `-a opencode` global
+destination is the same `~/.agents/skills` the symlink install fills, and the
+CLI replaced a symlink planted there with a copy. `npx skills list` credits the
+project install to Antigravity CLI, Cursor, Gemini CLI, GitHub Copilot,
+OpenCode and one more host.
+
+The doctor runs none of this. A machine with either lock gets a `skills CLI:`
+line naming its scope, source, path, hash, commit and date, plus the command
+that refreshes it.
