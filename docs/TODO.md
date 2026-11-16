@@ -3,7 +3,7 @@
 Nice-to-haves and things to circle back to. Managed by log-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T285
+Next id: T287
 
 ## Open
 
@@ -82,3 +82,5 @@ Next id: T285
 - [ ] T282 `docs/reference/install-routes.md` quotes a home path and this checkout's branch as evidence, which no other doc does and no reader can reproduce `nice-to-have` (install-freshness audit 11)
 - [ ] T283 `plural` is copied from `scripts/doctor.mjs` into `scripts/install.mjs`; a wording change to "one commit" lands in two files `nice-to-have` (install-freshness audit 20; doctor.mjs:557, install.mjs:126)
 - [ ] T284 `tests/doctor-routes.test.mjs` keeps a third copy of `quiet`, now that `tests/mini-root.mjs` exports one `nice-to-have` (install-freshness audit 21)
+- [ ] T285 `install-hooks.mjs` falls back to the OpenCode 1 form silently when `opencode --version` cannot run, writing `plugin` plus a file path that OpenCode 2 skips; it should ask, or read the form from another signal `debt` (install-freshness ship, 2026-11-16)
+- [ ] T286 `install-hooks.mjs` reports every parse failure as "not plain JSON (comments?)", so a UTF-8 BOM reads as comments `nice-to-have` (install-freshness ship, 2026-11-16; install-hooks.mjs:29)
