@@ -16,7 +16,10 @@ const MAX_OUT = 512 * 1024 * 1024;
 export function git(cwd, args, encoding = 'utf8', env = process.env, limits = {}) {
   // On Windows git refuses a path past 260 characters unless core.longpaths is on, and a file list piped
   // to `hash-object --stdin-paths` then fails the whole call (`spawnSync git EOF`, git gone mid-write).
-  const argv = process.platform === 'win32' ? ['-c', 'core.longpaths=true', ...args] : args;
+  // Newer Git defaults to `safe.bareRepository=explicit`, which blocks temp bare repos in CI and tests.
+  const argv = process.platform === 'win32'
+    ? ['-c', 'core.longpaths=true', '-c', 'safe.bareRepository=all', ...args]
+    : ['-c', 'safe.bareRepository=all', ...args];
   const r = spawnSync('git', argv, { cwd, encoding, env, maxBuffer: MAX_OUT, ...limits });
   if (r.error) throw r.error;
   return r;

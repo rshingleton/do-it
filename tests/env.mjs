@@ -30,7 +30,13 @@ const homeVars = (home) => ({
 });
 
 const home0 = freshHome();
-Object.assign(process.env, homeVars(home0), { GIT_CONFIG_GLOBAL: process.platform === 'win32' ? 'NUL' : os.devNull, GIT_CONFIG_NOSYSTEM: '1' });
+Object.assign(process.env, homeVars(home0), {
+  GIT_CONFIG_GLOBAL: process.platform === 'win32' ? 'NUL' : os.devNull,
+  GIT_CONFIG_NOSYSTEM: '1',
+  GIT_CONFIG_COUNT: '1',
+  GIT_CONFIG_KEY_0: 'safe.bareRepository',
+  GIT_CONFIG_VALUE_0: 'all',
+});
 
 // Fail loudly if the process home is still the developer's: a test would
 // otherwise write into the real config.
@@ -50,5 +56,14 @@ process.on('exit', () => {
 // reaches the next; pass the home the test already prepared to use that.
 export function cleanEnv(extra = {}, home = freshHome()) {
   const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !LEAKY.test(k)));
-  return { ...env, ...homeVars(home), ...extra };
+  return {
+    ...env,
+    ...homeVars(home),
+    GIT_CONFIG_GLOBAL: process.platform === 'win32' ? 'NUL' : os.devNull,
+    GIT_CONFIG_NOSYSTEM: '1',
+    GIT_CONFIG_COUNT: '1',
+    GIT_CONFIG_KEY_0: 'safe.bareRepository',
+    GIT_CONFIG_VALUE_0: 'all',
+    ...extra,
+  };
 }
