@@ -45,7 +45,7 @@ import { commitSlice } from './commit.mjs';
 import { git } from './git.mjs';
 import { checkShell } from './check-shell.mjs';
 import { buildDigest } from './digest.mjs';
-import { addAssumptions, createRun, nextSlice, resumeSlice, runPath, setRun, showRun, sliceRun } from './run.mjs';
+import { addAssumptions, createRun, nextSlice, repoRoot, resumeSlice, runPath, setRun, showRun, sliceRun } from './run.mjs';
 import { countAudit, startSlice } from './gate.mjs';
 import { runContract, runGate, runRejectAssumption, runReviewChange, runTracks, runVerify, runVerifyMerged } from './runs.mjs';
 
@@ -71,6 +71,30 @@ function parseArgs(argv) {
 
 // Recorded and printed paths use / on every platform.
 const toPosix = (p) => p.split(path.sep).join('/');
+
+// Two checkouts differ by spelling: the record's posix realpath against the caller's,
+// case-folded on win32, where `C:/x` and `c:/x` are one repo.
+function sameRoot(recorded, root) {
+  const here = repoRoot(root);
+  return process.platform === 'win32' ? recorded.toLowerCase() === here.toLowerCase() : recorded === here;
+}
+
+// A roadmap belongs to the repo root it sits under: `../other/road.md` is another repo's.
+// Both sides are real paths, so a symlink or a Windows short name cannot pose as inside.
+function within(file, root) {
+  const rel = path.relative(root, repoRoot(file));
+  return !path.isAbsolute(rel) && !/^\.\.(?:[\\/]|$)/.test(rel);
+}
+
+// The roadmap a run subcommand reads must sit inside the record's repo root. `run contract`
+// without one has nothing to check.
+function runRoadmap(record, file) {
+  if (!file || !record.root) return file;
+  if (!within(file, record.root)) {
+    throw new Error(`the roadmap ${repoRoot(file)} is outside the run's repo root ${record.root}; a run in another repo starts from that repo`);
+  }
+  return file;
+}
 
 function context(cwd) {
   const { root, values } = loadConfig({ cwd });
@@ -243,9 +267,17 @@ export async function run(argv, { cwd = process.cwd() } = {}) {
     case 'run': {
       // A complete run's record: id is the subcommand here, rest[0] the roadmap slug.
       const [slug, ...args] = rest;
+      // The record names the repo it belongs to: a command from another checkout refuses,
+      // naming both, instead of reading a record that is not its own. `new` makes the
+      // record, a record without `root` (an older one) keeps working, and a missing one
+      // is the subcommand's own error.
+      const record = id !== 'new' && slug && fs.existsSync(runPath(ctx.planningDir, slug)) ? showRun(ctx.planningDir, slug) : null;
+      if (record?.root && !sameRoot(record.root, ctx.root)) {
+        throw new Error(`${slug} is a run of ${record.root}; this checkout is ${repoRoot(ctx.root)}. A run in another repo starts from that repo`);
+      }
       switch (id) {
         case 'new':
-          return createRun(ctx.planningDir, slug, { ...opts, base: baseRef(ctx.root) }, ctx.config);
+          return createRun(ctx.planningDir, slug, { ...opts, base: baseRef(ctx.root) }, ctx.config, { root: ctx.root });
         case 'show':
           return showRun(ctx.planningDir, slug);
         case 'set':
