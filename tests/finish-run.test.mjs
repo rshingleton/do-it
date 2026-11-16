@@ -101,6 +101,8 @@ function pair() {
   const a = fixture().dir;
   const b = tmpDir('do-it-finish-b-');
   execFileSync('git', ['init', '-q'], { cwd: b });
+  fs.mkdirSync(path.join(b, 'docs/roadmap'), { recursive: true });
+  fs.copyFileSync(path.join(a, 'docs/roadmap/road.md'), path.join(b, 'docs/roadmap/road.md'));
   const planningDir = tmpDir('do-it-finish-runs-');
   const env = { DO_IT_PLANNING_DIR: planningDir };
   return { a, b, planningDir, env, inA: (...args) => workIn(env, a, ...args), inB: (...args) => workIn(env, b, ...args) };
@@ -158,4 +160,46 @@ test('finish-it run: a record made before root keeps working from another checko
   fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace(/^root: .*\r?\n/m, ''));
   const record = ok(inB('run', 'show', 'road'));
   assert.ok(record.root === undefined || record.root === null, JSON.stringify(record.root));
+});
+
+test('finish-it run: a roadmap inside the checkout starts the run and stores its root', () => {
+  const { a, inA } = pair();
+  const record = ok(inA('run', 'new', 'road', '--roadmap', 'docs/roadmap/road.md'));
+  assert.ok(mentions(record.root, posixRoot(a)), record.root);
+});
+
+test('finish-it run: run new refuses a sibling roadmap, naming both trees', () => {
+  const { a, b, inA } = pair();
+  const other = path.join(b, 'docs/roadmap/road.md');
+  const r = inA('run', 'new', 'road', '--roadmap', path.relative(a, other));
+  assert.equal(r.status, 1);
+  assert.ok(mentions(r.out.error, posixRoot(other)), r.out.error);
+  assert.ok(mentions(r.out.error, posixRoot(a)), r.out.error);
+  assert.equal(inA('run', 'show', 'road').status, 1, 'no record was made');
+});
+
+test('finish-it run: next, tracks and contract refuse a sibling roadmap and return no slice', () => {
+  const { a, b, inA } = pair();
+  ok(inA('run', 'new', 'road', '--roadmap', 'docs/roadmap/road.md'));
+  const sibling = path.relative(a, path.join(b, 'docs/roadmap/road.md'));
+  for (const sub of ['next', 'tracks', 'contract']) {
+    const r = inA('run', sub, 'road', sibling);
+    assert.equal(r.status, 1, sub);
+    assert.equal(r.out.next, undefined, `${sub} returns no slice`);
+    assert.ok(mentions(r.out.error, posixRoot(path.join(b, 'docs/roadmap/road.md'))), `${sub}: ${r.out.error}`);
+    assert.ok(mentions(r.out.error, posixRoot(a)), `${sub}: ${r.out.error}`);
+  }
+  assert.deepEqual(ok(inA('run', 'show', 'road')).slices, [], 'the refusals changed nothing');
+});
+
+test('finish-it skill: §1 refuses a roadmap outside the repo root and never moves the session', () => {
+  const text = fs.readFileSync(path.join(ROOT, 'skills/finish-it/SKILL.md'), 'utf8').replace(/\s+/g, ' ');
+  for (const s of [
+    'refuse a path outside the repo root, naming both',
+    '"the roadmap `<path>` is outside the repo root `<root>`"',
+    'before `run new` and before any slice is scoped',
+    'starts there with a `cd`, never by moving the session: this skill never moves it',
+    'first notice names its repo root',
+    '`work.mjs run new <slug> --roadmap <file>`',
+  ]) assert.ok(text.includes(s), s);
 });
