@@ -10,16 +10,18 @@
 //   work.mjs review-diff <id>
 //   work.mjs verify-phase <id> [n] [--in dir] -- <command...>
 //   work.mjs roadmap <file>
-//   work.mjs run new <slug> [--level --commit --max-slices --slice-cap-min --audit-cap --final-audit-cap --audit-total-cap]
+//   work.mjs run new <slug> [--level --commit --tracks --max-slices --slice-cap-min --audit-cap --final-audit-cap --audit-total-cap]
 //   work.mjs run show <slug> | set <slug> <key> <json> | slice <slug> <id> <status> [--reason --needs]
 //   work.mjs run add-assumptions <slug> <work id> <json array>   (merges; kept as <id>#<n>: text)
 //   work.mjs run reject-assumption <slug> <id>#<n> <instead...>   (by key; reopens the item if its plan is still auditing or shipping)
-//   work.mjs run next <slug> <roadmap file>   (slice ready|parked|blocked|shipped; ready un-parks)
+//   work.mjs run next <slug> <roadmap file> [--batch n]   (slice ready|parked|blocked|shipped; ready un-parks)
+//   work.mjs run contract <slug> [roadmap file]   (each slice's files and interfaces, in merge order)
+//   work.mjs run tracks <slug> <roadmap file>   (the paired slices this run starts as tracks now)
 //   work.mjs run commit <slug> <id> [--phase n | --docs] --paths a,b [--limits <json>]
 //   work.mjs run review-change <slug>   (the final review's change: <base>...HEAD, or the working tree against base)
 //   work.mjs run digest <slug> [--usage <json>] [--findings <json>] [--retro <json>]   (markdown, saved uncommitted)
 //   work.mjs run start <slug> <slice> --work <id> [--at iso] | audit <slug> <slice>|--final | gate <slug> <slice>
-//   work.mjs run verify <slug> <slice> [--phase n] [--paths a,b] [--in dir] -- <command...>   (reruns a failure once)
+//   work.mjs run verify <slug> <slice> [--phase n] [--paths a,b] [--in dir | --merged dir] -- <command...>   (reruns a failure once)
 //   work.mjs close <id>
 //
 // `run audit` prints {audit_rounds, allow, reason, limit, detail}: `audit_rounds` is the slice's (or the
@@ -45,7 +47,7 @@ import { checkShell } from './check-shell.mjs';
 import { buildDigest } from './digest.mjs';
 import { addAssumptions, createRun, nextSlice, resumeSlice, runPath, setRun, showRun, sliceRun } from './run.mjs';
 import { countAudit, startSlice } from './gate.mjs';
-import { runGate, runRejectAssumption, runReviewChange, runVerify } from './runs.mjs';
+import { runContract, runGate, runRejectAssumption, runReviewChange, runTracks, runVerify, runVerifyMerged } from './runs.mjs';
 
 // Flags that take no value.
 const FLAGS = new Set(['brief', 'docs', 'final', 'again']);
@@ -112,9 +114,11 @@ function closingDocsExclude(ctx, item) {
   return [roadmap, ctx.config.DO_IT_TODO_FILE || 'docs/TODO.md', ctx.config.DO_IT_ADR_DIR || 'docs/adr'].filter(Boolean).map(rel).filter((p) => p && !p.startsWith('..'));
 }
 
-function itemFingerprint(ctx, item) {
+// The fingerprint of the item's change since its base, planning files excluded. `at` is the tree it
+// is taken in: the coordinator's checkout unless the work ran in a track's worktree.
+function itemFingerprint(ctx, item, at = ctx.root) {
   if (!item.state.base_ref) throw new Error(`${item.state.id} has no base_ref yet: run event start first`);
-  return fingerprint(ctx.root, item.state.base_ref, { exclude: [...planningExclude(ctx), ...closingDocsExclude(ctx, item)] });
+  return fingerprint(at, item.state.base_ref, { exclude: [...planningExclude(ctx), ...closingDocsExclude(ctx, item)] });
 }
 
 function shellQuote(arg) {
@@ -255,19 +259,35 @@ export async function run(argv, { cwd = process.cwd() } = {}) {
         case 'next': {
           if (!args[0]) throw new Error('run next needs a roadmap file');
           const file = path.resolve(cwd, args[0]);
-          return nextSlice(roadmapSlices(file, ctx), showRun(ctx.planningDir, slug));
+          // --batch n asks for the next n free slices; without the flag `next` is one id, as before.
+          const batch = Object.hasOwn(opts, 'batch') ? Number(opts.batch) : undefined;
+          return nextSlice(roadmapSlices(file, ctx), showRun(ctx.planningDir, slug), { batch });
+        }
+        case 'contract': {
+          // The roadmap is optional: without it the order is the run's own start order.
+          const road = args[0] ? roadmapSlices(path.resolve(cwd, args[0]), ctx) : null;
+          return runContract({ planningDir: ctx.planningDir, root: ctx.root, slug, road, items });
+        }
+        case 'tracks': {
+          // The tracks this run starts now: the roadmap is required, because a track holds a ready
+          // slice and pairs by its plan.
+          if (!args[0]) throw new Error('run tracks needs a roadmap file');
+          return runTracks({ planningDir: ctx.planningDir, root: ctx.root, slug, road: roadmapSlices(path.resolve(cwd, args[0]), ctx), items });
         }
         case 'start':
           return startSlice(ctx.planningDir, slug, args[0], { work: opts.work, at: opts.at ?? new Date().toISOString() });
         case 'audit':
           return countAudit(ctx.planningDir, slug, { id: args[0], final: opts.final === true });
         case 'gate':
-          return runGate({ planningDir: ctx.planningDir, slug, id: args[0], items, fingerprintOf: (item) => itemFingerprint(ctx, item) });
-        case 'verify':
-          return runVerify({
+          return runGate({ planningDir: ctx.planningDir, root: ctx.root, slug, id: args[0], items, fingerprintOf: (item, at) => itemFingerprint(ctx, item, at) });
+        case 'verify': {
+          const call = {
             planningDir: ctx.planningDir, root: ctx.root, cwd, slug, id: args[0], opts, items,
-            fingerprintOf: (item) => itemFingerprint(ctx, item), quote: shellQuote,
-          });
+            fingerprintOf: (item, at) => itemFingerprint(ctx, item, at), quote: shellQuote,
+          };
+          // The merged tree's suite is the gate's fact, never a second phase record.
+          return opts.merged === undefined ? runVerify(call) : runVerifyMerged(call);
+        }
         case 'review-change':
           return runReviewChange({ planningDir: ctx.planningDir, root: ctx.root, slug, exclude: planningExclude(ctx) });
         case 'commit': {
@@ -286,7 +306,7 @@ export async function run(argv, { cwd = process.cwd() } = {}) {
           return text;
         }
         default:
-          throw new Error('usage: work.mjs run new|show|set|add-assumptions|reject-assumption|slice|next|start|audit|gate|verify|review-change|commit|digest <slug> ...');
+          throw new Error('usage: work.mjs run new|show|set|add-assumptions|reject-assumption|slice|next|contract|tracks|start|audit|gate|verify|review-change|commit|digest <slug> ...');
       }
     }
     case 'close': {

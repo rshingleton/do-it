@@ -12,6 +12,9 @@ Add these branches to the `grill-it` design tree:
   beside the old), migrate call sites in batches each blocked by the expand,
   contract (delete the old form) blocked by every batch.
 - **Blocking edges.** For each phase, the phases that must finish first.
+- **File boundaries.** For each phase, the files it changes, stated in its
+  `## Files`. Two phases with no blocking edge between them must not share a
+  file: cut the work along the file, or add the edge that makes them serial.
 - **Seams.** For each phase, the public interfaces tests will sit at, what a
   test there catches and what it misses. A phase with no code seam names its
   observable check instead.

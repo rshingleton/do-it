@@ -3,8 +3,29 @@
 The state block is defined in [STATE.md](../do-it/STATE.md) and written by
 `work.mjs new` and `work.mjs set`; never type it by hand. Describe
 behaviour and interfaces, not procedures: name the types, functions, commands
-or config shapes that change and what they must do. File paths are starting
-points, not the contract.
+or config shapes that change and what they must do. A path named in a step is a
+starting point, not the contract; the `## Files` list is.
+
+## Files and interfaces
+
+Two slices run as two tracks only when they do not overlap, so the plan states
+what it changes: `## Files` and `## Interfaces`, both below. Scope-it writes
+them for every slice, whether or not it runs in a track; a plan without them
+pairs with nothing. The `## Files` list is also what the pre-flight compares,
+so it holds every file the slice edits, tests included, and no directory: names
+are compared and none is expanded.
+
+Lane S puts both sections in the plan body, after `## Seams`. Lane M puts them
+in its README, as the union of its phases' files, so a track reads one file for
+the whole slice.
+
+`## Files`: repo-relative paths, one per line, `/` on every platform.
+
+`## Interfaces`: one line per interface, `<signature> -> <what it produces>`.
+The left of `->` is what a caller passes, the right the shape the slice
+produces. A line without `->` names an interface the slice only consumes, so
+the plan does not pin it. Two slices may share an interface when one plan pins
+it; an interface two plans name and neither pins cannot be paired.
 
 ## Lane S: `docs/planning/<id>.md`
 
@@ -50,6 +71,15 @@ One paragraph: the behaviour that will be true when this ships.
 - `Limiter.check(key)`: catches counting and window expiry; misses wiring.
 - `POST /login` returns 429: catches the wiring end to end.
 
+## Files
+src/limiter.js
+src/routes/login.js
+test/limiter.test.mjs
+
+## Interfaces
+`Limiter.check(key) -> {allowed, wait}`
+`POST /login -> 429 on the 6th try`
+
 ## Steps
 1. Add `Limiter` with a sliding window → verify: unit tests at `Limiter.check`
 2. Call it from the login handler → verify: request test gets 429 on the 6th try
@@ -77,11 +107,25 @@ then:
 | [1](phase-1.md) | Limiter module | none |
 | [2](phase-2.md) | Login wiring | 1 |
 
+## Files
+src/limiter.js
+src/routes/login.js
+test/limiter.test.mjs
+
+## Interfaces
+`Limiter.check(key) -> {allowed, wait}`
+
 ## Decisions
 - One line per decision from the grill, with any ADR link.
 
 ## Non-goals
 ```
+
+The README's `## Files` is the union of its phases' files, while `## Interfaces`
+stays at the README: every phase file states its own list, and the README
+states what a track pairs the whole slice by. Two phases with no dependency
+path between them must not share a file, or one blocks the other: cut along the
+file boundary, or add the `blocked_by` edge that makes the pair serial.
 
 Each `phase-N.md`:
 
@@ -93,6 +137,8 @@ Plan: <id>. Blocked by: <phases or none>.
 ## Goal
 ## Scope
 What changes, and what is explicitly left alone.
+## Files
+src/limiter.js
 ## Seams
 One line per seam: interface, what a test there catches, what it misses.
 ## Steps
@@ -101,6 +147,9 @@ One line per seam: interface, what a test there catches, what it misses.
 ## Starting points
 Files worth reading first.
 ```
+
+Each phase's `## Files` lists one repo-relative path per line: every file the
+phase changes, tests included.
 
 ## Slices that compare or measure
 

@@ -358,6 +358,64 @@ test('run next: a slice blocked by an open (ask-when-reached) decision is listed
   assert.equal(out.next, 'R1');
   assert.deepEqual(out.defects, [{ decision: 'D1', blocks: ['R2', 'R3'], note: 'ask-when-reached: settle the decision, then the slices can run' }]);
   assert.deepEqual(nextSlice({ ...road, blocking: [] }, { max_slices: null, slices: [] }).defects, [], 'no open decision, no defects');
+  assert.deepEqual(nextSlice(road, { max_slices: null, slices: [] }, { batch: 3 }).next, ['R1'], 'a batch keeps the slices the decision and the chain hold back out of it');
+});
+
+test('run next --batch: the next N free slices in the order next uses, and one id without the flag', () => {
+  // roadmapSlices' `ready` is already sorted by milestone, risk, blocks then id.
+  const free = ['R1', 'R2', 'R3'].map((id) => ({ id, blocked_by: [], state: 'ready' }));
+  const road = { slices: free, ready: ['R3', 'R1', 'R2'] };
+  const rec = { max_slices: null, slices: [] };
+  assert.equal(nextSlice(road, rec).next, 'R3', 'without --batch the first id, as before');
+  assert.deepEqual(nextSlice(road, rec, { batch: 2 }).next, ['R3', 'R1'], 'the first two, in that order');
+  assert.deepEqual(nextSlice(road, rec, { batch: 9 }).next, ['R3', 'R1', 'R2'], 'a batch past the queue is the whole queue');
+  // An in-flight slice resumes before a new one starts, so it leads the batch too.
+  const flying = { slices: [...free, { id: 'R4', blocked_by: [], state: 'in flight' }], ready: ['R3', 'R1', 'R2'] };
+  assert.deepEqual(nextSlice(flying, rec, { batch: 2 }).next, ['R4', 'R3']);
+  // At the cap the list shape holds: a coordinator reads `next` as a list whichever way the run ends.
+  const capped = nextSlice(road, { max_slices: 1, slices: [{ id: 'R0', status: 'shipped' }] }, { batch: 2 });
+  assert.deepEqual([capped.next, capped.stop.reason], [[], 'MAX_SLICES']);
+  assert.throws(() => nextSlice(road, rec, { batch: 0 }), /positive whole number/);
+});
+
+test('run next --batch: a slice that waits on a parked one stays out, through the chain', () => {
+  const road = {
+    slices: [
+      { id: 'R1', blocked_by: [], state: 'ready' },
+      { id: 'R2', blocked_by: ['R1'], state: 'ready' },
+      { id: 'R3', blocked_by: ['R2'], state: 'ready' },
+      { id: 'R4', blocked_by: [], state: 'ready' },
+    ],
+    ready: ['R1', 'R4', 'R2', 'R3'],
+  };
+  const parked = { max_slices: null, slices: [{ id: 'R1', status: 'parked' }] };
+  assert.deepEqual(nextSlice(road, parked, { batch: 4 }).next, ['R4'], 'R2 waits on the parked R1 and R3 on R2');
+  assert.deepEqual(nextSlice(road, parked).next, 'R4', 'the single id agrees with the batch');
+});
+
+test('run next --batch: the CLI takes the count, refuses zero, and stays one id without the flag', () => {
+  const dir = fixture();
+  fs.mkdirSync(path.join(dir, 'docs/roadmap'), { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, 'docs/roadmap/r.md'),
+    [
+      '# R',
+      '### M1',
+      '| Slice | Kind | Delivers | Risk | Blocked by | Status |',
+      '|-------|------|----------|------|------------|--------|',
+      '| R1 | feat | a | low | - | ready |',
+      '| R2 | feat | b | high | - | ready |',
+      '| R3 | feat | c | med | - | ready |',
+      '',
+    ].join('\n'),
+  );
+  const file = 'docs/roadmap/r.md';
+  assert.equal(ok(work(dir, 'run', 'next', 'road', file)).next, 'R2', 'risk orders the queue, so high risk comes first');
+  assert.deepEqual(ok(work(dir, 'run', 'next', 'road', file, '--batch', '2')).next, ['R2', 'R3']);
+  assert.deepEqual(ok(work(dir, 'run', 'next', 'road', file, '--batch', '9')).next, ['R2', 'R3', 'R1']);
+  const bad = work(dir, 'run', 'next', 'road', file, '--batch', '0');
+  assert.equal(bad.status, 1);
+  assert.match(bad.out.error, /positive whole number/);
 });
 
 test('STOPS.md names exactly the shared reason codes, and judgment codes are named as judgment', () => {
@@ -384,12 +442,32 @@ const stub = (calls = []) => ({
 
 test('runGate: no verify, a matching fingerprint and a moved one give UNVERIFIED, allow and STALE_VERIFY', () => {
   const dir = fixture();
-  const base = { ...unit(dir), items: stub() };
+  const base = { ...unit(dir), items: stub(), root: dir };
   assert.equal(runGate({ ...base, fingerprintOf: () => 'fp' }).reason, 'UNVERIFIED');
   runVerify({ ...base, root: dir, cwd: dir, opts: { '--': ['true'] }, fingerprintOf: () => 'fp', quote: String });
   assert.equal(runGate({ ...base, fingerprintOf: () => 'fp' }).allow, true);
   assert.equal(runGate({ ...base, fingerprintOf: () => 'moved' }).reason, 'STALE_VERIFY');
   assert.equal(runGate({ ...base, id: 'R9', fingerprintOf: () => 'fp' }).reason, 'UNVERIFIED', 'an unknown slice has no verify');
+});
+
+test('runVerify: one directory under two names records the coordinator tree, so no merged check is asked', () => {
+  // macOS /var and Windows RUNNER~1 name the same tree as /private/var and runneradmin.
+  const dir = fixture();
+  const link = path.join(path.dirname(dir), `link-${path.basename(dir)}`);
+  try {
+    fs.symlinkSync(dir, link, process.platform === 'win32' ? 'junction' : 'dir');
+  } catch (e) {
+    if (process.platform !== 'win32') throw e;
+    return assert.ok(true, `no junction allowed: ${e.message}`);
+  }
+  try {
+    const base = { ...unit(dir), items: stub(), root: link, cwd: link, fingerprintOf: () => 'fp', quote: String };
+    const rec = runVerify({ ...base, opts: { '--': ['true'] } });
+    assert.equal(rec.gates[0].verified_root, '.', 'the same tree under another name is the coordinator\'s own checkout');
+    assert.equal(runGate({ ...base }).allow, true, 'so the gate does not ask for a merged check');
+  } finally {
+    fs.rmSync(link, { force: true });
+  }
 });
 
 test('runVerify: a pass records the fingerprint and file hashes, a failure records neither', () => {

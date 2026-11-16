@@ -22,10 +22,13 @@ test('importing the helper hides the developer environment from this process and
       leaked: Object.keys(e).filter((k) => /^(DO_IT_|JIRA_|GITHUB_)/.test(k)),
       sign: spawnSync('git', ['config', '--get', 'commit.gpgsign'], { encoding: 'utf8' }).stdout.trim() || null,
     }));`;
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-probe-'));
   const r = spawnSync('node', ['--input-type=module', '-e', probe], {
+    cwd,
     encoding: 'utf8',
     env: { ...process.env, HOME: real, DO_IT_HOOKS: 'off', JIRA_TOKEN: 'x', GITHUB_TOKEN: 'x', GIT_CONFIG_GLOBAL: gitconfig },
   });
+  fs.rmSync(cwd, { recursive: true, force: true });
   fs.rmSync(real, { recursive: true, force: true });
   const out = JSON.parse(r.stdout.trim().split('\n').pop());
   assert.notEqual(out.home, real);

@@ -25,10 +25,11 @@ file in `docs/roadmap`; this turns it into a lasting record.
 
 ## Paths
 
-The roadmap file, each ADR that offer a created, `docs/TODO.md` when b added
-to-dos, and the `docs/issues/*.md` files offer e closed on a local tracker (the
-repo's configured paths, not these defaults). "Commit now" stages these and
-nothing else, and so does a run's `work.mjs run commit <slug> <id> --docs --paths`.
+The roadmap file; the ADRs offer `a` created; `docs/TODO.md` when offer `b`
+added to-dos; and the milestone issue files offer `e` closed, which on a local
+tracker are the `docs/issues/*.md` files themselves (the repo's configured
+paths, not these defaults). "Commit now" stages these and nothing else, and so
+does a run's `work.mjs run commit <slug> <id> --docs --paths`.
 
 ## Offers
 

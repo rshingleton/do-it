@@ -50,4 +50,8 @@ Prefer build slices. An enabler with no slice depending on it is not a slice.
 - Every milestone has an exit check, and the first one proves the path end
   to end.
 - Every slice fits lane S or M and has a Verify.
+- A slice whose files are known states a `Files` hint naming them, comma
+  separated: a hint that is wrong costs ordering, never a merge.
+- A run's batch prefers a slice that shares no file with one already picked,
+  leaving a colliding slice for the next round.
 - Every open decision says how it gets answered and which slices it blocks.

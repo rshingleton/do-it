@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { git } from './git.mjs';
 import { listItems } from './items.mjs';
+import { parseFileList } from './fileset.mjs';
 import { splitFrontmatter, parseFlat } from '../../track-it/scripts/frontmatter.mjs';
 
 const RISK = { high: 0, med: 1, medium: 1, low: 2 };
@@ -13,7 +14,8 @@ function cells(row) {
   return row.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map((c) => c.trim());
 }
 
-function sectionLines(text, heading) {
+// The lines under one `## <heading>`, up to the next `##`, as a plan's body is read too.
+export function sectionLines(text, heading) {
   const lines = text.split(/\r?\n/);
   const start = lines.findIndex((l) => new RegExp(`^##\\s+${heading}\\s*$`, 'i').test(l));
   if (start < 0) return [];
@@ -23,6 +25,17 @@ function sectionLines(text, heading) {
     out.push(l);
   }
   return out;
+}
+
+// The order the ready frontier holds, and the merge order a run's contract prints: milestone, risk,
+// blocks, then slice number. `run contract` imports it, so the merge order is the build order.
+export function readyOrder(a, b) {
+  return (
+    a.milestone - b.milestone ||
+    (RISK[a.risk] ?? 1) - (RISK[b.risk] ?? 1) ||
+    a.blocked_by.length - b.blocked_by.length ||
+    Number(a.id.slice(1)) - Number(b.id.slice(1))
+  );
 }
 
 export function parseRoadmap(text) {
@@ -51,6 +64,9 @@ export function parseRoadmap(text) {
       milestone,
       kind: get('kind'),
       delivers: get('delivers'),
+      // An optional hint: the files the slice expects to touch, from scouting. The plan's `## Files`
+      // stays the contract, so a wrong hint costs ordering, never a merge.
+      files: parseFileList(get('files')),
       risk: get('risk').toLowerCase(),
       blocked_by: /^(none|-|)$/i.test(blockedBy) ? [] : [...blockedBy.matchAll(/\b([RD]\d+)\b/g)].map((m) => m[1]),
       status: get('status'),
@@ -116,13 +132,7 @@ export function roadmapSlices(file, { root, planningDir, tracked = (f) => isTrac
 
   const ready = out
     .filter((s) => s.state === 'ready' || s.state === 'refine')
-    .sort(
-      (a, b) =>
-        a.milestone - b.milestone ||
-        (RISK[a.risk] ?? 1) - (RISK[b.risk] ?? 1) ||
-        a.blocked_by.length - b.blocked_by.length ||
-        Number(a.id.slice(1)) - Number(b.id.slice(1)),
-    );
+    .sort(readyOrder);
   const blocking = openDecisions
     .map((id) => ({ id, blocks: out.filter((s) => !done(s.id) && s.blocked_by.includes(id)).map((s) => s.id) }))
     .filter((d) => d.blocks.length)

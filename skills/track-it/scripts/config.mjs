@@ -28,6 +28,7 @@ export const DEFAULTS = {
   DO_IT_AUDIT_CAP: '3',
   DO_IT_FINAL_AUDIT_CAP: '3',
   DO_IT_AUDIT_TOTAL_CAP: '',
+  DO_IT_TRACKS: '3',
   DO_IT_PUBLISH_PLANS: 'false',
   DO_IT_HOOKS: 'on',
   DO_IT_COMPLIANCE_DIR: '.compliance-rules',

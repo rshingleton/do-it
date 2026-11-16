@@ -8,7 +8,8 @@ Scope: every module the change adds or touches.
 
 1. **Deletion test** ([design-it](../design-it/SKILL.md)) for each new or
    changed module: picture it gone. Complexity that goes with it means a
-   pass-through; complexity that returns in every caller means it earns its place.
+   pass-through; complexity that returns in every caller means it earns its
+   place. Source: design-it.
 2. **Classify** anything flagged:
 
    | Signal | Means |

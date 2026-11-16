@@ -223,6 +223,19 @@ test('final review: a tracked planning file modified after the run commits leave
 // A record built in place, for the digest's own rules.
 const record = (over = {}) => ({ id: 'road', level: 'full', commit: 'phase', started: 't', slices: [], assumptions: [], rejected: [], limits: [], gates: [], ...over });
 
+test('digest: the audit rounds are the coordinator\'s one count, per slice and in total', () => {
+  const text = buildDigest({ record: record({ audit_rounds: 4, gates: [{ id: 'R1', audit_rounds: 3 }, { id: 'R2', audit_rounds: 1 }, { id: 'R3' }] }) });
+  assert.match(text, /## Audit rounds \(4\)/);
+  assert.ok(text.includes('- R1: 3') && text.includes('- R2: 1'), 'each slice\'s rounds are listed');
+  assert.doesNotMatch(text, /- R3/, 'a slice that spent none is not listed');
+});
+
+test('digest: rounds a resume cleared still show in the run total', () => {
+  const text = buildDigest({ record: record({ audit_rounds: 5, gates: [{ id: 'R1', audit_rounds: 2 }] }) });
+  assert.match(text, /## Audit rounds \(5\)/);
+  assert.ok(text.includes('- 3 before a resume'), 'the total never hides rounds the record still holds');
+});
+
 test('digest: a multi-line reason stays one bullet and cannot open a heading', () => {
   const text = buildDigest({
     record: record({

@@ -14,7 +14,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const WORK = path.join(ROOT, 'skills/do-it/scripts/work.mjs');
 const LINE = 'Build assistance with do-it: https://github.com/rshingleton/do-it';
 
-const git = (dir, ...args) => execFileSync('git', args, { cwd: dir, encoding: 'utf8' }).trim();
+const git = (dir, ...args) => execFileSync('git', ['-c', 'safe.bareRepository=all', ...args], { cwd: dir, encoding: 'utf8' }).trim();
 const write = (dir, rel, text) => {
   fs.mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true });
   fs.writeFileSync(path.join(dir, rel), text);

@@ -14,6 +14,13 @@ Pointers, not pasted content:
 - A worktree path when called from [PARALLEL.md](PARALLEL.md); none means
   in place at the checkout root, no commits.
 
+The brief carries this phase, the interfaces from earlier phases it must honor,
+and the plan's constraints. Never a pasted diff, log, file body, earlier phase's
+report or the session's history: a fresh agent needs nothing else. Batch the
+named reads and independent searches in one turn, and read a file again only
+when it changed. Run the phase's checks once, not once per fix. The report
+holds status, paths and the cap, not excerpts.
+
 ## 2. What main does with the report
 
 - `done`: `work.mjs verify-phase <id> <n> --brief -- "<commands>"` (in a run,
