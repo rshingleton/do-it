@@ -46,7 +46,7 @@ const CARRIED = [
   'T212',
   'T237', 'T239', 'T244',
   'T240', 'T241', 'T243',
-  'T233', 'T234',
+  'T234',
 ];
 
 const PROMOTED = [...SHIPPED, ...CARRIED];
@@ -112,5 +112,5 @@ test('every promoted id still has one home: the successor roadmap or the shipped
   const lost = CARRIED.filter((id) => !cites(successor, id));
   assert.deepEqual(lost, [], 'the successor cites every carried id');
   assert.equal(new Set(PROMOTED).size, PROMOTED.length, 'the pinned list holds no duplicate');
-  assert.equal(PROMOTED.length, 37, 'five shipped ids and the 32 R2 to R16 carried');
+  assert.equal(PROMOTED.length, 36, 'five shipped ids and the 31 R2 to R16 carried');
 });

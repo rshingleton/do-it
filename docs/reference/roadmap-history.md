@@ -346,6 +346,7 @@ was reached.
 
 ### Superseded
 
-- R2 to R16 (32 items) were carried into
+- The roadmap promoted 36 items. R1 shipped five (see Shipped); the other 31,
+  R2 to R16, were carried into
   [todo-clearance-2026-11](../roadmap/todo-clearance-2026-11.md) when it was
-  approved on 2026-11-16, where each owns a slice; none was dropped here.
+  approved on 2026-11-16, where each owns a slice. None was dropped here.
