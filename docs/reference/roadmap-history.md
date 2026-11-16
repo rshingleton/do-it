@@ -4,7 +4,7 @@ title: Roadmap history
 
 # Roadmap history
 
-Durable record of the roadmaps closed before 2026-11-16: five finished, one
+Durable record of the roadmaps closed by 2026-11-16: five finished, one
 superseded. Each file was removed after this record was written; git history
 still holds the roadmaps themselves. A closed roadmap is not work:
 `work.mjs roadmap` offers no slice from one.
@@ -333,7 +333,8 @@ Source file removed: `docs/roadmap/backlog-cleanup-2026-11.md` (approved
 
 ### Destination
 
-The 2026-11 audit leftovers in skill text, tests, the run scripts and install.
+The 2026-11 audit leftovers in skill text, tests, the run scripts, install and
+the link-it limits.
 It did not finish: its open items moved to
 [todo-clearance-2026-11](../roadmap/todo-clearance-2026-11.md) at that
 roadmap's approval, so this record says what shipped, not that the destination
