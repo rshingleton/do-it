@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 
-import { createPlugin } from '../.opencode/plugins/do-it.mjs';
+import { createPlugin } from '../.opencode/do-it-plugin/do-it.mjs';
 
 function repo() {
   const dir = tmpDir('do-it-ctx-');

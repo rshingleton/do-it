@@ -371,8 +371,10 @@ OpenCode 1 hook object (`experimental.chat.system.transform`,
 `tool.execute.before/after`; a throw blocks the tool) and a v2 `setup` that
 registers `session` and `tool` hooks, which OpenCode 2 runs (verified on
 2.1.2). Register the plugin as a directory on OpenCode 2 (`plugins`:
-`.opencode/plugins`, which holds an `index.js`); a plugin file path is
-skipped there. `scripts/install-hooks.mjs` picks the form from
+`.opencode/do-it-plugin`, which holds an `index.js`); a plugin file path is
+skipped there. The directory is not named `plugin/` or `plugins/`, because
+OpenCode discovers either name in a project by itself, which would load our
+own checkout twice. `scripts/install-hooks.mjs` picks the form from
 `opencode --version`. The OpenCode 2 `execute` code tool cannot write or run
 a command by itself on 2.1.2, and a nested tool call reaches the same guards.
 

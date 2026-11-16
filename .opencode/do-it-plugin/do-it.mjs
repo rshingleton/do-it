@@ -24,10 +24,13 @@
 // note docs/research/opencode-v2-integration.md, verified on 2.1.2.
 //
 // Install: scripts/install.sh, or add this directory to opencode.json:
-//   OpenCode 1: { "plugin": ["/abs/path/do-it/.opencode/plugins/do-it.mjs"] }
-//   OpenCode 2: { "plugins": ["/abs/path/do-it/.opencode/plugins"] }
+//   OpenCode 1: { "plugin": ["/abs/path/do-it/.opencode/do-it-plugin/do-it.mjs"] }
+//   OpenCode 2: { "plugins": ["/abs/path/do-it/.opencode/do-it-plugin"] }
 // OpenCode 2 loads a plugin directory only through its index.js (which
-// re-exports this file) and skips a plugin file given by path.
+// re-exports this file) and skips a plugin file given by path. The directory is
+// `do-it-plugin/`, not `plugin/` or `plugins/`: OpenCode discovers either of
+// those names in a project, so the registered copy and the discovered copy
+// would both load.
 
 import fs from 'node:fs';
 import path from 'node:path';

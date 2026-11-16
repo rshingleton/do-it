@@ -177,3 +177,10 @@ model, a probe plugin, and the real do-it plugin.
 | Generated agents | The `permission` map works: a live `it-scout` had no `write` or `edit` tool (it fell back to shell, which is allowed). The config reader also accepts `permissions` and `tools`. |
 | `execute` tool | Restricted JS: `tools` holds only catalog tools (`tools.opencode.*`, MCP); `tools.write` and `tools.shell` throw `Unknown tool`, `fetch` refuses `file://`, no `import`/`process`/`require`. A nested call fires `execute.before` again with the parent's call id and its own name (`opencode_worktree_create`), so the guards see it. The code text alone cannot write or run anything; no bypass found (checked 2.1.2, free model). |
 | Stalls | Some first runs on a fresh state dir produced no output for minutes; a re-run on a copy of a warmed state dir was fine. |
+
+A 2026-11-16 correction to the paths above: the plugin directory moved from
+`.opencode/plugins/` to `.opencode/do-it-plugin/`. OpenCode 2 discovers a
+project's `plugin/` and `plugins/` directories by itself, so registering a
+directory under either name loaded do-it twice whenever the checkout was opened
+(once by discovery, once by the global `plugins` entry). `scripts/install-hooks.mjs`
+registers `.opencode/do-it-plugin` and strips the old entry.

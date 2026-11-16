@@ -58,7 +58,7 @@ test('loadChecks skips malformed entries, names them, keeps the rest', () => {
 test('OpenCode plugin allows an edit when the rules file is malformed, still blocks secrets', async () => {
   const root = repo();
   writeChecks(root, MALFORMED);
-  const { DoItPlugin: plugin } = await import('../.opencode/plugins/do-it.mjs');
+  const { DoItPlugin: plugin } = await import('../.opencode/do-it-plugin/do-it.mjs');
   const hooks = await plugin({ directory: root });
   await hooks['tool.execute.before']({ tool: 'write' }, { args: { filePath: path.join(root, 'b.ts'), content: 'bar' } });
   await assert.rejects(
@@ -75,7 +75,7 @@ test('OpenCode plugin fails open when decide itself throws', async () => {
   const boom = () => {
     throw new Error('boom');
   };
-  const { DoItPlugin: plugin } = await import('../.opencode/plugins/do-it.mjs');
+  const { DoItPlugin: plugin } = await import('../.opencode/do-it-plugin/do-it.mjs');
   const hooks = await plugin({ directory: root }, { decide: boom });
   const errors = [];
   const write = process.stderr.write;
@@ -97,7 +97,7 @@ test('OpenCode plugin only translates: tool kinds in, throw, append and stderr o
   const calls = [];
   const answers = { session: { context: 'ctx' }, before: { block: 'no' }, after: { context: 'lint', notice: 'warned' } };
   const decide = (event, input) => (calls.push([event, input.kind, input.cwd]), answers[event]);
-  const { DoItPlugin: plugin } = await import('../.opencode/plugins/do-it.mjs');
+  const { DoItPlugin: plugin } = await import('../.opencode/do-it-plugin/do-it.mjs');
   const hooks = await plugin({ directory: root }, { decide });
   const errors = [];
   const write = process.stderr.write;
@@ -132,7 +132,7 @@ test('OpenCode plugin puts lint failures before compliance notes', async () => {
   const env = process.env.DO_IT_LINT_CMD;
   process.env.DO_IT_LINT_CMD = 'echo lint says no && exit 1';
   try {
-    const { DoItPlugin: plugin } = await import('../.opencode/plugins/do-it.mjs');
+    const { DoItPlugin: plugin } = await import('../.opencode/do-it-plugin/do-it.mjs');
     const hooks = await plugin({ directory: root });
     const out = { output: 'done' };
     await hooks['tool.execute.after']({ tool: 'write', args: { filePath: 'a.js', content: ['// TODO: insert', 'API key here'].join(' ') } }, out); // do-it: allow (fixture)
@@ -813,21 +813,21 @@ function fakeCtx() {
 }
 
 test('OpenCode plugin default export carries both entry shapes', async () => {
-  const { default: plugin, DoItPlugin } = await import('../.opencode/plugins/do-it.mjs');
+  const { default: plugin, DoItPlugin } = await import('../.opencode/do-it-plugin/do-it.mjs');
   assert.equal(plugin.id, 'do-it');
   assert.equal(typeof plugin.setup, 'function');
   assert.equal(plugin.server, DoItPlugin);
 });
 
 test('OpenCode plugin setup without hook domains registers nothing and leaves v1 live', async () => {
-  const { createPlugin } = await import('../.opencode/plugins/do-it.mjs');
+  const { createPlugin } = await import('../.opencode/do-it-plugin/do-it.mjs');
   const p = createPlugin({ decide: () => ({}) });
   await p.setup({ options: {}, agent: {} });
   assert.ok(Object.keys(await p.server({ directory: '/x' })).length > 0);
 });
 
 test('OpenCode plugin setup hooks translate over decide, and v1 then stays empty', async () => {
-  const { createPlugin } = await import('../.opencode/plugins/do-it.mjs');
+  const { createPlugin } = await import('../.opencode/do-it-plugin/do-it.mjs');
   const answers = { session: { context: 'ctx' }, before: { block: 'no' }, after: { context: 'lint' } };
   const calls = [];
   const p = createPlugin({ decide: (event, input) => (calls.push([event, input.kind]), answers[event]) });
@@ -855,7 +855,7 @@ test('OpenCode plugin setup hooks translate over decide, and v1 then stays empty
 });
 
 test('OpenCode plugin setup stands down when the v1 hooks are already live', async () => {
-  const { createPlugin } = await import('../.opencode/plugins/do-it.mjs');
+  const { createPlugin } = await import('../.opencode/do-it-plugin/do-it.mjs');
   const p = createPlugin({ decide: () => ({}) });
   await p.server({ directory: '/x' });
   const { hooks, ctx } = fakeCtx();
@@ -864,7 +864,7 @@ test('OpenCode plugin setup stands down when the v1 hooks are already live', asy
 });
 
 test('OpenCode plugin setup hooks fail open and skip an unexpected shape', async () => {
-  const { createPlugin } = await import('../.opencode/plugins/do-it.mjs');
+  const { createPlugin } = await import('../.opencode/do-it-plugin/do-it.mjs');
   const boom = () => {
     throw new Error('boom');
   };
@@ -891,7 +891,7 @@ test('OpenCode plugin setup hooks fail open and skip an unexpected shape', async
 });
 
 test('OpenCode plugin setup backgrounds subagent calls launched together, not a lone one', async () => {
-  const { createPlugin } = await import('../.opencode/plugins/do-it.mjs');
+  const { createPlugin } = await import('../.opencode/do-it-plugin/do-it.mjs');
   const p = createPlugin({ decide: () => ({}) });
   const { hooks, ctx } = fakeCtx();
   await p.setup(ctx);

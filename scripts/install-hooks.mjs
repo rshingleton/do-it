@@ -105,16 +105,18 @@ function opencodeMajor() {
 }
 
 export function mergeOpencode(config, root, { strip = false, major = 1 } = {}) {
-  const dir = path.join(root, '.opencode', 'plugins');
+  // Not `plugin/` or `plugins/`: OpenCode 2 discovers both directory names
+  // inside a project, so a checkout opened directly would load its plugin twice
+  // (once by discovery, once by this registration).
+  const dir = path.join(root, '.opencode', 'do-it-plugin');
+  // The old name, so an install that predates the move is replaced, not kept beside it.
+  const legacy = path.join(root, '.opencode', 'plugins');
+  const own = [dir, path.join(dir, 'do-it.mjs'), legacy, path.join(legacy, 'do-it.mjs')];
+  const mine = (p) => own.some((o) => p === o || sameTarget(p, o));
   const file = path.join(dir, 'do-it.mjs');
   const next = { ...config };
   for (const key of ['plugin', 'plugins']) {
-    if (Array.isArray(next[key])) {
-      next[key] = next[key].filter((p) => {
-        if (p === dir || p === file) return false;
-        return !sameTarget(p, dir) && !sameTarget(p, file);
-      });
-    }
+    if (Array.isArray(next[key])) next[key] = next[key].filter((p) => !mine(p));
   }
   if (!strip) {
     const key = major >= 2 ? 'plugins' : 'plugin';
