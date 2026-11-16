@@ -67,3 +67,11 @@ test('a root found with a module missing is unverified, never a throw', () => {
   assert.match(r.stderr, /^Unverified: cannot resolve .*skills\/track-it\/scripts\/config\.mjs/);
   assert.doesNotMatch(r.stderr, /\n\s+at /, 'no stack trace');
 });
+
+test('guard-it names the absent inputs and the limits entry', () => {
+  const text = fs.readFileSync(path.join(ROOT, 'skills/guard-it/SKILL.md'), 'utf8');
+  assert.match(text, /`\.compliance-rules\/`/, 'the rules directory is named');
+  assert.match(text, /`SECURITY_POLICY\.md`/, 'the security policy is named');
+  assert.match(text, /dependency manifest/, 'dependency manifests are named');
+  assert.match(text, /work\.mjs run set <slug> limits/, 'the limits entry is named');
+});
