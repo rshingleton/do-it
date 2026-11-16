@@ -3,6 +3,7 @@
 // gate.mjs, the record in run.mjs, the commit in commit.mjs. work.mjs is the only caller.
 
 import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
 import path from 'node:path';
 import { snapshot, treeDiff } from './changeset.mjs';
 import { dirtyHashes, relative } from './commit.mjs';
@@ -17,6 +18,23 @@ import { splitKey } from './ids.mjs';
 
 // A path a track reads uses / on every platform, as the record's paths do.
 const posix = (p) => p.split(path.sep).join('/');
+
+// The real path of a directory, or its resolved name when it cannot be read.
+const real = (p) => {
+  try {
+    return fs.realpathSync.native(p);
+  } catch {
+    return path.resolve(p);
+  }
+};
+
+// The tree a verify ran in, from the coordinator: `.` when the two names are one directory.
+// macOS gives `/var` and `/private/var` for the same tree, and Windows gives `RUNNER~1` and
+// `runneradmin`, so a string compare would call the coordinator's own checkout a track.
+const verifiedRoot = (root, top) => {
+  const [a, b] = [real(root), real(top)];
+  return a === b ? '.' : posix(path.relative(a, b)) || '.';
+};
 
 // `run gate`: the slice's gate result against the fingerprint of its work item in the tree the
 // verify recorded, and against the merged tree once a merged check is a fact of the record. A
@@ -214,7 +232,7 @@ export function runVerify({ planningDir, root, cwd, slug, id, opts, items, finge
       // The phase is already recorded as verified; say which record is missing so the retry is not a guess.
       throw new Error(`${e.message}; the checks passed and the phase is recorded, but ${id}'s verified_files is not: run verify again`);
     }
-    recordVerified(planningDir, slug, id, fingerprintOf(items.get(g.work), top), files, relative(root, top) || '.');
+    recordVerified(planningDir, slug, id, fingerprintOf(items.get(g.work), top), files, verifiedRoot(root, top));
     return showRun(planningDir, slug);
   });
 }

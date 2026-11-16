@@ -442,12 +442,32 @@ const stub = (calls = []) => ({
 
 test('runGate: no verify, a matching fingerprint and a moved one give UNVERIFIED, allow and STALE_VERIFY', () => {
   const dir = fixture();
-  const base = { ...unit(dir), items: stub() };
+  const base = { ...unit(dir), items: stub(), root: dir };
   assert.equal(runGate({ ...base, fingerprintOf: () => 'fp' }).reason, 'UNVERIFIED');
   runVerify({ ...base, root: dir, cwd: dir, opts: { '--': ['true'] }, fingerprintOf: () => 'fp', quote: String });
   assert.equal(runGate({ ...base, fingerprintOf: () => 'fp' }).allow, true);
   assert.equal(runGate({ ...base, fingerprintOf: () => 'moved' }).reason, 'STALE_VERIFY');
   assert.equal(runGate({ ...base, id: 'R9', fingerprintOf: () => 'fp' }).reason, 'UNVERIFIED', 'an unknown slice has no verify');
+});
+
+test('runVerify: one directory under two names records the coordinator tree, so no merged check is asked', () => {
+  // macOS /var and Windows RUNNER~1 name the same tree as /private/var and runneradmin.
+  const dir = fixture();
+  const link = path.join(path.dirname(dir), `link-${path.basename(dir)}`);
+  try {
+    fs.symlinkSync(dir, link, process.platform === 'win32' ? 'junction' : 'dir');
+  } catch (e) {
+    if (process.platform !== 'win32') throw e;
+    return assert.ok(true, `no junction allowed: ${e.message}`);
+  }
+  try {
+    const base = { ...unit(dir), items: stub(), root: link, cwd: link, fingerprintOf: () => 'fp', quote: String };
+    const rec = runVerify({ ...base, opts: { '--': ['true'] } });
+    assert.equal(rec.gates[0].verified_root, '.', 'the same tree under another name is the coordinator\'s own checkout');
+    assert.equal(runGate({ ...base }).allow, true, 'so the gate does not ask for a merged check');
+  } finally {
+    fs.rmSync(link, { force: true });
+  }
 });
 
 test('runVerify: a pass records the fingerprint and file hashes, a failure records neither', () => {
