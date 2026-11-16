@@ -3,7 +3,7 @@
 Nice-to-haves and things to circle back to. Managed by log-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T302
+Next id: T305
 
 ## Open
 
@@ -98,3 +98,6 @@ Next id: T302
 - [ ] T299 `docs/reference/roadmap-history.md:8` says every file was removed after the record was written, false for backlog-cleanup-2026-11 (deleted in 0d2a310, its section added in 8157e83) `nice-to-have` (R4 ship review)
 - [ ] T300 `tests/roadmap-coverage.test.mjs:102` pins the words "R2 to R16", so a reword to "R2 through R16" fails with "the open slices are named" `nice-to-have` (R4 ship review)
 - [ ] T301 `tests/roadmap-coverage.test.mjs:110` accepts any mention, so moving T234 from R63's Items into a Fog bullet stays green while "each owns a slice" becomes false `nice-to-have` (R4 ship review)
+- [ ] T302 `skills/do-it/STATE.md:26` says `show` prints `root` while every other run command refuses, but `run show` refuses too; say "every run command but `new`" `nice-to-have` (R2 ship review)
+- [ ] T303 `tests/finish-run.test.mjs:140,168` calls `mentions(record.root, ...)` before asserting `record.root`, so a missing root throws a TypeError instead of naming it `nice-to-have` (R2 ship review)
+- [ ] T304 `tests/changeset.test.mjs:329` fails intermittently on timing; it failed once in R1's worktree (the run parked R1 as FLAKY) and once in R2's merged run `debt` (R1 and R2 audits, 2026-11-16)
