@@ -211,10 +211,12 @@ install are supported and reported, not managed. What each route carries, how it
 updates and what each host answers when asked what it loaded:
 [docs/reference/install-routes.md](docs/reference/install-routes.md).
 
-Claude Code takes the symlink install or the plugin, never both. OpenCode takes
-the symlink install, which also carries its commands and agents. Gemini CLI,
-GitHub Copilot and Antigravity read `~/.agents/skills`, which the same install
-fills, so that path alone serves four hosts, and the install serves Claude Code
+One route per host. Claude Code takes the symlink install or the plugin, never
+both. OpenCode takes the symlink install or the `skills` CLI, never both; the
+symlink install also carries its commands and agents. Gemini CLI, GitHub
+Copilot and Antigravity read `~/.agents/skills`, which the symlink install
+fills and a global CLI install replaces with copies, so they take one route
+too. That path alone serves four hosts, and the install serves Claude Code
 through `~/.claude/skills` as well.
 
 **Symlink install, one-liner (Claude Code and OpenCode):**
@@ -281,18 +283,46 @@ the Bash tool only on Windows, not PowerShell.
 
 **Claude Code plugin:**
 
+From a shell, or a setup script:
+
 ```text
-/plugin marketplace add rshingleton/do-it
-/plugin install do-it@do-it
+claude plugin marketplace add rshingleton/do-it
+claude plugin install do-it@do-it
 ```
 
-The plugin carries skills, agents and hooks (its agents are namespaced, for
-example `do-it:it-reviewer`). Use it or the symlinks for Claude Code,
-not both. Using OpenCode too? Use the symlink install; it covers both hosts.
-Claude Code decides an update from `version` in `.claude-plugin/plugin.json`,
-not from the files, so a skill changed here reaches plugin users only when that
-string moves. `scripts/version-gate.mjs` fails a change under `skills/`,
-`agents/` or `hooks/` that leaves it alone, and CI runs the gate.
+From a local checkout, give the folder instead, which loads it in place and
+follows edits with no version bump:
+
+```text
+claude plugin marketplace add ./path/to/do-it
+claude plugin install do-it@do-it
+```
+
+In a session, run `/plugin marketplace add rshingleton/do-it`, then
+`/plugin install do-it@do-it`. The plugin carries skills, agents and hooks
+(its agents are namespaced, for example
+`do-it:it-reviewer`). Claude Code decides an update from `version` in
+`.claude-plugin/plugin.json`, not from the files, so a skill changed here
+reaches plugin users only when that string moves. `scripts/version-gate.mjs`
+fails a change under `skills/`, `agents/` or `hooks/` that leaves it alone, and
+CI runs the gate.
+
+**`skills` CLI (skills only, any host the CLI supports):**
+
+```text
+npx skills@latest add rshingleton/do-it -a opencode
+npx skills@latest add rshingleton/do-it -a opencode -g   # global
+```
+
+Without `-g` it writes the skill folders into the project's `.agents/skills`
+and `skills-lock.json`, recording the source commit and a content hash per
+skill. With `-g` it writes `~/.agents/skills` and
+`~/.agents/.skill-lock.json`: the same folder the symlink install fills, so a
+global CLI install replaces its links with copies. `npx skills@latest list`
+shows what is installed; `npx skills@latest update` moves a git install to its
+latest commit; a local path records no commit, so re-run `add` against the path
+to refresh it. Verified on 2026-11-16 with CLI 1.9.0
+([details](docs/reference/install-routes.md#the-cli-route-on-this-machine)).
 
 **Check:**
 
@@ -371,8 +401,10 @@ OpenCode 1 hook object (`experimental.chat.system.transform`,
 `tool.execute.before/after`; a throw blocks the tool) and a v2 `setup` that
 registers `session` and `tool` hooks, which OpenCode 2 runs (verified on
 2.1.2). Register the plugin as a directory on OpenCode 2 (`plugins`:
-`.opencode/plugins`, which holds an `index.js`); a plugin file path is
-skipped there. `scripts/install-hooks.mjs` picks the form from
+`.opencode/do-it-plugin`, which holds an `index.js`); a plugin file path is
+skipped there. The directory is not named `plugin/` or `plugins/`, because
+OpenCode discovers either name in a project by itself, which would load our
+own checkout twice. `scripts/install-hooks.mjs` picks the form from
 `opencode --version`. The OpenCode 2 `execute` code tool cannot write or run
 a command by itself on 2.1.2, and a nested tool call reaches the same guards.
 

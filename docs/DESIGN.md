@@ -273,7 +273,7 @@ do-it/
     claude.mjs                # Claude Code entry: session/subagent start, pre/post tool
     lib/                      # host-neutral checks, context, guard decisions
     hooks.json                # plugin hook config
-  .opencode/plugins/          # OpenCode plugin over hooks/lib
+  .opencode/do-it-plugin/     # OpenCode plugin over hooks/lib (not plugin/ or plugins/: discovered by OpenCode)
   .opencode/command/*.md      # generated from skills, never hand-edited (OpenCode 1)
   .opencode/commands/*.md     # same files for OpenCode 2
   .opencode/agents/*.md       # generated from agents/: deny-first permission map, no model

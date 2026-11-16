@@ -237,7 +237,21 @@ test('install-hooks merges idempotently and removes only its own entries', () =>
   const oc = mergeOpencode({ plugin: ['x'] }, ROOT, { major: 1 });
   assert.deepEqual(mergeOpencode(oc, ROOT, { major: 1 }), oc);
   assert.deepEqual(mergeOpencode(oc, ROOT, { strip: true }), { plugin: ['x'] });
-  assert.deepEqual(mergeOpencode({}, ROOT, { major: 2 }).plugins, [path.join(ROOT, '.opencode', 'plugins')]);
+  assert.deepEqual(mergeOpencode({}, ROOT, { major: 2 }).plugins, [path.join(ROOT, '.opencode', 'do-it-plugin')]);
+});
+
+test('OpenCode registers the plugin outside the auto-discovered directory names', () => {
+  // OpenCode 2 discovers a project's `.opencode/plugin/` and `.opencode/plugins/`
+  // by itself. Registering a directory by either name loads do-it twice when the
+  // checkout is opened: once discovered, once registered.
+  assert.equal(fs.existsSync(path.join(ROOT, '.opencode', 'plugins')), false);
+  assert.equal(fs.existsSync(path.join(ROOT, '.opencode', 'plugin')), false);
+  assert.equal(fs.existsSync(path.join(ROOT, '.opencode', 'do-it-plugin', 'index.js')), true);
+
+  // An install from before the move is replaced, not left beside the new entry.
+  const legacy = { plugins: [path.join(ROOT, '.opencode', 'plugins')] };
+  assert.deepEqual(mergeOpencode(legacy, ROOT, { major: 2 }).plugins, [path.join(ROOT, '.opencode', 'do-it-plugin')]);
+  assert.deepEqual(mergeOpencode(legacy, ROOT, { strip: true }), {});
 });
 
 test('a registered command keeps one separator style, whatever the checkout path uses', { skip: process.platform === 'win32' && 'a name holding a backslash cannot exist here' }, () => {
@@ -258,7 +272,7 @@ test('a registered command keeps one separator style, whatever the checkout path
 
 test('OpenCode plugin injects context and throws on HIGH edits', async () => {
   const root = repo();
-  const { DoItPlugin: plugin } = await import('../.opencode/plugins/do-it.mjs');
+  const { DoItPlugin: plugin } = await import('../.opencode/do-it-plugin/do-it.mjs');
   const hooks = await plugin({ directory: root });
   const out = { system: [] };
   await hooks['experimental.chat.system.transform']({}, out);
@@ -273,7 +287,7 @@ test('OpenCode plugin injects context and throws on HIGH edits', async () => {
 // itself carries only code text and is not checked.
 test('OpenCode 2 execute: nested tool calls reach the guards, the code text does not', async () => {
   const root = repo();
-  const { createPlugin } = await import('../.opencode/plugins/do-it.mjs');
+  const { createPlugin } = await import('../.opencode/do-it-plugin/do-it.mjs');
   const hooks = {};
   const domain = () => ({ hook: (name, fn) => (hooks[name] = fn) });
   await createPlugin().setup({ session: domain(), tool: domain(), location: { directory: root } });

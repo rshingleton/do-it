@@ -8,7 +8,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-import { createPlugin } from '../.opencode/plugins/do-it.mjs';
+import { createPlugin } from '../.opencode/do-it-plugin/do-it.mjs';
 import { createOpenCodeUsage } from '../skills/usage-it/scripts/opencode.mjs';
 import { readAll } from '../skills/usage-it/scripts/ledger.mjs';
 
