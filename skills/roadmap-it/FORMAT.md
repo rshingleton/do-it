@@ -76,8 +76,10 @@ Two more parts appear over a roadmap's life. `## Changes` holds dated lines
 while work goes on (the first dated line creates it, e.g. `- 2026-10-22: R1
 answered; R2 ready.`). When ship-it finalizes a finished roadmap
 ([FINALIZE.md](../ship-it/FINALIZE.md)) it adds `completed: <date>` to the
-frontmatter and turns `## Changes` into a `## Shipped` bullet list. A replan
-keeps both: it never drops `completed:` or turns `## Shipped` back into a
-Changes section. `work.mjs roadmap` offers no slice of a completed roadmap, and
-its `reopened` note says so when slices are unshipped; clear `completed:` to
-work them.
+frontmatter, turns `## Changes` into a `## Shipped` bullet list, appends the
+roadmap's row to `docs/reference/roadmap-history.md` and removes the file, so a
+finished roadmap leaves none in `docs/roadmap`. A replan keeps both parts: it
+never drops `completed:` or turns `## Shipped` back into a Changes section. A
+hand-set `completed:` is cleared to work the slices again; `work.mjs roadmap`
+offers no slice of a completed roadmap, and its `reopened` note says so when
+slices are unshipped.

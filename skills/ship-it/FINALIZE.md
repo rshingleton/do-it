@@ -1,7 +1,8 @@
 # Finalize a finished roadmap
 
-For [SKILL.md](SKILL.md) §1, §2 and §3 step 2. A finished roadmap keeps its
-file in `docs/roadmap`; this turns it into a lasting record.
+For [SKILL.md](SKILL.md) §1, §2 and §3 step 2. A finished roadmap's content
+goes into its ADRs, the to-do list and the history row first; then its file is
+removed in the same commit. An unfinished roadmap is left in place and named.
 
 ## When
 
@@ -17,19 +18,22 @@ file in `docs/roadmap`; this turns it into a lasting record.
 - Or `/ship-it --roadmap <file>` again after that review: a `completed`
   roadmap with uncommitted edits asks one line, "Commit now?", and commits the
   paths below; with none it says it was finalized on the `completed` date.
-  Either way offer e is asked again for a milestone still open: a local one
-  closes with no question, a remote one needs its yes. When a run record for
-  this roadmap exists at level `full` or `ultra` this is run mode
+  Either way the history row and the removal below still happen, offers a to d
+  are not written again, and offer e is asked again for a milestone still open:
+  a local one closes with no question, a remote one needs its yes. When a run
+  record for this roadmap exists at level `full` or `ultra` this is run mode
   ([RUNMODE.md](RUNMODE.md)): every default, nothing asked, and a remote
-  milestone stays open. Nothing else is written.
+  milestone stays open.
 
 ## Paths
 
-The roadmap file; the ADRs offer `a` created; `docs/TODO.md` when offer `b`
-added to-dos; and the milestone issue files offer `e` closed, which on a local
-tracker are the `docs/issues/*.md` files themselves (the repo's configured
-paths, not these defaults). "Commit now" stages these and nothing else, and so
-does a run's `work.mjs run commit <slug> <id> --docs --paths`.
+The roadmap file, removed; the row appended to
+`docs/reference/roadmap-history.md`; the ADRs offer `a` created; `docs/TODO.md`
+when offer `b` added to-dos; and the milestone issue files offer `e` closed,
+which on a local tracker are the `docs/issues/*.md` files themselves (the
+repo's configured paths, not these defaults). "Commit now" stages these and
+nothing else, and so does a run's `work.mjs run commit <slug> <id> --docs
+--paths`.
 
 ## Offers
 
@@ -55,8 +59,23 @@ e. **Milestones:** for a published roadmap, close each milestone parent with
 Write a to d in the same change as the slice's own closes (§3 step 2). Run
 mode takes every default, with no question ([RUNMODE.md](RUNMODE.md)).
 
+## Remove
+
+Only when the roadmap is finished: every slice `shipped` or `dropped` and no
+decision open. An unfinished roadmap is left in place, and the slice or
+decision that holds it is named in the closing line.
+
+1. Write offers a to d first, so the content is durable before the file goes.
+2. Append one row to `docs/reference/roadmap-history.md`, in the table below
+   its intro: the title, the file removed, the `approved:` date, the
+   `completed:` date and the count of slices in `## Shipped`.
+3. Remove the roadmap file in the same change, before the commit, so the
+   commit that finalizes it also removes it.
+
+Run mode removes too, with nothing asked.
+
 ## Never
 
-- Never delete the roadmap.
+- Never remove a roadmap with a slice unshipped or a decision open.
 - Never create a changelog.
 - Never touch a slice Status beyond what ship-it writes.

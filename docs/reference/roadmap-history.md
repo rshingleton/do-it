@@ -4,8 +4,11 @@ title: Roadmap history
 
 # Roadmap history
 
-Durable record of the roadmaps closed by 2026-11-16: five finished, one
-superseded. Each file was removed after this record was written; git history
+Durable record of every roadmap removed from `docs/roadmap`: one row per file.
+A finalize adds its own row
+([FINALIZE.md](../../skills/ship-it/FINALIZE.md)); a roadmap removed any other
+way is recorded here by hand. This file began on 2026-11-16 with five finished
+roadmaps and one superseded. No file listed below is in the tree; git history
 still holds the roadmaps themselves. A closed roadmap is not work:
 `work.mjs roadmap` offers no slice from one.
 

@@ -878,6 +878,25 @@ test('FINALIZE Paths names every file a finalize writes, the local issue files i
   assert.ok(!paths.includes('stages exactly'), 'no claim the list is exact when offer e edits more');
 });
 
+// A finished roadmap's file must not outlive its durable record: the row lands
+// and the file goes in one commit, and a roadmap with work left stays, named.
+test('a finalize appends the roadmap-history row and removes the file, and leaves an unfinished roadmap in place', () => {
+  const finalize = fs.readFileSync(path.join(ROOT, 'skills/ship-it/FINALIZE.md'), 'utf8');
+  const doc = flat(finalize);
+  const history = fs.readFileSync(path.join(ROOT, 'docs/reference/roadmap-history.md'), 'utf8');
+  assert.equal(
+    history.split('\n').find((line) => line.startsWith('| Roadmap |')),
+    '| Roadmap | File removed | Approved | Completed | Slices in Shipped |',
+    'the history table carries the cells a finalize fills',
+  );
+  assert.ok(doc.includes('docs/reference/roadmap-history.md'), 'the finalize appends the history row');
+  assert.match(doc, /title.*file removed.*approved.*completed.*shipped/i, 'the row holds the title, file, both dates and the shipped count');
+  assert.match(doc, /remove the roadmap file in the same change/i, 'the file goes with the commit that finalizes it');
+  assert.match(doc, /unfinished roadmap is left/i, 'a roadmap with work left is left in place');
+  assert.doesNotMatch(finalize, /Never delete the roadmap/, 'the never-delete rule is gone');
+  assert.doesNotMatch(doc, /keeps its file/, 'a finished roadmap no longer keeps its file');
+});
+
 test('a roadmap finalize leaves no proposed ADR nobody accepts, and the two origin-only Execution notes are gone', () => {
   const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
   const offerA = flat(read('skills/ship-it/FINALIZE.md')).match(/a\. \*\*ADRs:\*\*.*?(?=b\. \*\*Fog)/)[0];
