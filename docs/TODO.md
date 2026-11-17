@@ -3,7 +3,7 @@
 Nice-to-haves and things to circle back to. Managed by log-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T305
+Next id: T308
 
 ## Open
 
@@ -100,4 +100,7 @@ Next id: T305
 - [ ] T301 `tests/roadmap-coverage.test.mjs:110` accepts any mention, so moving T234 from R63's Items into a Fog bullet stays green while "each owns a slice" becomes false `nice-to-have` (R4 ship review)
 - [ ] T302 `skills/do-it/STATE.md:26` says `show` prints `root` while every other run command refuses, but `run show` refuses too; say "every run command but `new`" `nice-to-have` (R2 ship review)
 - [ ] T303 `tests/finish-run.test.mjs:140,168` calls `mentions(record.root, ...)` before asserting `record.root`, so a missing root throws a TypeError instead of naming it `nice-to-have` (R2 ship review)
+- [ ] T306 `skills/guard-it/SKILL.md:34` says the digest prints the gap under "not checked", but `skills/do-it/scripts/digest.mjs:62` prints `## Verification limits (n)`; align the wording or the heading `nice-to-have` (R68 ship review)
+- [ ] T307 `skills/guard-it/scripts/scan.mjs:34-35` never reaches the sibling skill layout in an install (line 32 exits first), and the `load` catch at 51-57 is untested; a present but broken module is its only path `nice-to-have` (R68 ship review)
+- [ ] T305 A track prove-it cannot spawn its fresh reviewers (subagent depth 1), so every track audit runs in-context and the coordinator one scoped reviewer is the only fresh check `debt` (R68 build audit, 2026-11-16)
 - [ ] T304 `tests/changeset.test.mjs:329` fails intermittently on timing; it failed once in R1's worktree (the run parked R1 as FLAKY) and once in R2's merged run `debt` (R1 and R2 audits, 2026-11-16)

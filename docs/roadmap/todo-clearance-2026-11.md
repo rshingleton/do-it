@@ -53,8 +53,9 @@ content is durable.
   form is never guessed silently.
 - G13: Every `idea` and `question` item ships, is spiked with an answer
   recorded, or is dropped with a dated reason; none is re-parked undated.
-- G14: Both stores end empty: `docs/TODO.md` has no `- [ ]` line and no
-  `docs/issues/*.md` has `status: open`, with `Next id` free.
+- G14: At close every item this roadmap named is resolved: no `- [ ]` line
+  it named and no issue it named is still open, with `Next id` free; a finding
+  filed during the run stays open and names the slice that filed it.
 - G15: A complete run asks for three tracks by default, never one; an ask
   below three is raised, and only a commit mode that writes no branch holds
   one track and says why.
@@ -171,6 +172,7 @@ Exit: a `git commit` through the PowerShell tool is scanned or documented, and
 | R55 | build | The Claude Code half of the code map: the per-session map is cached keyed by HEAD and index mtime so subagent starts reuse it, falling back to tracked files when the 1.5 s timeout hits Items: T46 | G13 | hooks/lib/codemap.mjs, tests/codemap-routing.test.mjs | none | A second subagent start reuses the map; a bumped HEAD rebuilds it; the timeout path reads tracked files only | med | |
 | R56 | build | `sweep-it`'s drift lens checks that paths, commands, names, endpoints and dependencies named in docs exist, by existence only, failing open Items: issue: verify-claims-in-docs-exist-paths-commands-names | G11 | skills/sweep-it/LENSES.md, skills/sweep-it/scripts/doc-claims.mjs | none | A doc naming a missing path, command and function is reported by the drift lens; a real one passes; nothing executes | med | |
 | R57 | build | A tracker check (gh auth or Jira /myself) and an install doctor (Node 18, host, symlink health, hook registration, checks.json validity) run under setup-it Items: T78 | G12 | skills/setup-it/SKILL.md, scripts/doctor.mjs | none | A signed-out gh fails the tracker check; a broken hook registration is named with its fix | med | |
+| R68 | build | The mechanical compliance scan runs wherever guard-it is installed, reports `Unverified` when it cannot resolve `hooks/lib/checks.mjs`, names the rules, policy and manifests it could not read, and puts the gap in a run's limits Items: issue: compliance-scanner-cannot-run-from-a-skills-only-install | G10, G12 | skills/guard-it/scripts/scan.mjs, skills/guard-it/SKILL.md, tests/guard-scan.test.mjs | none | A copy of the skill without hooks/lib reports `Unverified` and exits 2, never a clean list; the checkout finds it; absent rules, policy and manifests are named; a run records the gap in limits | med | shipped 2026-11-16 r68-guard-scan |
 
 ### M8: The last ideas
 Exit: every remaining `idea` and `question` line is shipped, spiked with a
@@ -193,7 +195,7 @@ Exit: `docs/TODO.md` has no open line, no issue has `status: open`, and
 
 | Slice | Kind | Delivers | Covers | Files | Blocked by | Verify | Risk | Status |
 |-------|------|----------|--------|-------|------------|--------|------|--------|
-| R66 | build | Close the 16 tickets, clear every to-do line R1 to R65 did not already clear, set `Next id`, and record the closing state Items: the whole store; no single item | G14 | docs/TODO.md, docs/issues/ | R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, R12, R13, R14, R15, R16, R17, R18, R19, R20, R21, R22, R23, R24, R25, R26, R27, R28, R29, R30, R31, R32, R33, R34, R35, R36, R37, R38, R39, R40, R41, R42, R43, R44, R45, R46, R47, R48, R49, R50, R51, R52, R53, R54, R55, R56, R57, R58, R59, R60, R61, R62, R63, R64, R65, R67 (nothing left to close) | `grep -c '^- \[ \]' docs/TODO.md` reads 0; no issue file has `status: open`; `Next id` is free; `npm test` passes | low | |
+| R66 | build | Close the 16 tickets and every to-do line this roadmap named, leave findings filed during the run open with their source slice, set `Next id`, and record the closing state Items: the whole store; no single item | G14 | docs/TODO.md, docs/issues/ | R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, R12, R13, R14, R15, R16, R17, R18, R19, R20, R21, R22, R23, R24, R25, R26, R27, R28, R29, R30, R31, R32, R33, R34, R35, R36, R37, R38, R39, R40, R41, R42, R43, R44, R45, R46, R47, R48, R49, R50, R51, R52, R53, R54, R55, R56, R57, R58, R59, R60, R61, R62, R63, R64, R65, R67, R68 (nothing left to close) | No item this roadmap named is open; every finding filed during the run names its source slice; `Next id` is free; `npm test` passes | low | |
 
 ## Open decisions
 - none
@@ -240,6 +242,12 @@ Exit: `docs/TODO.md` has no open line, no issue has `status: open`, and
   writes no branch, which holds one and says why (R67, T298).
 
 ## Changes
+- 2026-11-16: R68 shipped (r68-guard-scan): the compliance scan resolves
+  its shared code or reports Unverified; absent inputs and the limits entry
+  are named.
+- 2026-11-16: G14 and R66 now resolve only the items this roadmap named;
+  findings filed during the run stay open with their source slice. R68 added
+  for the compliance-scan issue filed from R1's audit.
 - 2026-11-16: R2 shipped (r2-finish-repo-root): a run records its repo
   root, prints it, refuses another checkout, and finish-it refuses a sibling
   roadmap.
