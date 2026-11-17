@@ -80,6 +80,9 @@ test/limiter.test.mjs
 `Limiter.check(key) -> {allowed, wait}`
 `POST /login -> 429 on the 6th try`
 
+## Link
+~/.local/share/do-it-bridge/acme-api--acme-web.md
+
 ## Steps
 1. Add `Limiter` with a sliding window → verify: unit tests at `Limiter.check`
 2. Call it from the login handler → verify: request test gets 429 on the 6th try
@@ -90,6 +93,12 @@ test/limiter.test.mjs
 ## Non-goals
 - Per-account limits (filed as docs/issues/per-account-limits.md)
 ```
+
+`## Link` is optional, written only when the plan is paired through
+[link-it](../link-it/SKILL.md). It holds one path line, the contract path
+link-it §3 derives, so it is never an `assumptions:` entry (ship asks the user
+about those) or a `sources:` ref. It is legal in a lane M README as well as a
+lane S plan, and `replan` keeps it.
 
 ## Lane M: `docs/planning/<id>/`
 
