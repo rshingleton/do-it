@@ -327,10 +327,16 @@ export function snapshot(cwd, { exclude = [] } = {}) {
   }
 }
 
-// Files that differ between two snapshots (or commits), with a diffstat;
-// `exclude` paths are left out.
-export function treeDiff(cwd, from, to, { exclude = [] } = {}) {
-  const spec = exclude.length ? ['--', '.', ...exclude.map((p) => `:(exclude,literal)${p}`)] : [];
+// Files that differ between two snapshots (or commits), with a diffstat; `exclude` paths are left
+// out, and `paths` narrows the diff to those files (the ones the run's own commits touch).
+export function treeDiff(cwd, from, to, { exclude = [], paths = null } = {}) {
+  // A run whose commits touch no file has no change: never widen the diff back to the whole tree.
+  if (paths && !paths.length) return { files: [], stat: '' };
+  const spec = paths
+    ? ['--', ...paths.map((p) => `:(literal)${p}`), ...exclude.map((p) => `:(exclude,literal)${p}`)]
+    : exclude.length
+      ? ['--', '.', ...exclude.map((p) => `:(exclude,literal)${p}`)]
+      : [];
   const names = git(cwd, ['diff', '--name-status', from, to, ...spec]);
   if (names.status !== 0) throw new Error(`git diff failed: ${names.stderr}`);
   const stat = git(cwd, ['diff', '--stat', from, to, ...spec]).stdout.trim();

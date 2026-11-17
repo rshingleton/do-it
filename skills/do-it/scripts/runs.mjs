@@ -255,29 +255,12 @@ export function runVerifyMerged({ planningDir, root, cwd, slug, id, opts, items,
   return showRun(planningDir, slug);
 }
 
-// The commit the run's own change starts at when a rebase rewrote the base: the point where the
-// branch left its upstream. A base still in HEAD's history (a merge, or a branch that never moved)
-// keeps today's base range, so a plain branch and a merged one read exactly as they did.
-function upstreamAnchor(inRoot, base) {
-  // No remote branch to rebase onto, or a detached HEAD: the recorded base stands.
-  const up = inRoot(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}']);
-  if (up.error || up.status !== 0) return null;
-  // A base git cannot resolve is the error the base range reports, never a silent anchor.
-  if (inRoot(['rev-parse', '--verify', '--quiet', `${base}^{commit}`]).status !== 0) return null;
-  // A merge keeps the base in HEAD's history, so it is still the run's own start. Only a rebase
-  // that rewrote the base drops it, and then the branch point names where the run's change began.
-  if (inRoot(['merge-base', '--is-ancestor', base, 'HEAD']).status === 0) return null;
-  const mb = inRoot(['merge-base', up.stdout.trim(), 'HEAD']);
-  // Exit 1 is no common ancestor: nothing of the upstream's to leave out.
-  if (mb.error || mb.status !== 0) return null;
-  return mb.stdout.trim();
-}
-
-// `run review-change`: the change the run's final review reads. Committed work is the run's own
-// commits from the recorded base, or from the branch's upstream point once a rebase rewrote the
-// base, so the upstream commits it brought in stay out. With commit mode none, no base, or
-// anything still uncommitted outside the planning dir (the closing docs), the working tree
-// against base, untracked files included. Planning files are never in it.
+// `run review-change`: the change the run's final review reads. Committed work is the files the
+// run's own commits touch, between the recorded base and HEAD: the commits the branch's upstream
+// already has are left out, so a merge or a rebase does not put the upstream's content in the
+// change, and a pre-run local commit is below the base, so it stays out too. With commit mode none,
+// no base, or anything still uncommitted outside the planning dir (the closing docs), the working
+// tree against base, untracked files included. Planning files are never in it.
 export function runReviewChange({ planningDir, root, slug, exclude }) {
   const { base, commit } = showRun(planningDir, slug);
   if (!base) return { base: null, mode: 'worktree', files: null, note: 'no base recorded: review the working tree' };
@@ -289,11 +272,18 @@ export function runReviewChange({ planningDir, root, slug, exclude }) {
   };
   const dirty = must(inRoot(['status', '--porcelain', '-uall', '--', '.', ...exclude.map((p) => `:(exclude,literal)${p}`)]), 'git status');
   if (commit === 'none' || dirty) return { base, mode: 'worktree', ...treeDiff(root, base, snapshot(root, { exclude }), { exclude }) };
-  const anchor = upstreamAnchor(inRoot, base);
   const mb = inRoot(['merge-base', base, 'HEAD']);
-  // Exit 1 is no common ancestor (rewritten history): review from the base itself.
-  const from = anchor ?? (mb.status === 1 ? base : must(mb, 'git merge-base'));
-  return { base, mode: 'range', ...treeDiff(root, from, 'HEAD', { exclude }) };
+  // A base git cannot resolve is an error; exit 1 is no common ancestor, which the tree diff reads.
+  if (mb.status !== 1) must(mb, 'git merge-base');
+  // The run's own commits: `<base>..HEAD` without the commits the branch's upstream already has and
+  // without merge commits, whose content is the commits they join. No merge base and no anchor pick
+  // the start for both cases: the files those commits touch do.
+  const up = inRoot(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}']);
+  const range = [`${base}..HEAD`, ...(up.status === 0 ? ['--not', up.stdout.trim()] : [])];
+  const touched = must(inRoot(['log', '--no-merges', '--no-renames', '--format=', '--name-only', ...range]), 'git log');
+  const own = [...new Set(touched.split('\n').map((s) => s.trim()).filter(Boolean))]
+    .filter((p) => !exclude.some((e) => p === e || p.startsWith(`${e}/`)));
+  return { base, mode: 'range', ...treeDiff(root, base, 'HEAD', { exclude, paths: own }) };
 }
 
 // Where the plan lists record entry `want` (a `<id>#<n>` key), 1-based, or 0 when it is not found.
