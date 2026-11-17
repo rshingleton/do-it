@@ -125,10 +125,11 @@ function runHooks(args, home, root) {
     : process.env;
   // The step is the installed checkout's own, so its hooks.json and plugin are
   // the ones registered; a tree without the script (a fixture, a partial
-  // checkout) falls back to the running installer's.
-  const script = fs.existsSync(path.join(root, 'scripts', 'install-hooks.mjs'))
-    ? path.join(root, 'scripts', 'install-hooks.mjs')
-    : path.join(ROOT, 'scripts', 'install-hooks.mjs');
+  // checkout) falls back to the running installer's. Say so: the fallback
+  // registers ROOT's hooks while the links point at root.
+  const own = path.join(root, 'scripts', 'install-hooks.mjs');
+  const script = fs.existsSync(own) ? own : path.join(ROOT, 'scripts', 'install-hooks.mjs');
+  if (script !== own) console.error(`note: ${root} has no scripts/install-hooks.mjs; hooks come from ${ROOT}`);
   const status = spawnSync(process.execPath, [script, ...args], { stdio: 'inherit', env }).status ?? 1;
   const runtimeDirs = new Set([
     path.join(home, '.local', 'share', 'opencode'),
@@ -154,8 +155,10 @@ function runHookSteps(args, { root, home, dry }) {
 
 // The checkout an install runs from: the caller's root, else DO_IT_HOME, else
 // this checkout. The environment is read once, and only when no root argument
-// was given, so a caller that names one is never overridden by it.
-const resolveRoot = (root) => root ?? (process.env.DO_IT_HOME || ROOT);
+// was given, so a caller that names one is never overridden by it. Resolved to
+// an absolute path here, so a relative DO_IT_HOME cannot make a link target
+// that resolves inside the link's own directory.
+const resolveRoot = (root) => path.resolve(root ?? (process.env.DO_IT_HOME || ROOT));
 
 // The checkout's ref, as the doctor reads it: local reads only, so an install
 // never fetches. A directory that is not a repository, or a machine without
