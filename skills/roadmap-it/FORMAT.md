@@ -78,6 +78,9 @@ answered; R2 ready.`). When ship-it finalizes a finished roadmap
 ([FINALIZE.md](../ship-it/FINALIZE.md)) it adds `completed: <date>` to the
 frontmatter and turns `## Changes` into a `## Shipped` bullet list. A replan
 keeps both: it never drops `completed:` or turns `## Shipped` back into a
-Changes section. `work.mjs roadmap` offers no slice of a completed roadmap, and
+Changes section. A roadmap that already has `## Shipped` keeps it: a replan's
+new dated line goes in a `## Changes` section after it (the first dated line
+creates one), never in a second Changes beside an existing one. Replanning
+leaves `completed:` as the owner set it. `work.mjs roadmap` offers no slice of a completed roadmap, and
 its `reopened` note says so when slices are unshipped; clear `completed:` to
 work them.

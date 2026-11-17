@@ -1,7 +1,8 @@
 # Levels
 
 The record's `level` (`work.mjs run show <slug>`). One branch each; the loop
-in [SKILL.md](SKILL.md) is the same.
+in [SKILL.md](SKILL.md) is the same. A flag overrides the config value, as
+[CONFIG.md](../track-it/CONFIG.md) says.
 
 ## lite
 

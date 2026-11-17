@@ -52,3 +52,16 @@ it passes again. A closed item has no plan to reopen: the user's follow-up is a
 `fix:` or `log-it` entry. A plan still `building` is not reopened either: its
 `fix:` list gets the change. A line with no id came from the sweep: note it for the
 user. No rejection: the run is final.
+
+## The closing report
+
+For [SKILL.md](SKILL.md) §4, after the digest. First line: how many slices
+shipped, and the `stop` code and detail when `run next` or `run audit` returned
+one (`MAX_SLICES`, `AUDIT_CAP`, which names the limit that fired; raise it with
+`work.mjs run set <slug> max_slices|audit_cap|final_audit_cap|audit_total_cap <n>`
+before resuming). Then each parked slice with its `needs` and reason, and the
+slices still waiting on them. Then each open decision `run next` lists under
+`defects`, with the slices it holds: a slice also parked or waiting is named
+once, not twice, and no other line reports these. Then `Skipped / Not checked /
+Risk`. Last line, `Next:` the command that resumes: `/finish-it <file>
+--resume`, or nothing when every slice shipped.
