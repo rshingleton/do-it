@@ -88,6 +88,19 @@ const atCap = (l) => spent(l) >= l.cap;
 const isSliceLimit = (l) => l.limit.startsWith('slice ');
 export const auditCode = (l) => (isSliceLimit(l) ? 'SLICE_AUDIT_CAP' : 'AUDIT_CAP');
 
+// A slice whose last allowed round passed is not parked by a refused extra round: the gate entry
+// names its work item, and `shipping` or a PASS verdict says the last round passed. No item, no
+// `items` lookup (a direct call), or an unreadable plan counts as not passed.
+function lastRoundPassed(items, g) {
+  if (!items || !g?.work) return false;
+  try {
+    const { state } = items.get(g.work);
+    return state.status === 'shipping' || state.audit?.verdict === 'PASS';
+  } catch {
+    return false;
+  }
+}
+
 // `audit_refused` (and `final_audit_refused`) is the marker of a round `run audit` turned away: it holds
 // the rounds spent then. A limit is exhausted past its cap, or at it while the marker still equals the
 // rounds spent, so a caller that ignored the refusal is still stopped. Setting a cap again clears the
@@ -99,7 +112,7 @@ const exhausted = (l) => spent(l) > l.cap || (l.at[l.refused] === spent(l) && sp
 // the record for the digest, so the loop stops before another round is spent. Returns `{audit_rounds, allow,
 // reason, limit, detail}`: `limit` and `detail` are null on allow, and a refused call leaves `audit_rounds` at
 // the count already spent.
-export function countAudit(planningDir, slug, { id, final = false } = {}) {
+export function countAudit(planningDir, slug, { id, final = false, items } = {}) {
   if (!final && !id) throw new Error('run audit needs a slice id, or --final for the final review');
   let refused = null;
   const record = updateRun(planningDir, slug, (r) => {
@@ -107,13 +120,23 @@ export function countAudit(planningDir, slug, { id, final = false } = {}) {
     const hit = limits.find(atCap);
     if (hit) {
       refused = hit;
-      hit.at[hit.refused] = spent(hit);
-      r.audit_stop = describe(hit);
-      // The loop's own stop would end the whole run on one slice stuck in a failing audit. Park it
-      // instead (resume gives it fresh rounds); a slice already shipped or parked stays as it is.
-      if (isSliceLimit(hit) && !r.slices.some((s) => s.id === id && (s.status === 'shipped' || s.status === 'parked'))) {
-        const parked = { id, status: 'parked', reason: `${describe(hit)}; its last audit did not pass`, needs: 'decision' };
-        r.slices = r.slices.some((s) => s.id === id) ? r.slices.map((s) => (s.id === id ? parked : s)) : [...r.slices, parked];
+      // The cap still refuses the round, but a slice whose last allowed round passed keeps no marker,
+      // so the gate can ship it; run-total and final-review refusals are unchanged.
+      const passed = isSliceLimit(hit) && lastRoundPassed(items, hit.at);
+      if (passed) {
+        // The passing round excuses the cap, so a marker an earlier refused round left must not
+        // outlive it: the gate would read the stale marker as a spent cap.
+        delete hit.at[hit.refused];
+        if (r.audit_stop?.startsWith(`slice ${id}:`)) delete r.audit_stop;
+      } else {
+        hit.at[hit.refused] = spent(hit);
+        r.audit_stop = describe(hit);
+        // The loop's own stop would end the whole run on one slice stuck in a failing audit. Park it
+        // instead (resume gives it fresh rounds); a slice already shipped or parked stays as it is.
+        if (isSliceLimit(hit) && !r.slices.some((s) => s.id === id && (s.status === 'shipped' || s.status === 'parked'))) {
+          const parked = { id, status: 'parked', reason: `${describe(hit)}; its last audit did not pass`, needs: 'decision' };
+          r.slices = r.slices.some((s) => s.id === id) ? r.slices.map((s) => (s.id === id ? parked : s)) : [...r.slices, parked];
+        }
       }
     } else for (const l of limits) l.at[l.rounds] = spent(l) + 1;
   });

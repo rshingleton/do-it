@@ -93,6 +93,59 @@ test('a slice with no audit round left is refused before dispatch; the other tra
   assert.equal(show(dir).gates.find((g) => g.id === 'R1').audit_rounds, 1, 'the refusal spends no round');
 });
 
+test('a refused round after a passing last round leaves the slice unparked and ships', () => {
+  const dir = fixture(['--audit-cap', '1']);
+  assert.equal(audit(dir, 'R1').allow, true, 'its one round');
+  ok(work(dir, 'verify-phase', 'api', '--', 'true'));
+  ok(work(dir, 'event', 'api', 'build-done'));
+  ok(work(dir, 'event', 'api', 'audit-pass'));
+  const refused = audit(dir, 'R1');
+  assert.deepEqual([refused.allow, refused.reason], [false, 'SLICE_AUDIT_CAP'], 'the cap still refuses the extra round');
+  const rec = show(dir);
+  assert.equal(rec.gates.find((g) => g.id === 'R1').audit_refused, undefined, 'a passing last round leaves no refusal marker');
+  assert.equal(rec.audit_stop, undefined, 'the refusal does not name a limit that fired');
+  assert.equal(rec.slices.some((s) => s.id === 'R1' && s.status === 'parked'), false, 'the slice is not parked');
+  assert.equal(ok(work(dir, 'run', 'gate', 'road', 'R1')).reason, 'UNVERIFIED', 'the cap no longer blocks its gate');
+  const next = ok(work(dir, 'run', 'next', 'road', 'docs/roadmap/r.md'));
+  assert.deepEqual(next.parked, [], 'no defect is held back');
+  assert.equal(next.next, 'R1', 'the slice still runs');
+});
+
+test('a failed last round still parks the slice at the cap', () => {
+  const dir = fixture(['--audit-cap', '1']);
+  ok(work(dir, 'verify-phase', 'api', '--', 'true'));
+  ok(work(dir, 'event', 'api', 'build-done'));
+  assert.equal(audit(dir, 'R1').allow, true, 'its one round');
+  ok(work(dir, 'event', 'api', 'audit-fail', '1'));
+  assert.equal(ok(work(dir, 'show', 'api')).audit.verdict, 'FAIL', 'the last allowed round failed');
+  const refused = audit(dir, 'R1');
+  assert.deepEqual([refused.allow, refused.reason], [false, 'SLICE_AUDIT_CAP']);
+  const rec = show(dir);
+  assert.equal(rec.gates.find((g) => g.id === 'R1').audit_refused, 1, 'the refusal is marked on the gate');
+  assert.match(rec.audit_stop, /^slice R1: 1 audit rounds, cap 1/);
+  const parked = rec.slices.find((s) => s.id === 'R1');
+  assert.deepEqual([parked.status, parked.needs], ['parked', 'decision']);
+  assert.match(parked.reason, /its last audit did not pass/);
+});
+
+test('a passing round clears the refusal marker an earlier refused round left', () => {
+  const dir = fixture(['--audit-cap', '1']);
+  ok(work(dir, 'verify-phase', 'api', '--', 'true'));
+  ok(work(dir, 'event', 'api', 'build-done'));
+  assert.equal(audit(dir, 'R1').allow, true, 'its one round');
+  assert.equal(audit(dir, 'R1').reason, 'SLICE_AUDIT_CAP', 'the extra round is refused and marked');
+  let rec = show(dir);
+  assert.equal(rec.gates.find((g) => g.id === 'R1').audit_refused, 1);
+  assert.match(rec.audit_stop, /^slice R1: 1 audit rounds, cap 1/);
+  ok(work(dir, 'event', 'api', 'audit-pass'));
+  const refused = audit(dir, 'R1');
+  assert.deepEqual([refused.allow, refused.reason], [false, 'SLICE_AUDIT_CAP'], 'the refusal shape stays');
+  rec = show(dir);
+  assert.equal(rec.gates.find((g) => g.id === 'R1').audit_refused, undefined, 'the stale marker is cleared');
+  assert.equal(rec.audit_stop, undefined, 'the stale stop is cleared');
+  assert.notEqual(ok(work(dir, 'run', 'gate', 'road', 'R1')).reason, 'SLICE_AUDIT_CAP', 'the stale cap no longer blocks the gate');
+});
+
 test('a spent run total refuses every track and names the run total', () => {
   const dir = fixture(['--audit-cap', '2', '--max-slices', '1']);
   audit(dir, 'R1');
