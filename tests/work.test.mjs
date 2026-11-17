@@ -827,6 +827,32 @@ test('work.mjs run: config keys supply defaults when a flag is absent', () => {
   assert.deepEqual([r.max_slices, r.slice_cap_min, r.audit_cap], [7, 45, 9], 'a flag beats config');
 });
 
+test('work.mjs run: a dirty tree starts, and the record names its base and the note', () => {
+  const dir = tempRepo();
+  const git = (...a) => execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', ...a], { cwd: dir, encoding: 'utf8' });
+  fs.writeFileSync(path.join(dir, 'a.js'), 'one\n');
+  git('add', 'a.js');
+  git('commit', '-q', '-m', 'base');
+  const base = git('rev-parse', 'HEAD').trim();
+  fs.writeFileSync(path.join(dir, 'a.js'), 'two\n');
+  let r = ok(work(dir, 'run', 'new', 'dirty', '--date', '2026-10-30'));
+  assert.equal(r.base, base, 'the base is HEAD, not the empty tree');
+  assert.match(r.base_note, /uncommitted changes/, 'the record says the tree was dirty');
+  assert.match(r.base_note, /part of this run/, 'and that the change is part of the run');
+  assert.deepEqual(ok(work(dir, 'run', 'show', 'dirty')), r, 'read back equals written');
+
+  git('add', 'a.js');
+  git('commit', '-q', '-m', 'committed');
+  r = ok(work(dir, 'run', 'new', 'clean', '--date', '2026-10-30'));
+  assert.equal(r.base, git('rev-parse', 'HEAD').trim());
+  assert.ok(!('base_note' in r), 'a clean tree carries no note');
+
+  const plain = tmpDir('do-it-work-');
+  r = ok(work(plain, 'run', 'new', 'nogit'));
+  assert.equal(r.base, null, 'no repo: no base');
+  assert.ok(!('base_note' in r), 'and no note');
+});
+
 test('work.mjs run: unknown levels, commit modes and non-positive caps are refused', () => {
   const dir = tempRepo();
   const bad = [

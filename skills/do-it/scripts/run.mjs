@@ -243,6 +243,9 @@ export function createRun(planningDir, slug, opts, defaults, { now = () => new D
     started: opts.date ?? now(),
     // The commit HEAD resolved to at run new: the final review's fixed point. null outside git.
     base: opts.base ?? null,
+    // Only a run that started on a dirty tree holds this, so a clean run's record keeps
+    // its shape: the uncommitted change is part of the run, measured from the base.
+    ...(opts.base_note ? { base_note: opts.base_note } : {}),
     max_slices: cap('max_slices', opts['max-slices'] ?? defaults.DO_IT_MAX_SLICES, { optional: true }),
     slice_cap_min: cap('slice_cap_min', opts['slice-cap-min'] ?? defaults.DO_IT_SLICE_CAP_MIN),
     // Audit rounds: `audit_cap` per slice, `final_audit_cap` for the final review, `audit_total_cap`
