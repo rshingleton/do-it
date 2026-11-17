@@ -224,5 +224,5 @@ test('scope-it states the rule in both planning paths, and its checks name the c
   assert.match(checks, /^\| Locality \|/m, 'the analyze table has a Locality row');
   assert.match(checks, /an empty one/, 'the row counts an empty list as missing');
   assert.match(checks.replace(/\s+/g, ' '), /`phases\.mjs` means `node <this skill's directory>\/scripts\/phases\.mjs`/, 'the command is given from this skill\'s own directory');
-  assert.match(checks.replace(/\s+/g, ' '), /Lane S does the first four checks/, 'lane S still stops before the lane M checks');
+  assert.match(checks.replace(/\s+/g, ' '), /Lane S does the first five checks/, 'lane S still stops before the lane M checks');
 });
