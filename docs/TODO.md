@@ -3,7 +3,7 @@
 Nice-to-haves and things to circle back to. Managed by log-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T311
+Next id: T313
 
 ## Open
 
@@ -103,6 +103,8 @@ Next id: T311
 - [ ] T306 `skills/guard-it/SKILL.md:34` says the digest prints the gap under "not checked", but `skills/do-it/scripts/digest.mjs:62` prints `## Verification limits (n)`; align the wording or the heading `nice-to-have` (R68 ship review)
 - [ ] T308 `skills/ship-it/FINALIZE.md:21,69` re-runs finalize after a crash between writing and removal and appends a second history row, against the one-row-per-file rule; add a skip guard like offer d `debt` (R3 ship review)
 - [ ] T309 `skills/ship-it/FINALIZE.md:68,71` says the content is durable before the file goes, but offer c deletes the Shipped bullets and the row keeps only a count; slice dates and outcomes live only in git history, not in the named record the issue asked for `debt` (R3 ship review)
+- [ ] T311 `skills/roadmap-it/FORMAT.md:81-86` states the Shipped and `completed:` replan rule twice after the R6 merge resolution; collapse it on the next edit `nice-to-have` (R6 ship review)
+- [ ] T312 `skills/usage-it/SKILL.md:44-98` was reflowed to long lines because it links no sibling, so the R6 goal ("detail in a sibling") does not cover it `nice-to-have` (R6 ship review)
 - [ ] T310 `tests/work.test.mjs:895`'s `/unfinished roadmap is left/i` also matches the intro, so deleting "and is named" from the Remove section stays green `nice-to-have` (R3 ship review)
 - [ ] T307 `skills/guard-it/scripts/scan.mjs:34-35` never reaches the sibling skill layout in an install (line 32 exits first), and the `load` catch at 51-57 is untested; a present but broken module is its only path `nice-to-have` (R68 ship review)
 - [ ] T305 A track prove-it cannot spawn its fresh reviewers (subagent depth 1), so every track audit runs in-context and the coordinator one scoped reviewer is the only fresh check `debt` (R68 build audit, 2026-11-16)
