@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 
 import { createPlugin } from '../.opencode/do-it-plugin/do-it.mjs';
 import { createOpenCodeUsage } from '../skills/usage-it/scripts/opencode.mjs';
-import { readAll } from '../skills/usage-it/scripts/ledger.mjs';
+import { inWindow, localized, readAll } from '../skills/usage-it/scripts/ledger.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const tmp = () => tmpDir('do-it-ocusage-');
@@ -68,6 +68,30 @@ test('v2 step events take agent and model from the context hook', () => {
   usage.event({ type: 'session.usage.updated', sessionID: 's2', tokens: tokens(99, 99) }); // session totals are not a step
   const r = rowsOf(dir).s2;
   assert.deepEqual([r.kind, r.agent, r.model, r.turns, r.in, r.out, r.cr, r.cc], ['session', 'build', 'm2', 2, 6, 8, 40, 2]);
+});
+
+test('a v2 run takes its agent and model from session.step.started alone', () => {
+  const dir = tmp();
+  const usage = createOpenCodeUsage({ dir, cwd: '/x/proj' });
+  // The context hook never fires: the step start is the only event that names them.
+  usage.event({ type: 'session.step.started', data: { sessionID: 's8', assistantMessageID: 'a1', agent: 'build', model: { id: 'm8', providerID: 'p', variant: 'fast' } } });
+  assert.deepEqual(readAll(dir), [], 'a step start seeds the run, it writes no row: a row needs its tokens');
+  usage.event({ type: 'session.step.ended', data: { sessionID: 's8', assistantMessageID: 'a1', tokens: { input: 1, output: 2, cache: { read: 0, write: 0 } } } });
+  const r = rowsOf(dir).s8;
+  assert.deepEqual([r.kind, r.agent, r.model, r.turns], ['session', 'build', 'm8', 1]);
+});
+
+test('a step that carries no time marks the run partial, and a window counts it once', () => {
+  const dir = tmp();
+  const usage = createOpenCodeUsage({ dir, cwd: '/x/proj' });
+  usage.context({ sessionID: 's10', agent: 'build', model: 'm1' });
+  usage.event({ type: 'session.step.ended', data: { sessionID: 's10', assistantMessageID: 'q1', tokens: { input: 4, output: 6, cache: { read: 0, write: 0 } } } }); // no time anywhere
+  usage.event({ type: 'session.step.ended', created: NOW - 1000, data: { sessionID: 's10', assistantMessageID: 'q2', tokens: { input: 1, output: 2, cache: { read: 0, write: 0 } } } });
+  const r = rowsOf(dir).s10;
+  assert.equal(r.buckets, undefined, 'one untimed message withholds every bucket');
+  assert.equal(r.partial, true);
+  const { recs, partial } = inWindow([localized(r)], Date.now() - 3600000, null);
+  assert.deepEqual([recs[0].runs, recs[0].turns, recs[0].out, partial], [1, 2, 8, 1]);
 });
 
 test('prune runs once per day change, not once per step', () => {
