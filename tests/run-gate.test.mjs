@@ -563,6 +563,8 @@ test('runVerify: a pass records the fingerprint and file hashes, a failure recor
   assert.ok(rec.gates[0].verified_files['a.js'], 'the named dirty file is hashed');
   const bare = runVerify({ ...base, opts: { '--': ['true'] } });
   assert.equal(bare.gates[0].verified_files, undefined, 'without --paths no files are recorded, and the older record is dropped');
+  const back = runVerify({ ...base, opts: { '--': ['true'], paths: 'a.js' } });
+  assert.ok(back.gates[0].verified_files['a.js'], 'the reverse order: --paths after a bare verify records the files again');
   assert.throws(() => runVerify({ ...base, id: 'R9', opts: { '--': ['true'] } }), /run start first/);
   assert.throws(() => runVerify({ ...base, opts: {} }), /needs the checks/);
 });
