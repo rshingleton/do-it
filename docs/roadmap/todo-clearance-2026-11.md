@@ -86,7 +86,7 @@ does.
 | R7 | build | The plan-body `## Link` section link-it keeps its contract under is written into the plan format STATE.md names, and link-it points at it Items: T235 | G1 | skills/scope-it/PLAN-FORMAT.md, skills/link-it/SKILL.md | none | PLAN-FORMAT names `## Link` with its rule; a plan fixture holding `## Link` still holds it after a replan | low | shipped 2026-11-16 r7-plan-link |
 | R8 | build | Plan text: PLAN-FORMAT's `## Files` union line stops contradicting `## Interfaces`, phase files are told to state `## Files`, CHECKS and GRILL stop saying "no block edge" where phases.mjs counts a path, roadmap-it says why the hint is not the contract Items: T266, T268, T269, T272 | G1 | skills/scope-it/PLAN-FORMAT.md, skills/scope-it/CHECKS.md, skills/scope-it/GRILL.md, skills/roadmap-it/SKILL.md | none | Each cited sentence states the rule the code follows and `npm run check` passes | low | |
 | R9 | build | Install docs one truth: DESIGN's scripts tree names doctor.mjs and version-gate.mjs; install-routes drops the quoted home path and branch, names the sixth CLI host, states one route per host once, fixes the symlink-command line, and moves the macOS probe out of the Windows section Items: T281, T282, T289, T290, T291, T292, T293 | G12 | docs/DESIGN.md, docs/reference/install-routes.md | none | Every path and command the two docs name exists; no quoted home path; one route-per-host statement | low | |
-| R10 | build | README install truth: `-a claude-code` sits inside the one-route rule or is dropped, the marketplace and version-bump claims state their scope, the Update facts are stated once, and the shell block uses a bash fence Items: T294, T295, T296, T297 | G12 | README.md | none | `npm run check` passes and each of the four claims matches the installer's behaviour | low | |
+| R10 | build | README install truth: `-a claude-code` sits inside the one-route rule or is dropped, the marketplace and version-bump claims state their scope, the Update facts are stated once, and the shell block uses a bash fence Items: T294, T295, T296, T297 | G12 | README.md | none | `npm run check` passes and each of the four claims matches the installer's behaviour | low | shipped 2026-11-16 r10-readme-truth |
 
 ### M3: Tests that pin behaviour
 Exit: rewording a pinned sentence leaves `npm test` green, deleting the
@@ -242,6 +242,9 @@ Exit: `docs/TODO.md` has no open line, no issue has `status: open`, and
   writes no branch, which holds one and says why (R67, T298).
 
 ## Changes
+- 2026-11-16: R10 shipped (r10-readme-truth): the one-route rule covers a CLI
+  install, each marketplace claim names its install, the CLI refresh facts are
+  stated once, and the command blocks are bash fences.
 - 2026-11-16: R5 shipped (r5-skill-text): finish-it names the `defects` it
   reports, name-it's ADRs move proposed to accepted at ship, RESUME drops its
   repeated ask rule, and the seven files' long lines wrap within the budget.

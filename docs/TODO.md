@@ -3,7 +3,7 @@
 Nice-to-haves and things to circle back to. Managed by log-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T321
+Next id: T323
 
 ## Open
 
@@ -90,10 +90,6 @@ Next id: T321
 - [ ] T291 `docs/reference/install-routes.md:41` says "the symlink install command", which now reads as the Install column's one-liner, not the doctor's `node <checkout>/scripts/install.mjs` `nice-to-have` (install-routes audit, 2026-11-16)
 - [ ] T292 `docs/reference/install-routes.md:212` records a macOS probe under "The CLI route on this machine", beside the doc's Windows facts `nice-to-have` (install-routes audit, 2026-11-16)
 - [ ] T293 `docs/reference/install-routes.md:28` opens with "One route per host." and closes with "Either way, one route per host" `nice-to-have` (install-routes audit, 2026-11-16)
-- [ ] T294 `README.md:214,310` leaves `-a claude-code`, which writes `~/.claude/skills`, outside the one-route rule while the CLI heading says "any host the CLI supports" `nice-to-have` (install-routes audit, 2026-11-16)
-- [ ] T295 `README.md:293,306` says a local marketplace "follows edits with no version bump", then says a skill reaches plugin users only when the version moves; both need their scope `nice-to-have` (install-routes audit, 2026-11-16)
-- [ ] T296 `README.md:322` restates the Update section's CLI refresh facts at `README.md:352-354` `nice-to-have` (install-routes audit, 2026-11-16)
-- [ ] T297 `README.md:288` puts shell commands in a `text` fence while sibling install and check blocks use `bash` `nice-to-have` (install-routes audit, 2026-11-16)
 - [ ] T298 A complete run defaults to three tracks and no ask below three is accepted, except a commit mode that writes no branch `debt` (sweep 2026-11-16, user request; roadmap todo-clearance-2026-11 R67)
 - [ ] T299 `docs/reference/roadmap-history.md:8` says every file was removed after the record was written, false for backlog-cleanup-2026-11 (deleted in 0d2a310, its section added in 8157e83) `nice-to-have` (R4 ship review)
 - [ ] T300 `tests/roadmap-coverage.test.mjs:102` pins the words "R2 to R16", so a reword to "R2 through R16" fails with "the open slices are named" `nice-to-have` (R4 ship review)
@@ -117,3 +113,5 @@ Next id: T321
 - [ ] T318 `skills/prove-it/SKILL.md:16-18` puts the `docs/planning/` and `docs/issues/` exclusions before `git ls-files --others --exclude-standard`, so they read as applying to the command rather than the change `nice-to-have` (R5 round-1 review)
 - [ ] T319 `skills/finish-it/SKILL.md:78` now says "just wait", dropping the completion notice it waits for `nice-to-have` (R5 round-1 review)
 - [ ] T320 `npm run check` has no 80-column rule, though the M2 exit asks it to fail an 81-column skill line; R5 wrapped only its seven files, so the rest of `skills/**/*.md` still runs past 80 columns `nice-to-have` (R5 ship; milestone exit)
+- [ ] T321 `README.md:218-219`'s "so those hosts take one route or the other" holds only for the three hosts that read `~/.agents/skills`: OpenCode also reads `~/.claude/skills`, whose links the symlink install keeps `nice-to-have` (R10 round-1 review)
+- [ ] T322 `README.md:348-350`'s Update sentence names no install, while the plugin section now separates the published install from a local checkout `nice-to-have` (R10 round-1 review)
