@@ -259,7 +259,8 @@ function hunkLines(patch) {
 // Hash of the change since `base`: the binary diff from the base tree to a
 // snapshot of the working tree, as a git blob id. Untracked files are in the
 // snapshot, so committing a file after `base` (a run's phase commits) never
-// moves the hash, and only a change in content does.
+// moves the hash, and only a change in content does. `exclude` leaves paths out,
+// which is what keeps another slice's files out of a run's verify.
 export function fingerprint(cwd, base, { exclude = [] } = {}) {
   const { top, base: resolved } = changeset(cwd, base, { exclude });
   const tree = snapshot(top, { exclude });

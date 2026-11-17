@@ -73,6 +73,44 @@ test('gate: closing docs (the roadmap file, the to-do list, ADRs) and filed issu
   assert.equal(gate(dir).reason, 'STALE_VERIFY', 'a code edit after verify still reads stale');
 });
 
+// A second started slice of the same run, its plan naming the files it owns.
+function second(dir, { id = 'R2', work: workId = 'two', files = ['b.js'] } = {}) {
+  ok(work(dir, 'new', workId, '--lane', 's', '--title', workId));
+  ok(work(dir, 'event', workId, 'approve'));
+  ok(work(dir, 'event', workId, 'start'));
+  ok(work(dir, 'run', 'start', 'road', id, '--work', workId));
+  fs.appendFileSync(path.join(dir, 'docs/planning', `${workId}.md`), `\n## Files\n${files.join('\n')}\n`);
+}
+
+test('gate: another slice\'s plan files do not make a verified slice stale, its own still do', () => {
+  const dir = fixture();
+  second(dir);
+  ok(verify(dir));
+  fs.writeFileSync(path.join(dir, 'b.js'), 'bee\n');
+  assert.deepEqual(gate(dir), { allow: true, reason: null, detail: null }, 'R2\'s new file is not R1\'s change');
+  fs.writeFileSync(path.join(dir, 'b.js'), 'buzz\n');
+  assert.equal(gate(dir).allow, true, 'R2 editing its own file again is still not R1\'s change');
+  fs.writeFileSync(path.join(dir, 'a.js'), 'three\n');
+  assert.equal(gate(dir).reason, 'STALE_VERIFY', 'R1\'s own file moved');
+});
+
+test('gate: a changed file no slice declares still reads stale beside another slice', () => {
+  const dir = fixture();
+  second(dir);
+  ok(verify(dir));
+  fs.writeFileSync(path.join(dir, 'c.js'), 'cee\n');
+  assert.equal(gate(dir).reason, 'STALE_VERIFY', 'only a declared file is another slice\'s work');
+});
+
+test('gate: a file two plans name stays in the fingerprint, so their edit reads stale', () => {
+  const dir = fixture();
+  second(dir, { files: ['a.js', 'b.js'] });
+  fs.appendFileSync(path.join(dir, 'docs/planning/feat.md'), '\n## Files\na.js\nb.js\n');
+  ok(verify(dir));
+  fs.writeFileSync(path.join(dir, 'b.js'), 'bee\n');
+  assert.equal(gate(dir).reason, 'STALE_VERIFY', 'a shared file is not another slice\'s alone');
+});
+
 test('run verify on an item past building says it must be building and that a replan reopens it, and runs no check', () => {
   const dir = fixture();
   ok(verify(dir));

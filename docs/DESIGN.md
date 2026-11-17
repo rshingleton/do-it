@@ -89,6 +89,10 @@ Principles behind it:
 
 - A recorded verification is a claim about the code at that moment; re-run it
   only if the code moved (addyosmani).
+- A run's gate reads a slice's own change: the files another slice's plan
+  names are left out of both the verify and the gate hashes, so two
+  uncommitted slices do not park each other (ADR
+  [0014](adr/0014-gate-reads-a-slices-own-change.md)).
 - Approvals count only when recorded in the block, never inferred from a past chat.
 - No `jira.md` stub, no `sources/` move, no separate `execution-notes.md`. Jira
   keys and intake links live in the state block.
