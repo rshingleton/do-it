@@ -102,7 +102,7 @@ for (const r of recs) {
   const key = (by === 'month' ? r.day.slice(0, 7) : r[by]) ?? 'unknown';
   const g = groups.get(key) ?? { [by]: key, runs: 0, turns: 0, in: 0, out: 0, cr: 0, cc: 0, whole: 0 };
   g.runs += r.runs ?? 1;
-  if (r.wholeKind) g.whole += 1; // runs counted whole in a window (no buckets), so a JSON reader sees them too
+  if (r.wholeKind) g.whole += r.runs ?? 1; // runs counted whole in a window (no buckets), so a JSON reader sees them too
   for (const f of ['turns', 'in', 'out', 'cr', 'cc']) g[f] += r[f] ?? 0;
   groups.set(key, g);
 }

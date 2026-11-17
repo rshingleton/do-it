@@ -92,7 +92,8 @@ the invocable skill descriptions) beside the median start context recorded. `usa
 agent`. A run straddling an edge is cut there by its 15-minute buckets, so an edge off a quarter hour can move up to 7.5
 minutes of tokens across it, and a window shorter than 15 minutes counts the buckets it overlaps (two adjacent short
 windows can both report one). The run counts once: in the window that holds its first bucket, as 0 in the others. `--by
-day|month` groups a share by the run's start day. A run without buckets counts whole by its last message, and the output
-says so (`--json` rows carry `whole`, the runs counted whole in that row).
+day|month` groups a share by the run's start day. A run with a message that had no time keeps no buckets, is marked
+`partial`, and counts whole in its window by its last message; the output says so, and `--json` rows carry `whole`, the
+runs counted whole in that row.
 
 For a quick table instead of a page: `usage.mjs --days N --by agent|model|day|month|project`.

@@ -65,8 +65,8 @@ export const localized = (r) => (r.start || r.at ? { ...r, day: localDay(r.start
 const dayOf = (iso) => String(iso).slice(0, 10);
 
 // A run's tokens by 15-minute bucket (UTC start, ISO to the minute), so a window edge splits a run that
-// straddles it: `buckets: { "2026-10-22T07:15": [in, out, cr, cc, turns] }`. A record written before
-// buckets existed has none and counts whole, by its last message (`whole` in windowShare).
+// straddles it: `buckets: { "2026-10-22T07:15": [in, out, cr, cc, turns] }`. A record written without
+// buckets counts whole: by its last message when it has one, else by its start (`whole` in windowShare).
 export const BUCKET_MS = 15 * 60000;
 export function addToBucket(buckets, ms, [i, o, cr, cc]) {
   if (!Number.isFinite(ms)) return;
@@ -106,13 +106,16 @@ export function windowShare(r, fromMs, toMs) {
     }
     return s.turns ? s : null;
   }
-  // `whole` says why: 'partial' (written with buckets withheld because a message lacked a time) or 'old' (written before buckets).
-  return inside(Date.parse(r.at)) ? { in: r.in ?? 0, out: r.out ?? 0, cr: r.cr ?? 0, cc: r.cc ?? 0, turns: r.turns ?? 0, runs: r.runs ?? 1, whole: r.partial ? 'partial' : 'old' } : null;
+  // `whole` says why a record with no buckets counted whole: 'partial' (buckets withheld because a message
+  // lacked a time) or 'old' (no `at`: its start is the only time it has, so it is placed by that). A record
+  // that carries `at` is placed by its last message, needs no excuse, and gets no label (T219).
+  const t = Date.parse(r.at ?? r.start);
+  return inside(t) ? { in: r.in ?? 0, out: r.out ?? 0, cr: r.cr ?? 0, cc: r.cc ?? 0, turns: r.turns ?? 0, runs: r.runs ?? 1, whole: r.partial ? 'partial' : r.at ? null : 'old' } : null;
 }
 
-// The records' shares inside the window as records with those counts, and how many were counted whole
-// (no buckets) so a report can say so: `whole` for records written before buckets existed, `partial` for ones
-// with a message that lacked a time. Each share carries `wholeKind` for per-row counts. Rolled-up rows carry no
+// The records' shares inside the window as records with those counts, and how many runs were counted whole
+// (no buckets) so a report can say so: `whole` for records with no `at`, `partial` for ones with a message
+// that lacked a time. Each share carries `wholeKind` for per-row counts. Rolled-up rows carry no
 // time and drop out.
 export function inWindow(recs, fromMs, toMs) {
   const out = [];
@@ -121,8 +124,9 @@ export function inWindow(recs, fromMs, toMs) {
   for (const r of recs) {
     const s = windowShare(r, fromMs, toMs);
     if (!s) continue;
-    if (s.whole === 'old') whole += 1;
-    if (s.whole === 'partial') partial += 1;
+    // Runs, not records: a rollup row stands for several, and the per-group totals already sum `runs`.
+    if (s.whole === 'old') whole += s.runs ?? 1;
+    if (s.whole === 'partial') partial += s.runs ?? 1;
     out.push({ ...r, in: s.in, out: s.out, cr: s.cr, cc: s.cc, turns: s.turns, runs: s.runs, wholeKind: s.whole });
   }
   return { recs: out, whole, partial };
@@ -339,6 +343,24 @@ export function readUtilization(file = claudeConfigFile()) {
   }
 }
 
+// Windows runs a bare command only as an .exe, and npm installs `claude` as a `.cmd`, which a bare spawn
+// misses (ENOENT) and cannot run directly (EINVAL). Resolve it through PATHEXT first; a batch shim is then
+// run through the command interpreter with its path quoted, instead of `shell: true` re-splitting the line.
+// shortcut: a .cmd/.bat shim has no shell-free spawn, so it goes through cmd.exe (/d /s /c); upgrade to a
+// plain spawn when claude ships a native executable or a node entry point that resolves without a shim.
+function resolveBin(name, { env = process.env, platform = process.platform } = {}) {
+  if (platform !== 'win32' || path.extname(name)) return name;
+  const exts = String(env.PATHEXT || '.COM;.EXE;.BAT;.CMD').split(';').filter(Boolean);
+  for (const dir of String(env.PATH || '').split(path.delimiter)) {
+    if (!dir) continue;
+    for (const ext of exts) {
+      const file = path.join(dir, `${name}${ext.toLowerCase()}`);
+      if (fs.existsSync(file)) return file;
+    }
+  }
+  return name;
+}
+
 // Ask Claude Code to refresh its cached /usage numbers by running the built-in
 // command headless (`claude -p /usage`: a local command, no model call, no tokens).
 // Only when the cached reading is older than maxAgeMin; never from a hook, which
@@ -349,7 +371,13 @@ export function refreshUtilization({ maxAgeMin = 10, env = process.env, now = Da
   const u = readUtilization(claudeConfigFile(env));
   if (u && now - Date.parse(u.fetchedAt) < maxAgeMin * 60000) return false;
   try {
-    const r = spawnSync('claude', ['-p', '/usage'], { cwd: os.tmpdir(), env, timeout: 30000, stdio: 'ignore', shell: process.platform === 'win32' });
+    const bin = resolveBin('claude', { env });
+    const opts = { cwd: os.tmpdir(), env, timeout: 30000, stdio: 'ignore' };
+    // Node cannot spawn a .cmd/.bat without a shell, so a batch shim gets one explicitly: /s strips the
+    // outer quote pair, leaving the quoted path intact so a space in it never splits the call.
+    const r = /\.(cmd|bat)$/i.test(bin)
+      ? spawnSync(env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', `""${bin}" -p /usage"`], { ...opts, windowsVerbatimArguments: true })
+      : spawnSync(bin, ['-p', '/usage'], opts);
     return r.status === 0;
   } catch {
     return false;

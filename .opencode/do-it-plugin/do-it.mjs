@@ -168,7 +168,7 @@ export function createPlugin({ decide: baseDecide = realDecide, usageDir } = {})
     const cwd = ctx.location?.directory || process.cwd();
     const session = sessionMemo(decide, cwd);
     const usage = createOpenCodeUsage({ cwd, ...(usageDir && { dir: usageDir }) });
-    // The step events carry neither agent nor model; the context hook does, on each request.
+    // The step events and the context hook both name the agent and model; the usage module seeds from either.
     const stop = new AbortController();
     if (typeof ctx.event?.subscribe === 'function') {
       (async () => {
