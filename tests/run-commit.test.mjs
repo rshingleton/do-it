@@ -522,6 +522,27 @@ test('dirtyHashes records every entry of a status past 1 MB and fails when git d
   assert.throws(() => dirtyHashes(tmpDir('do-it-notrepo-')), /git status failed/);
 });
 
+test('dirtyHashes reads a worktree rename as its new path and the old one gone', () => {
+  const dir = tmpDir('do-it-worktree-rename-');
+  git(dir, 'init', '-q', '-b', 'main');
+  git(dir, 'config', 'user.name', 't');
+  git(dir, 'config', 'user.email', 't@t');
+  git(dir, 'config', 'commit.gpgsign', 'false');
+  write(dir, 'old.js', 'kept content\n');
+  git(dir, 'add', '-A');
+  git(dir, 'commit', '-qm', 'init');
+  // A rename made in the worktree, nothing staged: git status lists the delete and the untracked new file.
+  fs.renameSync(path.join(dir, 'old.js'), path.join(dir, 'new.js'));
+  const all = dirtyHashes(dir);
+  assert.match(all['new.js'], /^644:[0-9a-f]{40}$/);
+  assert.equal(all['old.js'], 'gone');
+  // A verify that mapped only the new name must still hold the gone side, or the commit compare reads
+  // the old path as clean and lets the rename through.
+  const named = dirtyHashes(dir, ['new.js']);
+  assert.match(named['new.js'], /^644:[0-9a-f]{40}$/);
+  assert.equal(named['old.js'], 'gone');
+});
+
 // A repo on `topic` with x.js and y.js committed and a started lane S item "small"; `edit` makes
 // the slice's changes before the item is verified and a slice-mode run "sl" is recorded.
 function laneS(edit) {
@@ -605,6 +626,21 @@ test('lane S refuses a path spelled through a symlinked root, naming it as outsi
   fs.symlinkSync(dir, link);
   assert.match(sliceCommit(dir, [path.join(link, 'x.js')]).out.error, /inside the repo/);
   assert.equal(git(dir, 'diff', '--cached', '--name-only'), '');
+});
+
+test('a repo file whose name starts with two dots commits; a parent path is refused', () => {
+  const dir = laneS((d) => {
+    write(d, '..env', 'TOKEN=1\n');
+    write(d, '..foo/bar', 'inside a dot-dot directory\n');
+    write(d, 'x.js', '2\n');
+  });
+  // `..\x` is a parent path only where the backslash separates path segments.
+  const parent = process.platform === 'win32' ? ['..', '../x', '..\\x'] : ['..', '../x'];
+  for (const p of parent) assert.match(sliceCommit(dir, [p, 'x.js']).out.error, /inside the repo/, `${p} leads out of the root`);
+  const away = path.join(tmpDir('do-it-outside-'), 'x.js');
+  assert.match(sliceCommit(dir, [away, 'x.js']).out.error, /inside the repo/, 'an absolute path outside the root is refused too');
+  ok(sliceCommit(dir, ['..env', '..foo/bar', 'x.js']));
+  assert.deepEqual(names(dir), ['..env', '..foo/bar', 'x.js'].sort());
 });
 
 test('a rename is committed as its new path and its old path, and its retry is a no-op', () => {
@@ -727,7 +763,7 @@ test('a rethrown commit error keeps the stack of the git failure, not the catch'
   assert.match(error.stack, /skills[\\/]do-it[\\/]scripts[\\/]git\.mjs:\d+/, 'the stack names the original throw site');
 });
 
-test('a tag that cannot be made after the commit landed is reported with the commit', () => {
+test('a tag that cannot be made after the commit landed is reported with the commit, and the same command retags', () => {
   const { dir } = fixture();
   ok(work(dir, 'run', 'new', 'road'));
   verify(dir);
@@ -737,4 +773,11 @@ test('a tag that cannot be made after the commit landed is reported with the com
   assert.equal(r.status, 1);
   assert.match(r.out.error, /committed [0-9a-f]{40} on do-it\/road but .*run the same command again to tag it/);
   assert.equal(git(dir, 'log', '-1', '--format=%s'), 'feat: phase 1 Limiter', 'the commit landed');
+  // The retry the message promises: with the blocker gone, the same command only tags, never commits again.
+  fs.rmSync(path.join(dir, '.git/refs/tags/do-it/feat/phase-1'), { recursive: true });
+  const again = ok(work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'a.js'));
+  assert.equal(again.tag, 'do-it/feat/phase-1');
+  assert.equal(again.commit, git(dir, 'rev-parse', 'HEAD'));
+  assert.equal(git(dir, 'rev-parse', 'do-it/feat/phase-1^{commit}'), again.commit, 'the tag names the landed commit');
+  assert.equal(git(dir, 'rev-list', '--count', 'HEAD'), '2', 'the retry tags, it does not commit a second time');
 });
