@@ -25,15 +25,14 @@ names that fetch's age.
 | Claude Code plugin | Claude Code only | Skills, agents (namespaced, `do-it:it-reviewer`), hooks | `claude plugin marketplace add rshingleton/do-it`, then `claude plugin install do-it@do-it` | `/plugin marketplace update do-it` | `node scripts/doctor.mjs`, the `plugin:` line | No, reported |
 | `skills` CLI | Any host the CLI supports | Skills only | `npx skills@latest add rshingleton/do-it -a opencode` (add `-g` for the global install) | `npx skills@latest update` for a git source; `npx skills@latest add <path>` for a local one | `node scripts/doctor.mjs`, the `skills CLI:` line | No, reported |
 
-One route per host. Why the symlink install is the managed one: it is the only
-route that carries the OpenCode commands and agents, and the only one that
-serves both hosts at once, and it is what the one-liner bootstrap runs. A
-project `skills` CLI install carries skills alone and puts a second copy in
-that project's `.agents/skills`, where OpenCode's precedence order decides
-which copy wins. A global CLI install (`-g`) writes into `~/.agents/skills`,
-the same folder the symlink install fills, and replaces its links with copies.
-Either way, one route per host
-([ADR 0013](../adr/0013-routes-and-the-version-gate.md)).
+Why the symlink install is the managed one: it is the only route that carries
+the OpenCode commands and agents, and the only one that serves both hosts at
+once, and it is what the one-liner bootstrap runs. A project `skills` CLI
+install carries skills alone and puts a second copy in that project's
+`.agents/skills`, where OpenCode's precedence order decides which copy wins. A
+global CLI install (`-g`) writes into `~/.agents/skills`, the same folder the
+symlink install fills, and replaces its links with copies. Either way, one
+route per host ([ADR 0013](../adr/0013-routes-and-the-version-gate.md)).
 
 Every command in the Update column is one `node scripts/doctor.mjs` prints, on
 the finding it fixes. With all 110 entries ok, the plugin current and no CLI entry
@@ -53,7 +52,7 @@ node scripts/doctor.mjs --home $h
 ```
 
 ```text
-missing     C:\Users\reshi\AppData\Local\Temp\do-it-probe-home\.claude\skills\build-it  no link; the plan has one to C:\projects\do-it\skills\build-it  fix: node C:\projects\do-it\scripts\install.mjs
+missing     <probe dir>\.claude\skills\build-it  no link; the plan has one to <checkout>\skills\build-it  fix: node <checkout>\scripts\install.mjs
 summary 110 entries: 0 ok, 110 missing
 ```
 
@@ -62,12 +61,12 @@ That run exits 1 and installs nothing.
 ## What the doctor prints on this machine
 
 Its closing lines, from `node scripts/doctor.mjs` in this checkout on
-2026-11-16:
+2026-11-16, with the branch and refs it names replaced by placeholders:
 
 ```text
 summary 110 entries: 110 ok; 49 entries not ours (left alone)
-  ref: do-it/issues-store @ 22473ae, upstream origin/do-it/issues-store (0 ahead, 0 behind), origin/main (1 behind), fetched 8h ago
-  ref: 1 commit behind origin/main; the install follows main  fix: git -C C:\projects\do-it pull --ff-only
+  ref: <branch> @ <sha>, upstream <upstream ref> (0 ahead, 0 behind), <followed ref> (1 behind), fetched 8h ago
+  ref: 1 commit behind <followed ref>; the install follows it  fix: git -C <checkout> pull --ff-only
   plugin: ok, the folder is 0.2.0, the manifest 0.2.0; the host reads this checkout in place
   skills CLI: not installed on this route
 ```
@@ -84,8 +83,8 @@ serves. On this machine, for `do-it@do-it`:
 
 ```text
 version       0.1.0
-installPath   C:\Users\reshi\.claude\plugins\cache\do-it\do-it\0.1.0
-readFromFolder   C:\projects\do-it
+installPath   <plugin cache>\do-it\do-it\0.1.0
+readFromFolder   <checkout>
 folderVersion  0.2.0
 ```
 
@@ -125,8 +124,8 @@ core is `name` plus `description`.
 ## Probes
 
 Files on disk prove what an install placed. They do not prove a host loaded it.
-So each route is asked, headless, from a directory outside this repo
-(`C:\Users\reshi\AppData\Local\Temp\opencode`), which no checkout configures.
+So each route is asked, headless, from a temp directory outside this repo
+(`<probe dir>`), which no checkout configures.
 
 **Claude Code plugin route.** From the temp directory above:
 
@@ -201,13 +200,7 @@ typed (`build-it`, `deepen-it`, `do-it`, `finish-it`, `it-core`, `pass-it`,
 prompt's skill list: the host hides them from the model, so a probe can only
 witness them by typing the slash command.
 
-What the probes settle and what they cannot: the plugin route serves the
-checkout's skills, with the five do-it agents namespaced under `do-it:`, and the
-symlink install serves the same sixteen to OpenCode. Neither probe can see a
-typed skill, and neither can tell a later host update's effect, so the check to
-re-run after an update is the doctor plus the same two commands above.
-
-## The CLI route on this machine
+### The CLI route, probed on macOS
 
 Probed on 2026-11-16 with `skills` CLI 1.9.0 on macOS, in a temp directory
 outside this checkout and with a temp `HOME` for the global run, both with
@@ -236,9 +229,17 @@ The global run (`-g`) wrote `~/.agents/skills/<name>/` and
 is not `~/.config/opencode/skills`: on 1.9.0 the `-a opencode` global
 destination is the same `~/.agents/skills` the symlink install fills, and the
 CLI replaced a symlink planted there with a copy. `npx skills list` credits the
-project install to Antigravity CLI, Cursor, Gemini CLI, GitHub Copilot,
-OpenCode and one more host.
+project install to five hosts by name (Antigravity CLI, Cursor, Gemini CLI,
+GitHub Copilot, OpenCode) and credits a sixth it does not record, so no name is
+given for it here.
 
 The doctor runs none of this. A machine with either lock gets a `skills CLI:`
 line naming its scope, source, path, hash, commit and date, plus the command
 that refreshes it.
+
+What the probes settle and what they cannot: the plugin route serves the
+checkout's skills, with the five do-it agents namespaced under `do-it:`, the
+symlink install serves the same sixteen to OpenCode, and the CLI runs show where
+1.9.0 writes its files on macOS and what its two locks record. No probe can see
+a typed skill, and none can tell a later host update's effect, so the check to
+re-run after an update is the doctor plus the two skill-list probes above.

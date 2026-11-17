@@ -283,6 +283,8 @@ do-it/
     install-hooks.mjs         # idempotent settings merge, with backups
     gen-opencode.mjs          # skills -> OpenCode commands, agents -> OpenCode agents (--check for drift)
     check.mjs                 # frontmatter, -it names, "Use when", line budget, skill calls, spawn caps, links, em-dashes, agent files and tools
+    doctor.mjs                # reads the install back against this checkout: entry findings and the ref footer
+    version-gate.mjs          # fails a skills/, agents/ or hooks/ change that leaves the plugin version alone
   tests/                      # node --test, no dependencies
   docs/DESIGN.md, docs/adr/
 ```
