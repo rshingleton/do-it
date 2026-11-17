@@ -3,7 +3,7 @@
 Nice-to-haves and things to circle back to. Managed by log-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T324
+Next id: T325
 
 ## Open
 
@@ -60,13 +60,9 @@ Next id: T324
 - [ ] T263 `hintBatch` takes a lead count and a one-adapter closure while `byId` is already in scope; pass the lead ids and the slice map `debt` (planning-locality audit; run.mjs:281,328)
 - [ ] T264 `run.mjs` states the hint rule three times, in `hintBatch`'s comment and twice at 301-306, and the copies can drift `nice-to-have` (planning-locality audit; run.mjs:301-306)
 - [ ] T265 `tests/phases-contract.test.mjs` selects `fences[2]` positionally, and the lane M fence also matches `## Files` and `src/limiter.js`, so a new fence makes it assert the wrong block `debt` (planning-locality audit; tests/phases-contract.test.mjs:192)
-- [ ] T266 `PLAN-FORMAT.md` says the README's `## Files` and `## Interfaces` are "the union of its phases' files", contradicting the next line that `## Interfaces` stays at the README `debt` (planning-locality audit; skills/scope-it/PLAN-FORMAT.md:18)
 - [ ] T267 A roadmap `Files: none` cell parses as a hint path named `none`, so two such slices collide; treat `none`, `n/a`, `-` and empty as no hint `debt` (planning-locality audit; roadmap.mjs:69)
-- [ ] T268 `roadmap-it/SKILL.md` states the hint without why it is not the contract, so phase 3's done-when is only partly met `nice-to-have` (planning-locality audit; skills/roadmap-it/SKILL.md:53)
-- [ ] T269 `CHECKS.md` and `GRILL.md` say "no block edge" where `phases.mjs` counts a whole dependency path `nice-to-have` (planning-locality audit; skills/scope-it/CHECKS.md:20, GRILL.md:15)
 - [ ] T270 `parseFileList` takes text while every caller already holds section lines; accept an array of lines too `nice-to-have` (planning-locality audit; fileset.mjs:19)
 - [ ] T271 `tests/roadmap-locality.test.mjs` dereferences `match(...)[0]` before asserting it, so a renamed heading throws instead of naming the field `nice-to-have` (planning-locality audit; tests/roadmap-locality.test.mjs:131)
-- [ ] T272 `PLAN-FORMAT.md` says "every phase file states its own list" without naming `## Files`, so a reader can add `## Interfaces` per phase `nice-to-have` (planning-locality audit; skills/scope-it/PLAN-FORMAT.md:124)
 - [ ] T273 `scripts/install.mjs` and `scripts/doctor.mjs` import each other (`readRef` against `planLinks`), which works only because both are hoisted declarations `debt` (install-freshness phase 5)
   - Move one side into `scripts/lib/` so the import graph is a DAG.
 - [ ] T274 `tests/links.mjs` keeps its own always-lowercasing `norm`, so it now disagrees with `scripts/lib/install-state.mjs` on POSIX `nice-to-have` (install-freshness phase 2)
@@ -116,3 +112,4 @@ Next id: T324
 - [ ] T321 `README.md:218-219`'s "so those hosts take one route or the other" holds only for the three hosts that read `~/.agents/skills`: OpenCode also reads `~/.claude/skills`, whose links the symlink install keeps `nice-to-have` (R10 round-1 review)
 - [ ] T322 `README.md:348-350`'s Update sentence names no install, while the plugin section now separates the published install from a local checkout `nice-to-have` (R10 round-1 review)
 - [ ] T323 `skills/do-it/scripts/gate.mjs:120` refuses with "has no gate entry" where `run verify` uses "has no work id"; the plan asked for the verify shape `nice-to-have` (R13 round-1 review)
+- [ ] T324 `skills/roadmap-it/SKILL.md:51-53` now runs to 120/118/116 columns, where the same text wrapped at 77/77/83 and every other line stays within 80; the file is 78 lines, so it had room `nice-to-have` (R8 round-1 review)
