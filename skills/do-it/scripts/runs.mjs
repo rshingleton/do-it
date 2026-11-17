@@ -13,7 +13,7 @@ import { git } from './git.mjs';
 import { checkShell } from './check-shell.mjs';
 import { lockChecks } from './check-slot.mjs';
 import { readyOrder } from './roadmap.mjs';
-import { rejectAssumption, requireTrackBranch, showRun, sliceRun, nextSlice, trackWidth, TRACKS_CEILING } from './run.mjs';
+import { rejectAssumption, requireTrackBranch, showRun, sliceRun, nextSlice, trackWidth } from './run.mjs';
 import { splitKey } from './ids.mjs';
 
 // A path a track reads uses / on every platform, as the record's paths do.
@@ -58,6 +58,18 @@ export function runGate({ planningDir, root, slug, id, items, fingerprintOf }) {
   return gate(record, id, { current, merged });
 }
 
+// A plan, or null only when the work id has none. `items.get` says "no plan for <id>" for that gap;
+// every other read failure is a real error the caller must see, never a quiet fallback.
+function planOf(items, work) {
+  if (!work) return null;
+  try {
+    return items.get(work);
+  } catch (e) {
+    if (!/^no plan for /.test(e.message)) throw e;
+    return null;
+  }
+}
+
 // `run contract <slug> [roadmap file]`: the contract the run pairs its tracks by. Each slice's plan
 // states the files and interfaces it changes; with a roadmap the slices are its ready and in-flight
 // ones in the order `road.ready` uses (milestone, risk, blocks, id), so a coordinator merges in that
@@ -75,18 +87,13 @@ export function runContract({ planningDir, root, slug, road, items }) {
   const byGate = new Map(gates.map((g) => [g.id, g]));
   const slices = candidates.map((c) => {
     const work = byRoad.get(c.id)?.plan ?? byGate.get(c.id)?.work ?? null;
-    let item = null;
-    try {
-      item = work ? items.get(work) : null;
-    } catch (e) {
-      // A slice scoped in the run has a plan; one not scoped yet is a gap, never a silent omission.
-      if (!/^no plan for /.test(e.message)) throw e;
-    }
+    // A slice scoped in the run has a plan; one not scoped yet is a gap, never a silent omission.
+    const item = planOf(items, work);
     const contract = item ? parseContract(item.body) : { files: [], interfaces: [], gaps: ['Files', 'Interfaces'] };
     return {
       id: c.id,
       milestone: c.milestone ?? null,
-      plan: item ? rel(path.relative(root, item.path)) : null,
+      plan: item ? rel(item.path) : null,
       ...contract,
     };
   });
@@ -96,34 +103,42 @@ export function runContract({ planningDir, root, slug, road, items }) {
   return { run: slug, merge_order: slices.map((s) => s.id), slices, shared };
 }
 
-// The brief one track starts with: where it works, what it reads, what it reports.
-function trackBrief({ slug, id, plan, worktree, branch, base }) {
+// The brief one track starts with: where it works, what it reads, what it reports. A lane M plan
+// keeps its phase files beside it; a lane S plan is one file and says nothing about phases.
+function trackBrief({ slug, id, plan, lane, worktree, branch, base }) {
+  const about = String(lane).toLowerCase() === 'm' ? 'a lane M plan: its phase files beside it' : `a lane ${String(lane).toUpperCase()} plan`;
   return (
     `Track ${slug} ${id}: worktree ${worktree}, branch ${branch}, base ${base}. ` +
-    `Read the plan ${plan} (a lane M plan: its phase files beside it) and follow build-it in the worktree. ` +
+    `Read the plan ${plan} (${about}) and follow build-it in the worktree. ` +
     `Commit on ${branch}, audit with prove-it --since ${base}. ` +
     'Report done | failed | blocked, the commit id, the checks that passed and any defect, under 150 words. ' +
     'Never call run start or run audit and never write the planning dir or the run record: the coordinator records both.'
   );
 }
 
+// How many free slices the dispatch asks `nextSlice` for. Well above the hard ceiling of 5 tracks, so
+// every free slice is seen: the ones the width leaves out are named in `waiting` instead of vanishing.
+const FREE_BATCH = 100;
+
 // `run tracks <slug> <roadmap file>`: the tracks this run starts now. The width is `trackWidth` over
-// the record's `tracks`, the free slices and the machine's cap; the free slices come from `run next
-// --batch` in dispatch order, their plans from `run contract`, and the pre-flight decides which of
-// them can run beside each other. Each track carries the worktree, branch, base ref and brief the
-// coordinator starts it with. A slice the pre-flight refuses, or one the width leaves out, is in
-// `waiting`: it goes again in the next round, and is never parked for it. A slice with no audit round
-// left is in `refused`: the coordinator records every round, so a spent cap stops the work before it
-// is dispatched, and no next round frees it (a raised cap, a resume or a ship does).
-export function runTracks({ planningDir, root, slug, road, items, resource }) {
+// the record's `tracks` and the free slices; the free slices come from `run next --batch` in dispatch
+// order, their plans from `run contract`, and the pre-flight decides which of them can run beside each
+// other. Each track carries the worktree, branch, base ref and brief the coordinator starts it with. A
+// slice the pre-flight refuses, or one the width leaves out, is in `waiting`: it goes again in the next
+// round, and is never parked for it. A slice with no audit round left is in `refused`: the coordinator
+// records every round, so a spent cap stops the work before it is dispatched, and no next round frees
+// it (a raised cap, a resume or a ship does). `stop` is `nextSlice`'s: a spent `max_slices` reads as
+// that stop, never as an empty frontier.
+export function runTracks({ planningDir, root, slug, road, items }) {
   const record = showRun(planningDir, slug);
   const asked = record.tracks ?? 1;
   // A record set to none after it was created gets the same refusal, before a worktree starts.
   requireTrackBranch(record.commit, asked);
   // At 1 the loop builds in place: no batch, no worktree, nothing to dispatch.
   if (asked === 1) return { run: slug, width: 0, tracks: [], waiting: [], refused: [], note: 'tracks 1: the loop builds one slice at a time in place' };
-  // The whole ceiling, so the run sees every free slice its width leaves out and can say why.
-  const free = nextSlice(road, record, { batch: TRACKS_CEILING }).next ?? [];
+  // Every free slice, so the run sees each one its width leaves out and can say why.
+  const next = nextSlice(road, record, { batch: FREE_BATCH });
+  const free = next.next ?? [];
   const gates = record.gates ?? [];
   // The coordinator counts every round (`run audit`), so the dispatch asks the same cap first.
   const open = [];
@@ -133,7 +148,7 @@ export function runTracks({ planningDir, root, slug, road, items, resource }) {
     if (room.allow) open.push(id);
     else refused.push({ id, reason: room.reason, limit: room.limit, detail: room.detail });
   }
-  const width = trackWidth({ ready: open.length, tracks: asked, resource });
+  const width = trackWidth({ ready: open.length, tracks: asked });
   const contract = runContract({ planningDir, root, slug, road, items });
   const byId = new Map(contract.slices.map((s) => [s.id, s]));
   const paired = pairTracks(open.map((id) => byId.get(id) ?? { id, files: [], interfaces: [], gaps: ['Files', 'Interfaces'] }), width);
@@ -141,13 +156,10 @@ export function runTracks({ planningDir, root, slug, road, items, resource }) {
   const trackRoot = posix(path.join(path.dirname(top), `${path.basename(top)}.do-it`, slug));
   const tracks = paired.tracks.map((s) => {
     const work = gates.find((g) => g.id === s.id)?.work;
-    let item = null;
-    try {
-      item = work ? items.get(work) : null;
-    } catch {
-      // A gate naming a plan the run no longer holds: the record's base is the fallback.
-      item = null;
-    }
+    const item = planOf(items, work);
+    // The item's lane is the answer; a plan file with no readable item falls back to its path, where
+    // only a lane M plan is a README with its phase files beside it.
+    const lane = item?.state.lane ?? (s.plan && /(^|\/)README\.md$/.test(s.plan) ? 'm' : 's');
     const worktree = posix(path.join(trackRoot, s.id));
     const branch = `do-it/${slug}--${s.id}`;
     const base = item?.state.base_ref ?? record.base ?? 'HEAD';
@@ -158,10 +170,10 @@ export function runTracks({ planningDir, root, slug, road, items, resource }) {
       branch,
       base,
       files: s.files,
-      brief: trackBrief({ slug, id: s.id, plan: posix(path.resolve(root, s.plan)), worktree, branch, base }),
+      brief: trackBrief({ slug, id: s.id, plan: posix(path.resolve(root, s.plan)), lane, worktree, branch, base }),
     };
   });
-  return { run: slug, width, ready: free.length, tracks, waiting: paired.waiting, refused };
+  return { run: slug, width, ready: free.length, tracks, waiting: paired.waiting, refused, ...(next.stop ? { stop: next.stop } : {}) };
 }
 
 // The git top level of a tree the checks run in, or null outside a repository.
