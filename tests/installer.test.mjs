@@ -108,6 +108,23 @@ test('DO_IT_HOME moves the root, and an explicit root still wins', () => {
   });
 });
 
+test('a relative DO_IT_HOME still makes absolute link targets', () => {
+  const root = miniRoot();
+  const home = tmpDir('do-it-home-');
+  const cwd = process.cwd();
+  // The environment names the checkout by its directory name alone, so a
+  // root left relative would place a link target inside the link's directory.
+  process.chdir(path.dirname(root));
+  try {
+    withEnv('DO_IT_HOME', path.basename(root), () => quiet(() => install({ home, hooks: false })));
+  } finally {
+    process.chdir(cwd);
+  }
+  const link = path.join(home, '.claude', 'skills', 'a-it');
+  assert.ok(standsFor(link, path.join(root, 'skills', 'a-it')), 'the link points at the checkout, not at a path beside itself');
+  assert.ok(fs.existsSync(path.join(link, 'SKILL.md')), 'the skill is reachable through the link');
+});
+
 test('uninstall() stands alone, and install({ uninstall: true }) still dispatches to it', () => {
   const root = miniRoot();
   const alone = tmpDir('do-it-home-');
@@ -139,8 +156,19 @@ test('a commented settings.json fails the Claude install and the OpenCode hooks 
   const home = tmpDir('do-it-home-');
   fs.mkdirSync(path.join(home, '.claude'), { recursive: true });
   fs.writeFileSync(path.join(home, '.claude', 'settings.json'), '// keep\n{ "model": "x" }\n');
-  const code = quiet(() => install({ root, home }));
+  // The fixture has no hook script, so the step falls back to this checkout's;
+  // the split from the linked root is reported.
+  const notes = [];
+  const err = console.error;
+  console.error = (...a) => notes.push(a.join(' '));
+  let code;
+  try {
+    code = quiet(() => install({ root, home }));
+  } finally {
+    console.error = err;
+  }
   assert.equal(code, 1, 'the Claude failure is the exit code');
+  assert.match(notes.join('\n'), /has no scripts\/install-hooks\.mjs; hooks come from/);
   const config = JSON.parse(fs.readFileSync(opencodeConfig(home), 'utf8'));
   assert.ok(config.plugin ?? config.plugins, 'the OpenCode hooks were registered');
 });
