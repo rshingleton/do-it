@@ -263,6 +263,39 @@ test('final review: the range starts where the branch left its upstream, so a re
   assert.deepEqual(after.files.map((f) => f.path).filter((p) => ['a.js', 'b.js'].includes(p)).sort(), ['a.js', 'b.js'], 'the run\'s files are still in it');
 });
 
+test('final review: a branch that merges an advanced upstream still lists only the run\'s files', () => {
+  const up = tmpDir('do-it-upstream-');
+  git(up, 'init', '-q', '-b', 'main');
+  git(up, 'config', 'user.name', 't');
+  git(up, 'config', 'user.email', 't@t');
+  git(up, 'config', 'commit.gpgsign', 'false');
+  fs.writeFileSync(path.join(up, 'upstream.js'), 'one\n');
+  git(up, 'add', '-A');
+  git(up, 'commit', '-qm', 'upstream');
+  const hold = tmpDir('do-it-merged-');
+  git(hold, 'clone', '-q', up, 'work');
+  const dir = path.join(hold, 'work');
+  git(dir, 'config', 'user.name', 't');
+  git(dir, 'config', 'user.email', 't@t');
+  git(dir, 'config', 'commit.gpgsign', 'false');
+  // The run starts on a local commit the upstream does not have: the merge keeps it reachable.
+  fs.writeFileSync(path.join(dir, 'before-run.js'), 'one\n');
+  git(dir, 'add', '-A');
+  git(dir, 'commit', '-qm', 'before the run');
+  ok(work(dir, 'run', 'new', 'road', '--commit', 'phase'));
+  fs.writeFileSync(path.join(dir, 'a.js'), 'one\n');
+  fs.writeFileSync(path.join(dir, 'b.js'), 'one\n');
+  git(dir, 'add', '-A');
+  git(dir, 'commit', '-qm', 'run commit');
+  // The upstream moves on and the branch merges it: a merge is not a rebase, so the base stands.
+  git(up, 'commit', '-q', '--allow-empty', '-m', 'upstream moves');
+  git(dir, 'fetch', '-q', 'origin');
+  git(dir, 'merge', '-q', '--no-edit', 'origin/main');
+  const r = review(dir);
+  assert.equal(r.mode, 'range');
+  assert.deepEqual(r.files.map((f) => f.path).sort(), ['a.js', 'b.js'], 'the run\'s own files, not the local commit the branch already had');
+});
+
 // A record built in place, for the digest's own rules.
 const record = (over = {}) => ({ id: 'road', level: 'full', commit: 'phase', started: 't', slices: [], assumptions: [], rejected: [], limits: [], gates: [], ...over });
 
