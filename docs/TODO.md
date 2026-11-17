@@ -3,7 +3,7 @@
 Nice-to-haves and things to circle back to. Managed by log-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T332
+Next id: T333
 
 ## Open
 
@@ -113,3 +113,4 @@ Next id: T332
 - [ ] T329 `tests/changeset.test.mjs:132`'s textconv budget failed under load in R20's worktree and passed on rerun, a second timing-dependent case beside T304's `:329` `debt` (R20 build, 2026-11-17)
 - [ ] T330 `skills/do-it/scripts/work.mjs:129`'s `planningExclude` still filters with `!rel.startsWith('..')`, so a root-level `..plans` directory yields an empty exclude and its files enter the fingerprint; use `insideRoot` there too `nice-to-have` (R20 round-1 review)
 - [ ] T331 `skills/do-it/scripts/commit.mjs:104`'s `worktreeRenames` keeps only `isFile()` names, so a renamed symlink is unpaired and its old path never reads `gone` `nice-to-have` (R20 round-1 review)
+- [ ] T332 `skills/usage-it/scripts/usage.mjs:123-124` and `ledger.mjs:91` still say a record counted whole is placed "by their last message", but after R25 the "before time buckets" label fires only on a record with no `at`, which `ledger.mjs:112-113` places by its `start` `nice-to-have` (R25 review)
