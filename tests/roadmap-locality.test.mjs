@@ -128,7 +128,9 @@ test('the roadmap docs state the hint, the batch preference and the plan contrac
     'the example table has a Files column between Covers and Blocked by',
   );
   assert.match(format, /^\|-------\|------\|----------\|--------\|-------\|------------\|--------\|------\|--------\|-----\|$/m, 'its separator row');
-  const field = flat(format).match(/\*\*Files:\*\*[\s\S]*?(?=\*\*Blocked by:\*\*)/)[0];
+  const filesField = flat(format).match(/\*\*Files:\*\*[\s\S]*?(?=\*\*Blocked by:\*\*)/);
+  assert.ok(filesField, 'the format states a **Files:** field before **Blocked by:**');
+  const field = filesField[0];
   assert.match(field, /optional/, 'the cell is optional');
   assert.match(field, /comma separated/, 'the paths are comma separated');
   assert.match(field, /scouting/, 'they come from scouting');
