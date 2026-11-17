@@ -10,7 +10,7 @@ closes per [SKILL.md](SKILL.md) §4.
 Before chaining a slice to ship, `work.mjs run gate <slug> <slice>` prints
 `{allow, reason, detail}`. `allow` false: act on `reason`.
 
-- `STALE_VERIFY` (park): code changed since the last passing verify. Rerun `work.mjs run verify`.
+- `STALE_VERIFY` (park): this slice's change moved since the last passing verify. Files another slice's plan owns are left out of both reads, so its work in the same tree does not count; a changed file no plan names does. Rerun `work.mjs run verify`.
 - `UNVERIFIED` (park): no passing verify recorded. Run `work.mjs run verify`.
 - `FLAKY` (park): `run verify` reran a failing check once and it passed. Never rerun again.
 - `SLICE_CAP` (park): the slice ran past `slice_cap_min`.

@@ -3,7 +3,7 @@
 Nice-to-haves and things to circle back to. Managed by log-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T298
+Next id: T303
 
 ## Open
 
@@ -31,7 +31,7 @@ Next id: T298
 - [ ] T47 Explore self-improving mechanisms for the skill base: review the references, then decide what fits (e.g. extend retro-it, feed audit findings and user corrections back into skills, checks and evals) `question` (user 2026-10-19; after the current plans)
   - References: https://github.com/BerriAI/self-improving-agent, https://github.com/microsoft/Trace, https://github.com/XMUDeepLIT/Awesome-Self-Evolving-Agents, https://github.com/selfimproving-agent/awesome-Self-Improving-Agents
   - Related: T29 (retro-it mines transcripts for corrections), T22 (red-flag tables from observed failures), T23 (behaviour evals and routing eval variants).
-- [ ] T49 Concurrent uncommitted work items: each fingerprint hashes the whole change since its base, so fixing one item invalidates every other item's audit. Scope the fingerprint (and the auditors' diff) to the item's own paths, e.g. a `paths:` field filled as build-it touches files `idea` (do-it run 2026-10-19: three items, one base, no commits)
+- [ ] T49 The auditors' diff still spans the whole change since base, so a concurrent uncommitted item's files land in every item's `prove-it --since` review; scope it to the item's own paths the way `run gate` now scopes its fingerprint to another slice's plan files. The gate half is done `idea` (do-it run 2026-10-19: three items, one base, no commits)
 - [ ] T62 The lifecycle stops at a local commit: no skill owns push or PR (body, protected-branch check), changelog version headings, or carrying out ship-it's rollback note `idea` (docs/reference-audit/2026-10-19-repo.md, finding 20; T24 covers PR feedback)
 - [ ] T78 Doctors: a tracker.mjs check that gh auth or a Jira /myself call works, so setup-it verifies reachability, and an install doctor (Node >= 18, host, agent and skill symlink health, hook registration, `checks.json` validity); may be one `/setup-it` check slice `idea` (session 2026-10-19, handoff review 2026-10-25)
 - [ ] T82 Hook guards on tool traffic, both unproven: a pre-edit guard against whole-file rewrites of large files (over 300 lines or 25 KB), steering to targeted edits, weighed against generated files and the cost of false blocks; and trimming passing-test noise from `npm test` and build output before it reaches the model, feasibility first, since Claude Code's PostToolUse hook may not rewrite Bash output (T27 is the related hook) `question` (handoff review 2026-10-25, unproven)
@@ -43,54 +43,43 @@ Next id: T298
 - [ ] T233 link-it v1 limit: an agreed Interface edit whose proposer never writes it stays unapplied (skills/link-it/CONTRACT.md Rules) `debt` (link-it-todos audit)
 - [ ] T236 Behavioural eval for the grill acceptance rule: a grill reply that only adds scope must produce a re-presented round, not `approve` or plan files; today only tests/grill-acceptance.test.mjs pins the text `nice-to-have` (grill-acceptance ship)
   - Related: T23 (behaviour evals).
-- [ ] T245 The spawn-a-check block is duplicated in runs.mjs and work.mjs; share it when a third caller appears `nice-to-have` (skills/do-it/scripts/runs.mjs:35-39, work.mjs:222-226; windows-support audit)
 - [ ] T247 The R1 wraps leave `skills/do-it/SKILL.md` at 103 lines and `skills/finish-it/SKILL.md` at 111; R3's repo-wide line count brings both under 100 `nice-to-have` (source: r1-text-truth)
-- [ ] T251 The contract plan path in `run tracks` is relativised twice, so the brief names a path that does not exist below the repo root `debt` (tracks-mode audit; runs.mjs:71)
-- [ ] T252 Give `trackWidth`'s resource term a producer, or drop it: `run tracks` passes none and `tracks` is already capped at 5, so the machine cap never binds `debt` (tracks-mode audit; runs.mjs:108,118)
-- [ ] T253 `run tracks` asks for only the ceiling's worth of free slices, so a sixth ready slice is in neither `tracks` nor `waiting` `debt` (tracks-mode audit; runs.mjs:108)
-- [ ] T254 `run tracks` swallows every `items.get` error and falls back to HEAD, where `run contract` rethrows: one policy, and read the item once `debt` (tracks-mode audit; runs.mjs:127)
-- [ ] T255 A track's `prove-it` takes no check slot, so the two heavy suites the slot exists for never queue `debt` (tracks-mode audit; check-slot.mjs:1)
-- [ ] T256 Every track brief calls its plan a lane M plan with phase files beside it, which a lane S slice does not have `debt` (tracks-mode audit; runs.mjs:85)
-- [ ] T257 The Contract check hard-codes `node skills/do-it/scripts/contract.mjs`, so it exits ENOENT in a project without a skills directory `debt` (tracks-mode audit; CHECKS.md:22)
-- [ ] T258 The Contract analyze row sits among the lane S checks, so every plan outside a track now fails the pass `debt` (tracks-mode audit; CHECKS.md:16)
-- [ ] T259 `runVerifyMerged` lacks `runVerify`'s non-git guard: it runs the suite, then fails in `fingerprintOf` and records nothing `debt` (tracks-mode audit; runs.mjs:225)
-- [ ] T260 `run verify --merged` takes the check slot but records no `waited_ms`, so its queue time counts against the slice cap `nice-to-have` (tracks-mode audit; runs.mjs:234)
-- [ ] T261 `run tracks` drops `nextSlice`'s stop, so at `max_slices` it reads like an empty frontier `nice-to-have` (tracks-mode audit; runs.mjs:108)
 - [ ] T262 `tests/roadmap-locality.test.mjs` pins `roadmap-it/SKILL.md` at exactly 103 lines, over the 100-line budget, so cutting it to 100 turns the suite red `debt` (planning-locality audit; tests/roadmap-locality.test.mjs:145)
-- [ ] T263 `hintBatch` takes a lead count and a one-adapter closure while `byId` is already in scope; pass the lead ids and the slice map `debt` (planning-locality audit; run.mjs:281,328)
-- [ ] T264 `run.mjs` states the hint rule three times, in `hintBatch`'s comment and twice at 301-306, and the copies can drift `nice-to-have` (planning-locality audit; run.mjs:301-306)
-- [ ] T265 `tests/phases-contract.test.mjs` selects `fences[2]` positionally, and the lane M fence also matches `## Files` and `src/limiter.js`, so a new fence makes it assert the wrong block `debt` (planning-locality audit; tests/phases-contract.test.mjs:192)
-- [ ] T266 `PLAN-FORMAT.md` says the README's `## Files` and `## Interfaces` are "the union of its phases' files", contradicting the next line that `## Interfaces` stays at the README `debt` (planning-locality audit; skills/scope-it/PLAN-FORMAT.md:18)
-- [ ] T267 A roadmap `Files: none` cell parses as a hint path named `none`, so two such slices collide; treat `none`, `n/a`, `-` and empty as no hint `debt` (planning-locality audit; roadmap.mjs:69)
-- [ ] T268 `roadmap-it/SKILL.md` states the hint without why it is not the contract, so phase 3's done-when is only partly met `nice-to-have` (planning-locality audit; skills/roadmap-it/SKILL.md:53)
-- [ ] T269 `CHECKS.md` and `GRILL.md` say "no block edge" where `phases.mjs` counts a whole dependency path `nice-to-have` (planning-locality audit; skills/scope-it/CHECKS.md:20, GRILL.md:15)
-- [ ] T270 `parseFileList` takes text while every caller already holds section lines; accept an array of lines too `nice-to-have` (planning-locality audit; fileset.mjs:19)
-- [ ] T271 `tests/roadmap-locality.test.mjs` dereferences `match(...)[0]` before asserting it, so a renamed heading throws instead of naming the field `nice-to-have` (planning-locality audit; tests/roadmap-locality.test.mjs:131)
-- [ ] T272 `PLAN-FORMAT.md` says "every phase file states its own list" without naming `## Files`, so a reader can add `## Interfaces` per phase `nice-to-have` (planning-locality audit; skills/scope-it/PLAN-FORMAT.md:124)
 - [ ] T273 `scripts/install.mjs` and `scripts/doctor.mjs` import each other (`readRef` against `planLinks`), which works only because both are hoisted declarations `debt` (install-freshness phase 5)
   - Move one side into `scripts/lib/` so the import graph is a DAG.
-- [ ] T274 `tests/links.mjs` keeps its own always-lowercasing `norm`, so it now disagrees with `scripts/lib/install-state.mjs` on POSIX `nice-to-have` (install-freshness phase 2)
 - [ ] T275 A fresh clone has no `FETCH_HEAD`, so `scripts/doctor.mjs` reports `never fetched` for a checkout that was just cloned `nice-to-have` (install-freshness phase 3)
 - [ ] T276 The doctor resolves `claude` from PATH entries, so a PATH entry with a stray quote hides it while `where` still finds it `nice-to-have` (install-freshness phase 4)
 - [ ] T277 A commented `opencode.json` fails the OpenCode hook step on a real install while the exit stays 0 `debt` (install-freshness phase 5, pre-existing)
   - T78's hook-registration check is where this belongs.
 - [ ] T278 The probe prompt "skills whose name starts with it- or do-it-" matches no do-it skill, since the names end in `-it`; the same probe written as a suffix lists 16 `nice-to-have` (install-freshness phase 6; copied from the T250 notes)
 - [ ] T279 An empty untracked `skills/<name>` directory gets an `ok` link from the doctor, so a stray empty directory reads as installed `nice-to-have` (install-freshness phase 6)
-- [ ] T280 `tests/install-links.test.mjs` rebuilds `checkout()`, `seed()` and `clone()` from `tests/doctor-routes.test.mjs`, the same duplicated-fixture class as T274 `nice-to-have` (install-freshness audit round 2)
-  - One shared helper, as `tests/mini-root.mjs` already did for the two install fixtures.
-- [ ] T281 `docs/DESIGN.md`'s `scripts/` tree names neither `doctor.mjs` nor `version-gate.mjs`, the two files a reader would look for `nice-to-have` (install-freshness audit 10)
-- [ ] T282 `docs/reference/install-routes.md` quotes a home path and this checkout's branch as evidence, which no other doc does and no reader can reproduce `nice-to-have` (install-freshness audit 11)
 - [ ] T283 `plural` is copied from `scripts/doctor.mjs` into `scripts/install.mjs`; a wording change to "one commit" lands in two files `nice-to-have` (install-freshness audit 20; doctor.mjs:557, install.mjs:126)
-- [ ] T284 `tests/doctor-routes.test.mjs` keeps a third copy of `quiet`, now that `tests/mini-root.mjs` exports one `nice-to-have` (install-freshness audit 21)
 - [ ] T285 `install-hooks.mjs` falls back to the OpenCode 1 form silently when `opencode --version` cannot run, writing `plugin` plus a file path that OpenCode 2 skips; it should ask, or read the form from another signal `debt` (install-freshness ship, 2026-11-16)
 - [ ] T286 `install-hooks.mjs` reports every parse failure as "not plain JSON (comments?)", so a UTF-8 BOM reads as comments `nice-to-have` (install-freshness ship, 2026-11-16; install-hooks.mjs:29)
 - [ ] T288 `scripts/doctor.mjs` reports an absent plugin or `skills` CLI route with `fix: null`, so the one route a new user has not installed gets no install command while every broken entry does `nice-to-have` (install-routes review, 2026-11-16; doctor.mjs `pluginRoute`, the `absent` object)
-- [ ] T289 `docs/reference/install-routes.md:242` says a machine with either lock gets a `skills CLI:` line, but the doctor reads the project lock only at `cwd` and a project lock stores no date `nice-to-have` (install-routes audit, 2026-11-16)
-- [ ] T290 `docs/reference/install-routes.md:240` leaves the sixth CLI host unnamed and credits six hosts to one `.agents/skills` install `nice-to-have` (install-routes audit, 2026-11-16)
-- [ ] T291 `docs/reference/install-routes.md:41` says "the symlink install command", which now reads as the Install column's one-liner, not the doctor's `node <checkout>/scripts/install.mjs` `nice-to-have` (install-routes audit, 2026-11-16)
-- [ ] T292 `docs/reference/install-routes.md:212` records a macOS probe under "The CLI route on this machine", beside the doc's Windows facts `nice-to-have` (install-routes audit, 2026-11-16)
-- [ ] T293 `docs/reference/install-routes.md:28` opens with "One route per host." and closes with "Either way, one route per host" `nice-to-have` (install-routes audit, 2026-11-16)
-- [ ] T294 `README.md:214,310` leaves `-a claude-code`, which writes `~/.claude/skills`, outside the one-route rule while the CLI heading says "any host the CLI supports" `nice-to-have` (install-routes audit, 2026-11-16)
-- [ ] T295 `README.md:293,306` says a local marketplace "follows edits with no version bump", then says a skill reaches plugin users only when the version moves; both need their scope `nice-to-have` (install-routes audit, 2026-11-16)
-- [ ] T296 `README.md:322` restates the Update section's CLI refresh facts at `README.md:352-354` `nice-to-have` (install-routes audit, 2026-11-16)
-- [ ] T297 `README.md:288` puts shell commands in a `text` fence while sibling install and check blocks use `bash` `nice-to-have` (install-routes audit, 2026-11-16)
+- [ ] T298 One install-docs pass: ten small fixes across `docs/DESIGN.md`, `docs/reference/install-routes.md` and the README install facts `nice-to-have` (install-freshness and install-routes audits, 2026-11-16; merges T281, T282, T289-T292, T294-T297)
+  - T281 DESIGN.md names neither `doctor.mjs` nor `version-gate.mjs` in its `scripts/` tree.
+  - T282 install-routes.md quotes a home path and this checkout branch as evidence no reader can reproduce.
+  - T289 install-routes.md:242 says a machine with either lock gets a line with a date, but the project lock is read only at `cwd` and stores none.
+  - T290 install-routes.md:240 leaves the sixth CLI host unnamed and credits six hosts to one `.agents/skills` install.
+  - T291 install-routes.md:41 says "the symlink install command", which reads as the Install column one-liner, not the doctor `node <checkout>/scripts/install.mjs`.
+  - T292 install-routes.md:212 files a macOS probe under "The CLI route on this machine", beside the doc Windows facts.
+  - T294 README.md:214,310 leaves `-a claude-code` outside the one-route rule while the CLI heading says "any host the CLI supports".
+  - T295 README.md:293,306 states the local-marketplace and version-bump facts without their scope.
+  - T296 README.md:322 restates the Update section CLI refresh facts at README.md:352-354.
+  - T297 README.md:288 puts shell commands in a `text` fence while sibling install and check blocks use `bash`.
+- [ ] T299 One shared test-helper pass: `tests/links.mjs` keeps its own always-lowercasing `norm` and now disagrees with `scripts/lib/install-state.mjs` on POSIX, `tests/doctor-routes.test.mjs` keeps a third copy of `quiet` that `tests/mini-root.mjs` already exports, and `tests/install-links.test.mjs` rebuilds `checkout()`, `seed()` and `clone()` from `tests/doctor-routes.test.mjs` `nice-to-have` (install-freshness audits; merges T274, T280, T284)
+- [ ] T300 One tracks-mode cleanup pass: eleven `run tracks` defects across `runs.mjs`, `CHECKS.md` and `check-slot.mjs` `debt` (tracks-mode audit; merges T251-T261)
+  - T251 the contract plan path is relativised twice, so the brief names a path that does not exist below the repo root (runs.mjs:71).
+  - T252 `trackWidth` has no producer for its resource term and `tracks` is capped at 5, so the machine cap never binds (runs.mjs:108,118).
+  - T253 `run tracks` asks for only the ceiling worth of free slices, so a sixth ready slice is in neither `tracks` nor `waiting` (runs.mjs:108).
+  - T254 `run tracks` swallows every `items.get` error and falls back to HEAD, where `run contract` rethrows: one policy, and read the item once (runs.mjs:127).
+  - T255 a track `prove-it` takes no check slot, so the two heavy suites the slot exists for never queue (check-slot.mjs:1).
+  - T256 every track brief calls its plan a lane M plan with phase files beside it, which a lane S slice does not have (runs.mjs:85).
+  - T257 the Contract check hard-codes `node skills/do-it/scripts/contract.mjs`, so it exits ENOENT in a project without a skills directory (CHECKS.md:22).
+  - T258 the Contract analyze row sits among the lane S checks, so every plan outside a track fails the pass (CHECKS.md:16).
+  - T259 `runVerifyMerged` lacks `runVerify` non-git guard: it runs the suite, then fails in `fingerprintOf` and records nothing (runs.mjs:225).
+  - T260 `run verify --merged` takes the check slot but records no `waited_ms`, so queue time counts against the slice cap (runs.mjs:234).
+  - T261 `run tracks` drops `nextSlice` stop, so at `max_slices` it reads like an empty frontier (runs.mjs:108).
+- [ ] T301 One script-dedupe pass: the spawn-a-check block is duplicated in `runs.mjs:35-39` and `work.mjs:222-226`; `hintBatch` takes a lead count and a one-adapter closure while `byId` is already in scope (`run.mjs:281,328`); and `run.mjs:301-306` states the hint rule three times `nice-to-have` (merges T245, T263, T264)
+- [ ] T302 One planning-locality cleanup pass: `tests/phases-contract.test.mjs` selects `fences[2]` positionally, `PLAN-FORMAT.md:18` still says Lane M puts both sections in its README as a union while `PLAN-FORMAT.md:124` never names `## Files` as the per-phase list, a roadmap `Files: none` cell parses as a hint path named `none`, `roadmap-it/SKILL.md:53` states the hint without why it is not the contract, `CHECKS.md:20` and `GRILL.md:15` say "no block edge" where `phases.mjs` counts a whole dependency path, `parseFileList` takes text while every caller holds section lines, and `tests/roadmap-locality.test.mjs:131` dereferences `match(...)[0]` before asserting it `nice-to-have` (planning-locality audit; merges T265-T272)
