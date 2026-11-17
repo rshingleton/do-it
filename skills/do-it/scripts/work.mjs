@@ -201,6 +201,22 @@ function baseRef(root) {
   return r.status === 0 ? r.stdout.trim() : null;
 }
 
+// A run is never refused for a dirty tree: the uncommitted change is part of what it
+// builds. The record says so, so a reader knows the base is the commit that change is
+// measured from. No base (no repo, no first commit) has nothing to name, and a git that
+// fails says nothing about the tree, so both start without the note.
+function baseNote(ctx, base) {
+  if (!base) return null;
+  let r;
+  try {
+    r = git(ctx.root, ['status', '--porcelain', '-uall', '--', '.', ...planningExclude(ctx).map((p) => `:(exclude,literal)${p}`)]);
+  } catch {
+    return null;
+  }
+  if (r.status !== 0 || !r.stdout.trim()) return null;
+  return 'uncommitted changes were in the tree at run new; base is the commit they are measured from, and they are part of this run';
+}
+
 export async function run(argv, { cwd = process.cwd() } = {}) {
   const { pos, opts } = parseArgs(argv);
   const [cmd, id, ...rest] = pos;
@@ -286,7 +302,8 @@ export async function run(argv, { cwd = process.cwd() } = {}) {
             const file = repoRoot(path.resolve(cwd, opts.roadmap));
             throw new Error(`the roadmap ${file} is outside the repo root ${repoRoot(ctx.root)}; a run in another repo starts from that repo`);
           }
-          return createRun(ctx.planningDir, slug, { ...opts, base: baseRef(ctx.root) }, ctx.config, { root: ctx.root });
+          const base = baseRef(ctx.root);
+          return createRun(ctx.planningDir, slug, { ...opts, base, base_note: baseNote(ctx, base) }, ctx.config, { root: ctx.root });
         }
         case 'show':
           return showRun(ctx.planningDir, slug);
