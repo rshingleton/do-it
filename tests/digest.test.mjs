@@ -220,7 +220,8 @@ test('final review: a tracked planning file modified after the run commits leave
   assert.deepEqual(r.files.map((f) => f.path).sort(), ['a.js', 'b.js']);
 });
 
-test('final review: the range starts where the branch left its upstream, so a rebase brings no upstream commit into the run\'s change', () => {
+// A clone of a repository with one upstream commit, on a branch tracking origin/main.
+function branchRepo(prefix) {
   const up = tmpDir('do-it-upstream-');
   git(up, 'init', '-q', '-b', 'main');
   git(up, 'config', 'user.name', 't');
@@ -229,13 +230,17 @@ test('final review: the range starts where the branch left its upstream, so a re
   fs.writeFileSync(path.join(up, 'upstream.js'), 'one\n');
   git(up, 'add', '-A');
   git(up, 'commit', '-qm', 'upstream');
-  const hold = tmpDir('do-it-rebased-');
+  const hold = tmpDir(prefix);
   git(hold, 'clone', '-q', up, 'work');
   const dir = path.join(hold, 'work');
   git(dir, 'config', 'user.name', 't');
   git(dir, 'config', 'user.email', 't@t');
   git(dir, 'config', 'commit.gpgsign', 'false');
-  // The run starts on a local commit the upstream does not have: the upstream's tip is behind it.
+  return { up, dir };
+}
+
+// A pre-run local commit, then the run's two files: the run's base is the local commit.
+function runWork(dir) {
   fs.writeFileSync(path.join(dir, 'before-run.js'), 'one\n');
   git(dir, 'add', '-A');
   git(dir, 'commit', '-qm', 'before the run');
@@ -244,56 +249,44 @@ test('final review: the range starts where the branch left its upstream, so a re
   fs.writeFileSync(path.join(dir, 'b.js'), 'one\n');
   git(dir, 'add', '-A');
   git(dir, 'commit', '-qm', 'run commit');
-  const before = review(dir);
-  assert.equal(before.mode, 'range');
-  assert.deepEqual(before.files.map((f) => f.path).sort(), ['a.js', 'b.js'], 'the run\'s own commits, not the local commit the branch already had');
-  git(dir, 'branch', '--unset-upstream');
-  assert.deepEqual(review(dir), before, 'the same change with no upstream configured');
-  git(dir, 'branch', '--set-upstream-to=origin/main');
-  // The upstream moves on and the branch is rebased onto it: its commit is not the run's change.
-  fs.writeFileSync(path.join(up, 'upstream.js'), 'two\n');
+}
+
+// The upstream pushes a file of its own, and the clone fetches it.
+function upstreamMoves(up, dir) {
+  fs.writeFileSync(path.join(up, 'upstream-only.js'), 'one\n');
   git(up, 'add', '-A');
   git(up, 'commit', '-qm', 'upstream moves');
   git(dir, 'fetch', '-q', 'origin');
-  git(dir, 'rebase', '-q', 'origin/main');
-  const after = review(dir);
-  assert.equal(after.mode, 'range');
-  assert.equal(after.base, before.base, 'the recorded base is still the run\'s base');
-  assert.ok(!after.files.some((f) => f.path === 'upstream.js'), 'the upstream commit the rebase brought in is not in the run\'s change');
-  assert.deepEqual(after.files.map((f) => f.path).filter((p) => ['a.js', 'b.js'].includes(p)).sort(), ['a.js', 'b.js'], 'the run\'s files are still in it');
+}
+
+test('final review: a plain branch lists only the run\'s files', () => {
+  const { dir } = branchRepo('do-it-plain-');
+  runWork(dir);
+  const r = review(dir);
+  assert.equal(r.mode, 'range');
+  assert.deepEqual(r.files.map((f) => f.path).sort(), ['a.js', 'b.js'], 'the run\'s own commits, not the local commit the branch already had');
+  git(dir, 'branch', '--unset-upstream');
+  assert.deepEqual(review(dir), r, 'the same change with no upstream configured');
 });
 
-test('final review: a branch that merges an advanced upstream still lists only the run\'s files', () => {
-  const up = tmpDir('do-it-upstream-');
-  git(up, 'init', '-q', '-b', 'main');
-  git(up, 'config', 'user.name', 't');
-  git(up, 'config', 'user.email', 't@t');
-  git(up, 'config', 'commit.gpgsign', 'false');
-  fs.writeFileSync(path.join(up, 'upstream.js'), 'one\n');
-  git(up, 'add', '-A');
-  git(up, 'commit', '-qm', 'upstream');
-  const hold = tmpDir('do-it-merged-');
-  git(hold, 'clone', '-q', up, 'work');
-  const dir = path.join(hold, 'work');
-  git(dir, 'config', 'user.name', 't');
-  git(dir, 'config', 'user.email', 't@t');
-  git(dir, 'config', 'commit.gpgsign', 'false');
-  // The run starts on a local commit the upstream does not have: the merge keeps it reachable.
-  fs.writeFileSync(path.join(dir, 'before-run.js'), 'one\n');
-  git(dir, 'add', '-A');
-  git(dir, 'commit', '-qm', 'before the run');
-  ok(work(dir, 'run', 'new', 'road', '--commit', 'phase'));
-  fs.writeFileSync(path.join(dir, 'a.js'), 'one\n');
-  fs.writeFileSync(path.join(dir, 'b.js'), 'one\n');
-  git(dir, 'add', '-A');
-  git(dir, 'commit', '-qm', 'run commit');
-  // The upstream moves on and the branch merges it: a merge is not a rebase, so the base stands.
-  git(up, 'commit', '-q', '--allow-empty', '-m', 'upstream moves');
-  git(dir, 'fetch', '-q', 'origin');
+test('final review: a rebase onto an advanced upstream lists only the run\'s files', () => {
+  const { up, dir } = branchRepo('do-it-rebased-');
+  runWork(dir);
+  upstreamMoves(up, dir);
+  git(dir, 'rebase', '-q', 'origin/main');
+  const r = review(dir);
+  assert.equal(r.mode, 'range');
+  assert.deepEqual(r.files.map((f) => f.path).sort(), ['a.js', 'b.js'], 'the upstream file the rebase brought in is not the run\'s change');
+});
+
+test('final review: a merge of an advanced upstream lists only the run\'s files', () => {
+  const { up, dir } = branchRepo('do-it-merged-');
+  runWork(dir);
+  upstreamMoves(up, dir);
   git(dir, 'merge', '-q', '--no-edit', 'origin/main');
   const r = review(dir);
   assert.equal(r.mode, 'range');
-  assert.deepEqual(r.files.map((f) => f.path).sort(), ['a.js', 'b.js'], 'the run\'s own files, not the local commit the branch already had');
+  assert.deepEqual(r.files.map((f) => f.path).sort(), ['a.js', 'b.js'], 'the upstream file the merge brought in is not the run\'s change');
 });
 
 // A record built in place, for the digest's own rules.

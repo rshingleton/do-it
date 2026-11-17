@@ -8,11 +8,12 @@ never an estimate of time or money saved.
 When every slice is shipped or parked, call
 [review-it](../review-it/SKILL.md) once over the whole run. The change is what
 `work.mjs run review-change <slug>` prints: base is the run record's `base`
-(the commit HEAD was at `run new`), and `mode` is `range` (the run's own
-commits: `<base>...HEAD`, or from the branch's upstream point when a rebase
-rewrote the base and it is no longer in HEAD's history) or `worktree` (the
-working tree against base: commit mode `none`, or closing docs not yet
-committed). A null `base` (no git): review the working tree.
+(the commit HEAD was at `run new`), and `mode` is `range` (the change between
+base and HEAD in the files the run's own commits touch: the commits the
+branch's upstream already has are left out, so a merge or a rebase never puts
+the upstream's own content in it) or `worktree` (the working tree against
+base: commit mode `none`, or closing docs not yet committed). A null `base`
+(no git): review the working tree.
 
 - Fix only Must findings, then review again. Before each round,
   `work.mjs run audit <slug> --final`; at the record's `final_audit_cap` it is
