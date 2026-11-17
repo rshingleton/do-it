@@ -1002,6 +1002,7 @@ test('scope-it: PLAN-FORMAT owns the ## Link section its rule and its example', 
   const laneS = [...doc.matchAll(/```markdown\n([\s\S]*?)```/g)][0][1];
   const section = laneS.match(/^## Link\n(\S.*)$/m);
   assert.ok(section, 'the lane S example carries a ## Link with one path line');
+  assert.equal(section[1], '~/.local/share/do-it-bridge/billing-api--web-app.md', 'the example derives the pair CONTRACT.md names, sorted');
   const at = laneS.indexOf('## Link');
   assert.ok(laneS.indexOf('## Interfaces') < at && at < laneS.indexOf('## Steps'), 'the section sits after Interfaces and before Steps');
   const rule = flat(doc.slice(doc.indexOf('`## Link` is optional')));
@@ -1028,7 +1029,7 @@ test('work.mjs: a replan keeps a plan body\'s ## Link section', () => {
   work(dir, 'new', 'bridged', '--lane', 's', '--title', 'Bridged');
   for (const e of ['approve', 'start']) work(dir, 'event', 'bridged', e);
   const file = path.join(dir, 'docs/planning/bridged.md');
-  const link = '## Link\n~/.local/share/do-it-bridge/acme-api--acme-web.md';
+  const link = '## Link\n~/.local/share/do-it-bridge/billing-api--web-app.md';
   fs.appendFileSync(file, `\n${link}\n`);
   const r = work(dir, 'event', 'bridged', 'replan');
   assert.equal(r.status, 0, JSON.stringify(r.out));
