@@ -48,9 +48,9 @@ settle every decision now: [SWEEP.md](SWEEP.md).
 
 ## 4. Sequence
 
-Group slices into milestones, each ending in something a user or operator can
-see; the first proves the path end to end. Order by blocks, then risk (spikes
-and risky slices early), then value; a file hint lets a batch prefer disjoint work.
+Group slices into milestones, each ending in something a user or operator can see; the first proves the path end to end.
+Order by blocks, then risk (spikes and risky slices early), then value; a file hint lets a batch prefer disjoint work.
+It stays a batching hint: the plan's `## Files` is the pairing contract, and a slice with no hint pairs on its plan.
 
 ## 5. Check, write, approve
 
