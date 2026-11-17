@@ -175,6 +175,18 @@ test('--json adds a whole record\'s runs: two rows of runs 2 print 4', () => {
   assert.deepEqual(out.map((g) => [g.agent, g.runs, g.out]), [['main', 4, 30]]);
 });
 
+test('--json counts a whole record\'s runs, not the record: two records of runs 2 report 4', () => {
+  const dir = tmp();
+  const rec = (id, out) => ({ id, kind: 'session', agent: 'main', model: 'm', project: 'p', day: '2026-10-22', start: '2026-10-22T03:00:00.000Z', runs: 2, turns: 1, in: 1, out, cr: 0, cc: 0 });
+  record(dir, rec('a', 10));
+  record(dir, rec('b', 20));
+  const env = { ...process.env, DO_IT_USAGE_DIR: dir };
+  const run = (...a) => execFileSync('node', [path.join(ROOT, 'skills/usage-it/scripts/usage.mjs'), ...a], { env, encoding: 'utf8' });
+  const out = JSON.parse(run('--json', '--from', '2026-10-22T00:00:00Z', '--to', '2026-10-22T06:00:00Z'));
+  assert.deepEqual(out.map((g) => [g.runs, g.whole, g.out]), [[4, 4, 30]]);
+  assert.match(run('--from', '2026-10-22T00:00:00Z', '--to', '2026-10-22T06:00:00Z'), /window: 4 run\(s\) recorded before time buckets existed count whole/);
+});
+
 test('--hours keeps only runs that ended inside the window', () => {
   const dir = tmp();
   const now = Date.now();

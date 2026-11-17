@@ -113,7 +113,7 @@ export function windowShare(r, fromMs, toMs) {
   return inside(t) ? { in: r.in ?? 0, out: r.out ?? 0, cr: r.cr ?? 0, cc: r.cc ?? 0, turns: r.turns ?? 0, runs: r.runs ?? 1, whole: r.partial ? 'partial' : r.at ? null : 'old' } : null;
 }
 
-// The records' shares inside the window as records with those counts, and how many were counted whole
+// The records' shares inside the window as records with those counts, and how many runs were counted whole
 // (no buckets) so a report can say so: `whole` for records with no `at`, `partial` for ones with a message
 // that lacked a time. Each share carries `wholeKind` for per-row counts. Rolled-up rows carry no
 // time and drop out.
@@ -124,8 +124,9 @@ export function inWindow(recs, fromMs, toMs) {
   for (const r of recs) {
     const s = windowShare(r, fromMs, toMs);
     if (!s) continue;
-    if (s.whole === 'old') whole += 1;
-    if (s.whole === 'partial') partial += 1;
+    // Runs, not records: a rollup row stands for several, and the per-group totals already sum `runs`.
+    if (s.whole === 'old') whole += s.runs ?? 1;
+    if (s.whole === 'partial') partial += s.runs ?? 1;
     out.push({ ...r, in: s.in, out: s.out, cr: s.cr, cc: s.cc, turns: s.turns, runs: s.runs, wholeKind: s.whole });
   }
   return { recs: out, whole, partial };
