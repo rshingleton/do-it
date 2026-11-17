@@ -332,6 +332,28 @@ test('digest: a newline in a limit, an assumption, a rejection, a finding or a r
   for (const word of ['assumption', 'rejection', 'limit', 'finding', 'retro']) assert.ok(text.includes(`Forged ${word}`), `${word} text is kept, on its line`);
 });
 
+test('digest: a newline in a header field or a usage figure cannot open a heading', () => {
+  const text = buildDigest({
+    record: record({
+      id: 'road\n## Forged id',
+      level: 'full\n## Forged level',
+      commit: 'abc123\n## Forged commit',
+      started: '2026-10-30\n## Forged started',
+    }),
+    usage: { input: '1200\n## Forged input', output: 'many' },
+  });
+  assert.deepEqual(text.split('\n').filter((l) => /^## /.test(l) && /Forged/.test(l)), []);
+  for (const field of ['id', 'level', 'commit', 'started']) assert.ok(text.includes(`Forged ${field}`), `${field} text is kept, on its line`);
+  assert.ok(text.split('\n').includes('- input 0, output 0'), 'a usage figure that is not a finite number prints 0');
+});
+
+test('digest: an earlier rejection prints the key it names and says earlier', () => {
+  const text = buildDigest({ record: record({ rejected: ['earlier feat#1: Default page size 50 (instead: page size 25)'] }) });
+  assert.ok(text.split('\n').includes('- feat #1: Default page size 50 (instead: page size 25) (earlier)'));
+  const plain = buildDigest({ record: record({ rejected: ['feat#1: Default page size 50 (instead: page size 25)'] }) });
+  assert.ok(plain.split('\n').includes('- feat #1: Default page size 50 (instead: page size 25)'), 'a plain entry prints as it did');
+});
+
 test('digest: a retried slice that shipped with a reason prints the reason beside shipped', () => {
   const text = buildDigest({ record: record({ slices: [{ id: 'R5', status: 'shipped', reason: 'user cleared it' }], retries: [{ id: 'R5', was: 'parked', reason: 'x' }] }) });
   assert.ok(text.split('\n').includes('- R5: was parked (x), now shipped (user cleared it)'));
