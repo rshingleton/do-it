@@ -41,7 +41,7 @@ import { EMPTY_TREE, fingerprint, hasObject, snapshot, treeDiff } from './change
 import { needsUser } from './state.mjs';
 import { allowedMoves, firableEvents, workItems } from './items.mjs';
 import { roadmapSlices } from './roadmap.mjs';
-import { commitSlice } from './commit.mjs';
+import { commitSlice, insideRoot } from './commit.mjs';
 import { git } from './git.mjs';
 import { checkShell } from './check-shell.mjs';
 import { buildDigest } from './digest.mjs';
@@ -132,11 +132,14 @@ function planningExclude(ctx) {
 // The change fingerprint also leaves out what ship-it's closing docs write (the item's roadmap file,
 // the to-do list, the ADR directory) and the issue store, which any session's `log-it` may add to, or
 // closing them (or filing a backlog item) would read as moved code. A hand edit to those files after
-// verify goes unseen, by decision.
+// verify goes unseen, by decision. A name outside the repo cannot be an exclude, and `insideRoot` keeps
+// a repo file named `..env` while dropping `..` and `../x`.
 function closingDocsExclude(ctx, item) {
-  const rel = (p) => toPosix(path.relative(ctx.root, path.resolve(ctx.root, p)));
   const roadmap = String(item.state.roadmap ?? '').split('#')[0];
-  return [roadmap, ctx.config.DO_IT_TODO_FILE || 'docs/TODO.md', ctx.config.DO_IT_ADR_DIR || 'docs/adr', ctx.config.DO_IT_ISSUES_DIR || 'docs/issues'].filter(Boolean).map(rel).filter((p) => p && !p.startsWith('..'));
+  return [roadmap, ctx.config.DO_IT_TODO_FILE || 'docs/TODO.md', ctx.config.DO_IT_ADR_DIR || 'docs/adr', ctx.config.DO_IT_ISSUES_DIR || 'docs/issues']
+    .filter(Boolean)
+    .map((p) => insideRoot(ctx.root, p))
+    .filter(Boolean);
 }
 
 // The fingerprint of the item's change since its base, planning files excluded. `at` is the tree it

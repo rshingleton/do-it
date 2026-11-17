@@ -411,6 +411,24 @@ test('work.mjs: verify-phase records only a passing check; audit-pass hashes the
   assert.equal(r.out.audit.fingerprint, before);
 });
 
+test('work.mjs: a closing-docs file whose name begins with two dots is still excluded from the fingerprint', () => {
+  const dir = tempRepo();
+  const git = (...a) => execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', ...a], { cwd: dir, encoding: 'utf8' });
+  git('commit', '-q', '--allow-empty', '-m', 'base');
+  fs.mkdirSync(path.join(dir, '.do-it'));
+  fs.writeFileSync(path.join(dir, '.do-it/config.env'), 'DO_IT_TODO_FILE=..env\n');
+  fs.writeFileSync(path.join(dir, '..env'), 'one\n');
+  const item = work(dir, 'new', 'dot', '--lane', 's', '--title', 'Dot');
+  assert.equal(item.status, 0, JSON.stringify(item.out));
+  for (const e of ['approve', 'start']) assert.equal(work(dir, 'event', 'dot', e).status, 0);
+  fs.writeFileSync(path.join(dir, 'code.js'), 'x\n');
+  const before = work(dir, 'fingerprint', 'dot');
+  assert.equal(before.status, 0, JSON.stringify(before.out));
+  assert.ok(before.out.fingerprint);
+  fs.writeFileSync(path.join(dir, '..env'), 'one\ntwo\n');
+  assert.equal(work(dir, 'fingerprint', 'dot').out.fingerprint, before.out.fingerprint, 'editing ..env is closing docs, not code');
+});
+
 test('work.mjs: build-done in fix mode needs a passing verify-phase since the fix began', () => {
   const dir = tempRepo();
   const git = (...a) => execFileSync('git', a, { cwd: dir, encoding: 'utf8' });
