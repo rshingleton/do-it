@@ -12,6 +12,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { DEFAULTS } from '../skills/track-it/scripts/config.mjs';
 import { nextSlice, trackWidth } from '../skills/do-it/scripts/run.mjs';
+import { runTracks } from '../skills/do-it/scripts/runs.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const WORK = path.join(ROOT, 'skills/do-it/scripts/work.mjs');
@@ -204,33 +205,35 @@ test('a sixth free slice is named in waiting instead of vanishing past the ceili
   assert.deepEqual(out.waiting.map((w) => [w.id, w.reason]), [['R6', 'WIDTH']], 'the sixth waits for the next round');
 });
 
-test('run tracks reads a plan the way run contract does: a missing plan is a gap, any other failure throws', () => {
-  // The gate names a plan the run no longer holds: a gap, never a silent fallback to HEAD.
-  const gap = repo();
-  fs.mkdirSync(path.join(gap, 'docs/roadmap'), { recursive: true });
-  fs.writeFileSync(path.join(gap, 'docs/roadmap/r.md'), table([['R1', 'api'], ['R2', 'gone']]).join('\n'));
-  plan(gap, 'api', 'R1', ['src/api.js']);
-  ok(work(gap, 'run', 'new', 'road', '--tracks', '2'));
-  ok(work(gap, 'run', 'start', 'road', 'R1', '--work', 'api'));
-  ok(work(gap, 'run', 'start', 'road', 'R2', '--work', 'gone'));
-  const contract = ok(work(gap, 'run', 'contract', 'road', 'docs/roadmap/r.md'));
-  const tracks = ok(work(gap, 'run', 'tracks', 'road', 'docs/roadmap/r.md'));
-  assert.equal(contract.slices.find((s) => s.id === 'R2').plan, null, 'contract: no plan is a gap');
-  assert.deepEqual(tracks.waiting.map((w) => [w.id, w.reason]), [['R2', 'NO_CONTRACT']], 'tracks: the same gap');
-  assert.deepEqual(tracks.tracks.map((t) => t.id), ['R1']);
+// runTracks reads each track's plan through its own `items.get` after runContract has read the same
+// plans, so a path that fails in both hides the dispatcher's policy. The fake items stand in for the
+// gate alone: a plan that is gone is a gap the dispatch reports, any other read error must throw.
+test('run tracks itself reports a missing plan and throws any other read error', () => {
+  const dir = repo();
+  const planningDir = path.join(dir, 'docs/planning');
+  const road = {
+    slices: [{ id: 'R1', blocked_by: [], state: 'ready', plan: 'held', files: ['src/a.js'] }],
+    ready: ['R1'],
+    blocking: [],
+  };
+  const held = { path: path.join(planningDir, 'held.md'), state: { lane: 's', base_ref: 'base-1' }, body: '\n## Files\nsrc/a.js\n\n## Interfaces\n`a.run() -> ok`\n' };
+  // The contract reads `held`; the track reads the gate's work id, which the fake answers for.
+  const fakes = (id, error) => ({
+    get: (want) => {
+      if (want !== id) return held;
+      throw error;
+    },
+  });
 
-  // A plan that exists and cannot be read: both commands say so instead of one swallowing it.
-  const bad = repo();
-  fs.mkdirSync(path.join(bad, 'docs/roadmap'), { recursive: true });
-  fs.writeFileSync(path.join(bad, 'docs/roadmap/r.md'), table([['R1', 'api']]).join('\n'));
-  plan(bad, 'api', 'R1', ['src/api.js']);
-  ok(work(bad, 'run', 'new', 'road', '--tracks', '2'));
-  ok(work(bad, 'run', 'start', 'road', 'R1', '--work', 'api'));
-  fs.writeFileSync(path.join(bad, 'docs/planning/api.md'), 'no state block\n');
-  for (const r of [work(bad, 'run', 'contract', 'road', 'docs/roadmap/r.md'), work(bad, 'run', 'tracks', 'road', 'docs/roadmap/r.md')]) {
-    assert.equal(r.status, 1);
-    assert.match(r.out.error, /no state block/, 'the real read error is raised, not hidden');
-  }
+  ok(work(dir, 'run', 'new', 'broken', '--tracks', '2'));
+  ok(work(dir, 'run', 'start', 'broken', 'R1', '--work', 'boom'));
+  const unreadable = new Error('boom: no state block (YAML frontmatter)');
+  assert.throws(() => runTracks({ planningDir, root: dir, slug: 'broken', road, items: fakes('boom', unreadable) }), /no state block/, 'a real read error is raised, as run contract raises it');
+
+  ok(work(dir, 'run', 'new', 'gone', '--tracks', '2'));
+  ok(work(dir, 'run', 'start', 'gone', 'R1', '--work', 'missing'));
+  const out = runTracks({ planningDir, root: dir, slug: 'gone', road, items: fakes('missing', new Error('no plan for missing under docs/planning')) });
+  assert.deepEqual(out.tracks.map((t) => [t.id, t.base]), [['R1', ok(work(dir, 'run', 'show', 'gone')).base]], 'a missing plan is a gap: that track starts on the record base');
 });
 
 test('a track brief names its plan\'s lane: a lane S plan is not called lane M', () => {

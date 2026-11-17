@@ -8,7 +8,7 @@ The record's `tracks` is `work.mjs run new <slug> --tracks N`: default 1, capped
 `DO_IT_TRACKS` (default 3), never above 5. One track holds one slice. `work.mjs run
 tracks <slug> <roadmap file>` reads the record with the contract and prints what to
 start: `width`, `tracks` (each with `id`, `plan`, `worktree`, `branch`, `base`,
-`files` and `brief`) and `waiting`.
+`files` and `brief`), `waiting`, and `stop` when `max_slices` is spent.
 
 A run that commits nothing (`--commit none`, or `DO_IT_COMMIT=never` with no flag)
 holds one track: `run new` refuses `--tracks` above 1, and `run tracks` refuses a
@@ -17,9 +17,9 @@ dispatch and merge below assume a run that writes a branch.
 
 ## Width
 
-Width is `min(free slices, the machine's cap, tracks)`. The cap is the heavy suites
-the machine runs at once: one per track, and the run's own tree takes one of them.
-A run at `tracks` 1 has width 0 and starts no track.
+Width is `min(free ready slices, tracks, DO_IT_TRACKS)`. `tracks` is read once, at
+`run new`, already under `DO_IT_TRACKS` and the ceiling of 5; nothing else narrows
+it. A run at `tracks` 1 has width 0 and starts no track.
 
 A track builds its slice's phases one at a time. Build-it's
 [PARALLEL.md](../build-it/PARALLEL.md) fan-out needs the coordinator's own tree,
