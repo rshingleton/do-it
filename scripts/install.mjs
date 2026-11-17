@@ -120,16 +120,17 @@ function runHooks(args, home) {
         XDG_STATE_HOME: stateHome,
       }
     : process.env;
-  const status = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'install-hooks.mjs'), ...args], { stdio: 'inherit', env }).status ?? 1;
-  const runtimeDirs = new Set([
+  const runtimeDirs = [
     path.join(home, '.local', 'share', 'opencode'),
     path.join(home, '.cache', 'opencode'),
     path.join(home, '.local', 'state', 'opencode'),
-  ]);
-  if (dataHome) runtimeDirs.add(path.join(dataHome, 'opencode'));
-  if (cacheHome) runtimeDirs.add(path.join(cacheHome, 'opencode'));
-  if (stateHome) runtimeDirs.add(path.join(stateHome, 'opencode'));
-  for (const dir of runtimeDirs) fs.rmSync(dir, { recursive: true, force: true });
+  ];
+  const alreadyThere = new Set(runtimeDirs.filter((dir) => fs.existsSync(dir)));
+  const status = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'install-hooks.mjs'), ...args], { stdio: 'inherit', env }).status ?? 1;
+  // Clear only runtime dirs the hook step just created. An install into the
+  // current home must leave its OpenCode data alone: the database there holds
+  // the user's saved accounts.
+  for (const dir of runtimeDirs) if (!alreadyThere.has(dir)) fs.rmSync(dir, { recursive: true, force: true });
   return status;
 }
 

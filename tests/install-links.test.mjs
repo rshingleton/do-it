@@ -5,6 +5,7 @@ import { cleanEnv, tmpDir } from './env.mjs'; // first: isolates the developer's
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -133,6 +134,17 @@ test('a real run into a temp home then --uninstall leaves no do-it links or file
   assert.deepEqual(left.filter((p) => !/\.bak-do-it$/.test(p) && !configs.includes(p)), [], 'no other files or links remain');
 });
 
+test('an install into the current home leaves OpenCode runtime data alone', () => {
+  const root = miniRoot();
+  const home = os.homedir(); // tests/env.mjs points this at the temp home
+  const db = path.join(home, '.local', 'share', 'opencode', 'opencode.db');
+  fs.mkdirSync(path.dirname(db), { recursive: true });
+  fs.writeFileSync(db, 'saved account');
+  const code = quiet(() => install({ root, home }));
+  assert.equal(code, 0);
+  assert.equal(fs.readFileSync(db, 'utf8'), 'saved account', 'an install must never delete the live OpenCode database');
+});
+
 test('an uninstall with hooks off runs no hook step, so no host config is touched', () => {
   const home = tmpDir('do-it-home-');
   const root = miniRoot();
@@ -155,10 +167,12 @@ test('an uninstall with hooks off runs no hook step, so no host config is touche
 test('a home other than the real one carries into the hook step, so the host config lands there', () => {
   const home = tmpDir('do-it-home-');
   const root = miniRoot();
+  const runtime = path.join(home, '.local', 'share', 'opencode');
   const code = quiet(() => install({ root, home }));
   assert.equal(code, 0);
   const settings = JSON.parse(fs.readFileSync(path.join(home, '.claude', 'settings.json'), 'utf8'));
   assert.ok(Object.keys(settings.hooks ?? {}).length > 0, 'the hooks were written into the temporary home');
+  assert.equal(present(runtime), false, 'runtime dirs the hooks created there are still cleared');
 });
 
 // ---- The checkout's ref in the install's closing line ----
