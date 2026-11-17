@@ -322,7 +322,7 @@ global CLI install replaces its links with copies. `npx skills@latest list`
 shows what is installed; `npx skills@latest update` moves a git install to its
 latest commit; a local path records no commit, so re-run `add` against the path
 to refresh it. Verified on 2026-11-16 with CLI 1.9.0
-([details](docs/reference/install-routes.md#the-cli-route-on-this-machine)).
+([details](docs/reference/install-routes.md#the-cli-route-probed-on-macos)).
 
 **Check:**
 
