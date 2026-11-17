@@ -3,7 +3,7 @@
 Nice-to-haves and things to circle back to. Managed by log-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T329
+Next id: T332
 
 ## Open
 
@@ -110,3 +110,6 @@ Next id: T329
 - [ ] T326 `tests/run-gate.test.mjs:624-633` stopped pinning `skills/finish-it/SKILL.md:37-38`, so deleting "a parked or resumed slice" leaves it green while the test name still claims it `nice-to-have` (R11 round-1 review)
 - [ ] T327 `evals/routing.json:164,169` share the clause "one failing test at a time"; a reword keeps the positives distinct `nice-to-have` (R17 round-1 review)
 - [ ] T328 `tests/run-gate.test.mjs:862-865`'s users scan is unobservable: every `run.mjs` export also appears in `skills/do-it/scripts`, so deleting the tests/hooks/plugin spreads stays green; a test-only export fixture would pin it `nice-to-have` (R12 round-1 review)
+- [ ] T329 `tests/changeset.test.mjs:132`'s textconv budget failed under load in R20's worktree and passed on rerun, a second timing-dependent case beside T304's `:329` `debt` (R20 build, 2026-11-17)
+- [ ] T330 `skills/do-it/scripts/work.mjs:129`'s `planningExclude` still filters with `!rel.startsWith('..')`, so a root-level `..plans` directory yields an empty exclude and its files enter the fingerprint; use `insideRoot` there too `nice-to-have` (R20 round-1 review)
+- [ ] T331 `skills/do-it/scripts/commit.mjs:104`'s `worktreeRenames` keeps only `isFile()` names, so a renamed symlink is unpaired and its old path never reads `gone` `nice-to-have` (R20 round-1 review)
