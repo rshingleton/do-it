@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { install } from '../scripts/install.mjs';
 import { pluginState } from '../scripts/doctor.mjs';
 import { gitOut } from '../skills/do-it/scripts/git.mjs';
+import { clone, quiet, seed } from './mini-root.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CLI = path.join(ROOT, 'scripts', 'doctor.mjs');
@@ -23,43 +24,6 @@ const CLI = path.join(ROOT, 'scripts', 'doctor.mjs');
 const write = (dir, rel, text) => {
   fs.mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true });
   fs.writeFileSync(path.join(dir, rel), text);
-};
-
-// A seed checkout holding one skill, pushed to a bare remote.
-function seed() {
-  const dir = tmpDir('do-it-seed-');
-  const remote = tmpDir('do-it-ref-remote-');
-  gitOut(dir, ['init', '-q', '-b', 'main']);
-  gitOut(dir, ['config', 'user.name', 't']);
-  gitOut(dir, ['config', 'user.email', 't@t']);
-  gitOut(dir, ['config', 'commit.gpgsign', 'false']);
-  write(dir, 'skills/a-it/SKILL.md', 'a');
-  gitOut(dir, ['add', '-A']);
-  gitOut(dir, ['commit', '-qm', 'init']);
-  gitOut(remote, ['init', '-q', '--bare', '-b', 'main']);
-  gitOut(dir, ['remote', 'add', 'origin', remote]);
-  gitOut(dir, ['push', '-q', 'origin', 'main']);
-  return { dir, remote };
-}
-
-// A clone of `remote`, which is where the doctor reads a ref from.
-function clone(remote) {
-  const dir = path.join(tmpDir('do-it-ref-clone-'), 'repo');
-  gitOut(path.dirname(dir), ['clone', '-q', remote, dir]);
-  gitOut(dir, ['config', 'user.name', 't']);
-  gitOut(dir, ['config', 'user.email', 't@t']);
-  gitOut(dir, ['config', 'commit.gpgsign', 'false']);
-  return dir;
-}
-
-const quiet = (fn) => {
-  const log = console.log;
-  console.log = () => {};
-  try {
-    return fn();
-  } finally {
-    console.log = log;
-  }
 };
 
 // A clone with a clean install made from it, so no link finding can hide a ref
