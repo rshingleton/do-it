@@ -220,6 +220,49 @@ test('final review: a tracked planning file modified after the run commits leave
   assert.deepEqual(r.files.map((f) => f.path).sort(), ['a.js', 'b.js']);
 });
 
+test('final review: the range starts where the branch left its upstream, so a rebase brings no upstream commit into the run\'s change', () => {
+  const up = tmpDir('do-it-upstream-');
+  git(up, 'init', '-q', '-b', 'main');
+  git(up, 'config', 'user.name', 't');
+  git(up, 'config', 'user.email', 't@t');
+  git(up, 'config', 'commit.gpgsign', 'false');
+  fs.writeFileSync(path.join(up, 'upstream.js'), 'one\n');
+  git(up, 'add', '-A');
+  git(up, 'commit', '-qm', 'upstream');
+  const hold = tmpDir('do-it-rebased-');
+  git(hold, 'clone', '-q', up, 'work');
+  const dir = path.join(hold, 'work');
+  git(dir, 'config', 'user.name', 't');
+  git(dir, 'config', 'user.email', 't@t');
+  git(dir, 'config', 'commit.gpgsign', 'false');
+  // The run starts on a local commit the upstream does not have: the upstream's tip is behind it.
+  fs.writeFileSync(path.join(dir, 'before-run.js'), 'one\n');
+  git(dir, 'add', '-A');
+  git(dir, 'commit', '-qm', 'before the run');
+  ok(work(dir, 'run', 'new', 'road', '--commit', 'phase'));
+  fs.writeFileSync(path.join(dir, 'a.js'), 'one\n');
+  fs.writeFileSync(path.join(dir, 'b.js'), 'one\n');
+  git(dir, 'add', '-A');
+  git(dir, 'commit', '-qm', 'run commit');
+  const before = review(dir);
+  assert.equal(before.mode, 'range');
+  assert.deepEqual(before.files.map((f) => f.path).sort(), ['a.js', 'b.js'], 'the run\'s own commits, not the local commit the branch already had');
+  git(dir, 'branch', '--unset-upstream');
+  assert.deepEqual(review(dir), before, 'the same change with no upstream configured');
+  git(dir, 'branch', '--set-upstream-to=origin/main');
+  // The upstream moves on and the branch is rebased onto it: its commit is not the run's change.
+  fs.writeFileSync(path.join(up, 'upstream.js'), 'two\n');
+  git(up, 'add', '-A');
+  git(up, 'commit', '-qm', 'upstream moves');
+  git(dir, 'fetch', '-q', 'origin');
+  git(dir, 'rebase', '-q', 'origin/main');
+  const after = review(dir);
+  assert.equal(after.mode, 'range');
+  assert.equal(after.base, before.base, 'the recorded base is still the run\'s base');
+  assert.ok(!after.files.some((f) => f.path === 'upstream.js'), 'the upstream commit the rebase brought in is not in the run\'s change');
+  assert.deepEqual(after.files.map((f) => f.path).filter((p) => ['a.js', 'b.js'].includes(p)).sort(), ['a.js', 'b.js'], 'the run\'s files are still in it');
+});
+
 // A record built in place, for the digest's own rules.
 const record = (over = {}) => ({ id: 'road', level: 'full', commit: 'phase', started: 't', slices: [], assumptions: [], rejected: [], limits: [], gates: [], ...over });
 

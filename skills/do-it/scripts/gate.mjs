@@ -114,8 +114,11 @@ const exhausted = (l) => spent(l) > l.cap || (l.at[l.refused] === spent(l) && sp
 // the count already spent.
 export function countAudit(planningDir, slug, { id, final = false, items } = {}) {
   if (!final && !id) throw new Error('run audit needs a slice id, or --final for the final review');
-  let refused = null;
+  let refusal = null;
   const record = updateRun(planningDir, slug, (r) => {
+    // Each attempt answers for the record it read: a refusal an earlier attempt saw may not hold
+    // once another writer's round is in, so it is decided again, never carried over.
+    let refused = null;
     // A slice the run never started holds no gate entry: refuse before one is made, so no round is spent on it.
     if (!final && !(r.gates ?? []).some((x) => x.id === id)) throw new Error(`run audit: ${id} has no gate entry; run start first`);
     const limits = auditLimits(r, id, final);
@@ -141,14 +144,15 @@ export function countAudit(planningDir, slug, { id, final = false, items } = {})
         }
       }
     } else for (const l of limits) l.at[l.rounds] = spent(l) + 1;
+    refusal = refused;
   });
   const mine = auditLimits(record, id, final)[0];
   return {
     audit_rounds: spent(mine),
-    allow: !refused,
-    reason: refused && auditCode(refused),
-    limit: refused?.limit ?? null,
-    detail: refused && describe(refused),
+    allow: !refusal,
+    reason: refusal && auditCode(refusal),
+    limit: refusal?.limit ?? null,
+    detail: refusal && describe(refusal),
   };
 }
 

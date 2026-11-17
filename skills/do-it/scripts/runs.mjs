@@ -255,9 +255,31 @@ export function runVerifyMerged({ planningDir, root, cwd, slug, id, opts, items,
   return showRun(planningDir, slug);
 }
 
-// `run review-change`: the change the run's final review reads. Committed work
-// is `<base>...HEAD`; with commit mode none, no base, or anything still
-// uncommitted outside the planning dir (the closing docs), the working tree
+// The commit the run's own change starts at after a rebase: the point where the branch left its
+// upstream, once a rebase moved that point past the recorded base. With no upstream (a plain local
+// branch), a branch point at or behind the base, or a git that cannot answer, null keeps today's
+// base range, so a branch that never rebased reads exactly as it did.
+function upstreamAnchor(inRoot, base) {
+  // No remote branch to rebase onto, or a detached HEAD: the recorded base stands.
+  const up = inRoot(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}']);
+  if (up.error || up.status !== 0) return null;
+  // A base git cannot resolve is the error the base range reports, never a silent anchor.
+  if (inRoot(['rev-parse', '--verify', '--quiet', `${base}^{commit}`]).status !== 0) return null;
+  const mb = inRoot(['merge-base', up.stdout.trim(), 'HEAD']);
+  // Exit 1 is no common ancestor: nothing of the upstream's to leave out.
+  if (mb.error || mb.status !== 0) return null;
+  const anchor = mb.stdout.trim();
+  // A branch point at or behind the base is no rebase: the branch started at or ahead of its
+  // upstream, and the base range is still the run's own change. Anywhere else the branch point
+  // moved (a rebase past the base, or a rewrite of what the base was), so the anchor names the
+  // run's change and the commits the rebase brought in stay out of it.
+  return inRoot(['merge-base', '--is-ancestor', anchor, base]).status === 0 ? null : anchor;
+}
+
+// `run review-change`: the change the run's final review reads. Committed work is the run's own
+// commits, `<base>...HEAD`, or from the branch's upstream point once a rebase moved it past the
+// base, so the upstream commits it brought in stay out. With commit mode none, no base, or
+// anything still uncommitted outside the planning dir (the closing docs), the working tree
 // against base, untracked files included. Planning files are never in it.
 export function runReviewChange({ planningDir, root, slug, exclude }) {
   const { base, commit } = showRun(planningDir, slug);
@@ -270,9 +292,10 @@ export function runReviewChange({ planningDir, root, slug, exclude }) {
   };
   const dirty = must(inRoot(['status', '--porcelain', '-uall', '--', '.', ...exclude.map((p) => `:(exclude,literal)${p}`)]), 'git status');
   if (commit === 'none' || dirty) return { base, mode: 'worktree', ...treeDiff(root, base, snapshot(root, { exclude }), { exclude }) };
+  const anchor = upstreamAnchor(inRoot, base);
   const mb = inRoot(['merge-base', base, 'HEAD']);
   // Exit 1 is no common ancestor (rewritten history): review from the base itself.
-  const from = mb.status === 1 ? base : must(mb, 'git merge-base');
+  const from = anchor ?? (mb.status === 1 ? base : must(mb, 'git merge-base'));
   return { base, mode: 'range', ...treeDiff(root, from, 'HEAD', { exclude }) };
 }
 
