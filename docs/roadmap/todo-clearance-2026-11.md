@@ -81,7 +81,7 @@ does.
 
 | Slice | Kind | Delivers | Covers | Files | Blocked by | Verify | Risk | Status |
 |-------|------|----------|--------|-------|------------|--------|------|--------|
-| R5 | build | Finish-it, ship-it, prove-it, debug-it and name-it text: FINALIZE Paths names what it writes, the long lines wrap, finish-it says which notice is final and reports defects at close, prove-it's Route names `unblock`, debug-it names the log-it call, name-it says plan ADRs are rewritten accepted, RESUME stops repeating "always asks" Items: T197, T200, T201 | G1 | skills/ship-it/FINALIZE.md, skills/ship-it/RESUME.md, skills/finish-it/SKILL.md, skills/prove-it/SKILL.md, skills/debug-it/SKILL.md, skills/name-it/SKILL.md, skills/do-it/SKILL.md | none | `npm run check` passes and a grep for each cited phrase finds none | low | |
+| R5 | build | Finish-it, ship-it, prove-it, debug-it and name-it text: FINALIZE Paths names what it writes, the long lines wrap, finish-it says which notice is final and reports defects at close, prove-it's Route names `unblock`, debug-it names the log-it call, name-it says plan ADRs are rewritten accepted, RESUME stops repeating "always asks" Items: T197, T200, T201 | G1 | skills/ship-it/FINALIZE.md, skills/ship-it/RESUME.md, skills/finish-it/SKILL.md, skills/prove-it/SKILL.md, skills/debug-it/SKILL.md, skills/name-it/SKILL.md, skills/do-it/SKILL.md | none | `npm run check` passes and a grep for each cited phrase finds none | low | shipped 2026-11-16 r5-skill-text |
 | R6 | build | Every `skills/*/SKILL.md` under 100 lines: usage-it 107, finish-it 116, ship-it 104, roadmap-it 103, build-it 101, do-it 103, with the roadmap-locality line pin updated off 103 Items: T215, T247, T262 | G1 | skills/usage-it/SKILL.md, skills/finish-it/SKILL.md, skills/ship-it/SKILL.md, skills/roadmap-it/SKILL.md, skills/build-it/SKILL.md, skills/do-it/SKILL.md, tests/roadmap-locality.test.mjs | none | A line count of every `skills/*/SKILL.md` reads 100 or fewer and `npm test` passes | low | shipped 2026-11-16 r6-line-budget |
 | R7 | build | The plan-body `## Link` section link-it keeps its contract under is written into the plan format STATE.md names, and link-it points at it Items: T235 | G1 | skills/scope-it/PLAN-FORMAT.md, skills/link-it/SKILL.md | none | PLAN-FORMAT names `## Link` with its rule; a plan fixture holding `## Link` still holds it after a replan | low | shipped 2026-11-16 r7-plan-link |
 | R8 | build | Plan text: PLAN-FORMAT's `## Files` union line stops contradicting `## Interfaces`, phase files are told to state `## Files`, CHECKS and GRILL stop saying "no block edge" where phases.mjs counts a path, roadmap-it says why the hint is not the contract Items: T266, T268, T269, T272 | G1 | skills/scope-it/PLAN-FORMAT.md, skills/scope-it/CHECKS.md, skills/scope-it/GRILL.md, skills/roadmap-it/SKILL.md | none | Each cited sentence states the rule the code follows and `npm run check` passes | low | |
@@ -242,6 +242,9 @@ Exit: `docs/TODO.md` has no open line, no issue has `status: open`, and
   writes no branch, which holds one and says why (R67, T298).
 
 ## Changes
+- 2026-11-16: R5 shipped (r5-skill-text): finish-it names the `defects` it
+  reports, name-it's ADRs move proposed to accepted at ship, RESUME drops its
+  repeated ask rule, and the seven files' long lines wrap within the budget.
 - 2026-11-16: R7 shipped (r7-plan-link): PLAN-FORMAT owns `## Link` and its
   rule, link-it points at it, and a test pins that a replan keeps the section.
 - 2026-11-16: R1 shipped (r1-countaudit): a refused audit round no longer
