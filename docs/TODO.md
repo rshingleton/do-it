@@ -3,7 +3,7 @@
 Nice-to-haves and things to circle back to. Managed by log-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T313
+Next id: T314
 
 ## Open
 
@@ -109,3 +109,4 @@ Next id: T313
 - [ ] T307 `skills/guard-it/scripts/scan.mjs:34-35` never reaches the sibling skill layout in an install (line 32 exits first), and the `load` catch at 51-57 is untested; a present but broken module is its only path `nice-to-have` (R68 ship review)
 - [ ] T305 A track prove-it cannot spawn its fresh reviewers (subagent depth 1), so every track audit runs in-context and the coordinator one scoped reviewer is the only fresh check `debt` (R68 build audit, 2026-11-16)
 - [ ] T304 `tests/changeset.test.mjs:329` fails intermittently on timing; it failed once in R1's worktree (the run parked R1 as FLAKY) and once in R2's merged run `debt` (R1 and R2 audits, 2026-11-16)
+- [ ] T313 `tests/tracks-record.test.mjs:96` says a refused round "ships" but only proves the cap clears (the gate there is `UNVERIFIED`), and the case at `:114` passes on the old code, so R1's "new cases fail on the old code" holds for two of its three cases `nice-to-have` (R1 ship review)

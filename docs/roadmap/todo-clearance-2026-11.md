@@ -69,7 +69,7 @@ passed ships.
 
 | Slice | Kind | Delivers | Covers | Files | Blocked by | Verify | Risk | Status |
 |-------|------|----------|--------|-------|------------|--------|------|--------|
-| R1 | build | `countAudit` stops parking a slice whose last allowed audit round passed; a failed last round still parks Items: issue: countaudit-parks-a-slice-whose-last-allowed-audit-round-pass | G1 | skills/do-it/scripts/gate.mjs, tests/tracks-record.test.mjs | none | A passing last round then a refused extra round leaves the slice shippable; a failing last round parks it; the new test fails on the old code | med | |
+| R1 | build | `countAudit` stops parking a slice whose last allowed audit round passed; a failed last round still parks Items: issue: countaudit-parks-a-slice-whose-last-allowed-audit-round-pass | G1 | skills/do-it/scripts/gate.mjs, tests/tracks-record.test.mjs | none | A passing last round then a refused extra round leaves the slice shippable; a failing last round parks it; the new test fails on the old code | med | shipped 2026-11-16 r1-countaudit |
 | R2 | build | `finish-it` resolves the roadmap inside the working tree's repo root before `run new`, naming path and root, and the run records and prints that root Items: issue: finish-it-must-run-a-roadmap-in-the-repo-that-holds-it | G1 | skills/finish-it/SKILL.md, skills/do-it/scripts/work.mjs, tests/finish-run.test.mjs | none | A roadmap in a sibling checkout is refused with both paths named; `run show` prints the repo root; moving the session on its own fails a test | high | shipped 2026-11-16 r2-finish-repo-root |
 | R3 | build | Finalizing a finished roadmap moves its durable content (ADRs for decisions that pass name-it, Fog through log-it) and then removes the file, updating roadmap-history in the same turn; an in-flight roadmap is left in place and reported Items: issue: finished-roadmaps-are-removed-at-finalize-with-their-durable | G4 | skills/ship-it/FINALIZE.md, skills/do-it/scripts/work.mjs, docs/reference/roadmap-history.md, tests/work.test.mjs | none | A finalized fixture leaves no file under docs/roadmap; a roadmap with an unshipped slice is left and named; its Fog is filed; deleting the removal step fails a test | high | shipped 2026-11-16 r3-finalize-removal |
 | R4 | build | Record `backlog-cleanup-2026-11` as superseded (R1 shipped, R2 to R16 carried here) and check all 36 promoted ids resolve to this roadmap, a shipped id or a drop Items: backlog-cleanup R1 shipped (T208, T211, T216, T223, T238); 31 unshipped ids carried here | G2 | docs/reference/roadmap-history.md, tests/roadmap-locality.test.mjs | none | roadmap-history names six removed roadmaps; a script finds each of the 36 ids here or recorded as shipped or dropped | low | shipped 2026-11-16 r4-roadmap-history |
@@ -242,6 +242,9 @@ Exit: `docs/TODO.md` has no open line, no issue has `status: open`, and
   writes no branch, which holds one and says why (R67, T298).
 
 ## Changes
+- 2026-11-16: R1 shipped (r1-countaudit): a refused audit round no longer
+  parks a slice whose last allowed round passed, and a failing last round
+  still parks it.
 - 2026-11-16: R6 shipped (r6-line-budget): every skills SKILL.md is 100
   lines or fewer, and the pin is a budget over all of them.
 - 2026-11-16: R3 shipped (r3-finalize-removal): finalize appends the
