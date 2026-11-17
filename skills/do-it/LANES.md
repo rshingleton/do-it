@@ -50,8 +50,8 @@ slice. Without the flag lane L is unchanged: one slice per `/do-it`. A
 With `--tracks N` above 1, a complete run hands independent slices to worktree
 tracks ([TRACKS.md](../finish-it/TRACKS.md)): each track builds and audits one
 slice on its own branch, while the coordinator keeps scope, the run record, the
-gate, the merges and the ship. Width is bounded by the free slices, the machine
-and `DO_IT_TRACKS` (default 3, ceiling 5). A run that commits nothing holds one
+gate, the merges and the ship. Width is `min(free ready slices, tracks)` under
+`DO_IT_TRACKS` (default 3, ceiling 5). A run that commits nothing holds one
 track, since a track would have no branch to merge.
 
 ## Raising the lane
