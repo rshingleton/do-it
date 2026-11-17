@@ -100,12 +100,28 @@ export function mergeClaude(settings, root, { strip = false } = {}) {
   return next;
 }
 
-function opencodeMajor() {
+// Which OpenCode form the config gets, and where that came from. The host's
+// version is the signal when `opencode` can answer. Failing that, the host's own
+// config is read: v2 writes the `plugins` key, v1 the `plugin` key. With
+// neither, the v1 form is a guess, and the guess is said out loud, because the
+// v2 host would skip it silently.
+function opencodeForm(config) {
   try {
-    return Number(execFileSync('opencode', ['--version'], { encoding: 'utf8' }).match(/(\d+)\./)?.[1]) || 1;
+    const major = Number(execFileSync('opencode', ['--version'], { encoding: 'utf8' }).match(/(\d+)\./)?.[1]);
+    if (major) return major;
   } catch {
+    /* the binary cannot answer: fall through to the config */
+  }
+  if (Array.isArray(config.plugins)) {
+    console.error('note: opencode --version did not answer; the config\'s "plugins" key names the OpenCode 2 form');
+    return 2;
+  }
+  if (Array.isArray(config.plugin)) {
+    console.error('note: opencode --version did not answer; the config\'s "plugin" key names the OpenCode 1 form');
     return 1;
   }
+  console.error('note: opencode --version did not answer and the config names no plugin key; guessing the OpenCode 1 form');
+  return 1;
 }
 
 export function mergeOpencode(config, root, { strip = false, major = 1 } = {}) {
@@ -138,7 +154,8 @@ function main() {
   } else if (host === 'opencode') {
     const file = path.join(process.env.XDG_CONFIG_HOME || path.join(HOME, '.config'), 'opencode', 'opencode.json');
     const before = readJson(file);
-    writeJson(file, before, mergeOpencode(before, ROOT, { strip: remove, major: opencodeMajor() }));
+    // A removal strips both keys, so it needs no form and asks for none.
+    writeJson(file, before, mergeOpencode(before, ROOT, { strip: remove, major: remove ? 1 : opencodeForm(before) }));
   } else {
     console.error('usage: install-hooks.mjs claude|opencode [--remove] [--dry-run]');
     process.exit(2);
