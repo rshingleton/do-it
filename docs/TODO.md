@@ -3,7 +3,7 @@
 Nice-to-haves and things to circle back to. Managed by log-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T340
+Next id: T341
 
 ## Open
 
@@ -111,3 +111,4 @@ Next id: T340
 - [ ] T337 `tests/hooks-regressions.test.mjs:387` (textconv warn vs block) failed once under load in R23's worktree and passed standalone and on the full rerun, a third timing-sensitive case beside T304 and T329 `debt` (R23 build, 2026-11-17)
 - [ ] T338 `skills/do-it/scripts/gate.mjs:187`'s comment says "the verified rounds in a row" where the check counts failed rounds `nice-to-have` (R23 review)
 - [ ] T339 `skills/do-it/scripts/runs.mjs:239` claims a flaky park cannot hide the count, but no test asserts `verify_failures` after a FLAKY round `nice-to-have` (R23 review)
+- [ ] T340 `skills/setup-it/scripts/default-branch.mjs:10` says "Always exits 0", then states `git()` throws; with git off PATH the CLI exits 1 with a stack, so the line should read "exits 0 for every answer" `nice-to-have` (R26 review)
