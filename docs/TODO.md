@@ -3,7 +3,7 @@
 Nice-to-haves and things to circle back to. Managed by log-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T335
+Next id: T337
 
 ## Open
 
@@ -64,9 +64,6 @@ Next id: T335
   - One shared helper, as `tests/mini-root.mjs` already did for the two install fixtures.
 - [ ] T281 `docs/DESIGN.md`'s `scripts/` tree names neither `doctor.mjs` nor `version-gate.mjs`, the two files a reader would look for `nice-to-have` (install-freshness audit 10)
 - [ ] T282 `docs/reference/install-routes.md` quotes a home path and this checkout's branch as evidence, which no other doc does and no reader can reproduce `nice-to-have` (install-freshness audit 11)
-- [ ] T283 The singular/plural wording lives twice: `plural` in `scripts/doctor.mjs` and an inline `behind === 1 ? 'commit' : 'commits'` in `scripts/install.mjs`, so a wording change lands in two files `nice-to-have` (install-freshness audit 20; doctor.mjs:554, install.mjs:158)
-- [ ] T285 `install-hooks.mjs` falls back to the OpenCode 1 form silently when `opencode --version` cannot run, writing `plugin` plus a file path that OpenCode 2 skips; it should ask, or read the form from another signal `debt` (install-freshness ship, 2026-11-16)
-- [ ] T286 `install-hooks.mjs` reports every parse failure as "not plain JSON (comments?)", so a UTF-8 BOM reads as comments `nice-to-have` (install-freshness ship, 2026-11-16; install-hooks.mjs:29)
 - [ ] T288 `scripts/doctor.mjs` reports an absent plugin or `skills` CLI route with `fix: null`, so the one route a new user has not installed gets no install command while every broken entry does `nice-to-have` (install-routes review, 2026-11-16; doctor.mjs `pluginRoute`, the `absent` object)
 - [ ] T289 `docs/reference/install-routes.md:242` says a machine with either lock gets a `skills CLI:` line, but the doctor reads the project lock only at `cwd` and a project lock stores no date `nice-to-have` (install-routes audit, 2026-11-16)
 - [ ] T290 `docs/reference/install-routes.md:240` leaves the sixth CLI host unnamed and credits six hosts to one `.agents/skills` install `nice-to-have` (install-routes audit, 2026-11-16)
@@ -110,3 +107,5 @@ Next id: T335
 - [ ] T332 `skills/usage-it/scripts/usage.mjs:123-124` and `ledger.mjs:91` still say a record counted whole is placed "by their last message", but after R25 the "before time buckets" label fires only on a record with no `at`, which `ledger.mjs:112-113` places by its `start` `nice-to-have` (R25 review)
 - [ ] T333 `skills/do-it/scripts/digest.mjs:25` marks an `earlier` entry by appending `(earlier)`, so a replacement text that already ends that way and is re-added prints `(earlier) (earlier)` `nice-to-have` (R19 review)
 - [ ] T334 `skills/do-it/scripts/digest.mjs:16` uses `Number.isFinite(Number(v))`, so a usage figure of `true` prints `input 1` and `[5]` prints 5; require a number or numeric string `nice-to-have` (R19 review)
+- [ ] T335 `scripts/install-hooks.mjs:119-121`'s `plugin`-key signal is untested: deleting that branch leaves the suite green, while it works when tried by hand `nice-to-have` (R27 round-3 review)
+- [ ] T336 On Windows `opencode --version` never runs (a `.cmd` `execFileSync` cannot launch), so the hook-form note fires on every install there; a probe that works or a quieter note would `debt` (R27 round-3 review)
