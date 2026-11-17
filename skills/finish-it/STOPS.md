@@ -13,6 +13,7 @@ Before chaining a slice to ship, `work.mjs run gate <slug> <slice>` prints
 - `STALE_VERIFY` (park): code changed since the last passing verify. Rerun `work.mjs run verify`.
 - `UNVERIFIED` (park): no passing verify recorded. Run `work.mjs run verify`.
 - `FLAKY` (park): `run verify` reran a failing check once and it passed. Never rerun again.
+- `VERIFY_CAP` (park): the slice failed `run verify` three rounds in a row. The script parks the slice (needs `user`) and the third call throws `VERIFY_CAP: <why>`. The count is `verify_failures` on the slice's gate entry; a passing verify or `run slice <slug> <slice> ready` clears it.
 - `SLICE_CAP` (park): the slice ran past `slice_cap_min`.
 - `MAX_SLICES` (stop): shipped slices reached `max_slices` while a slice is left. `run next` returns no slice and a `stop` with this code, and the detail names a slice already in flight. With nothing left to build the run finishes, with no `stop`.
 - `SLICE_AUDIT_CAP` (park): `run audit` is refused because the slice spent its `audit_cap` (default 3, rounds on that slice). The script parks the slice (needs `decision`) and the run goes on with the others. A slice whose last allowed round passed still ships. Before moving on, re-run `run slice <slug> <slice> parked --needs decision --reason "<detail>; open Must: <findings>"` so the park says what the audit found. `--resume` gives it fresh rounds; the digest repeats the limit under "Limit fired". A resumed slice's own count starts again, but the rounds it already spent stay in the run total the digest reports.

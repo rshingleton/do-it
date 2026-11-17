@@ -8,6 +8,7 @@ export const STOPS = {
   STALE_VERIFY: { how: 'gate', action: 'park', note: 'code changed since the last passing verify-phase' },
   UNVERIFIED: { how: 'gate', action: 'park', note: 'no passing verify-phase recorded for the slice' },
   FLAKY: { how: 'gate', action: 'park', note: 'a check failed, then passed on its one rerun' },
+  VERIFY_CAP: { how: 'gate', action: 'park', note: 'third failed verify-phase in a row' },
   SLICE_CAP: { how: 'gate', action: 'park', note: 'the slice ran past its wall-clock cap' },
   MAX_SLICES: { how: 'gate', action: 'stop', note: 'the run shipped its slice cap' },
   SLICE_AUDIT_CAP: { how: 'gate', action: 'park', note: 'the slice spent every audit round its cap allows' },

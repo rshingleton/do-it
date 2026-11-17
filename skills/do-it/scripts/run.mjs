@@ -345,6 +345,8 @@ export function resumeSlice(planningDir, slug, id) {
     if (g) {
       delete g.audit_rounds;
       delete g.audit_refused;
+      // The user settled what kept failing, so the next failure counts from one.
+      delete g.verify_failures;
     }
   });
 }
