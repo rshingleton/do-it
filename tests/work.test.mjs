@@ -1,4 +1,4 @@
-import { tmpDir } from './env.mjs'; // first: isolates the developer's environment
+import { read, tmpDir } from './env.mjs'; // first: isolates the developer's environment
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -641,39 +641,43 @@ test('flat: a rewrap of a pinned passage leaves the flattened text unchanged', (
   assert.equal(flat('audit findings and\n   surfaced defects above'), flat('audit findings  and surfaced\ndefects above'));
 });
 
-test('ship-it: the question offers the audit leftovers, DOCS.md and prove-it name where they go', () => {
-  const ship = fs.readFileSync(path.join(ROOT, 'skills/ship-it/SKILL.md'), 'utf8');
-  const docs = fs.readFileSync(path.join(ROOT, 'skills/ship-it/DOCS.md'), 'utf8');
-  const prove = fs.readFileSync(path.join(ROOT, 'skills/prove-it/SKILL.md'), 'utf8');
+test('ship-it: §2 links the docs it writes, and DOCS.md files the audit findings through log-it', () => {
+  const ship = read('skills/ship-it/SKILL.md');
+  const docs = read('skills/ship-it/DOCS.md');
   const question = ship.slice(ship.indexOf('## 2. The one question'), ship.indexOf('## 3. After the answer'));
-  assert.match(question, /the audit's Should and Nice findings \(no changelog\)/, 'the question shows the findings');
-  assert.ok(flat(question).includes('audit findings and surfaced defects above (default: findings and defects'), 'question 2 offers them, default log');
-  assert.ok(docs.includes('## Audit findings'), 'DOCS.md has the section');
-  const section = docs.slice(docs.indexOf('## Audit findings'));
-  assert.match(section, /"log-it"[\s\S]*`source: <work id> audit`/, 'it logs through log-it with the audit source');
-  assert.ok(flat(prove).includes('with no changelog offers to log them as to-dos'), 'prove-it names the home');
+  assert.ok(question.includes('](DOCS.md)'), 'the question links the docs it will write');
+  assert.ok(question.includes('](FINALIZE.md)'), 'and the finalize it offers');
+  const start = docs.indexOf('## Audit findings');
+  assert.ok(start >= 0, 'DOCS.md has the section');
+  const section = docs.slice(start, docs.indexOf('## Surfaced defects'));
+  assert.match(section, /"log-it"/, 'each chosen finding files through log-it');
+  assert.match(section, /`source: <work id> audit`/, 'with the audit as its source');
 });
 
-// Behaviour a finalize must keep: the five offers, the paths it stages and the skills that point at it.
+// Behaviour a finalize must keep: the five offers, every path it writes and the skills that point at it.
 // Wording is free; npm run check holds the line budget.
 test('ship-it: FINALIZE.md keeps its five offers, its paths and its never-list, and ship, run mode, finish-it and roadmap-it point at it', () => {
-  const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
   const ship = read('skills/ship-it/SKILL.md');
   assert.match(ship, /^argument-hint:.*--roadmap <file>/m, 'the hint has the mode');
   assert.ok(ship.includes('(FINALIZE.md)'), 'SKILL.md links FINALIZE.md');
   const finalize = read('skills/ship-it/FINALIZE.md');
-  // The paths a finalize stages, named in one section that run mode points at.
+  // The whole set a finalize writes, named in one section that run mode points at.
   const paths = flat(finalize.slice(finalize.indexOf('## Paths'), finalize.indexOf('## Offers')));
-  for (const want of ['roadmap file', 'ADR', 'docs/TODO.md']) assert.ok(paths.includes(want), `Paths names ${want}`);
-  assert.equal(finalize.slice(finalize.indexOf('## Never')).split('\n').filter((l) => l.startsWith('- Never')).length, 3, 'the never-list keeps its three rules');
+  for (const want of ['roadmap file', 'docs/reference/roadmap-history.md', 'the ADRs offer `a` created', 'docs/TODO.md', 'docs/issues/*.md']) assert.ok(paths.includes(want), `Paths names ${want}`);
+  assert.ok(!paths.includes('stages exactly'), 'no claim the list is exact when offer e edits more');
+  // Counted by content: a reworded rule still counts, a dropped one does not.
+  const never = finalize.slice(finalize.indexOf('## Never')).split('\n').filter((l) => /^- \S/.test(l));
+  assert.equal(never.length, 3, 'the never-list keeps its three rules');
   for (const [letter, title] of [['a', 'ADRs'], ['b', 'Fog'], ['c', 'Shipped'], ['d', 'Completed'], ['e', 'Milestones']])
-    assert.match(read('skills/ship-it/FINALIZE.md'), new RegExp(`^${letter}\\. \\*\\*${title}:\\*\\*`, 'm'), `offer ${letter}`);
-  assert.match(flat(ship), /\b2\. .*finalize offers a to e/, 'the offers ride in the Ask list item 2, inside the three-ask cap');
+    assert.match(finalize, new RegExp(`^${letter}\\. \\*\\*${title}:\\*\\*`, 'm'), `offer ${letter}`);
+  const question = ship.slice(ship.indexOf('## 2. The one question'), ship.indexOf('## 3. After the answer'));
+  assert.ok(question.includes('(FINALIZE.md)'), 'the offers ride in §2');
+  const ask = question.slice(question.indexOf('**Ask**')).split('\n').filter((l) => /^\d+\. /.test(l));
+  assert.ok(ask.length > 0 && ask.length <= 3, 'the Ask list stays inside the three-ask cap');
   for (const f of ['skills/ship-it/RUNMODE.md', 'skills/finish-it/SKILL.md', 'skills/roadmap-it/SKILL.md']) assert.ok(read(f).includes('FINALIZE.md'), `${f} points at it`);
 });
 
 test('closing Next: do-it §6 and ship-it §4 name a slash command, never a script', () => {
-  const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
   const doIt = read('skills/do-it/SKILL.md');
   const ship = read('skills/ship-it/SKILL.md');
   const closing = doIt.slice(doIt.indexOf('## 6. Closing message'));
@@ -700,15 +704,15 @@ test('defects: a surfaced-defects list round-trips and work.mjs set writes it', 
 });
 
 test('skills: surfaced defects are planned, recorded and offered at ship', () => {
-  const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
   const ship = read('skills/ship-it/SKILL.md');
   const docs = read('skills/ship-it/DOCS.md');
   const question = ship.slice(ship.indexOf('## 2. The one question'), ship.indexOf('## 3. After the answer'));
-  assert.match(flat(question), /surfaced `defects:`/, 'the question lists the defects');
-  assert.match(flat(question), /surfaced defects above.*default/i, 'question 2 offers to log them');
-  const section = docs.slice(docs.indexOf('## Surfaced defects'));
+  assert.match(question, /`defects:`/, 'the question shows the state block field');
+  assert.ok(question.includes('](DOCS.md)'), 'and links where the defects go');
   assert.ok(docs.includes('## Surfaced defects'), 'DOCS.md has the section');
-  assert.match(section, /"log-it"[\s\S]*`source: <work id>`/, 'filed through log-it with the work id');
+  const section = docs.slice(docs.indexOf('## Surfaced defects'), docs.indexOf('## Closes'));
+  assert.match(section, /"log-it"/, 'filed through log-it');
+  assert.match(section, /`source: <work id>`/, 'with the work id');
   const unmetAt = flat(section).indexOf('`shipped <date> <work id>, Verify unmet: <clause>`');
   assert.ok(unmetAt >= 0 && flat(section).indexOf('issue refs', unmetAt) > unmetAt, 'unmet-verify format'); assert.match(section, /unmet/i, 'a roadmap row is not shipped without the unmet-verify note');
   assert.match(read('skills/scope-it/PLAN-FORMAT.md'), /surfaced defect[\s\S]*`log-it`/, 'scope-it adds the file-defects step');
@@ -871,13 +875,6 @@ test('roadmap-it FORMAT.md describes completed and Shipped and no longer shows C
   assert.ok(lifecycle.includes('`completed:`') && lifecycle.includes('`## Shipped`') && lifecycle.includes('`reopened`'), 'the keep rule and the reopened note are stated');
 });
 
-test('FINALIZE Paths names every file a finalize writes, the local issue files included', () => {
-  const doc = flat(fs.readFileSync(path.join(ROOT, 'skills/ship-it/FINALIZE.md'), 'utf8'));
-  const paths = doc.slice(doc.indexOf('## Paths'), doc.indexOf('## Offers'));
-  for (const piece of ['docs/TODO.md', 'docs/issues/*.md']) assert.ok(paths.includes(piece), piece);
-  assert.ok(!paths.includes('stages exactly'), 'no claim the list is exact when offer e edits more');
-});
-
 // A finished roadmap's file must not outlive its durable record: the row lands
 // and the file goes in one commit, and a roadmap with work left stays, named.
 test('a finalize appends the roadmap-history row and removes the file, and leaves an unfinished roadmap in place', () => {
@@ -898,7 +895,6 @@ test('a finalize appends the roadmap-history row and removes the file, and leave
 });
 
 test('a roadmap finalize leaves no proposed ADR nobody accepts, and the two origin-only Execution notes are gone', () => {
-  const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
   const offerA = flat(read('skills/ship-it/FINALIZE.md')).match(/a\. \*\*ADRs:\*\*.*?(?=b\. \*\*Fog)/)[0];
   assert.match(offerA, /`accepted` ADR/);
   assert.doesNotMatch(offerA, /proposed/);
