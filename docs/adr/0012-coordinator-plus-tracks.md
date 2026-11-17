@@ -8,7 +8,7 @@ A `--complete` run can hand one independent slice each to up to five worktree tr
 
 The design follows a measured bar, not the assumption that more agents are faster. A track that only builds bought 1.08x to 1.19x, and one that builds and proves bought 1.65x on the same slices. Two real tracks landed 2.0x wall clock on game-skillet R18 and R19. Prove overlap is the lever, so the mode is shaped to overlap audit rounds, and a slice with no room to audit beside another is not paired.
 
-Width is `min(ready independent slices, the machine's resource cap, DO_IT_TRACKS)`, with `DO_IT_TRACKS` defaulting to 3 (the measured value) and a hard ceiling of 5. Two slices are independent when their plans' files and interfaces do not collide; a collision waits for the next round and is never parked for it. A run at `tracks` 1 builds in place and starts no track.
+Width is `min(ready independent slices, DO_IT_TRACKS)`, with `DO_IT_TRACKS` defaulting to 3 (the measured value) and never above a hard ceiling of 5. Two slices are independent when their plans' files and interfaces do not collide; a collision waits for the next round and is never parked for it. A run at `tracks` 1 builds in place and starts no track.
 
 Scope and ship stay serial. Both plans in the pilot came from one coordinator pass in about 0 minutes per track, and ship writes the docs, so parallel scope or parallel ship would batch work without saving wall clock. One merge review, scoped to the merge, replaces a second full audit per track.
 

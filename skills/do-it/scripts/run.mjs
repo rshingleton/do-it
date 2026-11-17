@@ -18,7 +18,7 @@ const SLICE_STATUSES = ['shipped', 'parked', 'blocked'];
 const NEEDS = ['user', 'decision'];
 const SETTABLE = ['level', 'commit', 'branch', 'tracks', 'max_slices', 'slice_cap_min', 'audit_cap', 'final_audit_cap', 'audit_total_cap', 'limits'];
 // The hard ceiling on tracks, whatever the flag, the environment or the record says.
-export const TRACKS_CEILING = 5;
+const TRACKS_CEILING = 5;
 // Changing a cap puts every refusal marker back to unset, so lowering a cap to the value
 // it once refused at cannot revive an old refusal.
 const CAPS = ['max_slices', 'audit_cap', 'final_audit_cap', 'audit_total_cap'];
@@ -87,14 +87,12 @@ export function requireTrackBranch(commit, tracks) {
 }
 
 // How many tracks the run starts now: none at `tracks` 1 (the run builds in place, exactly as a run
-// that never asked), else min(the ready slices, the machine's resource cap, `tracks`). The hard
-// ceiling holds whatever the record says; `resource` stands for the heavy suites the machine runs at
-// once, and the ceiling stands in when the caller does not know it.
-export function trackWidth({ ready, tracks = 1, resource = TRACKS_CEILING }) {
+// that never asked), else min(the ready slices, `tracks`). `tracks` is capped at the hard ceiling where
+// it is read and where it is set; the ceiling term keeps that true for any caller's raw number.
+export function trackWidth({ ready, tracks = 1 }) {
   const n = cap('tracks', tracks);
   if (n === 1) return 0;
-  const room = resource === undefined || resource === null ? TRACKS_CEILING : cap('resource', resource);
-  return Math.max(0, Math.min(Number(ready) || 0, n, room, TRACKS_CEILING));
+  return Math.max(0, Math.min(Number(ready) || 0, n, TRACKS_CEILING));
 }
 
 function validate(key, value) {
