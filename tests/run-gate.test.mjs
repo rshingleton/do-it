@@ -45,6 +45,8 @@ function fixture(runFlags = []) {
 }
 const verify = (dir, cmd = 'true') => work(dir, 'run', 'verify', 'road', 'R1', '--', cmd);
 const gate = (dir, id = 'R1') => ok(work(dir, 'run', 'gate', 'road', id));
+// A slice begins before it audits: `run audit` refuses an id the record holds no gate entry for.
+const start = (dir, id) => ok(work(dir, 'run', 'start', 'road', id, '--work', 'feat'));
 
 test('gate: unverified, then allowed after a passing verify, then stale once code changes', () => {
   const dir = fixture();
@@ -149,6 +151,18 @@ test('max-slices: stops once that many slices shipped; unset means no cap', () =
 
 const audit = (dir, ...a) => ok(work(dir, 'run', 'audit', 'road', ...a));
 
+test('run audit: an id the record holds no gate entry for is refused, so no round is spent on it', () => {
+  const dir = fixture();
+  const r = work(dir, 'run', 'audit', 'road', 'R9');
+  assert.equal(r.status, 1);
+  assert.match(r.out.error, /run audit: R9 has no gate entry; run start first/);
+  const rec = ok(work(dir, 'run', 'show', 'road'));
+  assert.equal((rec.gates ?? []).some((g) => g.id === 'R9'), false, 'no R9 gates entry');
+  assert.equal(rec.audit_rounds, undefined, 'no round spent');
+  start(dir, 'R9');
+  assert.equal(audit(dir, 'R9').audit_rounds, 1, 'started, the slice audits');
+});
+
 test('audit cap: the round after a slice\'s cap is refused and uncounted, naming the slice; its last allowed round ships', () => {
   const dir = fixture(['--audit-cap', '2']);
   ok(verify(dir));
@@ -179,6 +193,7 @@ test('audit cap: a slice at its cap parks and the run goes on; resume gives it f
   const parked = ok(work(dir, 'run', 'show', 'road')).slices.find((s) => s.id === 'R1');
   assert.deepEqual([parked.status, parked.needs], ['parked', 'decision']);
   assert.match(parked.reason, /slice R1: 1 audit rounds, cap 1/);
+  start(dir, 'R2');
   assert.equal(audit(dir, 'R2').allow, true, 'another slice still audits');
   ok(work(dir, 'run', 'slice', 'road', 'R1', 'ready'));
   assert.equal(audit(dir, 'R1').allow, true, 'resume zeroes the slice\'s rounds');
@@ -187,6 +202,7 @@ test('audit cap: a slice at its cap parks and the run goes on; resume gives it f
 test('audit cap: the final review and run total still stop the run without parking a slice', () => {
   const dir = fixture(['--audit-cap', '2', '--max-slices', '1']);
   for (const id of ['R1', 'R1']) assert.equal(audit(dir, id).allow, true);
+  start(dir, 'R2');
   const r = audit(dir, 'R2');
   assert.deepEqual([r.allow, r.reason, r.limit], [false, 'AUDIT_CAP', 'run total']);
   assert.equal(ok(work(dir, 'run', 'show', 'road')).slices.length, 0);
@@ -212,6 +228,7 @@ test('audit cap: lowering a cap back to the value it refused at does not revive 
 test('audit cap: the run-total refusal clears when audit_total_cap is set again, so gate allows', () => {
   const dir = fixture(['--audit-cap', '2', '--max-slices', '2']);
   ok(verify(dir));
+  for (const id of ['R2', 'R3']) start(dir, id);
   for (const id of ['R1', 'R1', 'R2', 'R2']) assert.equal(audit(dir, id).allow, true);
   assert.equal(audit(dir, 'R3').allow, false);
   assert.equal(gate(dir).reason, 'AUDIT_CAP', 'the refusal stops the gate while the cap is unchanged');
@@ -255,12 +272,17 @@ test('gate reads the record: it adds no gates entry for a slice that has none', 
   const rec = { slices: [], gates: [], audit_cap: 3, slice_cap_min: 120 };
   gateRule(rec, 'R9', { current: 'fp' });
   assert.deepEqual(rec.gates, []);
+  // A cap the record already shows as spent, and still no entry for the slice: the cap path reads only.
+  const spent = { slices: [], gates: [], audit_cap: 3, audit_total_cap: 0, audit_refused: 0, slice_cap_min: 120 };
+  assert.equal(gateRule(spent, 'R9', { current: 'fp' }).reason, 'AUDIT_CAP');
+  assert.deepEqual(spent.gates, []);
 });
 
 test('audit cap: a long run of slices at two rounds each finishes under default caps', () => {
   const dir = fixture();
   for (let i = 1; i <= 8; i++) {
     const id = `R${i}`;
+    start(dir, id);
     assert.equal(audit(dir, id).allow, true);
     assert.equal(audit(dir, id).allow, true, `${id} second round`);
     ok(work(dir, 'run', 'slice', 'road', id, 'shipped'));
@@ -273,6 +295,7 @@ test('audit cap: a slice at its 4th round stops naming the slice, and the digest
   for (let i = 0; i < 3; i++) assert.equal(audit(dir, 'R1').allow, true);
   const r = audit(dir, 'R1');
   assert.deepEqual([r.allow, r.limit], [false, 'slice R1']);
+  start(dir, 'R2');
   assert.equal(audit(dir, 'R2').allow, true, 'another slice has its own rounds');
   assert.equal(spawnSync('node', [WORK, 'run', 'digest', 'road'], { cwd: dir, encoding: 'utf8', env: { ...process.env, XDG_CONFIG_HOME: dir } }).status, 0);
   const digest = fs.readFileSync(path.join(dir, 'docs/planning/road.run/DIGEST.md'), 'utf8');
@@ -291,6 +314,7 @@ test('audit cap: the final review has its own cap and does not spend a slice\'s 
 
 test('audit cap: the run total stops a runaway; max_slices x the per-slice cap is its default', () => {
   const dir = fixture(['--audit-cap', '2', '--max-slices', '2']);
+  for (const id of ['R2', 'R3', 'R4']) start(dir, id);
   for (const id of ['R1', 'R1', 'R2', 'R2']) assert.equal(audit(dir, id).allow, true);
   const r = audit(dir, 'R3');
   assert.deepEqual([r.allow, r.limit], [false, 'run total']);
@@ -299,7 +323,10 @@ test('audit cap: the run total stops a runaway; max_slices x the per-slice cap i
   assert.equal(audit(dir, 'R3').allow, true, 'the overridden total allows one more');
   assert.equal(audit(dir, 'R4').allow, false);
   const none = fixture();
-  for (let i = 1; i <= 12; i++) assert.equal(audit(none, `R${i}`).allow, true, 'no max_slices and no total: no backstop');
+  for (let i = 1; i <= 12; i++) {
+    start(none, `R${i}`);
+    assert.equal(audit(none, `R${i}`).allow, true, 'no max_slices and no total: no backstop');
+  }
 });
 
 test('audit cap: resuming a parked slice starts its rounds again', () => {
@@ -778,13 +805,17 @@ test('reject-assumption: a closed item has no plan to reopen, so only the record
 
 test('gate.mjs holds the rule and counters only: the run handlers live in runs.mjs, and commitSlice stays short', () => {
   const scripts = path.join(ROOT, 'skills/do-it/scripts');
-  assert.doesNotMatch(fs.readFileSync(path.join(scripts, 'gate.mjs'), 'utf8'), /^export (async )?function run[A-Z]/m);
+  const read = (file) => fs.readFileSync(path.join(scripts, file), 'utf8');
+  assert.doesNotMatch(read('gate.mjs'), /^export (async )?function run[A-Z]/m);
+  const runs = read('runs.mjs');
   for (const handler of ['runGate', 'runVerify', 'runReviewChange', 'runRejectAssumption']) {
-    assert.match(fs.readFileSync(path.join(scripts, 'runs.mjs'), 'utf8'), new RegExp(`^export function ${handler}\\(`, 'm'));
+    assert.match(runs, new RegExp(`^export function ${handler}\\(`, 'm'));
   }
-  const commit = fs.readFileSync(path.join(scripts, 'commit.mjs'), 'utf8');
-  const body = /^export function commitSlice[\s\S]*?^}/m.exec(commit)[0];
+  const body = /^([ \t]*)export function commitSlice[\s\S]*?^\1}/m.exec(read('commit.mjs'))[0];
   assert.ok(body.split('\n').length < 60, 'commitSlice is under 60 lines');
+  // The body ends at the closing brace on the function's own indent, so a moved function still matches.
+  const indented = body.replace(/^/gm, '  ');
+  assert.equal(/^([ \t]*)export function commitSlice[\s\S]*?^\1}/m.exec(indented)[0], indented);
 });
 
 test('the run scripts carry one id pattern, one git spawn and one record writer', () => {

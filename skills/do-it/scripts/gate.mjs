@@ -3,7 +3,7 @@
 // verify, audit rounds spent); run-wide audit rounds in `audit_rounds`, the final
 // review's in `final_audit_rounds`. This holds the rule, the counters and the
 // record writers; the `run <sub>` handlers that call them are in runs.mjs.
-// work.mjs is the only caller.
+// work.mjs calls the start and audit counters; runs.mjs calls the rest.
 
 import { updateRun } from './run.mjs';
 
@@ -116,6 +116,8 @@ export function countAudit(planningDir, slug, { id, final = false, items } = {})
   if (!final && !id) throw new Error('run audit needs a slice id, or --final for the final review');
   let refused = null;
   const record = updateRun(planningDir, slug, (r) => {
+    // A slice the run never started holds no gate entry: refuse before one is made, so no round is spent on it.
+    if (!final && !(r.gates ?? []).some((x) => x.id === id)) throw new Error(`run audit: ${id} has no gate entry; run start first`);
     const limits = auditLimits(r, id, final);
     const hit = limits.find(atCap);
     if (hit) {
