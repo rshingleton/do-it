@@ -99,7 +99,7 @@ behaviour turns a test red, and one fixture helper serves each class.
 | R13 | build | Gate leftovers: the gate.mjs header names runs.mjs and work.mjs as callers, the structure test finds `commitSlice` at any indent and reads runs.mjs once, a reading `gate` adds no gates entry, `run audit` on an unknown slice spends no round, STOPS says resumed rounds stay in the run total Items: T185, T193 | G3 | skills/do-it/scripts/gate.mjs, skills/finish-it/STOPS.md, tests/run-gate.test.mjs | none | `run audit road R9` leaves no R9 gates entry; removing the read-path find fails a test; the header names both callers | med | shipped 2026-11-16 r13-gate-leftovers |
 | R14 | build | Guard and undo tests: the guard subdirectory test splits into four assertions, the `git add` all-untracked branch is pinned, `rejectedCommit` sets core.hooksPath, the unborn-repo undo has a test, and a rethrown error keeps its stack Items: T190, T210 | G3 | tests/run-commit.test.mjs, tests/hooks.test.mjs | none | A developer's global core.hooksPath changes no new test; the unborn undo runs; removing the untracked branch changes an assertion | med | shipped 2026-11-16 r14-hook-undo-tests |
 | R15 | build | The roadmap-locality tests name what failed: `fences[2]` is selected by heading, and `match(...)[0]` is asserted before use Items: T265, T271 | G3 | tests/roadmap-locality.test.mjs, tests/phases-contract.test.mjs | none | Renaming a heading fails naming the field, not with a throw; moving a fence does not assert the wrong block | low | shipped 2026-11-16 r15-locality-test-names |
-| R16 | build | One fixture helper per class: tests/links.mjs imports `norm` and `sameTarget` from the install code, install-links stops rebuilding checkout, seed and clone, and doctor-routes uses the mini-root `quiet` Items: T274, T280, T284 | G3 | tests/links.mjs, tests/install-links.test.mjs, tests/doctor-routes.test.mjs, tests/mini-root.mjs | none | One `norm` and one `quiet` remain and a POSIX path case agrees across both callers | low | |
+| R16 | build | One fixture helper per class: tests/links.mjs imports `norm` and `sameTarget` from the install code, install-links stops rebuilding checkout, seed and clone, and doctor-routes uses the mini-root `quiet` Items: T274, T280, T284 | G3 | tests/links.mjs, tests/install-links.test.mjs, tests/doctor-routes.test.mjs, tests/mini-root.mjs | none | One `norm` and one `quiet` remain and a POSIX path case agrees across both callers | low | shipped 2026-11-16 r16-fixture-helpers |
 | R17 | build | Behaviour evals: pressure scenarios for test-it, prove-it and ship-it's no-commit rule, paraphrased routing variants, and one eval that a grill reply adding scope re-presents its round Items: T23, T236 | G3 | evals/routing.json, tests/grill-acceptance.test.mjs, skills/skill-it/SKILL-MECHANICS.md | none | Each new eval fails when the rule it pins is removed from the skill text and `npm run eval` lists them | med | shipped 2026-11-16 r17-behaviour-evals |
 
 ### M4: Scripts, run lane and install behave
@@ -242,6 +242,9 @@ Exit: `docs/TODO.md` has no open line, no issue has `status: open`, and
   writes no branch, which holds one and says why (R67, T298).
 
 ## Changes
+- 2026-11-16: R16 shipped (r16-fixture-helpers): one `norm`, one `quiet`, one
+  `seed` and one `clone` serve the link, install and doctor tests, and the
+  POSIX case records the installer's answer.
 - 2026-11-16: R17 shipped (r17-behaviour-evals): three paraphrased routing
   prompts, three pressure assertions that fail when their sentence goes, a
   grill scope case, and the two eval kinds documented.
