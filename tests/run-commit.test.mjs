@@ -6,7 +6,7 @@ import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { DEFAULTS } from '../skills/track-it/scripts/config.mjs';
-import { dirtyHashes } from '../skills/do-it/scripts/commit.mjs';
+import { commitSlice, dirtyHashes } from '../skills/do-it/scripts/commit.mjs';
 import { loadChecks } from '../hooks/lib/checks.mjs';
 import { beforeShell } from '../hooks/lib/guard.mjs';
 
@@ -54,6 +54,15 @@ function fixture({ branch = 'main', config = '' } = {}) {
   write(dir, 'b.js', 'new file\n');
   write(dir, 'unrelated.txt', 'mine, edited\n');
   return { dir, remote };
+}
+// The same tree with no commit at all: `.git` replaced by a fresh init on `branch`.
+function noCommit(dir, branch = 'main') {
+  fs.rmSync(path.join(dir, '.git'), { recursive: true });
+  git(dir, 'init', '-q', '-b', branch);
+  git(dir, 'config', 'user.name', 't');
+  git(dir, 'config', 'user.email', 't@t');
+  git(dir, 'config', 'commit.gpgsign', 'false');
+  return dir;
 }
 const verify = (dir, n = 1) => ok(work(dir, 'verify-phase', 'feat', String(n), '--', 'true'));
 // The files a slice maps, as `run verify --paths` takes them; the fixtures' other dirty files stay out.
@@ -172,11 +181,7 @@ test('the first phase commit works in a repo with no commits yet', () => {
   const { dir } = fixture();
   ok(work(dir, 'run', 'new', 'road'));
   verify(dir);
-  fs.rmSync(path.join(dir, '.git'), { recursive: true });
-  git(dir, 'init', '-q', '-b', 'work');
-  git(dir, 'config', 'user.name', 't');
-  git(dir, 'config', 'user.email', 't@t');
-  git(dir, 'config', 'commit.gpgsign', 'false');
+  noCommit(dir, 'work');
   assert.ok(ok(work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'a.js')).commit);
 });
 
@@ -629,6 +634,9 @@ function rejectedCommit(hook, setup = () => {}) {
   setup(dir);
   write(dir, '.git/hooks/pre-commit', `#!/bin/sh\n${hook}\nexit 1\n`);
   fs.chmodSync(path.join(dir, '.git/hooks/pre-commit'), 0o755);
+  // The fixture's own hooks, so a developer's global core.hooksPath cannot skip the hook and
+  // make these tests green for the wrong reason.
+  git(dir, 'config', 'core.hooksPath', path.join(dir, '.git', 'hooks').replaceAll('\\', '/'));
   const r = work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'a.js');
   assert.equal(r.status, 1);
   return { dir, error: r.out.error };
@@ -664,6 +672,52 @@ test('a rejected commit from a detached start returns to the same commit and rem
   assert.equal(git(dir, 'branch', '--show-current'), '', 'still detached');
   assert.equal(git(dir, 'rev-parse', 'HEAD'), head);
   assert.equal(git(dir, 'branch', '--list', 'do-it/road'), '');
+});
+
+test('a rejected commit in a repo with no commits returns to its unborn branch and leaves no scratch branch', () => {
+  const { dir } = fixture();
+  ok(work(dir, 'run', 'new', 'road'));
+  verify(dir);
+  noCommit(dir);
+  write(dir, '.git/hooks/pre-commit', '#!/bin/sh\nexit 1\n');
+  fs.chmodSync(path.join(dir, '.git/hooks/pre-commit'), 0o755);
+  const r = work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'a.js');
+  assert.equal(r.status, 1);
+  assert.doesNotMatch(r.out.error, /could not switch back|gained commits/, 'the undo finds nothing it could not undo');
+  assert.equal(git(dir, 'symbolic-ref', '--quiet', '--short', 'HEAD'), 'main', 'back on the unborn default branch');
+  assert.equal(git(dir, 'branch', '--list', 'do-it/road'), '', 'the branch it made is gone');
+  assert.equal(git(dir, 'diff', '--cached', '--name-only'), '', 'nothing staged');
+});
+
+test('a rejected commit runs the fixture hook even when the global config names another hooks path', () => {
+  const noHooks = path.join(tmpDir('do-it-nohooks-'), 'hooks');
+  const globalConfig = path.join(tmpDir('do-it-gitconfig-'), 'config');
+  fs.writeFileSync(globalConfig, `[core]\n\thooksPath = ${noHooks.replaceAll('\\', '/')}\n`);
+  const before = process.env.GIT_CONFIG_GLOBAL;
+  process.env.GIT_CONFIG_GLOBAL = globalConfig;
+  try {
+    const { dir, error } = rejectedCommit(':');
+    assert.doesNotMatch(error, /kept|could not/);
+    assert.equal(git(dir, 'branch', '--show-current'), 'main', 'the hook ran and the undo switched back');
+  } finally {
+    process.env.GIT_CONFIG_GLOBAL = before;
+  }
+});
+
+test('a rethrown commit error keeps the stack of the git failure, not the catch', () => {
+  const dir = laneS((d) => write(d, 'x.js', '2\n'));
+  write(dir, '.git/hooks/pre-commit', '#!/bin/sh\nexit 1\n');
+  fs.chmodSync(path.join(dir, '.git/hooks/pre-commit'), 0o755);
+  const items = new Map([['small', { state: { lane: 's', verified: true, title: 'Small fix' } }]]);
+  let error;
+  try {
+    commitSlice({ root: dir, planningDir: path.join(dir, 'docs', 'planning'), config: DEFAULTS, items, slug: 'sl', id: 'small', paths: ['x.js'] });
+  } catch (e) {
+    error = e;
+  }
+  assert.ok(error, 'the rejected commit throws');
+  assert.match(error.message, /git commit failed/);
+  assert.match(error.stack, /skills[\\/]do-it[\\/]scripts[\\/]git\.mjs:\d+/, 'the stack names the original throw site');
 });
 
 test('a tag that cannot be made after the commit landed is reported with the commit', () => {

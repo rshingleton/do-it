@@ -51,7 +51,11 @@ function safeBranch(cwd, slug, protectedList) {
   return {
     name,
     undo() {
-      const back = gitResult(cwd, ['switch', '-q', '--no-guess', ...(now ? [] : ['--detach']), from]);
+      // A repo with no commit has no tip to switch back to, and `git switch main` cannot create an
+      // unborn branch: pointing HEAD at it again is what the switch out did.
+      const back = !start && now
+        ? gitResult(cwd, ['symbolic-ref', 'HEAD', `refs/heads/${now}`])
+        : gitResult(cwd, ['switch', '-q', '--no-guess', ...(now ? [] : ['--detach']), from]);
       // Still on the scratch branch: it cannot be deleted, and the caller is told where the repo is.
       if (back.status !== 0) return ` (could not switch back to ${now ?? from}, still on ${name}: ${back.stderr.trim()})`;
       if (!made) return '';
@@ -227,7 +231,10 @@ export function commitSlice({ root, planningDir, config, items, slug, id, phase,
     gitText(root, ['commit', '-q', '-F', '-'], message);
   } catch (e) {
     gitResult(root, ['reset', '-q', '--', ...paths]);
-    throw new Error(`${e.message}${onto.undo()}`);
+    // The undo's note is the only change: rethrowing the original keeps the stack of its throw site.
+    const note = onto.undo();
+    if (note) e.message += note;
+    throw e;
   }
   // The run record follows the commit, so a rejected commit leaves it as it was.
   const branch = onto.name;
