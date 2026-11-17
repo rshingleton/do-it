@@ -47,8 +47,6 @@ Builds what the plan approved, nothing else, uncommitted; `ship-it` commits.
 
 ## 3. Build one unit
 
-Delegated phase: agent items 1, 2, 4 (item 3: it reports `failed`), main item 5.
-
 1. Call the Skill tool with "test-it", passing the unit's `## Seams` as agreed
    in planning (tests go only there). None listed: propose them, record them
    as an assumption, continue.

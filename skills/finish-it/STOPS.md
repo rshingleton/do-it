@@ -22,6 +22,10 @@ Calls: `run start <slug> <slice> --work <work id>` when a slice begins,
 `run verify <slug> <slice> [--phase n] [--paths a,b] -- <checks>` instead of `verify-phase`,
 `run audit <slug> <slice>` before each slice audit round (`run audit <slug> --final` for the final review's); a refusal parks the slice (`SLICE_AUDIT_CAP`) or, for the final review and run total, stops the run.
 
+`run slice <slug> <slice> parked --needs user|decision --reason "<why>"` parks a slice, the stop code first in `--reason`; `needs` is `decision` for an unanswered question, else `user`.
+
+`run verify` takes one call per lane M phase with `--phase n`; lane S passes no `--phase`.
+
 ## Judgment (no script sees these)
 
 - `OUTCOME_CONFLICT` (park): the slice contradicts the roadmap outcome or a non-goal.

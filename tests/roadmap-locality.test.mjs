@@ -142,9 +142,21 @@ test('the roadmap docs state the hint, the batch preference and the plan contrac
 
   const skill = read('skills/roadmap-it/SKILL.md');
   assert.match(flat(skill), /a file hint lets a batch prefer disjoint work/, 'the ordering sentence states the purpose');
-  assert.equal(skill.replace(/\n$/, '').split('\n').length, 103, 'the file keeps its line count');
 
   const stateLine = read('skills/do-it/STATE.md').split(/\r?\n/).find((line) => line.includes('`--batch n`'));
   assert.ok(stateLine, 'STATE.md documents --batch');
   assert.match(stateLine, /`files` hint/, 'the --batch contract states the hint preference, not a plain prefix');
+});
+
+test('every skills/*/SKILL.md stays within the 100-line budget', () => {
+  const dir = path.join(ROOT, 'skills');
+  const skills = fs
+    .readdirSync(dir, { withFileTypes: true })
+    .filter((e) => e.isDirectory() && fs.existsSync(path.join(dir, e.name, 'SKILL.md')))
+    .map((e) => e.name);
+  assert.ok(skills.length > 0, 'the scan found skills');
+  const over = skills
+    .map((name) => [name, read(`skills/${name}/SKILL.md`).replace(/\n$/, '').split('\n').length])
+    .filter(([, lines]) => lines > 100);
+  assert.deepEqual(over, [], 'a SKILL.md over budget moves its detail into a sibling file');
 });

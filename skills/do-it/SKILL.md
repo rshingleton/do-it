@@ -88,11 +88,8 @@ a fresh session per [BOUNDARIES.md](BOUNDARIES.md).
 
 ## 5. Lane XS
 
-No files under `docs/planning/`. Follow the `it-core` posture, build test-first
-when the change has logic, run the project's checks, then self-review the diff
-against the request (each changed line traces to it; no secrets; nothing left
-half-done). Then follow [ship-it](../ship-it/SKILL.md) with `--lane xs`, plus
-`--ref <ref>` for an issue and `--todo <id>` for a to-do item, so both close.
+The XS flow is [LANES.md](LANES.md) "Lane XS: the flow": build, self-review the
+diff, then [ship-it](../ship-it/SKILL.md) with `--lane xs`.
 
 ## 6. Closing message
 
