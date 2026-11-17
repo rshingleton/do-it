@@ -29,22 +29,22 @@ until none can go on, then closes once. `work.mjs` is the work-item script in
 - Level is the record's `level`, set by `work.mjs run new <slug> --level
   lite|full|ultra` (the `--complete` argument of `/do-it`); per-level rules and
   flag precedence: [LEVELS.md](LEVELS.md).
-- `tracks` is the record's too: `work.mjs run new <slug> --tracks N` (default and
-  cap in [TRACKS.md](TRACKS.md)); above 1, §2 runs by it, else as written here.
+- `tracks` is the record's too: `work.mjs run new <slug> --tracks N` (default
+  and cap in [TRACKS.md](TRACKS.md)); above 1, §2 runs by it.
 
 ## 2. Loop
 
 The turn ends only at §4, when `run next` returns no `next`. A parked or
 resumed slice, a status question, a long wait and a finished step are not
-stops: go on to the next slice. `tracks` above 1: [TRACKS.md](TRACKS.md) replaces
-step 1 with its dispatch and adds its merge before step (f); the rest is as
-written here.
+stops: go on to the next slice. At `tracks` >1: [TRACKS.md](TRACKS.md)
+replaces step 1 with its dispatch and adds its merge before step (f); the rest
+is as written here.
 
 1. `work.mjs run next <slug> <file>` gives `next`, `parked`, `waiting` and
    `defects` (open decisions and the slices each holds). It
    skips parked and blocked slices and anything that waits on one, resumes a
    slice already in flight first, and otherwise takes the roadmap's order.
-2. `next` is null: go to §4, naming its `stop` (a `MAX_SLICES` code) when there is one.
+2. `next` is null: go to §4, naming its `stop` (`MAX_SLICES`) when there is one.
 3. Size the slice (S or M) per [do-it](../do-it/SKILL.md) §2 and
    [LANES.md](../do-it/LANES.md), then run the lane in this order, as do-it §3
    does. A step that finishes returns here; none closes the turn.
@@ -54,7 +54,7 @@ written here.
      `work.mjs run start <slug> <slice> --work <work id>`. `<slice>` is the
      roadmap id (`R<n>`), not the work id.
    - (c) [build-it](../build-it/SKILL.md), its checks through
-     `work.mjs run verify <slug> <slice> [--phase n] [--paths a,b] -- "<checks>"`
+     `work.mjs run verify <slug> <slice> [--phase n] [--paths a,b] -- "<cmd>"`
      instead of the item-level verify: one call per lane M phase, `--paths`
      the slice's mapped files. Outside a run it is `verify-phase`. A flaky
      result parks the slice (FLAKY, as step 5).
@@ -75,25 +75,26 @@ written here.
    themselves: park it, never ask, with the stop code first in `--reason`
    ([STOPS.md](STOPS.md) holds the call and `needs`). Its dependents wait by
    themselves; back to step 1, so independent slices go on.
-6. Background work (an agent, a long check): never poll or sleep; wait for its completion notice.
+6. Background work (an agent, a long check): never poll or sleep; just wait.
 
 ## 3. Resume
 
 `/finish-it <file> --resume [R<n>]`. The user has settled what parked the
 slice: `work.mjs run slice <slug> <slice> ready` puts slice `<slice>` (`R<n>`)
 back in the queue; with no `R<n>`, once for each id in `parked` from
-`work.mjs run next <slug> <file>`. A shipped slice never moves. Then loop from
-§2, re-entering at the first slice `run next` returns; finished work is never redone.
+`work.mjs run next <slug> <file>`. A shipped slice never moves; loop from §2
+at the first slice `run next` returns. Finished work is never redone.
 
 ## 4. Close
 
 Run the final review and digest in [DIGEST.md](DIGEST.md) first; it holds the
-closing message: the counts, the `stop` code, each parked slice and the open
-decisions, then `Skipped / Not checked / Risk` and `Next:`. Only here does the
-turn end; a final ship says what ship-it finalized for the roadmap ([FINALIZE.md](../ship-it/FINALIZE.md)).
+closing message: the counts, the `stop` code, each parked slice, the open
+decisions `run next` lists under `defects` with the slices each holds, then
+`Skipped / Not checked / Risk` and `Next:`. The turn ends only here; a final
+ship says what ship-it finalized ([FINALIZE.md](../ship-it/FINALIZE.md)).
 
 ## Rules
 
-- No question in the loop; an unknown that fails it-core's assume-or-ask parks its slice.
+- No question in the loop: an unknown failing it-core's assume-or-ask parks it.
 - Never touch a parked slice or its dependents; never reorder past one.
 - Never write the run record by hand; `work.mjs run` only.

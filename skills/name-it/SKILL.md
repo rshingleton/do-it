@@ -57,5 +57,5 @@ Write an ADR only when the decision is all three of:
 
 Missing any one: no ADR; the decision lives in the plan or the changelog.
 Format, numbering, status and which directory (root or area) in
-[ADR-FORMAT.md](ADR-FORMAT.md). An ADR written during planning starts
-`proposed`; `ship-it` accepts it when the work ships.
+[ADR-FORMAT.md](ADR-FORMAT.md). A plan's ADR starts `proposed`; `ship-it`
+rewrites it `accepted` when the work ships.
