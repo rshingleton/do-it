@@ -995,6 +995,47 @@ test('clean passes: a FAIL or a replan restarts the count; an old block reads as
   assert.equal(normalize({ ...old, audit: { ...old.audit } }).audit.clean_passes, undefined);
 });
 
+// The plan format owns `## Link`, link-it points at it, and a replan keeps the
+// body a plan was written with.
+test('scope-it: PLAN-FORMAT owns the ## Link section its rule and its example', () => {
+  const doc = fs.readFileSync(path.join(ROOT, 'skills/scope-it/PLAN-FORMAT.md'), 'utf8');
+  const laneS = [...doc.matchAll(/```markdown\n([\s\S]*?)```/g)][0][1];
+  const section = laneS.match(/^## Link\n(\S.*)$/m);
+  assert.ok(section, 'the lane S example carries a ## Link with one path line');
+  const at = laneS.indexOf('## Link');
+  assert.ok(laneS.indexOf('## Interfaces') < at && at < laneS.indexOf('## Steps'), 'the section sits after Interfaces and before Steps');
+  const rule = flat(doc.slice(doc.indexOf('`## Link` is optional')));
+  for (const clause of [
+    /`## Link` is optional/,
+    /written only when the plan is paired through \[link-it\]\(\.\.\/link-it\/SKILL\.md\)/,
+    /one path line, the contract path link-it §3 derives/,
+    /never an `assumptions:` entry[^.]*`sources:` ref/,
+    /legal in a lane M README/,
+    /`replan` keeps it/,
+  ]) assert.match(rule, clause);
+});
+
+test('link-it: §6 sends a reader to PLAN-FORMAT for the ## Link section', () => {
+  const skill = fs.readFileSync(path.join(ROOT, 'skills/link-it/SKILL.md'), 'utf8');
+  const section = skill.slice(skill.indexOf('## 6. Survive compaction'), skill.indexOf('## 7. Settle'));
+  assert.match(section, /`## Link`/, 'the section is still named');
+  assert.match(section, /\[PLAN-FORMAT\.md\]\(\.\.\/scope-it\/PLAN-FORMAT\.md\)/, 'the pointer resolves inside skills/');
+  assert.match(flat(section), /never in `assumptions` \([^)]*\) or `sources:`/, 'the reason it is not an assumption or a source stays');
+});
+
+test('work.mjs: a replan keeps a plan body\'s ## Link section', () => {
+  const dir = tempRepo();
+  work(dir, 'new', 'bridged', '--lane', 's', '--title', 'Bridged');
+  for (const e of ['approve', 'start']) work(dir, 'event', 'bridged', e);
+  const file = path.join(dir, 'docs/planning/bridged.md');
+  const link = '## Link\n~/.local/share/do-it-bridge/acme-api--acme-web.md';
+  fs.appendFileSync(file, `\n${link}\n`);
+  const r = work(dir, 'event', 'bridged', 'replan');
+  assert.equal(r.status, 0, JSON.stringify(r.out));
+  assert.equal(r.out.status, 'draft');
+  assert.ok(readItem(file).body.includes(link), 'the ## Link section survives the replan');
+});
+
 test('work.mjs: reaudit exits 1 at the clean-pass cap, 0 with --again', () => {
   const dir = tempRepo();
   fs.writeFileSync(path.join(dir, 'a.js'), 'one\n');
