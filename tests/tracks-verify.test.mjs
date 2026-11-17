@@ -113,6 +113,49 @@ test('the merged suite is a gate fact: no ship from a worktree without it, and a
   assert.equal(gate(dir).reason, 'STALE_VERIFY');
 });
 
+// A verify that fails: `false` fails both attempts, so it is a plain failure, never FLAKY.
+const fails = (dir, at) => work(dir, 'run', 'verify', 'road', 'R1', '--in', at, '--', 'false');
+const parked = (dir) => ok(work(dir, 'run', 'show', 'road')).slices.find((s) => s.id === 'R1');
+
+test('a third failed verify round in a row parks the slice with VERIFY_CAP; the first two throw as before', () => {
+  const { dir, wt } = trackFixture();
+  const first = fails(dir, wt);
+  assert.equal(first.status, 1);
+  assert.match(first.out.error, /false exited 1/);
+  assert.doesNotMatch(first.out.error, /VERIFY_CAP/, 'the first failure throws what it always threw');
+  assert.equal(entry(dir).verify_failures, 1, 'the round is counted on the slice\'s gate entry');
+  assert.equal(parked(dir), undefined, 'the first failure parks nothing');
+  assert.doesNotMatch(fails(dir, wt).out.error, /VERIFY_CAP/, 'the second throws too');
+  assert.equal(entry(dir).verify_failures, 2);
+  assert.equal(parked(dir), undefined, 'the second parks nothing');
+  const third = fails(dir, wt);
+  assert.equal(third.status, 1);
+  assert.match(third.out.error, /^VERIFY_CAP: false exited 1/);
+  assert.deepEqual([parked(dir).status, parked(dir).needs], ['parked', 'user'], 'the third parks the slice for the user');
+  assert.match(parked(dir).reason, /^VERIFY_CAP: /, 'the park puts the stop code first');
+  assert.deepEqual([gate(dir).allow, gate(dir).reason], [false, 'VERIFY_CAP'], 'the gate names the cap on that slice');
+});
+
+test('a passing verify and a resume clear the failed verify count, so only three in a row park the slice', () => {
+  const { dir } = trackFixture();
+  const fail = () => fails(dir, dir);
+  fail();
+  fail();
+  assert.equal(entry(dir).verify_failures, 2);
+  verify(dir, dir);
+  assert.equal(entry(dir).verify_failures, undefined, 'a pass clears the count');
+  assert.doesNotMatch(fail().out.error, /VERIFY_CAP/, 'the count starts again at one');
+  assert.equal(entry(dir).verify_failures, 1);
+  fail();
+  fail();
+  assert.match(parked(dir).reason, /^VERIFY_CAP: /);
+  // A slice that passed then failed three times cannot ship on that pass.
+  assert.equal(gate(dir).reason, 'VERIFY_CAP');
+  ok(work(dir, 'run', 'slice', 'road', 'R1', 'ready'));
+  assert.equal(entry(dir).verify_failures, undefined, 'the resume clears the count');
+  assert.equal(gate(dir).allow, true, 'the pass the slice already had stands once the user settled the cause');
+});
+
 test('prove-it names --since as the track path: read from the worktree, no plan read, no state written', () => {
   const doc = fs.readFileSync(path.join(ROOT, 'skills/prove-it/SKILL.md'), 'utf8');
   const pin = doc.slice(doc.indexOf('## 1.'), doc.indexOf('## 2.'));

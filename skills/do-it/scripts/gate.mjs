@@ -1,11 +1,15 @@
 // Checkable stop conditions of a complete run. Per-slice facts live in the run
 // record's `gates` list (work id, start time, fingerprint at the last passing
-// verify, audit rounds spent); run-wide audit rounds in `audit_rounds`, the final
-// review's in `final_audit_rounds`. This holds the rule, the counters and the
-// record writers; the `run <sub>` handlers that call them are in runs.mjs.
+// verify, failed verify rounds in a row, audit rounds spent); run-wide audit rounds in
+// `audit_rounds`, the final review's in `final_audit_rounds`. This holds the rule, the
+// counters and the record writers; the `run <sub>` handlers that call them are in runs.mjs.
 // work.mjs calls the start and audit counters; runs.mjs calls the rest.
 
 import { updateRun } from './run.mjs';
+
+// Failed verify rounds in a row that park the slice: a check that keeps failing stops there
+// instead of looping, and the two before it throw as they always have.
+export const VERIFY_CAP_ROUNDS = 3;
 
 function entry(record, id) {
   record.gates = Array.isArray(record.gates) ? record.gates : [];
@@ -43,7 +47,21 @@ export function recordVerified(planningDir, slug, id, fingerprint, files, root) 
     // A verify without --paths records no files, and must not leave an older record standing.
     if (files) g.verified_files = files;
     else delete g.verified_files;
+    // A pass breaks the run of failures, so the next failure counts from one.
+    delete g.verify_failures;
   });
+}
+
+// A verify round whose check ran and failed: `verify_failures` on the slice's gate entry counts
+// the failures in a row (a pass, or a resume, clears them). Returns the count after this round.
+export function recordVerifyFailure(planningDir, slug, id) {
+  let failures = 0;
+  updateRun(planningDir, slug, (r) => {
+    const g = entry(r, id);
+    failures = (Number(g.verify_failures) || 0) + 1;
+    g.verify_failures = failures;
+  });
+  return failures;
 }
 
 // The suite on the merged tree: `run verify --merged`. It says the merge passed too, on the
@@ -166,7 +184,8 @@ export function auditRoom(record, id) {
 
 // {allow, reason, detail}: reason is a code from stops.mjs. `current` is the
 // slice's fingerprint in the tree its verify recorded; `merged` is the merged tree's now, when
-// the caller has one. Caps first, then freshness of the last verify, then the merged tree.
+// the caller has one. Caps first, then the verified rounds in a row, then freshness of the
+// last verify, then the merged tree.
 export function gate(record, id, { current, merged, now = Date.now() }) {
   const stop = (reason, detail) => ({ allow: false, reason, detail });
   const shipped = record.slices.filter((s) => s.status === 'shipped').length;
@@ -180,6 +199,11 @@ export function gate(record, id, { current, merged, now = Date.now() }) {
     // cap is measured from `started` plus what it queued (`waited_ms`).
     const mins = (now - Date.parse(g.started) - (Number(g.waited_ms) || 0)) / 60000;
     if (mins > record.slice_cap_min) return stop('SLICE_CAP', `${Math.floor(mins)} min, cap ${record.slice_cap_min}`);
+  }
+  // Three failed rounds in a row park the slice, and an older pass cannot ship it: the count is
+  // checked before the freshness of that pass. A pass or a resume clears it.
+  if ((Number(g?.verify_failures) || 0) >= VERIFY_CAP_ROUNDS) {
+    return stop('VERIFY_CAP', `${g.verify_failures} failed verify rounds in a row`);
   }
   if (!g?.verified_fingerprint) return stop('UNVERIFIED', `${id} has no passing verify-phase`);
   if (g.verified_fingerprint !== current) return stop('STALE_VERIFY', `${id} changed since its last passing verify-phase`);

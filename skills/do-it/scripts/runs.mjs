@@ -8,7 +8,7 @@ import path from 'node:path';
 import { snapshot, treeDiff } from './changeset.mjs';
 import { dirtyHashes, relative } from './commit.mjs';
 import { parseContract, pairTracks } from './contract.mjs';
-import { auditRoom, checkWithRerun, gate, recordMerged, recordVerified, recordWaited } from './gate.mjs';
+import { auditRoom, checkWithRerun, gate, recordMerged, recordVerified, recordVerifyFailure, recordWaited, VERIFY_CAP_ROUNDS } from './gate.mjs';
 import { git } from './git.mjs';
 import { checkShell } from './check-shell.mjs';
 import { lockChecks } from './check-slot.mjs';
@@ -208,7 +208,8 @@ function withCheckSlot(planningDir, slug, work) {
 // item, and on a pass the fingerprint and file hashes the gate and the code commit
 // compare against. The plan and the record stay in the coordinator's planning dir; the tree the
 // checks ran in is what the fingerprint, the file hashes and `verified_root` describe. A flaky
-// check parks the slice. `quote` shell-quotes one word.
+// check parks the slice, and so does a third failed round in a row (VERIFY_CAP); the two
+// failures before it throw as they always have. `quote` shell-quotes one word.
 export function runVerify({ planningDir, root, cwd, slug, id, opts, items, fingerprintOf, quote }) {
   const g = (showRun(planningDir, slug).gates ?? []).find((x) => x.id === id);
   if (!g?.work) throw new Error(`run verify: ${id} has no work id; run start first`);
@@ -218,11 +219,13 @@ export function runVerify({ planningDir, root, cwd, slug, id, opts, items, finge
   const top = treeTop(where);
   if (!top) throw new Error(`run verify: ${where} is not a git checkout; nothing recorded`);
   const text = command.length === 1 ? command[0] : command.map(quote).join(' ');
-  let flaky = false;
+  // The check's own result, or null when there is none: only a check that ran and failed is a
+  // failed round, so a guard that refuses the verify and a pass whose record failed to write are not.
+  let failed = null;
   const attempt = checkAt(where, text);
   const check = () => {
     const r = checkWithRerun(attempt);
-    flaky = Boolean(r.flaky);
+    failed = r.ok ? null : r;
     return r;
   };
   const phase = opts.phase === undefined ? undefined : Number(opts.phase);
@@ -232,7 +235,20 @@ export function runVerify({ planningDir, root, cwd, slug, id, opts, items, finge
     try {
       items.verifyPhase(g.work, phase, check, { date: opts.date });
     } catch (e) {
-      if (flaky) sliceRun(planningDir, slug, id, 'parked', { reason: e.message.replace(/^verify-phase: /, ''), needs: 'user' });
+      if (!failed) throw e;
+      // The round counts against the slice before the flaky check, so a flaky park cannot hide it.
+      const failures = recordVerifyFailure(planningDir, slug, id);
+      // A flaky round keeps its own reason: the check's rerun, not the count, is what parks it.
+      if (failed.flaky) {
+        sliceRun(planningDir, slug, id, 'parked', { reason: e.message.replace(/^verify-phase: /, ''), needs: 'user' });
+        throw e;
+      }
+      // Three in a row: whatever passes now cannot ship, so the slice parks instead of looping.
+      if (failures >= VERIFY_CAP_ROUNDS) {
+        const why = e.message.replace(/^verify-phase: /, '');
+        sliceRun(planningDir, slug, id, 'parked', { reason: `VERIFY_CAP: ${why}`, needs: 'user' });
+        throw new Error(`VERIFY_CAP: ${why}`);
+      }
       throw e;
     }
     // Only the slice's own files are recorded (`--paths a,b`): never the user's or another slice's.

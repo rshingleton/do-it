@@ -623,6 +623,7 @@ const CALL_SITE = {
   UNVERIFIED: 'gate',
   SLICE_CAP: 'gate',
   FLAKY: 'verify',
+  VERIFY_CAP: 'gate',
   MAX_SLICES: 'next',
   AUDIT_CAP: 'audit',
   SLICE_AUDIT_CAP: 'audit',
