@@ -27,12 +27,24 @@ CONFIG.md).
    node <this skill's dir>/scripts/scan.mjs [--since <ref>]
    ```
 
-3. **Rules.** Read every `*.md`, `*.yaml` and `*.yml` in the rules directory,
+3. **Absent inputs.** Name an input that is missing instead of passing it
+   over: `.compliance-rules/` (no judgement rules to apply),
+   `SECURITY_POLICY.md`, and a dependency manifest for a changed package. Each
+   absent input is an **unverified** axis, never a pass. In a run, put the gap
+   in the run's limits so the digest prints it under "not checked";
+   `work.mjs run set <slug> limits '<json array>'` replaces the list, so pass
+   the existing entries back with the new one:
+
+   ```bash
+   work.mjs run set <slug> limits '["no .compliance-rules/: judgement rules not checked"]'
+   ```
+
+4. **Rules.** Read every `*.md`, `*.yaml` and `*.yml` in the rules directory,
    plus `SECURITY_POLICY.md` (root or `docs/`) when present. Apply each rule to
    the change. A rule's stated severity sets the group: HIGH or none stated is
    **Must**, MEDIUM is **Should**, LOW is **Nice**. A breach of the security
    policy is **Must**.
-4. **Dependencies.** For changed manifests: no `*` or unbounded `>=` ranges,
+5. **Dependencies.** For changed manifests: no `*` or unbounded `>=` ranges,
    no unofficial registries, cross-check `.dependency-audit.json` when it
    exists.
 
