@@ -38,7 +38,7 @@ Every command in the Update column is one `node scripts/doctor.mjs` prints, on
 the finding it fixes. With all 110 entries ok, the plugin current and no CLI
 entry recorded, this checkout's own run prints one of them: the ref fix in the
 footer. The others print on their own finding:
-`node <checkout>\scripts\install.mjs`, the doctor's install fix, on any entry
+`node <checkout>/scripts/install.mjs`, the doctor's install fix, on any entry
 that is not ok (shown below); `/plugin marketplace update do-it` on a stale
 plugin the host reads in place; `claude plugin update do-it@do-it` on a stale
 cached one; `npx skills@latest update` on a recorded CLI git entry; and
