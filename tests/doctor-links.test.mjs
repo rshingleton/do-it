@@ -104,6 +104,19 @@ test('a copy that drifted from its source and a copy someone edited are separate
   assert.doesNotMatch(stale.stdout, /edited copy/);
 });
 
+test('an empty untracked skill directory is not a skill, so it is never ok', () => {
+  const root = miniRoot();
+  fs.mkdirSync(path.join(root, 'skills', 'empty-it'));
+  const home = tmpDir('do-it-home-');
+  quiet(() => install({ root, home, hooks: false }));
+
+  const r = doctor(home, root);
+  assert.equal(r.status, 0, r.stdout);
+  assert.equal(fs.existsSync(path.join(home, '.claude', 'skills', 'empty-it')), false, 'the plan leaves it out, so no link is placed');
+  assert.doesNotMatch(r.stdout, /empty-it/, 'and the read-back cannot call it ok');
+  assert.match(r.stdout, /^ok\s+.*a-it/m, 'the skill beside it still is');
+});
+
 test('a synced directory and another repo skill are counted in the summary, never listed', () => {
   const { root, home } = fixture();
   const synced = path.join(home, '.claude', 'skills', 'synced');
