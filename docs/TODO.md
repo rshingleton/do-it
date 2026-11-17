@@ -3,7 +3,7 @@
 Nice-to-haves and things to circle back to. Managed by log-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T323
+Next id: T324
 
 ## Open
 
@@ -115,3 +115,4 @@ Next id: T323
 - [ ] T320 `npm run check` has no 80-column rule, though the M2 exit asks it to fail an 81-column skill line; R5 wrapped only its seven files, so the rest of `skills/**/*.md` still runs past 80 columns `nice-to-have` (R5 ship; milestone exit)
 - [ ] T321 `README.md:218-219`'s "so those hosts take one route or the other" holds only for the three hosts that read `~/.agents/skills`: OpenCode also reads `~/.claude/skills`, whose links the symlink install keeps `nice-to-have` (R10 round-1 review)
 - [ ] T322 `README.md:348-350`'s Update sentence names no install, while the plugin section now separates the published install from a local checkout `nice-to-have` (R10 round-1 review)
+- [ ] T323 `skills/do-it/scripts/gate.mjs:120` refuses with "has no gate entry" where `run verify` uses "has no work id"; the plan asked for the verify shape `nice-to-have` (R13 round-1 review)
