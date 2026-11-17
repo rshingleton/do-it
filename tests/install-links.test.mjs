@@ -9,8 +9,9 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { planLinks, place, install } from '../scripts/install.mjs';
+import { sameTarget } from '../scripts/lib/install-state.mjs';
 import { present } from './links.mjs';
-import { eperm, miniRoot, quiet } from './mini-root.mjs';
+import { clone, eperm, miniRoot, quiet, seed } from './mini-root.mjs';
 import { gitOut } from '../skills/do-it/scripts/git.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -50,6 +51,10 @@ test('place falls back from a refused symlink: junction for a directory on Windo
   assert.equal(place(path.join(root, 'skills', 'a-it'), path.join(out, 'a-it'), { fs: record, platform: 'win32' }), 'junction');
   assert.deepEqual(types, ['dir', 'junction']);
   assert.throws(() => place(path.join(root, 'skills', 'a-it'), path.join(out, 'b'), { fs: refuse, platform: 'linux' }), { code: 'EPERM' });
+});
+
+test('the installer folds case only where the filesystem does, so a POSIX pair differing by case is two paths', { skip: process.platform === 'win32' && 'a Windows filesystem folds case' }, () => {
+  assert.equal(sameTarget('/tmp/A', '/tmp/a'), false);
 });
 
 test('with symlinks refused: copies are in the manifest, refreshed on change, and uninstall removes exactly them', { skip: process.platform !== 'win32' && 'a junction fallback needs Windows' }, () => {
@@ -163,28 +168,11 @@ test('a home other than the real one carries into the hook step, so the host con
 
 // ---- The checkout's ref in the install's closing line ----
 
-// A one-skill checkout pushed to a bare remote, and a clone of it: the clone is
-// the checkout the installer runs from, so its ref is the one the line reports.
+// The mini-root's seed and a clone of its remote: the clone is the checkout the
+// installer runs from, so its ref is the one the line reports.
 function checkout() {
-  const seed = tmpDir('do-it-seed-');
-  const remote = tmpDir('do-it-ref-remote-');
-  gitOut(seed, ['init', '-q', '-b', 'main']);
-  gitOut(seed, ['config', 'user.name', 't']);
-  gitOut(seed, ['config', 'user.email', 't@t']);
-  gitOut(seed, ['config', 'commit.gpgsign', 'false']);
-  fs.mkdirSync(path.join(seed, 'skills', 'a-it'), { recursive: true });
-  fs.writeFileSync(path.join(seed, 'skills', 'a-it', 'SKILL.md'), 'a');
-  gitOut(seed, ['add', '-A']);
-  gitOut(seed, ['commit', '-qm', 'init']);
-  gitOut(remote, ['init', '-q', '--bare', '-b', 'main']);
-  gitOut(seed, ['remote', 'add', 'origin', remote]);
-  gitOut(seed, ['push', '-q', 'origin', 'main']);
-  const root = path.join(tmpDir('do-it-ref-clone-'), 'repo');
-  gitOut(path.dirname(root), ['clone', '-q', remote, root]);
-  gitOut(root, ['config', 'user.name', 't']);
-  gitOut(root, ['config', 'user.email', 't@t']);
-  gitOut(root, ['config', 'commit.gpgsign', 'false']);
-  return { seed, remote, root };
+  const { dir, remote } = seed();
+  return { seed: dir, remote, root: clone(remote) };
 }
 
 // What an install printed, and the code it returned.
