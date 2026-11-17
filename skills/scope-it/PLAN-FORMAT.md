@@ -81,7 +81,7 @@ test/limiter.test.mjs
 `POST /login -> 429 on the 6th try`
 
 ## Link
-~/.local/share/do-it-bridge/acme-api--acme-web.md
+~/.local/share/do-it-bridge/billing-api--web-app.md
 
 ## Steps
 1. Add `Limiter` with a sliding window → verify: unit tests at `Limiter.check`
