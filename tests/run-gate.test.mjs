@@ -6,9 +6,9 @@ import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { STOPS } from '../skills/do-it/scripts/stops.mjs';
-import { gate as gateRule } from '../skills/do-it/scripts/gate.mjs';
+import { gate as gateRule, countAudit } from '../skills/do-it/scripts/gate.mjs';
 import { runGate, runRejectAssumption, runVerify } from '../skills/do-it/scripts/runs.mjs';
-import { nextSlice, showRun } from '../skills/do-it/scripts/run.mjs';
+import { nextSlice, showRun, updateRun } from '../skills/do-it/scripts/run.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // A path as a bash check spells it: forward slashes.
@@ -358,6 +358,49 @@ test('audit cap: a record already past the cap still stops the gate', () => {
   const rec2 = JSON.parse(JSON.stringify(rec));
   rec2.gates.find((g) => g.id === 'R1').audit_rounds = 2;
   assert.equal(gateRule(rec2, 'R1', { current: 'fp' }).reason, 'SLICE_AUDIT_CAP');
+});
+
+test('run audit: a refusal another writer clears before the write is not reported, and the retried round is', () => {
+  const dir = fixture(['--audit-cap', '1']);
+  audit(dir, 'R1'); // the slice's one allowed round is spent
+  let raised = false;
+  // The plan lookup a refusal makes is where the other writer lands: it raises the cap.
+  const items = {
+    get: () => {
+      if (!raised) {
+        raised = true;
+        ok(work(dir, 'run', 'set', 'road', 'audit_cap', '2'));
+      }
+      return { state: { status: 'building' } };
+    },
+  };
+  const out = countAudit(path.join(dir, 'docs/planning'), 'road', { id: 'R1', items });
+  assert.deepEqual([out.allow, out.audit_rounds], [true, 2], 'the retry\'s own answer, never the first attempt\'s refusal');
+});
+
+test('run audit: a second audit that lands in the read-modify-write window keeps its round', () => {
+  const dir = fixture(['--audit-cap', '1']);
+  const planning = path.join(dir, 'docs/planning');
+  audit(dir, 'R1'); // R1 spends its one allowed round
+  start(dir, 'R2');
+  // The refusal path looks the plan up; the second audit lands there, between this call's read and
+  // its write, so the record it read is replaced under it.
+  let landed = false;
+  const items = {
+    get: () => {
+      if (!landed) {
+        landed = true;
+        assert.equal(ok(work(dir, 'run', 'audit', 'road', 'R2')).allow, true, 'the second audit is counted');
+      }
+      return { state: { status: 'building' } };
+    },
+  };
+  const out = countAudit(planning, 'road', { id: 'R1', items });
+  assert.deepEqual([out.allow, out.audit_rounds, out.limit], [false, 1, 'slice R1'], 'R1 is still at its cap: refused and not counted');
+  const rec = showRun(planning, 'road');
+  assert.equal(rec.gates.find((g) => g.id === 'R2').audit_rounds, 1, 'the audit that landed in the window kept its round');
+  assert.equal(rec.audit_rounds, 2, 'both rounds are in the record');
+  assert.ok(rec.slices.some((s) => s.id === 'R1' && s.status === 'parked'), 'the refusal still parks R1');
 });
 
 test('run next: stops handing out slices once max_slices shipped, and says why', () => {
@@ -823,6 +866,39 @@ test('reject-assumption: a closed item has no plan to reopen, so only the record
   assert.deepEqual(t.fired, []);
   assert.equal(showRun(t.planningDir, 'road').rejected.length, 1);
   assert.throws(() => runRejectAssumption({ ...t, key: 'feat#9', instead: 'x' }), /no recorded assumption/);
+});
+
+test('updateRun: a change that writes the record again is retried on the fresh record, so neither write is lost', () => {
+  const dir = fixture();
+  const { planningDir, slug } = unit(dir);
+  let once = false;
+  const rec = updateRun(planningDir, slug, (r) => {
+    r.limits = [...r.limits, 'the slower writer'];
+    if (once) return;
+    once = true;
+    // A second writer lands between this change and its write.
+    updateRun(planningDir, slug, (other) => {
+      other.limits = [...other.limits, 'the faster writer'];
+    });
+  });
+  assert.deepEqual(rec.limits, ['the faster writer', 'the slower writer'], 'the retried change is applied to the record the other writer left');
+  assert.deepEqual(showRun(planningDir, slug).limits, ['the faster writer', 'the slower writer']);
+});
+
+test('updateRun: a record that changes on every attempt is reported as a lost update, and the losing change is never written', () => {
+  const dir = fixture();
+  const { planningDir, slug } = unit(dir);
+  assert.throws(
+    () =>
+      updateRun(planningDir, slug, (r) => {
+        r.limits = [...r.limits, 'never written'];
+        updateRun(planningDir, slug, (other) => {
+          other.limits = [...other.limits, 'always another writer'];
+        });
+      }),
+    /lost update/,
+  );
+  assert.ok(!showRun(planningDir, slug).limits.includes('never written'), 'the losing change never reached the record');
 });
 
 test('gate.mjs holds the rule and counters only: the run handlers live in runs.mjs, and commitSlice stays short', () => {

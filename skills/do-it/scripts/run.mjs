@@ -125,27 +125,38 @@ function validate(key, value) {
 }
 
 function read(file, slug) {
-  let text;
+  let bytes;
   try {
-    text = fs.readFileSync(file, 'utf8');
+    bytes = fs.readFileSync(file);
   } catch {
     throw new Error(`no run record for ${slug}: run new ${slug} first`);
   }
-  const parts = splitFrontmatter(text);
+  const parts = splitFrontmatter(bytes.toString('utf8'));
   if (!parts) throw new Error(`${file}: no run record block (YAML frontmatter)`);
   const r = parseBlock(parts.yaml);
   r.slices = Array.isArray(r.slices) ? r.slices : [];
   r.assumptions = Array.isArray(r.assumptions) ? r.assumptions : [];
   r.limits = Array.isArray(r.limits) ? r.limits : [];
   r.rejected = Array.isArray(r.rejected) ? r.rejected : [];
-  return { record: r, body: parts.body, eol: parts.eol };
+  return { record: r, body: parts.body, eol: parts.eol, bytes };
 }
 
-// A temp file and a rename, as block.mjs does: a failed write leaves the old record whole.
-function write(file, { record, body, eol }) {
+// The new record beside the old one: a write that fails leaves the old record whole.
+function stage(file, { record, body, eol }) {
   const tmp = `${file}.${process.pid}.tmp`;
   try {
     fs.writeFileSync(tmp, joinFrontmatter(writeBlock(record), body, eol ?? '\n'));
+    return tmp;
+  } catch (e) {
+    fs.rmSync(tmp, { force: true });
+    throw e;
+  }
+}
+
+// A temp file and a rename, as block.mjs does: a failed write leaves the old record whole.
+function write(file, cur) {
+  const tmp = stage(file, cur);
+  try {
     fs.renameSync(tmp, file);
   } catch (e) {
     fs.rmSync(tmp, { force: true });
@@ -153,14 +164,64 @@ function write(file, { record, body, eol }) {
   }
 }
 
-// The one read-modify-write of a record: `change(record)` edits it in place, and a throw leaves the file as it was.
+// A record that keeps changing under a change is never written over: after this many attempts the
+// caller is told its update was lost.
+const UPDATE_ATTEMPTS = 5;
+// A rename the other writer's open read refused (Windows) is a lost race, not a broken record.
+const RACE_CODES = new Set(['EPERM', 'EBUSY', 'EACCES', 'ENOENT']);
+
+// The record's bytes are still the ones read. Not its mtime: two writes in one clock tick leave it
+// equal, and only the content says whether another writer landed. A read that fails says nothing
+// about the record, so it counts as a change and the caller reads it again.
+function unchanged(file, bytes) {
+  try {
+    return fs.readFileSync(file).equals(bytes);
+  } catch {
+    return false;
+  }
+}
+
+// Replaces the record with the staged copy, unless the bytes read are no longer there. The re-read
+// is taken after the whole new record is staged, so only one system call stands between seeing the
+// old record and renaming over it. A rename the other writer's read refused is that same race.
+// shortcut: a writer that publishes inside that one call is not seen, so of two writes that land
+// together the later wins; closing that window needs the lock the plan rules out, and it is one
+// read plus one rename wide.
+function replace(file, tmp, bytes) {
+  try {
+    if (!unchanged(file, bytes)) return false;
+    fs.renameSync(tmp, file);
+    return true;
+  } catch (e) {
+    if (!RACE_CODES.has(e.code)) throw e;
+    return false;
+  }
+}
+
+// The one read-modify-write of a record: `change(record)` edits it in place, and a throw leaves the
+// file as it was. Another writer may land between the read and the write, so the bytes are read
+// again before the rename: when they moved, the change is applied again to the record that writer
+// left (never to the copy this attempt read), and a record that keeps moving is reported, not written.
 export function updateRun(planningDir, slug, change) {
   checkSlug(slug);
   const file = runPath(planningDir, slug);
-  const cur = read(file, slug);
-  change(cur.record);
-  write(file, cur);
-  return cur.record;
+  for (let attempt = 1; ; attempt++) {
+    const cur = read(file, slug);
+    change(cur.record);
+    const tmp = stage(file, cur);
+    let wrote = false;
+    try {
+      wrote = replace(file, tmp, cur.bytes);
+    } finally {
+      if (!wrote) fs.rmSync(tmp, { force: true });
+    }
+    if (wrote) return cur.record;
+    if (attempt >= UPDATE_ATTEMPTS) {
+      throw new Error(
+        `lost update: ${file} changed under ${slug} on each of ${attempt} attempts; nothing written: another writer keeps replacing the record, run the command again`,
+      );
+    }
+  }
 }
 
 // `defaults` carries the config's caps; a flag in `opts` wins over it.
