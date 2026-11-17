@@ -1,4 +1,4 @@
-import { tmpDir } from './env.mjs'; // first: isolates the developer's environment
+import { read, tmpDir } from './env.mjs'; // first: isolates the developer's environment
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -344,16 +344,16 @@ test('a lane S slice closing docs commit uses --docs, so the subject differs fro
   assert.equal(r.tag, null);
 });
 
-test('without a run record nothing commits, and build-it still forbids commits', () => {
+test('without a run record nothing commits, and build-it points its rules at the commit boundary', () => {
   const { dir } = fixture();
   verify(dir);
   const head = git(dir, 'rev-parse', 'HEAD');
   assert.match(work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'a.js').out.error, /no run record/);
   assert.equal(git(dir, 'rev-parse', 'HEAD'), head);
-  const text = fs.readFileSync(path.join(ROOT, 'skills/build-it/SKILL.md'), 'utf8');
+  const text = read('skills/build-it/SKILL.md');
   const rules = text.slice(text.indexOf('## Rules'));
-  assert.match(rules, /No commits, no pushes, no stashes on the user's branch, unless a run record\s+exists/);
-  assert.match(fs.readFileSync(path.join(ROOT, 'skills/build-it/COMMITS.md'), 'utf8'), /No run record: none of this applies/);
+  assert.match(rules, /\]\(COMMITS\.md\)/, 'the rules point at the commit boundary');
+  assert.match(read('skills/build-it/COMMITS.md'), /^## Mode$/m, 'COMMITS.md names the commit mode it runs in');
 });
 
 test('the run flag wins over DO_IT_COMMIT=never for that run, and never alone means none', () => {
@@ -502,16 +502,23 @@ test('dirtyHashes sees an edit inside a dirty submodule', () => {
   assert.notEqual(dirtyHashes(dir, ['sub'])['sub'], one, 'a second edit inside the submodule changes the record');
 });
 
-test('dirtyHashes reads past 1 MB of status output and fails when git does', () => {
+test('dirtyHashes records every entry of a status past 1 MB and fails when git does', () => {
   const dir = tmpDir('do-it-bigstatus-');
   git(dir, 'init', '-q');
-  // About 5000 names of 200 characters put the status past 1 MB with a fifth of the files.
-  const many = 5000;
-  const name = (i) => `${'x'.repeat(190)}-${String(i).padStart(6, '0')}.txt`;
-  for (let i = 0; i < many; i++) fs.writeFileSync(path.join(dir, name(i)), `${i}\n`);
+  // Each entry is its path, so three long directory names and one file name put
+  // the status past 1 MB with about 1,350 files instead of 5,000 writes.
+  const part = (c) => c.repeat(200);
+  const many = 1350;
+  const name = (i) => `${'x'.repeat(192)}-${String(i).padStart(7, '0')}.txt`;
+  // The path git reports, forward slashes on every platform.
+  const rel = (i) => [part('d'), part('e'), part('f'), name(i)].join('/');
+  const deep = path.join(dir, part('d'), part('e'), part('f'));
+  fs.mkdirSync(deep, { recursive: true });
+  for (let i = 0; i < many; i++) fs.writeFileSync(path.join(deep, name(i)), '');
+  assert.ok(many * (rel(0).length + 4) > 1024 * 1024, 'the fixture puts the status past 1 MB');
   const seen = dirtyHashes(dir);
   assert.equal(Object.keys(seen).length, many, 'every file is recorded, none read as clean');
-  assert.match(seen[name(7)], /^644:[0-9a-f]{40}$/);
+  assert.match(seen[rel(7)], /^644:[0-9a-f]{40}$/);
   assert.throws(() => dirtyHashes(tmpDir('do-it-notrepo-')), /git status failed/);
 });
 

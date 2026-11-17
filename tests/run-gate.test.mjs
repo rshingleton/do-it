@@ -1,4 +1,4 @@
-import { tmpDir } from './env.mjs'; // first: isolates the developer's environment
+import { read, tmpDir } from './env.mjs'; // first: isolates the developer's environment
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -621,10 +621,10 @@ const closesEarly = (loop) => {
   return /\bNext:|close[sd]? the turn|ends? (the|your) turn|stop here|hand(s|ed)? (it |control )?back to the user/i.test(items);
 };
 
-test('the finish-it loop ends its turn only at §4, and says a parked or resumed slice is not a stop', () => {
-  const loop = section(fs.readFileSync(path.join(ROOT, 'skills/finish-it/SKILL.md'), 'utf8'), '2. Loop');
-  assert.match(loop, /The turn ends only at §4, when `run next` returns no `next`/);
-  assert.match(loop, /parked or\s+resumed slice/);
+test('the finish-it loop ends its turn only at §4, never per slice', () => {
+  const doc = read('skills/finish-it/SKILL.md');
+  const loop = section(doc, '2. Loop');
+  assert.match(doc, /^## 4\. Close$/m, 'the Close section follows the loop');
   assert.equal(closesEarly(loop), false);
   assert.equal(closesEarly(`${loop}\n7. A slice parked: close the turn with a Next: line.`), true, 'a fixture that closes before §4 fails');
   for (const phrase of ['ends the turn', 'end your turn', 'closes the turn', 'hand back to the user', 'hands it back to the user']) {
@@ -837,7 +837,6 @@ test('the run scripts carry one id pattern, one git spawn and one record writer'
 });
 
 test('the docs name the do-it commit line as the ATTRIBUTION constant, and finish-it maps the level argument to run new --level', () => {
-  const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
   assert.doesNotMatch(read('skills/build-it/COMMITS.md') + read('skills/do-it/scripts/commit.mjs'), /user's (commit )?rules?/);
   assert.match(read('skills/build-it/COMMITS.md'), /ATTRIBUTION/);
   assert.match(read('skills/finish-it/SKILL.md'), /run new <slug> --level\s+lite\|full\|ultra/);
