@@ -184,9 +184,8 @@ function unchanged(file, bytes) {
 // Replaces the record with the staged copy, unless the bytes read are no longer there. The re-read
 // is taken after the whole new record is staged, so only one system call stands between seeing the
 // old record and renaming over it. A rename the other writer's read refused is that same race.
-// shortcut: a writer that publishes inside that one call is not seen, so of two writes that land
-// together the later wins; closing that window needs the lock the plan rules out, and it is one
-// read plus one rename wide.
+// shortcut: the re-read and the rename are two calls, so a writer that publishes between them goes
+// unseen and the later write wins; add a lock file if two writers ever lose a change with nothing reported.
 function replace(file, tmp, bytes) {
   try {
     if (!unchanged(file, bytes)) return false;

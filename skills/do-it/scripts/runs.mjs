@@ -255,29 +255,26 @@ export function runVerifyMerged({ planningDir, root, cwd, slug, id, opts, items,
   return showRun(planningDir, slug);
 }
 
-// The commit the run's own change starts at after a rebase: the point where the branch left its
-// upstream, once a rebase moved that point past the recorded base. With no upstream (a plain local
-// branch), a branch point at or behind the base, or a git that cannot answer, null keeps today's
-// base range, so a branch that never rebased reads exactly as it did.
+// The commit the run's own change starts at when a rebase rewrote the base: the point where the
+// branch left its upstream. A base still in HEAD's history (a merge, or a branch that never moved)
+// keeps today's base range, so a plain branch and a merged one read exactly as they did.
 function upstreamAnchor(inRoot, base) {
   // No remote branch to rebase onto, or a detached HEAD: the recorded base stands.
   const up = inRoot(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}']);
   if (up.error || up.status !== 0) return null;
   // A base git cannot resolve is the error the base range reports, never a silent anchor.
   if (inRoot(['rev-parse', '--verify', '--quiet', `${base}^{commit}`]).status !== 0) return null;
+  // A merge keeps the base in HEAD's history, so it is still the run's own start. Only a rebase
+  // that rewrote the base drops it, and then the branch point names where the run's change began.
+  if (inRoot(['merge-base', '--is-ancestor', base, 'HEAD']).status === 0) return null;
   const mb = inRoot(['merge-base', up.stdout.trim(), 'HEAD']);
   // Exit 1 is no common ancestor: nothing of the upstream's to leave out.
   if (mb.error || mb.status !== 0) return null;
-  const anchor = mb.stdout.trim();
-  // A branch point at or behind the base is no rebase: the branch started at or ahead of its
-  // upstream, and the base range is still the run's own change. Anywhere else the branch point
-  // moved (a rebase past the base, or a rewrite of what the base was), so the anchor names the
-  // run's change and the commits the rebase brought in stay out of it.
-  return inRoot(['merge-base', '--is-ancestor', anchor, base]).status === 0 ? null : anchor;
+  return mb.stdout.trim();
 }
 
 // `run review-change`: the change the run's final review reads. Committed work is the run's own
-// commits, `<base>...HEAD`, or from the branch's upstream point once a rebase moved it past the
+// commits from the recorded base, or from the branch's upstream point once a rebase rewrote the
 // base, so the upstream commits it brought in stay out. With commit mode none, no base, or
 // anything still uncommitted outside the planning dir (the closing docs), the working tree
 // against base, untracked files included. Planning files are never in it.
