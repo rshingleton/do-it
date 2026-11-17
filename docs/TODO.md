@@ -3,7 +3,7 @@
 Nice-to-haves and things to circle back to. Managed by log-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T325
+Next id: T326
 
 ## Open
 
@@ -113,3 +113,4 @@ Next id: T325
 - [ ] T322 `README.md:348-350`'s Update sentence names no install, while the plugin section now separates the published install from a local checkout `nice-to-have` (R10 round-1 review)
 - [ ] T323 `skills/do-it/scripts/gate.mjs:120` refuses with "has no gate entry" where `run verify` uses "has no work id"; the plan asked for the verify shape `nice-to-have` (R13 round-1 review)
 - [ ] T324 `skills/roadmap-it/SKILL.md:51-53` now runs to 120/118/116 columns, where the same text wrapped at 77/77/83 and every other line stays within 80; the file is 78 lines, so it had room `nice-to-have` (R8 round-1 review)
+- [ ] T325 `tests/run-commit.test.mjs:688` asserts `git branch --list do-it/road` is empty, which holds even while HEAD is on that unborn branch, so the assertion can never fail; `show-ref --verify` would `nice-to-have` (R14 round-1 review)
