@@ -234,9 +234,9 @@ project install to five hosts by name (Antigravity CLI, Cursor, Gemini CLI,
 GitHub Copilot, OpenCode) and credits a sixth it does not record, so no name is
 given for it here.
 
-The doctor runs none of this. A machine with either lock gets a `skills CLI:`
-line naming its scope, source, path, hash, commit and date, plus the command
-that refreshes it.
+The doctor runs none of this. A `skills CLI:` line comes from the project lock
+in the directory the doctor runs in, or from the global one, and names scope,
+source, path, hash, commit, the global lock's date and the refresh command.
 
 What the probes settle and what they cannot: the plugin route serves the
 checkout's skills, with the five do-it agents namespaced under `do-it:`, the
