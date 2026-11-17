@@ -24,6 +24,14 @@ const lines = (s) => s.split('\n').filter(Boolean);
 // A named path as the records and git list it: relative to the repo root.
 export const relative = (root, p) => path.relative(root, path.resolve(root, p)).split(path.sep).join('/');
 
+// A path as the repo sees it, or null when it leads out of the root: `..` itself, `../x` (and `..\x`
+// where the backslash separates segments), or a name an absolute result puts on another drive or root.
+// A name that merely begins with two dots (`..env`, `..foo/bar`) is an ordinary path inside the root.
+export const insideRoot = (root, p) => {
+  const rel = relative(root, p);
+  return path.isAbsolute(rel) || rel === '..' || rel.startsWith('../') ? null : rel;
+};
+
 function currentBranch(cwd) {
   const r = gitResult(cwd, ['symbolic-ref', '--quiet', '--short', 'HEAD']);
   return r.status === 0 ? r.stdout.trim() : null;
@@ -189,9 +197,8 @@ function assertCommittable({ root, run, slug, items, id, phase, docs, paths, ret
     throw new Error(`commit stages named files only, got ${paths.join(',')}`);
   }
   // Every lane commits files inside the repo; a path spelled through a symlinked root reads as outside it.
-  // A parent path is `..` itself or begins `../`; a file whose name begins with two dots (`..env`,
-  // `..foo/bar`) is an ordinary name inside the root, so only a whole `..` segment leads out.
-  const outside = paths.map((p) => relative(root, p)).filter((p) => path.isAbsolute(p) || p === '..' || p.startsWith('../'));
+  // `insideRoot` owns the rule, so a file named `..env` or `..foo/bar` stays inside the root.
+  const outside = paths.filter((p) => insideRoot(root, p) === null).map((p) => relative(root, p));
   if (outside.length) throw new Error(`commit stages files inside the repo, ${outside.join(', ')} is not; nothing committed`);
   // A directory, even one deleted from disk, would stage every edit under it, other slices' included.
   // `ls-files -z` reads names unquoted; they are compared with the path's repo-relative form.
