@@ -46,10 +46,10 @@ a. **ADRs:** each Decisions-so-far entry that passes
    and nothing later accepts a roadmap's ADR. List them by title.
 b. **Fog:** each Fog line becomes a to-do through `log-it`, with
    `source: <roadmap slug> fog` (a line already on the to-do list is skipped).
-c. **Shipped:** `## Changes` becomes a `## Shipped` bullet list, never a table (a roadmap
-   that already has `## Shipped` gets the new bullets appended to it),
-   after the slice's own dated line is added, so that line converts too. Keep
-   each `Verify unmet` clause; drop the T-id lists.
+c. **Shipped:** `## Changes` becomes a `## Shipped` bullet list, never a
+   table (a roadmap that already has `## Shipped` gets the new bullets
+   appended to it), after the slice's own dated line is added, so that line
+   converts too. Keep each `Verify unmet` clause; drop the T-id lists.
 d. **Completed:** `completed: <date>` in the frontmatter, the date of this run;
    skip d when `completed` is already set.
 e. **Milestones:** for a published roadmap, close each milestone parent with
