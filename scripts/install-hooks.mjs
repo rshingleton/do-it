@@ -24,6 +24,10 @@ const HOME = os.homedir();
 function readJson(file) {
   if (!fs.existsSync(file)) return {};
   const text = fs.readFileSync(file, 'utf8');
+  // A BOM makes JSON.parse fail at its first byte, which is not what it is.
+  if (text.charCodeAt(0) === 0xfeff) {
+    throw new Error(`${file} starts with a byte-order mark (BOM); save it as UTF-8 without one. See README "Hooks".`);
+  }
   try {
     return JSON.parse(text);
   } catch {

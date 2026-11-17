@@ -1,4 +1,5 @@
-// install-hooks.mjs as a user runs it: what it refuses to touch and what a dry run leaves alone.
+// install-hooks.mjs and install.mjs as a user runs them: what it refuses to
+// touch, what a dry run leaves alone, and what each installer edge answers.
 
 import { cleanEnv, tmpDir } from './env.mjs'; // first: isolates the developer's environment
 import { test } from 'node:test';
@@ -7,6 +8,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { install, uninstall } from '../scripts/install.mjs';
+import { plural } from '../scripts/doctor.mjs';
+import { miniRoot, quiet } from './mini-root.mjs';
+import { present, standsFor } from './links.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const INSTALL = path.join(ROOT, 'scripts', 'install-hooks.mjs');
@@ -61,3 +66,87 @@ test('a real run keeps the original in one backup, and a second run changes noth
   assert.ok(fs.readFileSync(file).equals(after));
   assert.ok(fs.readFileSync(backup).equals(original), 'the backup is never overwritten');
 });
+
+test('a settings.json starting with a BOM is reported as a BOM, not as comments', () => {
+  const { file, backup, run } = setup('\uFEFF{"model":"x"}\n');
+  const before = fs.readFileSync(file);
+  const r = run();
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /byte-order mark \(BOM\)/);
+  assert.doesNotMatch(r.stderr, /comments/);
+  assert.ok(fs.readFileSync(file).equals(before), 'the file is untouched');
+  assert.equal(fs.existsSync(backup), false, 'no backup is taken for a file that was not changed');
+});
+
+// ---- install.mjs: the root, uninstall(), and the hook steps ----
+
+const opencodeConfig = (home) => path.join(home, '.config', 'opencode', 'opencode.json');
+
+// Run `fn` with one environment variable set, then put the environment back.
+function withEnv(name, value, fn) {
+  const before = process.env[name];
+  process.env[name] = value;
+  try {
+    return fn();
+  } finally {
+    if (before === undefined) delete process.env[name];
+    else process.env[name] = before;
+  }
+}
+
+test('DO_IT_HOME moves the root, and an explicit root still wins', () => {
+  const fromEnv = miniRoot();
+  const named = miniRoot();
+  withEnv('DO_IT_HOME', fromEnv, () => {
+    const home = tmpDir('do-it-home-');
+    quiet(() => install({ home, hooks: false }));
+    assert.ok(standsFor(path.join(home, '.claude', 'skills', 'a-it'), path.join(fromEnv, 'skills', 'a-it')), 'the environment moved the root');
+
+    const other = tmpDir('do-it-home-');
+    quiet(() => install({ root: named, home: other, hooks: false }));
+    assert.ok(standsFor(path.join(other, '.claude', 'skills', 'a-it'), path.join(named, 'skills', 'a-it')), 'an explicit root wins');
+  });
+});
+
+test('uninstall() stands alone, and install({ uninstall: true }) still dispatches to it', () => {
+  const root = miniRoot();
+  const alone = tmpDir('do-it-home-');
+  quiet(() => install({ root, home: alone, hooks: false }));
+  assert.equal(quiet(() => uninstall({ root, home: alone, hooks: false })), 0);
+  assert.equal(present(path.join(alone, '.claude', 'skills', 'a-it')), false, 'the links are gone');
+
+  const flag = tmpDir('do-it-home-');
+  quiet(() => install({ root, home: flag, hooks: false }));
+  assert.equal(quiet(() => install({ root, home: flag, hooks: false, uninstall: true })), 0);
+  assert.equal(present(path.join(flag, '.claude', 'skills', 'a-it')), false, 'the option still removes');
+});
+
+test('a commented settings.json fails the Claude removal and the OpenCode hooks are still removed', () => {
+  const root = miniRoot();
+  const home = tmpDir('do-it-home-');
+  quiet(() => install({ root, home }));
+  const settings = path.join(home, '.claude', 'settings.json');
+  const broken = '// my settings\n{ "model": "x" }\n';
+  fs.writeFileSync(settings, broken);
+  const code = quiet(() => install({ root, home, uninstall: true }));
+  assert.equal(code, 1, 'the Claude failure is the exit code');
+  assert.equal(fs.readFileSync(settings, 'utf8'), broken, 'the refused file is untouched');
+  assert.deepEqual(JSON.parse(fs.readFileSync(opencodeConfig(home), 'utf8')), {}, 'the OpenCode hooks were removed');
+});
+
+test('a commented settings.json fails the Claude install and the OpenCode hooks are still registered', () => {
+  const root = miniRoot();
+  const home = tmpDir('do-it-home-');
+  fs.mkdirSync(path.join(home, '.claude'), { recursive: true });
+  fs.writeFileSync(path.join(home, '.claude', 'settings.json'), '// keep\n{ "model": "x" }\n');
+  const code = quiet(() => install({ root, home }));
+  assert.equal(code, 1, 'the Claude failure is the exit code');
+  const config = JSON.parse(fs.readFileSync(opencodeConfig(home), 'utf8'));
+  assert.ok(config.plugin ?? config.plugins, 'the OpenCode hooks were registered');
+});
+
+test('one plural helper: the commit count keeps its singular word', () => {
+  assert.equal(plural(1, 'commit', 'commits'), '1 commit');
+  assert.equal(plural(2, 'commit', 'commits'), '2 commits');
+});
+

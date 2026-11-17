@@ -551,7 +551,9 @@ export function doctor({ root = ROOT, home = os.homedir(), configHome, fetch = f
   return { root, home, configHome, ref, findings, routes, notOurs: scan.notOurs, ok: findings.every((f) => f.state === 'ok') && !behind && !stale };
 }
 
-const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+// One number with its word: the doctor's ref footer and the install line both
+// read a count of commits this way.
+export const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
 // One indented line per route, after the checkout's ref: its state, its detail
 // and the command that updates it, or the words for a route nothing is on.
