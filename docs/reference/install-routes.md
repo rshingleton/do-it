@@ -69,8 +69,14 @@ summary 110 entries: 110 ok; 49 entries not ours (left alone)
   ref: <branch> @ <sha>, upstream <upstream ref> (0 ahead, 0 behind), <followed ref> (1 behind), fetched 8h ago
   ref: 1 commit behind <followed ref>; the install follows it  fix: git -C <checkout> pull --ff-only
   plugin: ok, the folder is 0.2.0, the manifest 0.2.0; the host reads this checkout in place
-  skills CLI: not installed on this route
+  skills CLI: not installed on this route  fix: npx skills@latest add <checkout>
+  hooks: ok, the config registers <checkout>\.opencode\do-it-plugin
 ```
+
+A fresh clone has no `FETCH_HEAD` to age, so its footer reads `cloned, not yet
+fetched` instead of naming a fetch: the refs the counts came from arrived with
+the clone, and nothing has moved them since. A checkout that never had a remote
+keeps `never fetched`.
 
 An entry finding carries its own fix, the installer that places it: `fix: node
 <checkout>\scripts\install.mjs`. An edited copy gets the same command with
@@ -131,45 +137,19 @@ So each route is asked, headless, from a temp directory outside this repo
 **Claude Code plugin route.** From the temp directory above:
 
 ```bash
-claude -p "List the exact names of every available skill whose name starts with it- or do-it-" --output-format json
+claude -p "List the exact names of every available skill whose name ends with -it. Names only, one per line." --output-format json
 ```
 
-The JSON envelope's `result` field:
-
-```text
-No available skill has a name starting with `it-` or `do-it-`. The skills in the do-it family are named `debug-it`, `design-it`, `doubt-it`, `grill-it`, `guard-it`, `link-it`, `log-it`, `look-it-up`, `map-it`, `merge-it`, `name-it`, `review-it`, `sketch-it`, `skill-it`, `sweep-it`, `test-it` and `track-it`. They all end in `-it` rather than starting with it.
-
-`it-builder`, `it-planner`, `it-reviewer`, `it-scout` and `it-skeptic` (also listed as `do-it:it-*`) do exist, but they are agent types, not skills.
-```
+The JSON envelope's `result` field prints the names, one per line.
 
 **Symlink install route.** From the same directory, on the configured default
 model (no `-m`):
 
 ```bash
-opencode run "List the exact names of every available skill whose name starts with it- or do-it-"
-```
-
-The host printed its model line and one Glob line above this answer:
-
-```text
-**None.** No available skill has a name starting with `it-` or `do-it-`. I checked the full available-skills list and the skill directories on disk to confirm.
-
-You may be thinking of two nearby things:
-
-- **Subagents (not skills)** named with an `it-` prefix: `it-builder`, `it-planner`, `it-reviewer`, `it-scout`, `it-skeptic`. These are spawned via the subagent tool, not loaded as skills.
-- **Skills ending in `-it`** (suffix, not prefix): `debug-it`, `design-it`, `doubt-it`, `grill-it`, `guard-it`, `link-it`, `log-it`, `map-it`, `merge-it`, `name-it`, `review-it`, `sketch-it`, `skill-it`, `sweep-it`, `test-it`, `track-it`.
-```
-
-Both answered the question as asked: no skill name starts with `it-` or
-`do-it-`, because every name carries `it` as an inner segment, most of them as a
-suffix. The names the Claude Code answer reported (`it-builder` and the rest)
-are the namespaced agents, not skills. As a probe of what loads, the question
-was the wrong shape, so it was asked again with the suffix:
-
-```bash
-claude -p "List the exact names of every available skill whose name ends with -it. Names only, one per line." --output-format json
 opencode run "List the exact names of every available skill whose name ends with -it. Names only, one per line."
 ```
+
+The host prints its model line and one Glob line above the answer.
 
 Both printed the same sixteen, in this order:
 
@@ -200,6 +180,23 @@ typed (`build-it`, `deepen-it`, `do-it`, `finish-it`, `it-core`, `pass-it`,
 `usage-it`), carry `disable-model-invocation`, and never appear in a bare
 prompt's skill list: the host hides them from the model, so a probe can only
 witness them by typing the slash command.
+
+### The question has to ask for the suffix
+
+The first version of this probe asked for every skill whose name starts with
+`it-` or `do-it-`, and both hosts answered that no such skill exists:
+
+```text
+No available skill has a name starting with `it-` or `do-it-`. The skills in the
+do-it family are named ... They all end in `-it` rather than starting with it.
+```
+
+That answer was right: every do-it name carries `it` as an inner segment, most
+of them as a suffix, so a prefix question can match none of them. The names it
+did report beside the answer, `it-builder` and the rest, are the namespaced
+agents, not skills. A probe written that way measures nothing, which is why the
+commands above ask for the suffix, and the routes test pins both directions: the
+suffix question finds the sixteen, the prefix one none.
 
 ### The CLI route, probed on macOS
 

@@ -124,16 +124,25 @@ function opencodeForm(config) {
   return 1;
 }
 
-export function mergeOpencode(config, root, { strip = false, major = 1 } = {}) {
+// The paths a registration of this checkout's plugin can name: the folder the
+// v2 host loads, its entry file for the v1 form, and the old `plugins/` name, so
+// an install that predates the move is recognised either way. The doctor reads
+// this list back against the config this step writes.
+export function pluginPaths(root) {
   // Not `plugin/` or `plugins/`: OpenCode 2 discovers both directory names
   // inside a project, so a checkout opened directly would load its plugin twice
   // (once by discovery, once by this registration).
   const dir = path.join(root, '.opencode', 'do-it-plugin');
   // The old name, so an install that predates the move is replaced, not kept beside it.
   const legacy = path.join(root, '.opencode', 'plugins');
-  const own = [dir, path.join(dir, 'do-it.mjs'), legacy, path.join(legacy, 'do-it.mjs')];
+  // Both per host: the folder a v2 host loads, the entry file a v1 host does.
+  return [dir, path.join(dir, 'do-it.mjs'), legacy, path.join(legacy, 'do-it.mjs')];
+}
+
+export function mergeOpencode(config, root, { strip = false, major = 1 } = {}) {
+  const own = pluginPaths(root);
+  const [dir, file] = own;
   const mine = (p) => own.some((o) => p === o || sameTarget(p, o));
-  const file = path.join(dir, 'do-it.mjs');
   const next = { ...config };
   for (const key of ['plugin', 'plugins']) {
     if (Array.isArray(next[key])) next[key] = next[key].filter((p) => !mine(p));

@@ -210,7 +210,7 @@ test('an install from a checkout behind its remote ends with the sha, the branch
 
   const { code, lines } = printed(() => install({ root, home, hooks: false }));
   assert.equal(code, 0);
-  assert.equal(refLine(lines), `installed from ${root} at ${shortSha(root)} (main), 1 commit behind origin/main; last fetch just now`);
+  assert.equal(refLine(lines), `installed from ${root} at ${shortSha(root)} (main), 1 commit behind origin/main; fetched just now`);
   assert.equal(lines.at(-1), refLine(lines), 'the ref line is the last thing an install prints');
 
   assert.equal(gitOut(root, ['rev-parse', 'HEAD']), before.head, 'HEAD is where it was');
@@ -224,12 +224,12 @@ test('a checkout level with its remote says up to date, and a dry run prefixes t
   const home = tmpDir('do-it-home-');
   const real = printed(() => install({ root, home, hooks: false }));
   assert.equal(real.code, 0);
-  assert.equal(refLine(real.lines), `installed from ${root} at ${shortSha(root)} (main), up to date with origin/main; never fetched`);
+  assert.equal(refLine(real.lines), `installed from ${root} at ${shortSha(root)} (main), up to date with origin/main; cloned, not yet fetched`);
 
   const dryHome = tmpDir('do-it-home-');
   const dry = printed(() => install({ root, home: dryHome, hooks: false, dry: true }));
   assert.equal(dry.code, 0);
-  assert.equal(refLine(dry.lines), `would install from ${root} at ${shortSha(root)} (main), up to date with origin/main; never fetched`);
+  assert.equal(refLine(dry.lines), `would install from ${root} at ${shortSha(root)} (main), up to date with origin/main; cloned, not yet fetched`);
   assert.deepEqual(fs.readdirSync(dryHome), [], 'a dry run creates nothing');
 });
 
@@ -245,7 +245,7 @@ test('a run whose hooks fail still prints the ref line, because it prints before
   fs.writeFileSync(path.join(home, '.claude', 'settings.json'), '{ not json');
   const out = printed(() => install({ root, home, hooks: true }));
   assert.equal(out.code, 1, 'the hook failure is still the exit code');
-  assert.equal(refLine(out.lines), `installed from ${root} at ${shortSha(root)} (main), up to date with origin/main; never fetched`);
+  assert.equal(refLine(out.lines), `installed from ${root} at ${shortSha(root)} (main), up to date with origin/main; cloned, not yet fetched`);
 });
 
 test('a checkout that is not a git repository installs as before, with no ref line', () => {

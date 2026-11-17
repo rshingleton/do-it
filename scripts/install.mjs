@@ -27,18 +27,29 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { ROOT } from './lib/skills.mjs';
 import { hashFile, norm, readManifest, sameTarget, under, writeManifest } from './lib/install-state.mjs';
-// doctor.mjs imports this module's plan, so the two read each other; both
-// imports are function declarations, available before either body runs.
-import { ageOf, plural, readRef } from './doctor.mjs';
+// The ref this installer prints comes from lib/read-ref.mjs, so the doctor can
+// plan its links through this module without the two importing each other.
+import { fetchText, plural, readRef } from './lib/read-ref.mjs';
 import { isMain } from '../skills/it-core/scripts/is-main.mjs';
 
 const USAGE = 'usage: install.mjs [--no-hooks] [--force] [--dry-run] [--uninstall]';
+
+// A directory with nothing in it is not a skill. An untracked `skills/<name>`
+// made and then emptied would otherwise be planned, linked and, in the doctor's
+// read-back, reported as installed.
+const filled = (dir) => {
+  try {
+    return fs.readdirSync(dir).length > 0;
+  } catch {
+    return false;
+  }
+};
 
 const entries = (dir, want) => {
   try {
     return fs
       .readdirSync(dir, { withFileTypes: true })
-      .filter((d) => (want === 'dir' ? d.isDirectory() : d.isFile() && d.name.endsWith('.md')))
+      .filter((d) => (want === 'dir' ? d.isDirectory() && filled(path.join(dir, d.name)) : d.isFile() && d.name.endsWith('.md')))
       .map((d) => d.name)
       .sort();
   } catch {
@@ -172,10 +183,10 @@ function checkoutRef(root) {
   }
 }
 
-// The line an install ends with: the commit it came from, and how far this
-// checkout is behind the ref the install follows. Null when git cannot answer,
-// so an install prints what it always printed and carries on. `dry` says what
-// would be installed rather than what was.
+// The line an install ends with: the commit it came from, how far this checkout
+// is behind the ref the install follows, and where those counts came from.
+// Null when git cannot answer, so an install prints what it always printed and
+// carries on. `dry` says what would be installed rather than what was.
 function installLine(ref, { root, dry }) {
   if (ref.unknown) return null;
   const at = `${dry ? 'would install from' : 'installed from'} ${root} at ${ref.sha} (${ref.branch ?? 'detached HEAD'})`;
@@ -184,8 +195,7 @@ function installLine(ref, { root, dry }) {
   const where = followed.behind > 0
     ? `${plural(followed.behind, 'commit', 'commits')} behind ${followed.name}`
     : `up to date with ${followed.name}`;
-  const fetched = ref.fetchedAt ? `last fetch ${ageOf(ref.fetchedAt)}` : 'never fetched';
-  return `${at}, ${where}; ${fetched}`;
+  return `${at}, ${where}; ${fetchText(ref)}`;
 }
 
 // Remove what this checkout's install put down, and only that: links into this
