@@ -3,7 +3,7 @@
 Nice-to-haves and things to circle back to. Managed by log-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T328
+Next id: T329
 
 ## Open
 
@@ -109,3 +109,4 @@ Next id: T328
 - [ ] T325 `tests/run-commit.test.mjs:688` asserts `git branch --list do-it/road` is empty, which holds even while HEAD is on that unborn branch, so the assertion can never fail; `show-ref --verify` would `nice-to-have` (R14 round-1 review)
 - [ ] T326 `tests/run-gate.test.mjs:624-633` stopped pinning `skills/finish-it/SKILL.md:37-38`, so deleting "a parked or resumed slice" leaves it green while the test name still claims it `nice-to-have` (R11 round-1 review)
 - [ ] T327 `evals/routing.json:164,169` share the clause "one failing test at a time"; a reword keeps the positives distinct `nice-to-have` (R17 round-1 review)
+- [ ] T328 `tests/run-gate.test.mjs:862-865`'s users scan is unobservable: every `run.mjs` export also appears in `skills/do-it/scripts`, so deleting the tests/hooks/plugin spreads stays green; a test-only export fixture would pin it `nice-to-have` (R12 round-1 review)
