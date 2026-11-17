@@ -35,12 +35,13 @@ symlink install fills, and replaces its links with copies. Either way, one
 route per host ([ADR 0013](../adr/0013-routes-and-the-version-gate.md)).
 
 Every command in the Update column is one `node scripts/doctor.mjs` prints, on
-the finding it fixes. With all 110 entries ok, the plugin current and no CLI entry
-recorded, this checkout's own run prints one of them: the ref fix in the footer.
-The others print on their own finding: the symlink install command on any entry
-that is not ok (shown below), `/plugin marketplace update do-it` on a stale
-plugin the host reads in place, `claude plugin update do-it@do-it` on a stale
-cached one, `npx skills@latest update` on a recorded CLI git entry, and
+the finding it fixes. With all 110 entries ok, the plugin current and no CLI
+entry recorded, this checkout's own run prints one of them: the ref fix in the
+footer. The others print on their own finding:
+`node <checkout>\scripts\install.mjs`, the doctor's install fix, on any entry
+that is not ok (shown below); `/plugin marketplace update do-it` on a stale
+plugin the host reads in place; `claude plugin update do-it@do-it` on a stale
+cached one; `npx skills@latest update` on a recorded CLI git entry; and
 `npx skills@latest add <path>` on a recorded local one (`scripts/doctor.mjs`,
 the plugin and CLI route sections).
 
