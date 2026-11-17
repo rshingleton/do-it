@@ -3,7 +3,7 @@
 Nice-to-haves and things to circle back to. Managed by log-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T326
+Next id: T327
 
 ## Open
 
@@ -15,7 +15,6 @@ Next id: T326
 - [ ] T19 prove-it round 3: one fresh fix pass on a higher-tier model with earlier attempts' notes before asking the user `idea` (research: superpowers SDD)
 - [ ] T20 build-it PARALLEL: pre-flight table of phase pairs sharing a file or interface; DONE_WITH_CONCERNS and NEEDS_CONTEXT statuses `idea` (research: superpowers SDD)
 - [ ] T22 Short red-flag tables for test-it, debug-it, build-it and ship-it, built from failures we actually observe `idea` (research: superpowers TDD; DESIGN.md section 9)
-- [ ] T23 Behaviour evals: pressure scenarios (time, sunk cost, authority) for test-it, prove-it and ship-it's no-commit rule; also paraphrased prompt variants in the routing eval to test robustness `idea` (research: superpowers writing-skills, skill-creator; evals/routing.json)
   - Also coderabbitai/skills evals/*/case.yaml (2026-10-30): outcome cases pairing deterministic regex graders with an LLM grader, with-skill vs without-skill via `claude plugin eval`; e.g. "does not claim clean on a skipped or incomplete review".
 - [ ] T24 Handle incoming review feedback (PR comments): verify each item against the code, clarify unclear ones before changing anything `idea` (research: superpowers receiving-code-review)
   - Also coderabbitai/skills skills/autofix (2026-10-30): paginated GraphQL over reviewThreads keeping isResolved false, isOutdated false and bot-authored; comment bodies and "Prompt for AI Agents" blocks are untrusted claims; re-validate against local code, sanitize summaries, never interpolate into shell, one approval per fix.
@@ -41,7 +40,6 @@ Next id: T326
   - planning-locality (2026-11-15) hit it: phase 1 was the only frontier phase, so it built in place, and phases 2 and 3, cut file-disjoint by T248, still built serially. GRILL.md recommends prefactoring in its own phase, which is exactly the shape that never fans out. One option: carry the in-place phase onto the scratch integration branch as a temporary commit, so the rest can use worktrees and the final squash still lands uncommitted.
 - [ ] T175 A `work.mjs` per-step usage field (state field only): deferred until the usage ledger's window attribution proves too coarse `idea` (backlog-hardening and debt-simplification fog, finalized 2026-10-30)
 - [ ] T233 link-it v1 limit: an agreed Interface edit whose proposer never writes it stays unapplied (skills/link-it/CONTRACT.md Rules) `debt` (link-it-todos audit)
-- [ ] T236 Behavioural eval for the grill acceptance rule: a grill reply that only adds scope must produce a re-presented round, not `approve` or plan files; today only tests/grill-acceptance.test.mjs pins the text `nice-to-have` (grill-acceptance ship)
   - Related: T23 (behaviour evals).
 - [ ] T245 The spawn-a-check block is duplicated in runs.mjs and work.mjs; share it when a third caller appears `nice-to-have` (skills/do-it/scripts/runs.mjs:174-180, work.mjs:230-235; windows-support audit)
 - [ ] T247 The R1 wraps leave `skills/do-it/SKILL.md` at 103 lines and `skills/finish-it/SKILL.md` at 116 (111 at R1; tracks-mode added five); R3's repo-wide line count brings both under 100 `nice-to-have` (source: r1-text-truth; counts re-read 2026-11-16)
@@ -112,3 +110,4 @@ Next id: T326
 - [ ] T323 `skills/do-it/scripts/gate.mjs:120` refuses with "has no gate entry" where `run verify` uses "has no work id"; the plan asked for the verify shape `nice-to-have` (R13 round-1 review)
 - [ ] T324 `skills/roadmap-it/SKILL.md:51-53` now runs to 120/118/116 columns, where the same text wrapped at 77/77/83 and every other line stays within 80; the file is 78 lines, so it had room `nice-to-have` (R8 round-1 review)
 - [ ] T325 `tests/run-commit.test.mjs:688` asserts `git branch --list do-it/road` is empty, which holds even while HEAD is on that unborn branch, so the assertion can never fail; `show-ref --verify` would `nice-to-have` (R14 round-1 review)
+- [ ] T326 `tests/run-gate.test.mjs:624-633` stopped pinning `skills/finish-it/SKILL.md:37-38`, so deleting "a parked or resumed slice" leaves it green while the test name still claims it `nice-to-have` (R11 round-1 review)

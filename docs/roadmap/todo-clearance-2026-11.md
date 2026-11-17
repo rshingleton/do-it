@@ -94,7 +94,7 @@ behaviour turns a test red, and one fixture helper serves each class.
 
 | Slice | Kind | Delivers | Covers | Files | Blocked by | Verify | Risk | Status |
 |-------|------|----------|--------|-------|------------|--------|------|--------|
-| R11 | build | Test hygiene: the FINALIZE test pins the path reference and counts rules by content, the ship-it, finalize, finish-it and build-it tests pin headings and links not sentences, one file-level read helper replaces six copies, and the 1 MB status test finishes under 2 s Items: T202, T213 | G3 | tests/work.test.mjs, tests/run-gate.test.mjs, tests/run-commit.test.mjs, tests/audit-convergence.test.mjs | none | Rewording a pinned sentence leaves `npm test` green; deleting the Paths line fails it; the 1 MB test runs under 2 s | low | |
+| R11 | build | Test hygiene: the FINALIZE test pins the path reference and counts rules by content, the ship-it, finalize, finish-it and build-it tests pin headings and links not sentences, one file-level read helper replaces six copies, and the 1 MB status test finishes under 2 s Items: T202, T213 | G3 | tests/work.test.mjs, tests/run-gate.test.mjs, tests/run-commit.test.mjs, tests/audit-convergence.test.mjs | none | Rewording a pinned sentence leaves `npm test` green; deleting the Paths line fails it; the 1 MB test runs under 2 s | low | shipped 2026-11-16 r11-test-hygiene |
 | R12 | build | Gate and export tests: the STOPS-code test calls `nextSlice`, the flaky fixture quotes its temp path, the audit-stop resume test gains an R1-vs-R10 prefix case, the unused-export check scans tests and hooks, and equal-text rejects tell a plan-side reject from a hand edit Items: T191, T222 | G3 | tests/run-gate.test.mjs, tests/digest.test.mjs, tests/work.test.mjs | none | Renaming MAX_SLICES fails a test; an export used only in tests is not flagged; the two equal-text tests fail for different reasons | low | |
 | R13 | build | Gate leftovers: the gate.mjs header names runs.mjs and work.mjs as callers, the structure test finds `commitSlice` at any indent and reads runs.mjs once, a reading `gate` adds no gates entry, `run audit` on an unknown slice spends no round, STOPS says resumed rounds stay in the run total Items: T185, T193 | G3 | skills/do-it/scripts/gate.mjs, skills/finish-it/STOPS.md, tests/run-gate.test.mjs | none | `run audit road R9` leaves no R9 gates entry; removing the read-path find fails a test; the header names both callers | med | shipped 2026-11-16 r13-gate-leftovers |
 | R14 | build | Guard and undo tests: the guard subdirectory test splits into four assertions, the `git add` all-untracked branch is pinned, `rejectedCommit` sets core.hooksPath, the unborn-repo undo has a test, and a rethrown error keeps its stack Items: T190, T210 | G3 | tests/run-commit.test.mjs, tests/hooks.test.mjs | none | A developer's global core.hooksPath changes no new test; the unborn undo runs; removing the untracked branch changes an assertion | med | shipped 2026-11-16 r14-hook-undo-tests |
@@ -242,6 +242,10 @@ Exit: `docs/TODO.md` has no open line, no issue has `status: open`, and
   writes no branch, which holds one and says why (R67, T298).
 
 ## Changes
+- 2026-11-16: R11 shipped (r11-test-hygiene): the FINALIZE test pins the whole
+  Paths set and counts the never-list by content, the docs tests pin headings
+  and links, six reads share one helper, and the 1 MB test runs in under a
+  second.
 - 2026-11-16: R15 shipped (r15-locality-test-names): the locality tests pick
   their fence by heading and assert a match before use, so a rename names the
   field.
