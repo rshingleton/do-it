@@ -3,7 +3,7 @@
 Nice-to-haves and things to circle back to. Managed by log-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T333
+Next id: T335
 
 ## Open
 
@@ -114,3 +114,5 @@ Next id: T333
 - [ ] T330 `skills/do-it/scripts/work.mjs:129`'s `planningExclude` still filters with `!rel.startsWith('..')`, so a root-level `..plans` directory yields an empty exclude and its files enter the fingerprint; use `insideRoot` there too `nice-to-have` (R20 round-1 review)
 - [ ] T331 `skills/do-it/scripts/commit.mjs:104`'s `worktreeRenames` keeps only `isFile()` names, so a renamed symlink is unpaired and its old path never reads `gone` `nice-to-have` (R20 round-1 review)
 - [ ] T332 `skills/usage-it/scripts/usage.mjs:123-124` and `ledger.mjs:91` still say a record counted whole is placed "by their last message", but after R25 the "before time buckets" label fires only on a record with no `at`, which `ledger.mjs:112-113` places by its `start` `nice-to-have` (R25 review)
+- [ ] T333 `skills/do-it/scripts/digest.mjs:25` marks an `earlier` entry by appending `(earlier)`, so a replacement text that already ends that way and is re-added prints `(earlier) (earlier)` `nice-to-have` (R19 review)
+- [ ] T334 `skills/do-it/scripts/digest.mjs:16` uses `Number.isFinite(Number(v))`, so a usage figure of `true` prints `input 1` and `[5]` prints 5; require a number or numeric string `nice-to-have` (R19 review)
