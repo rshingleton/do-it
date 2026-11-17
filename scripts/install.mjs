@@ -198,6 +198,56 @@ function installLine(ref, { root, dry }) {
   return `${at}, ${where}; ${fetchText(ref)}`;
 }
 
+// The directories an install fills, each with the checkout's directory its links
+// point into: everything under the first that is a link into the second is ours.
+function installDirs(root, home, configHome) {
+  return [
+    [path.join(home, '.claude', 'skills'), path.join(root, 'skills')],
+    [path.join(home, '.agents', 'skills'), path.join(root, 'skills')],
+    [path.join(home, '.claude', 'agents'), path.join(root, 'agents')],
+    [path.join(configHome, 'opencode', 'command'), path.join(root, '.opencode', 'command')],
+    [path.join(configHome, 'opencode', 'commands'), path.join(root, '.opencode', 'commands')],
+    [path.join(configHome, 'opencode', 'agents'), path.join(root, '.opencode', 'agents')],
+  ];
+}
+
+// The links into this checkout that the plan no longer lists: a skill since
+// renamed or removed, a directory the plan now leaves out, or a source deleted
+// after the install. The doctor calls each one an orphan and its fix is this
+// installer, so the installer is what removes them; a link the plan lists is
+// placed or refreshed by the loop that follows.
+function pruneOrphans(root, home, configHome, plan, { dry, say, run }) {
+  const planned = new Map(); // destination directory -> the names the plan puts there
+  for (const { dst } of plan) {
+    const dir = path.dirname(dst);
+    if (!planned.has(dir)) planned.set(dir, new Set());
+    planned.get(dir).add(path.basename(dst));
+  }
+  for (const [dir, prefix] of installDirs(root, home, configHome)) {
+    let names = [];
+    try {
+      names = fs.readdirSync(dir);
+    } catch {
+      continue;
+    }
+    for (const name of names) {
+      if (planned.get(dir)?.has(name)) continue;
+      const entry = path.join(dir, name);
+      if (!lstat(entry)?.isSymbolicLink()) continue;
+      let target;
+      try {
+        target = fs.readlinkSync(entry);
+      } catch {
+        continue;
+      }
+      if (!under(target, prefix)) continue;
+      if (dry) run(`rm ${entry}`);
+      else removeEntry(entry);
+      say(`unlink ${entry} (the plan does not list it)`);
+    }
+  }
+}
+
 // Remove what this checkout's install put down, and only that: links into this
 // checkout, and copies whose hash still matches the manifest. `install({
 // uninstall: true })` dispatches here, so callers keep their one entry point.
@@ -207,14 +257,7 @@ export function uninstall({ root, home = os.homedir(), configHome, hooks = true,
   const say = (s) => console.log(s);
   const run = (what) => dry && say(`would: ${what}`);
   const manifest = readManifest(home);
-  const dirs = [
-    [path.join(home, '.claude', 'skills'), path.join(root, 'skills')],
-    [path.join(home, '.agents', 'skills'), path.join(root, 'skills')],
-    [path.join(home, '.claude', 'agents'), path.join(root, 'agents')],
-    [path.join(configHome, 'opencode', 'command'), path.join(root, '.opencode', 'command')],
-    [path.join(configHome, 'opencode', 'commands'), path.join(root, '.opencode', 'commands')],
-    [path.join(configHome, 'opencode', 'agents'), path.join(root, '.opencode', 'agents')],
-  ];
+  const dirs = installDirs(root, home, configHome);
   // Every link into this checkout, including links to skills since renamed or removed.
   for (const [dir, prefix] of dirs) {
     let names = [];
@@ -269,6 +312,10 @@ export function install({ root, home = os.homedir(), configHome, hooks = true, f
   const run = (what) => dry && say(`would: ${what}`);
   const manifest = readManifest(home);
   const plan = planLinks(root, home, configHome);
+
+  // Before the plan: an orphan link into this checkout has no place in it, and
+  // removing it first lets a renamed entry take the name back in the same run.
+  pruneOrphans(root, home, configHome, plan, { dry, say, run });
 
   const copies = new Map(manifest.map((c) => [c.dst, c]));
   const made = [];

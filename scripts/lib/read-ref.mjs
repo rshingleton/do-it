@@ -16,11 +16,14 @@ export const firstLine = (text) => String(text ?? '').trim().split('\n')[0].repl
 // Every read is a local one: the remote moves only when `fetch` asks it to. Each
 // count comes from a remote-tracking ref, so a checkout that has not fetched
 // reports what it knew at its last fetch, or what its clone brought in; which of
-// the two is said beside the counts, and so is the age of FETCH_HEAD. A clone
-// writes the remote refs and no FETCH_HEAD, while a repository that has never
-// fetched has neither: a missing FETCH_HEAD beside a followed ref is the clone's
-// own state, not a fetch the user forgot. `unknown` carries the reason git could
-// not answer.
+// the two is said beside the counts, and so is the age of FETCH_HEAD. A second
+// checkout shape has the remote refs and no FETCH_HEAD too: `git init`, local
+// commits, `git remote add` and `git push -u` leaves origin/main behind without
+// any clone. The two are told apart by the remote's symbolic HEAD, `refs/remotes/
+// <remote>/HEAD`, which only a clone (or `git remote set-head`) writes, so its
+// presence beside a followed ref is the clone's own state and its absence is a
+// repository that has never fetched. `unknown` carries the reason git could not
+// answer.
 export function readRef({ root, fetch = false } = {}) {
   const at = (args) => {
     try {
@@ -75,6 +78,12 @@ export function readRef({ root, fetch = false } = {}) {
   const gitDir = common.status === 0 ? path.resolve(root, common.stdout.trim()) : path.join(root, '.git');
   const fetched = fs.statSync(path.join(gitDir, 'FETCH_HEAD'), { throwIfNoEntry: false });
 
+  // The remote whose ref the counts came from: `origin/main` names `origin`,
+  // `up/main` names `up`. Only a clone writes that remote's symbolic HEAD, so a
+  // checkout without one was pushed to, not cloned from.
+  const remote = followed?.name.split('/')[0];
+  const cloneHead = remote && at(['symbolic-ref', '--quiet', `refs/remotes/${remote}/HEAD`]).status === 0;
+
   const ref = {
     branch: head && head !== 'HEAD' ? head : null,
     sha: sha.stdout.trim(),
@@ -84,7 +93,7 @@ export function readRef({ root, fetch = false } = {}) {
     behindMain: vsMain ? vsMain.behind : null,
     followed,
     fetchedAt: fetched ? fetched.mtime.toISOString() : null,
-    cloned: !fetched && followed !== null,
+    cloned: !fetched && Boolean(cloneHead),
   };
   if (fetchError) ref.fetchError = fetchError;
   return ref;

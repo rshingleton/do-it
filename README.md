@@ -332,14 +332,15 @@ node scripts/doctor.mjs --json   # the same report, for a script
 ```
 
 It prints one line per link and per recorded copy, a summary, the checkout's ref
-and fetch age, and one line for each of the other two routes. Every finding
-names its fix: `node <clone>/scripts/install.mjs` for the symlink route,
-`git -C <clone> pull --ff-only` when the checkout is behind the ref its install
-follows (`origin/main` when it exists, else the branch's upstream),
-`/plugin marketplace update do-it` for the plugin (or
-`claude plugin update do-it@do-it` for a cached copy),
-`npx skills@latest update` for a CLI git install, or `npx skills@latest add
-<path>` for a CLI install from a local path. It runs none of them.
+and where its counts came from, and one line for each of the other three routes.
+Every finding names its fix: `node <clone>/scripts/install.mjs` for the symlink
+route; `git -C <clone> pull --ff-only` when the checkout is behind the ref its
+install follows (`origin/main` when it exists, else the branch's upstream);
+`/plugin marketplace update do-it` for the plugin, or `claude plugin update
+do-it@do-it` for a cached copy; `npx skills@latest add <path>` for a route the
+CLI never installed and `npx skills@latest update` for a CLI git install; and
+`node <clone>/scripts/install-hooks.mjs opencode` for the OpenCode config. It
+runs none of them.
 
 **Update:** re-run the one-liner, which pulls the clone and re-links; or
 `git -C ~/.local/share/do-it pull --ff-only` then
