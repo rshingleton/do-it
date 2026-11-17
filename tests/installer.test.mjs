@@ -178,3 +178,33 @@ test('one plural helper: the commit count keeps its singular word', () => {
   assert.equal(plural(2, 'commit', 'commits'), '2 commits');
 });
 
+// ---- install-hooks.mjs: which OpenCode form, and where the answer came from ----
+
+// No `opencode` on PATH, so `opencode --version` cannot answer.
+const opencodeRun = (home) => spawnSync(process.execPath, [INSTALL, 'opencode'], { encoding: 'utf8', env: cleanEnv({ PATH: tmpDir('do-it-nopath-') }, home) });
+const opencodeFile = (home) => path.join(home, '.config', 'opencode', 'opencode.json');
+
+test("with no version to ask, the config's plugins key names the OpenCode 2 form", () => {
+  const home = tmpDir('do-it-inst-');
+  fs.mkdirSync(path.join(home, '.config', 'opencode'), { recursive: true });
+  fs.writeFileSync(opencodeFile(home), JSON.stringify({ plugins: ['other'] }));
+  const r = opencodeRun(home);
+  assert.equal(r.status, 0, r.stderr);
+  const config = JSON.parse(fs.readFileSync(opencodeFile(home), 'utf8'));
+  assert.equal(config.plugin, undefined, 'no v1 key beside the v2 one');
+  assert.equal(config.plugins[0], 'other');
+  assert.match(config.plugins[1], /do-it-plugin$/);
+  assert.match(r.stderr, /"plugins" key names the OpenCode 2 form/);
+});
+
+test('with no version and no config key, the guessed form is reported', () => {
+  const home = tmpDir('do-it-inst-');
+  const r = opencodeRun(home);
+  assert.equal(r.status, 0, r.stderr);
+  const config = JSON.parse(fs.readFileSync(opencodeFile(home), 'utf8'));
+  assert.match(config.plugin[0], /do-it-plugin[\\/]do-it\.mjs$/);
+  assert.equal(config.plugins, undefined, 'the guess writes the v1 key alone');
+  assert.match(r.stderr, /guessing the OpenCode 1 form/);
+});
+
+
