@@ -259,11 +259,17 @@ function hunkLines(patch) {
 // Hash of the change since `base`: the binary diff from the base tree to a
 // snapshot of the working tree, as a git blob id. Untracked files are in the
 // snapshot, so committing a file after `base` (a run's phase commits) never
-// moves the hash, and only a change in content does.
-export function fingerprint(cwd, base, { exclude = [] } = {}) {
+// moves the hash, and only a change in content does. `paths` narrows only the
+// diff, to the files an item's plan names: the snapshot still walks the tree,
+// so a file outside the list is never part of this hash.
+export function fingerprint(cwd, base, { exclude = [], paths = null } = {}) {
+  // A list naming no file is no change at all; it never widens back to the tree.
+  if (paths && !paths.length) return crypto.createHash('sha1').update('blob 0\0').digest('hex');
   const { top, base: resolved } = changeset(cwd, base, { exclude });
   const tree = snapshot(top, { exclude });
-  const spec = ['--', '.', ...exclude.map((p) => `:(exclude)${p}`)];
+  const spec = paths
+    ? ['--', ...paths.map((p) => `:(literal)${p}`), ...exclude.map((p) => `:(exclude)${p}`)]
+    : ['--', '.', ...exclude.map((p) => `:(exclude)${p}`)];
   const diff = git(top, ['diff', '--binary', '--no-ext-diff', '--no-textconv', '--no-color', '--no-renames', resolved, tree, ...spec], 'buffer');
   if (diff.status !== 0) throw new Error(`git diff failed: ${diff.stderr}`);
   return crypto.createHash('sha1').update(`blob ${diff.stdout.length}\0`).update(diff.stdout).digest('hex');

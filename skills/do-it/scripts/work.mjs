@@ -38,6 +38,7 @@ import { spawnSync } from 'node:child_process';
 import { loadConfig } from '../../track-it/scripts/config.mjs';
 import { isMain } from '../../it-core/scripts/is-main.mjs';
 import { EMPTY_TREE, fingerprint, hasObject, snapshot, treeDiff } from './changeset.mjs';
+import { readPlan } from './contract.mjs';
 import { needsUser } from './state.mjs';
 import { allowedMoves, firableEvents, workItems } from './items.mjs';
 import { roadmapSlices } from './roadmap.mjs';
@@ -142,11 +143,17 @@ function closingDocsExclude(ctx, item) {
     .filter(Boolean);
 }
 
-// The fingerprint of the item's change since its base, planning files excluded. `at` is the tree it
+// The fingerprint of the item's change since its base: the files its plan's `## Files` names, the
+// whole tree when it names none. Planning files and closing docs excluded. `at` is the tree it
 // is taken in: the coordinator's checkout unless the work ran in a track's worktree.
+// shortcut: an edit outside the plan's files keeps this hash, so only the audit's diff catches it; upgrade by scoping on the files a verify records when an out-of-plan edit slips past an audit.
 function itemFingerprint(ctx, item, at = ctx.root) {
   if (!item.state.base_ref) throw new Error(`${item.state.id} has no base_ref yet: run event start first`);
-  return fingerprint(at, item.state.base_ref, { exclude: [...planningExclude(ctx), ...closingDocsExclude(ctx, item)] });
+  const files = readPlan(item.path).files;
+  return fingerprint(at, item.state.base_ref, {
+    exclude: [...planningExclude(ctx), ...closingDocsExclude(ctx, item)],
+    paths: files.length ? files : null,
+  });
 }
 
 function shellQuote(arg) {

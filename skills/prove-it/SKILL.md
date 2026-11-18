@@ -14,9 +14,9 @@ block.
 ## 1. Pin the change
 
 - Work id: read the state block ([STATE.md](../do-it/STATE.md)). The change is
-  `git diff <base_ref>` plus untracked files, minus `docs/planning/` and
-  `docs/issues/`: `git ls-files --others --exclude-standard`.
-  Any phase not `done`: stop, `blocked`.
+  the files the plan's `## Files` names (`git diff <base_ref> -- <files>`, plus
+  their untracked ones), or the whole change when it names none, minus
+  `docs/planning/` and `docs/issues/`. Any phase not `done`: stop, `blocked`.
 - `--since <ref>`: the coordinator's audit of a track's slice, run from the
   worktree: no work item read, no state written, spec from the caller.
 
