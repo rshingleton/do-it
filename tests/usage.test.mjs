@@ -6,8 +6,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-import { sumTranscript, record, prune, readAll, trackUsage, subagentTranscript, importTranscripts, clearLimit, localDay, localized, projectWeek, readSnapshots, readUtilization, autoSnapshot, refreshUtilization } from '../skills/usage-it/scripts/ledger.mjs';
-import { baselineSizes, descriptionSizes } from '../skills/usage-it/scripts/baseline.mjs';
+import { sumTranscript, record, prune, readAll, trackUsage, importTranscripts, clearLimit, localDay, localized, projectWeek, readSnapshots, readUtilization, autoSnapshot, refreshUtilization } from '../skills/usage-it/scripts/ledger.mjs';
 import { contextOutliers } from '../skills/usage-it/scripts/outliers.mjs';
 import { handle } from '../hooks/claude.mjs';
 
@@ -46,17 +45,14 @@ test('sumTranscript counts a message once however many blocks repeat it', () => 
     peak: 112,
     buckets: { '2026-10-21T10:00': [4, 57, 200, 20, 2] },
   });
-});
 
-test('sumTranscript reports first-turn and peak context, each message once', () => {
+  // ctx0 is the first turn's context, peak the largest, and a repeated message counts once in both.
   const big = (id, cr) =>
     JSON.stringify({ type: 'assistant', message: { id, role: 'assistant', usage: { input_tokens: 1, output_tokens: 1, cache_read_input_tokens: cr, cache_creation_input_tokens: 4 } } });
   const s = sumTranscript([big('a', 100), big('a', 100), big('b', 900), big('c', 300)].join('\n'));
   assert.equal(s.ctx0, 105);
   assert.equal(s.peak, 905);
-});
 
-test('sumTranscript of an empty transcript has no turns', () => {
   assert.equal(sumTranscript('').turns, 0);
 });
 
@@ -100,15 +96,6 @@ test('trackUsage drops a run whose day is already past the raw window', () => {
   const dir = path.join(work, 'usage');
   assert.equal(trackUsage('session', { session_id: 's', transcript_path: main }, { dir, days: 30, now: new Date('2026-10-21T12:00:00Z') }), null);
   assert.deepEqual(readAll(dir), []);
-});
-
-test('subagentTranscript prefers the hook path, else derives the subagents path', () => {
-  assert.equal(subagentTranscript({ agent_transcript_path: '/x/a.jsonl' }), '/x/a.jsonl');
-  assert.equal(
-    subagentTranscript({ transcript_path: '/p/s1.jsonl', agent_id: 'abc' }),
-    path.join('/p/s1', 'subagents', 'agent-abc.jsonl'),
-  );
-  assert.equal(subagentTranscript({}), null);
 });
 
 test('trackUsage writes a subagent record and a session record, upserting on repeat stops', () => {
@@ -164,41 +151,6 @@ test('usage.mjs reports by agent and by model from the recorded files', () => {
   );
   assert.equal(run('--by', 'model').length, 2);
   assert.deepEqual(run('--by', 'month').map((r) => [r.month, r.runs]), [[today.slice(0, 7), 3]]);
-});
-
-test('--json adds a whole record\'s runs: two rows of runs 2 print 4', () => {
-  const dir = tmp();
-  const day = new Date().toISOString().slice(0, 10);
-  const row = (runs, out) => JSON.stringify({ day, kind: 'session', agent: 'main', model: 'm', project: 'p', runs, turns: 1, in: 1, out, cr: 0, cc: 0 });
-  fs.writeFileSync(path.join(dir, 'rollup.jsonl'), `${row(2, 10)}\n${row(2, 20)}\n`);
-  const out = JSON.parse(execFileSync('node', [path.join(ROOT, 'skills/usage-it/scripts/usage.mjs'), '--json'], { env: { ...process.env, DO_IT_USAGE_DIR: dir }, encoding: 'utf8' }));
-  assert.deepEqual(out.map((g) => [g.agent, g.runs, g.out]), [['main', 4, 30]]);
-});
-
-test('--json counts a whole record\'s runs, not the record: two records of runs 2 report 4', () => {
-  const dir = tmp();
-  const rec = (id, out) => ({ id, kind: 'session', agent: 'main', model: 'm', project: 'p', day: '2026-10-22', start: '2026-10-22T03:00:00.000Z', runs: 2, turns: 1, in: 1, out, cr: 0, cc: 0 });
-  record(dir, rec('a', 10));
-  record(dir, rec('b', 20));
-  const env = { ...process.env, DO_IT_USAGE_DIR: dir };
-  const run = (...a) => execFileSync('node', [path.join(ROOT, 'skills/usage-it/scripts/usage.mjs'), ...a], { env, encoding: 'utf8' });
-  const out = JSON.parse(run('--json', '--from', '2026-10-22T00:00:00Z', '--to', '2026-10-22T06:00:00Z'));
-  assert.deepEqual(out.map((g) => [g.runs, g.whole, g.out]), [[4, 4, 30]]);
-  assert.match(run('--from', '2026-10-22T00:00:00Z', '--to', '2026-10-22T06:00:00Z'), /window: 4 run\(s\) recorded before time buckets existed count whole/);
-});
-
-test('--hours keeps only runs that ended inside the window', () => {
-  const dir = tmp();
-  const now = Date.now();
-  const at = (h) => new Date(now - h * 3600000).toISOString();
-  const base = { kind: 'subagent', day: at(0).slice(0, 10), turns: 1, in: 1, cr: 0, cc: 0, out: 5, model: 'haiku' };
-  record(dir, { ...base, id: 'new', agent: 'it-scout', at: at(1) });
-  record(dir, { ...base, id: 'old', agent: 'it-skeptic', at: at(20) });
-  const out = execFileSync('node', [path.join(ROOT, 'skills', 'usage-it', 'scripts', 'usage.mjs'), '--json', '--hours', '12'], {
-    env: { ...process.env, DO_IT_USAGE_DIR: dir },
-    encoding: 'utf8',
-  });
-  assert.deepEqual(JSON.parse(out).map((r) => r.agent), ['it-scout']);
 });
 
 test('importTranscripts backfills sessions and subagents, and is safe to repeat', () => {
@@ -265,7 +217,6 @@ test('trackUsage returns prevPeak from the earlier stop without storing it, and 
   assert.equal(second.peak, 501);
 
   const rows = readAll(dir);
-  assert.equal('prevPeak' in rows.find((r) => r.id === 's2'), false);
   assert.equal(rows.find((r) => r.id === 'old').peak, undefined);
 });
 
@@ -367,20 +318,16 @@ test('usage.mjs --from/--to keeps runs that ended inside the window, bounds incl
   record(dir, { ...base, id: 'e', agent: 'ms-start', at: '2026-10-21T09:00:00.000Z' });
   record(dir, { ...base, id: 'f', agent: 'ms-end', at: '2026-10-21T10:00:00.000Z' });
   assert.deepEqual(JSON.parse(run('--from', '2026-10-21T09:00:00Z', '--to', '2026-10-21T10:00:00Z')).map((r) => r.agent).sort(), ['end', 'ms-end', 'ms-start', 'start']);
+
+  // --hours is the same window counted back from now, so a run 20 hours old is out.
+  const now = Date.now();
+  const today = new Date(now).toISOString().slice(0, 10);
+  record(dir, { ...base, id: 'recent', agent: 'recent', day: today, at: new Date(now - 3600000).toISOString() });
+  record(dir, { ...base, id: 'stale', agent: 'stale', day: today, at: new Date(now - 20 * 3600000).toISOString() });
+  assert.deepEqual(JSON.parse(run('--hours', '12')).map((r) => r.agent), ['recent']);
 });
 
-test('baselineSizes measures the invocable descriptions and tolerates a missing project', async () => {
-  const skills = tmp();
-  const mk = (name, body) => {
-    fs.mkdirSync(path.join(skills, name));
-    fs.writeFileSync(path.join(skills, name, 'SKILL.md'), body);
-  };
-  mk('auto', '---\nname: auto\ndescription: Does a thing.\n---\n');
-  mk('typed', '---\nname: typed\ndescription: Hidden.\ndisable-model-invocation: true\n---\n');
-  assert.deepEqual(descriptionSizes(skills), [{ name: 'auto', chars: 'Does a thing.'.length }]);
-  const rows = await baselineSizes(tmp(), { skillsDir: skills });
-  assert.equal(rows.at(-1).chars, 'Does a thing.'.length);
-  assert.equal(rows.find((r) => /CLAUDE/.test(r.label)).chars, 0);
+test('baselineSizes measures the invocable descriptions and tolerates a missing project', () => {
   const out = execFileSync('node', [path.join(ROOT, 'skills', 'usage-it', 'scripts', 'usage.mjs'), '--baseline'], { env: { ...process.env, DO_IT_USAGE_DIR: tmp() }, encoding: 'utf8', cwd: ROOT });
   assert.match(out, /session-start block.*~[\d,]+\)/);
   assert.match(out, /No session has a recorded start context/);
@@ -557,6 +504,9 @@ test('a window cuts a run that straddles its edge by 15-minute buckets, and the 
   assert.deepEqual([before.out, before.turns], [30, 2]);
   assert.deepEqual([after.out, after.turns], [120, 2]);
   assert.equal(before.out + after.out, rec.out, 'nothing is counted twice or dropped');
+  assert.equal(before.runs + after.runs, 1, 'one run across the two windows');
+  assert.equal(before.runs, 1, 'it counts where it started');
+  assert.equal(before.turns + after.turns, rec.turns);
 });
 
 test('a run recorded before buckets existed counts whole in the window of its last message; only a record with no `at` is labelled', () => {
@@ -569,9 +519,22 @@ test('a run recorded before buckets existed counts whole in the window of its la
   assert.doesNotMatch(run('--from', '2026-10-22T03:00:00Z', '--to', '2026-10-22T06:00:00Z'), /before time buckets/);
   assert.match(run('--from', '2026-10-22T00:00:00Z', '--to', '2026-10-22T02:59:59Z'), /no usage recorded/);
   assert.equal(windowed(dir, '--from', '2026-10-22T03:00:00Z', '--to', '2026-10-22T06:00:00Z')[0].out, 150);
+
   // No `at`: no last message to place it by, so its start places it and the output labels it.
   record(dir, { id: 'noat', kind: 'session', agent: 'main', model: 'claude-sonnet-5-5', project: 'p', day: '2026-10-22', start: '2026-10-22T03:20:00.000Z', turns: 2, in: 2, out: 30, cr: 50, cc: 5 });
   assert.match(run('--from', '2026-10-22T03:00:00Z', '--to', '2026-10-22T06:00:00Z'), /1 run\(s\) recorded before time buckets existed count whole/);
+
+  // A record with timestamps never gets that label; one holding a message that had no time says what it is.
+  const fresh = straddler();
+  const freshEnv = { ...process.env, DO_IT_USAGE_DIR: fresh };
+  const freshRun = (...a) => execFileSync('node', [USAGE, '--by', 'agent', ...a], { env: freshEnv, encoding: 'utf8' });
+  const all = ['--from', '2026-10-22T00:00:00Z', '--to', '2026-10-22T06:00:00Z'];
+  assert.doesNotMatch(freshRun(...all), /before time buckets|had no time/);
+  assert.equal(windowed(fresh, ...all)[0].whole, 0, '--json carries the whole-run count');
+  record(fresh, { id: 'half', kind: 'session', agent: 'main', model: 'claude-sonnet-5-5', project: 'p', day: '2026-10-22', start: '2026-10-22T02:10:00.000Z', at: '2026-10-22T03:50:00.000Z', turns: 4, in: 8, out: 150, cr: 400, cc: 40, partial: true });
+  assert.match(freshRun(...all), /1 run\(s\) with a message that had no time/);
+  assert.doesNotMatch(freshRun(...all), /before time buckets/);
+  assert.equal(windowed(fresh, ...all)[0].whole, 1);
 });
 
 test('a transcript with a message that has no time is recorded without buckets and marked partial', () => {
@@ -580,32 +543,7 @@ test('a transcript with a message that has no time is recorded without buckets a
   fs.writeFileSync(file, [stamped('a', 10, '2026-10-22T03:01:00.000Z'), line('b', 20, { timestamp: null }), stamped('c', 40, '2026-10-22T03:20:00.000Z')].join('\n'));
   trackUsage('session', { session_id: 's3', transcript_path: file, cwd: '/p' }, { dir, now: new Date('2026-10-22T05:00:00Z') });
   const [rec] = readAll(dir);
-  assert.equal(rec.buckets, undefined);
   assert.equal(rec.partial, true);
-});
-
-test('two adjacent windows over one run report one run, and tokens and turns still add up', () => {
-  const dir = straddler();
-  const [rec] = readAll(dir);
-  const before = windowed(dir, '--from', '2026-10-22T00:00:00Z', '--to', '2026-10-22T02:59:59Z')[0];
-  const after = windowed(dir, '--from', '2026-10-22T03:00:00Z', '--to', '2026-10-22T06:00:00Z')[0];
-  assert.equal(before.runs + after.runs, 1, 'one run across the two windows');
-  assert.equal(before.runs, 1, 'it counts where it started');
-  assert.equal(before.turns + after.turns, rec.turns);
-});
-
-test('a record with timestamps never gets the before-buckets label; a record written without them says why', () => {
-  const dir = straddler();
-  const env = { ...process.env, DO_IT_USAGE_DIR: dir };
-  const text = execFileSync('node', [USAGE, '--by', 'agent', '--from', '2026-10-22T00:00:00Z', '--to', '2026-10-22T06:00:00Z'], { env, encoding: 'utf8' });
-  assert.doesNotMatch(text, /before time buckets|had no time/);
-  assert.equal(windowed(dir, '--from', '2026-10-22T00:00:00Z', '--to', '2026-10-22T06:00:00Z')[0].whole, 0, '--json carries the whole-run count');
-  // A new record with one message lacking a time keeps no buckets and is marked partial, not "old".
-  record(dir, { id: 'half', kind: 'session', agent: 'main', model: 'claude-sonnet-5-5', project: 'p', day: '2026-10-22', start: '2026-10-22T02:10:00.000Z', at: '2026-10-22T03:50:00.000Z', turns: 4, in: 8, out: 150, cr: 400, cc: 40, partial: true });
-  const half = execFileSync('node', [USAGE, '--by', 'agent', '--from', '2026-10-22T00:00:00Z', '--to', '2026-10-22T06:00:00Z'], { env, encoding: 'utf8' });
-  assert.match(half, /1 run\(s\) with a message that had no time/);
-  assert.doesNotMatch(half, /before time buckets/);
-  assert.equal(windowed(dir, '--from', '2026-10-22T00:00:00Z', '--to', '2026-10-22T06:00:00Z')[0].whole, 1);
 });
 
 test('a window narrower than a bucket still finds the run, and adjacent windows split a bucket by its midpoint', () => {

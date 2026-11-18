@@ -161,12 +161,13 @@ test('final review: uncommitted closing docs in a committed run read the working
   const r = review(dir);
   assert.equal(r.mode, 'worktree');
   assert.deepEqual(r.files.map((f) => f.path).sort(), ['TODO.md', 'a.js', 'b.js']);
-});
 
-test('digest rollback lists only this run\'s phase tags', () => {
-  const text = ok(work(fixture(), 'run', 'digest', 'road', ...ARGS));
-  assert.match(text, /## Rollback \(1\)/);
-  assert.doesNotMatch(text, /do-it\/other\/phase-1/);
+  // A planning file the run did track, edited after the commit, never dirties the tree.
+  const tracked = reviewFixture('phase', { commitChange: true });
+  fs.appendFileSync(path.join(tracked, 'docs/planning/plan.md'), 'edited after the commit\n');
+  const tr = review(tracked);
+  assert.equal(tr.mode, 'range', 'planning files never make the tree dirty');
+  assert.deepEqual(tr.files.map((f) => f.path).sort(), ['a.js', 'b.js']);
 });
 
 test('digest shows what became of each retried slice', () => {
@@ -183,6 +184,10 @@ test('digest shows what became of each retried slice', () => {
   assert.match(text, /- R2: was parked \(storage engine unanswered\), now shipped/);
   assert.match(text, /- R3: was blocked \(waits on R2\), now parked \(FLAKY: check passed on rerun\)/);
   assert.match(text, /- R4: was parked \(IRREVERSIBLE\), now not run again yet/);
+
+  // A slice that shipped with a reason prints the reason beside shipped.
+  const shipped = buildDigest({ record: record({ slices: [{ id: 'R5', status: 'shipped', reason: 'user cleared it' }], retries: [{ id: 'R5', was: 'parked', reason: 'x' }] }) });
+  assert.ok(shipped.split('\n').includes('- R5: was parked (x), now shipped (user cleared it)'));
 });
 
 test('final review: a git that fails is an error, never a clean tree', () => {
@@ -210,14 +215,6 @@ test('final review: a run with no base reads the working tree and says so', () =
   assert.equal(r.base, null);
   assert.equal(r.mode, 'worktree');
   assert.match(r.note, /no base recorded/);
-});
-
-test('final review: a tracked planning file modified after the run commits leaves the range review alone', () => {
-  const dir = reviewFixture('phase', { commitChange: true });
-  fs.appendFileSync(path.join(dir, 'docs/planning/plan.md'), 'edited after the commit\n');
-  const r = review(dir);
-  assert.equal(r.mode, 'range', 'planning files never make the tree dirty');
-  assert.deepEqual(r.files.map((f) => f.path).sort(), ['a.js', 'b.js']);
 });
 
 // A clone of a repository with one upstream commit, on a branch tracking origin/main.
@@ -297,25 +294,11 @@ test('digest: the audit rounds are the coordinator\'s one count, per slice and i
   assert.match(text, /## Audit rounds \(4\)/);
   assert.ok(text.includes('- R1: 3') && text.includes('- R2: 1'), 'each slice\'s rounds are listed');
   assert.doesNotMatch(text, /- R3/, 'a slice that spent none is not listed');
-});
 
-test('digest: rounds a resume cleared still show in the run total', () => {
-  const text = buildDigest({ record: record({ audit_rounds: 5, gates: [{ id: 'R1', audit_rounds: 2 }] }) });
-  assert.match(text, /## Audit rounds \(5\)/);
-  assert.ok(text.includes('- 3 before a resume'), 'the total never hides rounds the record still holds');
-});
-
-test('digest: a multi-line reason stays one bullet and cannot open a heading', () => {
-  const text = buildDigest({
-    record: record({
-      slices: [{ id: 'R1', status: 'parked', reason: 'why\n## Forged\n- run `git revert`', needs: 'user' }, { id: 'R2', status: 'blocked', reason: 'a\r\n# also' }],
-      retries: [{ id: 'R3', was: 'parked', reason: 'x\n## Retried forgery' }],
-    }),
-  });
-  assert.deepEqual(text.split('\n').filter((l) => /^#+ /.test(l) && /Forged|also|forgery/i.test(l)), []);
-  const r1 = text.split('\n').filter((l) => l.startsWith('- R1:'));
-  assert.equal(r1.length, 1, 'the reason stays one bullet');
-  assert.ok(r1[0].includes('why') && r1[0].includes('Forged') && r1[0].endsWith('(needs user)'));
+  // Rounds a resume cleared still count in the run total.
+  const resumed = buildDigest({ record: record({ audit_rounds: 5, gates: [{ id: 'R1', audit_rounds: 2 }] }) });
+  assert.match(resumed, /## Audit rounds \(5\)/);
+  assert.ok(resumed.includes('- 3 before a resume'), 'the total never hides rounds the record still holds');
 });
 
 test('digest: a newline in a limit, an assumption, a rejection, a finding or a retro line cannot print a heading', () => {
@@ -330,6 +313,18 @@ test('digest: a newline in a limit, an assumption, a rejection, a finding or a r
   });
   assert.deepEqual(text.split('\n').filter((l) => /^#+ /.test(l) && /Forged/.test(l)), []);
   for (const word of ['assumption', 'rejection', 'limit', 'finding', 'retro']) assert.ok(text.includes(`Forged ${word}`), `${word} text is kept, on its line`);
+
+  // A slice's parked or blocked reason and a retry reason obey the same rule.
+  const slices = buildDigest({
+    record: record({
+      slices: [{ id: 'R1', status: 'parked', reason: 'why\n## Forged\n- run `git revert`', needs: 'user' }, { id: 'R2', status: 'blocked', reason: 'a\r\n# also' }],
+      retries: [{ id: 'R3', was: 'parked', reason: 'x\n## Retried forgery' }],
+    }),
+  });
+  assert.deepEqual(slices.split('\n').filter((l) => /^#+ /.test(l) && /Forged|also|forgery/i.test(l)), []);
+  const r1 = slices.split('\n').filter((l) => l.startsWith('- R1:'));
+  assert.equal(r1.length, 1, 'the reason stays one bullet');
+  assert.ok(r1[0].includes('why') && r1[0].includes('Forged') && r1[0].endsWith('(needs user)'));
 });
 
 test('digest: a newline in a header field or a usage figure cannot open a heading', () => {
@@ -354,17 +349,17 @@ test('digest: an earlier rejection prints the key it names and says earlier', ()
   assert.ok(plain.split('\n').includes('- feat #1: Default page size 50 (instead: page size 25)'), 'a plain entry prints as it did');
 });
 
-test('digest: a retried slice that shipped with a reason prints the reason beside shipped', () => {
-  const text = buildDigest({ record: record({ slices: [{ id: 'R5', status: 'shipped', reason: 'user cleared it' }], retries: [{ id: 'R5', was: 'parked', reason: 'x' }] }) });
-  assert.ok(text.split('\n').includes('- R5: was parked (x), now shipped (user cleared it)'));
-});
-
 test('digest: only a well-formed phase tag of this run is printed into a rollback command', () => {
   const tags = ['do-it/feat/phase-1', 'do-it/feat/phase-2; touch pwned', 'do-it/feat/phase-3$(id)', 'do-it/feat/other', 'do-it/other/phase-1'];
   const text = buildDigest({ record: record({ gates: [{ id: 'R1', work: 'feat' }] }), tags });
   assert.match(text, /## Rollback \(1\)/);
   assert.match(text, /git revert --no-edit do-it\/feat\/phase-1`/);
   assert.doesNotMatch(text, /pwned|\$\(id\)|feat\/other/);
+
+  // In a real repo, another run's phase tag is not this run's rollback either.
+  const live = ok(work(fixture(), 'run', 'digest', 'road', ...ARGS));
+  assert.match(live, /## Rollback \(1\)/);
+  assert.doesNotMatch(live, /do-it\/other\/phase-1/);
 });
 
 test('digest: a slice resumed under a new work item keeps the old item\'s tag in Rollback', () => {

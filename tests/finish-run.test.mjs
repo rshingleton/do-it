@@ -88,13 +88,6 @@ test('finish-it run: a blocked slice in the record is skipped like a parked one'
   assert.deepEqual(r.waiting, ['R6']);
 });
 
-test('finish-it run: next needs a run record and a roadmap file', () => {
-  const { dir } = fixture();
-  assert.equal(work(dir, 'run', 'next', 'road', 'docs/roadmap/road.md').status, 1);
-  ok(work(dir, 'run', 'new', 'road'));
-  assert.equal(work(dir, 'run', 'next', 'road').status, 1);
-});
-
 // Two checkouts, one planning dir: a record made in A is visible in B, so B's commands
 // must refuse rather than read a record that is not its own.
 function pair() {

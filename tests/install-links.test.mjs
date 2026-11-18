@@ -231,19 +231,16 @@ test('an install from a checkout behind its remote ends with the sha, the branch
   assert.equal(gitOut(root, ['branch', '--show-current']), before.branch, 'the branch is where it was');
   assert.deepEqual(fs.readFileSync(fetchHead), before.fetched, 'no fetch moved FETCH_HEAD');
   assert.equal(gitOut(remote, ['for-each-ref']), before.refs, 'the remote is where it was');
-});
 
-test('a checkout level with its remote says up to date, and a dry run prefixes the line with would', () => {
-  const { root } = checkout();
-  const home = tmpDir('do-it-home-');
-  const real = printed(() => install({ root, home, hooks: false }));
+  // Level with its remote: up to date, cloned and not yet fetched; a dry run says would and writes nothing.
+  const level = checkout();
+  const real = printed(() => install({ root: level.root, home: tmpDir('do-it-home-'), hooks: false }));
   assert.equal(real.code, 0);
-  assert.equal(refLine(real.lines), `installed from ${root} at ${shortSha(root)} (main), up to date with origin/main; cloned, not yet fetched`);
-
+  assert.equal(refLine(real.lines), `installed from ${level.root} at ${shortSha(level.root)} (main), up to date with origin/main; cloned, not yet fetched`);
   const dryHome = tmpDir('do-it-home-');
-  const dry = printed(() => install({ root, home: dryHome, hooks: false, dry: true }));
+  const dry = printed(() => install({ root: level.root, home: dryHome, hooks: false, dry: true }));
   assert.equal(dry.code, 0);
-  assert.equal(refLine(dry.lines), `would install from ${root} at ${shortSha(root)} (main), up to date with origin/main; cloned, not yet fetched`);
+  assert.equal(refLine(dry.lines), `would install from ${level.root} at ${shortSha(level.root)} (main), up to date with origin/main; cloned, not yet fetched`);
   assert.deepEqual(fs.readdirSync(dryHome), [], 'a dry run creates nothing');
 });
 

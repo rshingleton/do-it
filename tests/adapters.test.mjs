@@ -63,14 +63,12 @@ test('Jira get reads one issue by key and maps its fields', async () => {
   assert.deepEqual(got, { ref: 'PR-4', url: 'https://j.example/browse/PR-4', title: 'S', status: 'Open', type: 'Bug', assignee: null, body: 'D', comments: [] });
 });
 
-test('Jira comment posts the text to the issue comment endpoint', async () => {
-  const { fetch, calls } = fakeJira();
-  await jiraTracker(JIRA, { fetch }).comment('PR-4', 'hello');
-  assert.ok(calls.every((c) => c.auth === BASIC), 'every request carries the auth header');
-  assert.deepEqual(calls.map((c) => [c.method, c.path, c.body]), [['POST', '/rest/api/2/issue/PR-4/comment', { body: 'hello' }]]);
-});
-
 test('Jira close comments first, then moves the issue by the transition id', async () => {
+  const comment = fakeJira();
+  await jiraTracker(JIRA, { fetch: comment.fetch }).comment('PR-4', 'hello');
+  assert.ok(comment.calls.every((c) => c.auth === BASIC), 'every request carries the auth header');
+  assert.deepEqual(comment.calls.map((c) => [c.method, c.path, c.body]), [['POST', '/rest/api/2/issue/PR-4/comment', { body: 'hello' }]]);
+
   const { fetch, calls } = fakeJira();
   const r = await jiraTracker(JIRA, { fetch }).close('PR-4', 'shipped');
   assert.ok(calls.every((c) => c.auth === BASIC), 'every request carries the auth header');

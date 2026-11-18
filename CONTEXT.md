@@ -40,3 +40,9 @@ An install whose content no longer matches the checkout it came from: the
 checkout is behind its remote, a link points at another checkout or names a
 skill since renamed, or a copy differs from its source.
 _Not_: outdated, out of date, old
+
+**In-flight span**:
+The stretch a slice's clock charges: opened by `run start`, closed at the last
+command that showed the slice alive, less any time a check waited for the slot.
+A park and a dead session fall outside it.
+_Not_: wall clock, elapsed time, runtime

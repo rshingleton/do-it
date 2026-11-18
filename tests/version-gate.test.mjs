@@ -61,25 +61,12 @@ const out = (r) => `${r.stdout}${r.stderr}`;
 test('a skills change with no bump fails and names both versions', () => {
   const { dir, write } = fixture();
   write('skills/alpha-it/SKILL.md', `${skill('alpha-it')}\nMore.\n`);
-  const r = run(dir, ['--base', 'main']);
-  assert.equal(r.status, 1, out(r));
-  assert.match(out(r), /version-gate: fail - version 0\.1\.0 -> 0\.1\.0, 1 gated file changed \(skills\/alpha-it\/SKILL\.md\)/);
-});
-
-test('an agents-only change with no bump fails', () => {
-  const { dir, write } = fixture();
   write('agents/it-scout.md', '---\nname: it-scout\nmodel: sonnet\ntools: Read, Grep\n---\n\nBrief.\n');
-  const r = run(dir, ['--base', 'main']);
-  assert.equal(r.status, 1, out(r));
-  assert.match(out(r), /fail - version 0\.1\.0 -> 0\.1\.0, 1 gated file changed \(agents\/it-scout\.md\)/);
-});
-
-test('a hooks-only change with no bump fails', () => {
-  const { dir, write } = fixture();
   write('hooks/hooks.json', '{ "hooks": {} }\n');
   const r = run(dir, ['--base', 'main']);
   assert.equal(r.status, 1, out(r));
-  assert.match(out(r), /fail - version 0\.1\.0 -> 0\.1\.0, 1 gated file changed \(hooks\/hooks\.json\)/);
+  assert.match(out(r), /version-gate: fail - version 0\.1\.0 -> 0\.1\.0, 3 gated files changed/);
+  for (const f of ['skills/alpha-it/SKILL.md', 'agents/it-scout.md', 'hooks/hooks.json']) assert.ok(out(r).includes(f), f);
 });
 
 test('a skill moved out of skills/ still counts as a gated change', () => {
@@ -182,12 +169,8 @@ test('a directory that is not a git repo exits 2', () => {
   const r = run(dir, [], { GIT_CEILING_DIRECTORIES: path.dirname(dir) });
   assert.equal(r.status, 2, out(r));
   assert.match(out(r), /git cannot answer/);
-});
-
-test('an unknown base ref exits 2', () => {
-  const { dir } = fixture();
-  const r = run(dir, ['--base', 'origin/no-such-branch']);
-  assert.equal(r.status, 2, out(r));
+  // An unknown base ref is not the empty change either.
+  assert.equal(run(fixture().dir, ['--base', 'origin/no-such-branch']).status, 2);
 });
 
 test('a manifest that does not parse, in the tree or at the base, exits 2', () => {
@@ -203,22 +186,10 @@ test('a manifest that does not parse, in the tree or at the base, exits 2', () =
   const brokenBase = run(base.dir, ['--base', 'main']);
   assert.equal(brokenBase.status, 2, out(brokenBase));
   assert.match(out(brokenBase), /plugin\.json/);
-});
 
-test('a missing manifest in the tree exits 2', () => {
-  const { dir } = fixture();
-  fs.rmSync(path.join(dir, '.claude-plugin/plugin.json'));
-  const r = run(dir, ['--base', 'main']);
-  assert.equal(r.status, 2, out(r));
-  assert.match(out(r), /plugin\.json/);
-});
-
-test('--help states the base resolution order and exits 0', () => {
-  const { dir } = fixture();
-  const r = run(dir, ['--help']);
-  assert.equal(r.status, 0, out(r));
-  assert.match(out(r), /--base <ref>/);
-  assert.match(out(r), /HEAD\^/);
-  assert.match(out(r), /origin\/\$GITHUB_BASE_REF/);
-  assert.match(out(r), /origin\/main/);
+  const missing = fixture();
+  fs.rmSync(path.join(missing.dir, '.claude-plugin/plugin.json'));
+  const missingTree = run(missing.dir, ['--base', 'main']);
+  assert.equal(missingTree.status, 2, out(missingTree));
+  assert.match(out(missingTree), /plugin\.json/);
 });

@@ -48,26 +48,26 @@ is as written here.
 3. Size the slice (S or M) per [do-it](../do-it/SKILL.md) §2 and
    [LANES.md](../do-it/LANES.md), then run the lane in this order, as do-it §3
    does. A step that finishes returns here; none closes the turn.
-   - (a) [scope-it](../scope-it/SKILL.md) in its
-     [non-interactive form](../scope-it/NONINTERACTIVE.md).
+   - (a) [scope-it](../scope-it/SKILL.md) in its [non-interactive form](../scope-it/NONINTERACTIVE.md).
    - (b) Right after it, before build-it, start the slice's clock:
-     `work.mjs run start <slug> <slice> --work <work id>`. `<slice>` is the
-     roadmap id (`R<n>`), not the work id.
+     `work.mjs run start <slug> <slice> --work <work id>` (`<slice>` is the
+     roadmap id, not the work id). A slice already in flight calls it again on
+     resume: the old span closes and a new one opens, so unwatched time is not charged.
    - (c) [build-it](../build-it/SKILL.md), its checks through
-     `work.mjs run verify <slug> <slice> [--phase n] [--paths a,b] -- "<cmd>"`
-     instead of the item-level verify: one call per lane M phase, `--paths`
-     the slice's mapped files. Outside a run it is `verify-phase`. A flaky
-     result parks the slice (FLAKY, as step 5).
-   - (d) Before each prove-it round, `work.mjs run audit <slug> <slice>`. It
-     counts every round started, a re-audit after a fix included; prove-it's own
-     `round` counts only consecutive failed audits, so the run's caps follow
-     `run audit`. `allow` false: never start the round; act on `reason` per
-     [STOPS.md](STOPS.md) (`SLICE_AUDIT_CAP` parks, `AUDIT_CAP` stops).
+     `work.mjs run verify <slug> <slice> [--phase n] [--paths a,b] -- "<checks>"`
+     instead of `verify-phase`: one call per lane M phase with `--phase n`, none for
+     lane S, `--paths` the slice's mapped files (needed for a lane M slice-mode
+     commit). A flaky result parks the slice (FLAKY, as step 5).
+   - (d) Before each prove-it round, `work.mjs run audit <slug> <slice>`. It counts
+     every round started in `audit_rounds`, and spends one of the slice's `audit_cap`
+     rounds only when every claim it raises repeats one an earlier round raised. File
+     every claim in one `event <id> audit-fail "<claim>" "<claim>"` call: a bare
+     number is an ordinal and spends nothing. `allow` false: never start the round.
+     `SLICE_AUDIT_CAP` parks, `AUDIT_CAP` stops the run ([STOPS.md](STOPS.md)).
    - (e) [prove-it](../prove-it/SKILL.md). The reviewer's final report is the
      result: a first hand-back with an agent still running is not the verdict,
      and a later completion notice with no new report adds nothing.
-   - (f) Before ship-it, `work.mjs run gate <slug> <slice>`. `allow` false: ship
-     nothing; park or stop per [STOPS.md](STOPS.md), which lists every reason.
+   - (f) Before ship-it, `work.mjs run gate <slug> <slice>`; `allow` false: ship nothing, park or stop per [STOPS.md](STOPS.md).
    - (g) [ship-it](../ship-it/SKILL.md) in [run mode](../ship-it/RUNMODE.md).
 4. `done` from ship-it: `work.mjs run slice <slug> <slice> shipped`, back to
    step 1.

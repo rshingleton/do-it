@@ -11,7 +11,7 @@
 //   work.mjs verify-phase <id> [n] [--in dir] -- <command...>
 //   work.mjs roadmap <file>
 //   work.mjs run new <slug> [--roadmap <file>] [--level --commit --tracks --max-slices --slice-cap-min --audit-cap --final-audit-cap --audit-total-cap]
-//   work.mjs run show <slug> | set <slug> <key> <json> | slice <slug> <id> <status> [--reason --needs]
+//   work.mjs run show <slug> | set <slug> <key> <json> | slice <slug> <id> <status> [--reason --needs --at iso]
 //   work.mjs run add-assumptions <slug> <work id> <json array>   (merges; kept as <id>#<n>: text)
 //   work.mjs run reject-assumption <slug> <id>#<n> <instead...>   (by key; reopens the item if its plan is still auditing or shipping)
 //   work.mjs run next <slug> <roadmap file> [--batch n]   (slice ready|parked|blocked|shipped; ready un-parks)
@@ -20,13 +20,15 @@
 //   work.mjs run commit <slug> <id> [--phase n | --docs] --paths a,b [--limits <json>]
 //   work.mjs run review-change <slug>   (the final review's change: <base>...HEAD, or the working tree against base)
 //   work.mjs run digest <slug> [--usage <json>] [--findings <json>] [--retro <json>]   (markdown, saved uncommitted)
-//   work.mjs run start <slug> <slice> --work <id> [--at iso] | audit <slug> <slice>|--final | gate <slug> <slice>
-//   work.mjs run verify <slug> <slice> [--phase n] [--paths a,b] [--in dir | --merged dir] -- <command...>   (reruns a failure once)
+//   work.mjs run start <slug> <slice> --work <id> [--at iso] | audit <slug> <slice>|--final [--at iso] | gate <slug> <slice>
+//   work.mjs run verify <slug> <slice> [--phase n] [--paths a,b] [--in dir | --merged dir] [--at iso] -- <command...>   (reruns a failure once)
 //   work.mjs close <id>
 //
-// `run audit` prints {audit_rounds, allow, reason, limit, detail}: `audit_rounds` is the slice's (or the
-// final review's) count after the call, `allow` false with `reason` AUDIT_CAP when a limit was spent,
-// `limit` names it (`slice R1`, `final review`, `run total`), `detail` says rounds against cap.
+// `run audit` prints {audit_rounds, audit_spent, allow, reason, limit, detail}: `audit_rounds` is the
+// slice's (or the final review's) honest count after the call, `audit_spent` the rounds that repeated
+// an earlier Must, which is what a slice's cap reads; `allow` false with `reason` AUDIT_CAP when a
+// limit was spent, `limit` names it (`slice R1`, `final review`, `run total`), `detail` says rounds
+// against cap and that the last fix was never reviewed.
 //
 // The rules live in items.mjs and state.mjs (../STATE.md documents them);
 // this script parses arguments, gathers the git facts an event needs, and
@@ -48,7 +50,7 @@ import { checkShell } from './check-shell.mjs';
 import { buildDigest } from './digest.mjs';
 import { addAssumptions, createRun, nextSlice, repoRoot, resumeSlice, runPath, setRun, showRun, sliceRun } from './run.mjs';
 import { countAudit, startSlice } from './gate.mjs';
-import { runContract, runGate, runRejectAssumption, runReviewChange, runTracks, runVerify, runVerifyMerged } from './runs.mjs';
+import { planOf, runContract, runGate, runRejectAssumption, runReviewChange, runTracks, runVerify, runVerifyMerged } from './runs.mjs';
 
 // Flags that take no value.
 const FLAGS = new Set(['brief', 'docs', 'final', 'again']);
@@ -204,6 +206,19 @@ function baseRef(root) {
   return r.status === 0 ? r.stdout.trim() : null;
 }
 
+// The claims the slice's plan last raised, which `run audit` classifies the finished round against:
+// the plan of the slice's current work id. A claim is text; a bare Must number is an ordinal in one
+// report and says nothing about the next round's finding, so a plan that lists only numbers is no
+// classification and the round spends nothing of the slice's cap. A plan that cannot be read is not
+// "no plan": `planOf` lets the error stand, so a broken plan is never classified as new work.
+function planMusts(planningDir, slug, id, items) {
+  if (!id) return undefined;
+  const g = (showRun(planningDir, slug).gates ?? []).find((x) => x.id === id);
+  const plan = planOf(items, g?.work);
+  const musts = plan?.state?.audit?.must ?? [];
+  return musts.length && musts.every((m) => typeof m === 'string') ? musts : undefined;
+}
+
 // A run is never refused for a dirty tree: the uncommitted change is part of what it
 // builds. The record says so, so a reader knows the base is the commit that change is
 // measured from. No base (no repo, no first commit) has nothing to name, and a git that
@@ -316,9 +331,12 @@ export async function run(argv, { cwd = process.cwd() } = {}) {
           return addAssumptions(ctx.planningDir, slug, args[0], args[1] === undefined ? undefined : json(args[1]));
         case 'reject-assumption':
           return runRejectAssumption({ planningDir: ctx.planningDir, slug, key: args[0], instead: args.slice(1).join(' '), items, date: opts.date });
-        case 'slice':
-          if (args[1] === 'ready') return resumeSlice(ctx.planningDir, slug, args[0]);
-          return sliceRun(ctx.planningDir, slug, args[0], args[1], { reason: opts.reason, needs: opts.needs });
+        case 'slice': {
+          // `--at` is this record write's clock, as on `run start`; `--date` stays the plan's date.
+          const at = opts.at ?? new Date().toISOString();
+          if (args[1] === 'ready') return resumeSlice(ctx.planningDir, slug, args[0], { at });
+          return sliceRun(ctx.planningDir, slug, args[0], args[1], { reason: opts.reason, needs: opts.needs, at });
+        }
         case 'next': {
           if (!args[0]) throw new Error('run next needs a roadmap file');
           const rec = record ?? showRun(ctx.planningDir, slug);
@@ -342,8 +360,14 @@ export async function run(argv, { cwd = process.cwd() } = {}) {
         }
         case 'start':
           return startSlice(ctx.planningDir, slug, args[0], { work: opts.work, at: opts.at ?? new Date().toISOString() });
-        case 'audit':
-          return countAudit(ctx.planningDir, slug, { id: args[0], final: opts.final === true, items });
+        case 'audit': {
+          // `--at` is the record write's clock; the plan's last Musts classify the round.
+          const final = opts.final === true;
+          return countAudit(ctx.planningDir, slug, {
+            id: args[0], final, items, at: opts.at ?? new Date().toISOString(),
+            musts: final ? undefined : planMusts(ctx.planningDir, slug, args[0], items),
+          });
+        }
         case 'gate':
           return runGate({
             planningDir: ctx.planningDir, root: ctx.root, slug, id: args[0], items,

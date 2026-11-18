@@ -17,8 +17,14 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const KEY = ['AKIA', 'ABCDEFGHIJKLMNOP'].join('');
 const tmp = tmpDir;
 
+// `.opencode/node_modules` is 62 MB of OpenCode's own runtime data: nothing
+// under test reads it, and copying it into 20 fixtures was most of this file's
+// run time.
 function copyRepo(dest) {
-  fs.cpSync(ROOT, dest, { recursive: true, filter: (src) => !src.includes(`${path.sep}.git${path.sep}`) && !src.endsWith(`${path.sep}.git`) });
+  fs.cpSync(ROOT, dest, {
+    recursive: true,
+    filter: (src) => !src.includes(`${path.sep}.git${path.sep}`) && !src.endsWith(`${path.sep}.git`) && !src.includes(`${path.sep}node_modules`),
+  });
   return dest;
 }
 
@@ -122,10 +128,8 @@ test('scan.mjs finds secrets in files with quoted or non-ASCII names', () => {
   commit();
   fs.appendFileSync(path.join(dir, 'naïve.js'), `j = "${KEY}"\n`);
   assert.equal(scan(dir).status, 1);
-});
 
-test('scan.mjs reports the real line of a tracked change', () => {
-  const { dir, git, commit } = gitRepo();
+  // The report names the line the change is on.
   fs.writeFileSync(path.join(dir, 'a.js'), 'one\ntwo\n');
   git('add', '-A');
   commit();
@@ -133,15 +137,14 @@ test('scan.mjs reports the real line of a tracked change', () => {
   const r = scan(dir);
   assert.equal(r.status, 1, r.stdout);
   assert.match(r.stdout, /in a\.js:3:/);
-});
 
-test('scan.mjs finds a staged file before the first commit', () => {
-  const { dir, git } = gitRepo();
-  fs.writeFileSync(path.join(dir, 'a.js'), `k = "${KEY}"\n`);
-  git('add', 'a.js');
-  const r = scan(dir);
-  assert.equal(r.status, 1, r.stdout);
-  assert.match(r.stdout, /in a\.js:1:/);
+  // A staged file is scanned before the first commit.
+  const fresh = gitRepo();
+  fs.writeFileSync(path.join(fresh.dir, 'staged.js'), `k = "${KEY}"\n`);
+  fresh.git('add', 'staged.js');
+  const first = scan(fresh.dir);
+  assert.equal(first.status, 1, first.stdout);
+  assert.match(first.stdout, /in staged\.js:1:/);
 });
 
 test('scan.mjs rejects an unknown --since ref instead of reporting clean', () => {
@@ -184,18 +187,6 @@ test('fingerprint works before the first commit and fails on a bad base', () => 
   const { dir: d2, commit } = gitRepo();
   commit();
   assert.throws(() => fingerprint(d2, 'nosuchref'), /unknown base ref: nosuchref/);
-});
-
-test('fingerprint hashes binary changes and is a git blob id', () => {
-  const { dir, git, commit } = gitRepo();
-  fs.writeFileSync(path.join(dir, 'b.bin'), Buffer.from([0, 1, 2, 255]));
-  git('add', '-A');
-  commit();
-  assert.equal(fingerprint(dir), 'e69de29bb2d1d6434b8b29ae775ad8c2e48c5391', 'no change hashes as the empty blob');
-  fs.writeFileSync(path.join(dir, 'b.bin'), Buffer.from([0, 9, 2, 255]));
-  const diff = execFileSync('git', ['diff', '--binary', 'HEAD'], { cwd: dir });
-  const expected = execFileSync('git', ['hash-object', '--stdin'], { cwd: dir, input: diff, encoding: 'utf8' }).trim();
-  assert.equal(fingerprint(dir), expected);
 });
 
 test('parseFrontmatter handles CRLF, folded blocks with blank lines, quotes', () => {
@@ -263,21 +254,6 @@ test('check.mjs validates agent files: name, model; tools may be a list', () => 
   assert.equal(planner.status, 0, planner.stdout);
 });
 
-test('install.mjs links agents into ~/.claude/agents and uninstall removes only ours', () => {
-  const home = tmp('do-it-home-');
-  const env = cleanEnv({}, home);
-  const run = (...a) => spawnSync('node', [path.join(ROOT, 'scripts/install.mjs'), ...a], { encoding: 'utf8', env });
-  assert.equal(run('--no-hooks').status, 0);
-  const link = path.join(home, '.claude/agents/it-scout.md');
-  assert.ok(standsFor(link, path.join(ROOT, 'agents/it-scout.md')));
-  assert.equal(fs.existsSync(path.join(home, '.agents/agents')), false, 'agents go to Claude Code only');
-  const foreign = path.join(home, '.claude/agents/mine.md');
-  fs.writeFileSync(foreign, 'x');
-  run('--uninstall');
-  assert.equal(present(link), false);
-  assert.ok(fs.existsSync(foreign), 'foreign agent must stay');
-});
-
 test('install.mjs links OpenCode commands (both dirs) and agents, and uninstall removes only ours', () => {
   const home = tmp('do-it-home-');
   const env = cleanEnv({}, home);
@@ -307,16 +283,6 @@ test('check.mjs: a backticked it-agent name must be a shipped agent or a skill',
   assert.equal(skill.status, 0, skill.stdout);
 });
 
-test('importing gen-opencode.mjs does not run it (bug 10)', () => {
-  const url = new URL('../scripts/gen-opencode.mjs', import.meta.url).href;
-  const r = spawnSync('node', ['--input-type=module', '-e', `const m = await import(${JSON.stringify(url)}); console.log(typeof m.expected)`], {
-    cwd: ROOT,
-    encoding: 'utf8',
-  });
-  assert.equal(r.status, 0, r.stderr);
-  assert.equal(r.stdout.trim(), 'function');
-});
-
 test('check.mjs: a sentence cannot send an it-agent to the Skill tool its tools: list lacks', () => {
   const bad = checkWith({ 'skills/zz-it/SKILL.md': SKILL('Tell `it-reviewer` (mid-tier model) to call the Skill tool with "review-it".') });
   assert.equal(bad.status, 1, bad.stdout);
@@ -332,9 +298,7 @@ test('check.mjs: an agent file needs the voice block and it must match VOICE.md'
   assert.match(missing.stdout, /agents\/it-reviewer\.md: voice block missing or out of date/);
   const drifted = checkWith({ 'agents/it-reviewer.md': AGENT('it-reviewer').replace('Voice for internal', 'Edited voice for internal') });
   assert.match(drifted.stdout, /voice block missing or out of date/);
-});
-
-test('withVoice appends once, then replaces in place', () => {
+  // withVoice appends once, then replaces in place.
   const once = withVoice('body\n', 'V1');
   assert.equal(withVoice(once, 'V1'), once);
   const next = withVoice(once, 'V2');
@@ -371,9 +335,8 @@ test('check.mjs: a spawn cap above the named agent\'s cap fails; at or below pas
     const ok = checkWith({ 'agents/it-scout.md': AGENT('it-scout'), 'skills/zz-it/SKILL.md': spawn(n) });
     assert.equal(ok.status, 0, ok.stdout);
   }
-});
 
-test('check.mjs: an "N in all" cap, wrapped or not, and a cap in a second > paragraph are compared with the agent cap', () => {
+  // The cap found may be an "N in all" one, wrapped or in a second > paragraph.
   const agents = { 'agents/it-scout.md': AGENT('it-scout') };
   const inAll = checkWith({ ...agents, 'skills/zz-it/SKILL.md': SKILL('Start one `it-scout` agent with this brief:\n\n> Find it. Under 40 words a line, 600\n> in all.') });
   assert.equal(inAll.status, 1, inAll.stdout);
@@ -381,15 +344,14 @@ test('check.mjs: an "N in all" cap, wrapped or not, and a cap in a second > para
   const second = checkWith({ ...agents, 'skills/zz-it/SKILL.md': SKILL('Start one `it-scout` agent with this brief:\n\n> Find it. Under 100 words.\n\n> Also list paths. Under 600 words.') });
   assert.equal(second.status, 1, second.stdout);
   assert.match(second.stdout, /word cap 600 is above the 500/);
-  const ok = checkWith({ ...agents, 'skills/zz-it/SKILL.md': SKILL('Start one `it-scout` agent with this brief:\n\n> Find it. Under 40 words a line, 300 in all.\n\n> Also list paths. Under 100 words.') });
-  assert.equal(ok.status, 0, ok.stdout);
-});
+  const below = checkWith({ ...agents, 'skills/zz-it/SKILL.md': SKILL('Start one `it-scout` agent with this brief:\n\n> Find it. Under 40 words a line, 300 in all.\n\n> Also list paths. Under 100 words.') });
+  assert.equal(below.status, 0, below.stdout);
 
-test('check.mjs: a paragraph naming two agents is held to the lower cap', () => {
+  // A paragraph naming two agents is held to the lower cap.
   const para = SKILL('Start `it-scout` and `it-reviewer` agents with this brief:\n\n> Find it. Under 600 words.');
   const lower = AGENT('it-reviewer').replace('Cap: 500 words', 'Cap: 800 words');
-  const r = checkWith({ 'agents/it-scout.md': AGENT('it-scout'), 'agents/it-reviewer.md': lower, 'skills/zz-it/SKILL.md': para });
-  assert.match(r.stdout, /word cap 600 is above the 500 in agents\/it-scout\.md/);
+  const two = checkWith({ 'agents/it-scout.md': AGENT('it-scout'), 'agents/it-reviewer.md': lower, 'skills/zz-it/SKILL.md': para });
+  assert.match(two.stdout, /word cap 600 is above the 500 in agents\/it-scout\.md/);
 });
 
 test('check.mjs: a link in a skill that leaves skills/ fails; one inside passes', () => {

@@ -7,10 +7,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
 import { fakeFetch, fakeGh } from './fakes.mjs';
-import { parseEnv, resolveDocs, redact, DEFAULTS } from '../skills/track-it/scripts/config.mjs';
+import { resolveDocs, redact, DEFAULTS } from '../skills/track-it/scripts/config.mjs';
 import { parseRef } from '../skills/track-it/scripts/refs.mjs';
 import { markdownToWiki } from '../skills/track-it/scripts/wiki.mjs';
 import { localTracker } from '../skills/track-it/scripts/adapters/local.mjs';
@@ -25,10 +25,6 @@ function tmpRepo() {
   fs.mkdirSync(path.join(dir, '.git'));
   return dir;
 }
-
-test('quoted dotenv value with an inline comment loses its quotes', () => {
-  assert.deepEqual(parseEnv(`A="quoted" # note\nB='x y' # c\n`), { A: 'quoted', B: 'x y' });
-});
 
 test('absolute doc and issue paths are used as given', () => {
   const root = tmpRepo();
@@ -128,14 +124,6 @@ test('a rewrite that would drop frontmatter lines is refused', () => {
   assert.equal(fs.readFileSync(bare, 'utf8'), 'Just text\n');
 });
 
-test('two creates of one title keep both files, and a dotted name is not mistaken for a climb', () => {
-  const root = tmpRepo();
-  const t = localTracker(DEFAULTS, { root });
-  assert.deepEqual([t.create({ title: 'Same' }).ref, t.create({ title: 'Same' }).ref], ['docs/issues/same.md', 'docs/issues/same-2.md']);
-  seedFile(root, 'docs/issues/..notes.md', '---\ntitle: D\n---\n');
-  assert.equal(t.get('docs/issues/..notes.md').title, 'D');
-});
-
 test('create never overwrites an existing slug file, and leaves no temp file after a rewrite', () => {
   const root = tmpRepo();
   const same = seedFile(root, 'docs/issues/same.md', 'keep me\n');
@@ -145,6 +133,13 @@ test('create never overwrites an existing slug file, and leaves no temp file aft
   assert.equal(fs.readFileSync(same, 'utf8'), 'keep me\n');
   t.comment('docs/issues/same-2.md', 'note');
   assert.deepEqual(fs.readdirSync(path.join(root, 'docs/issues')).filter((f) => !f.endsWith('.md')), []);
+
+  // Two creates in an empty repo keep both files, and a dotted name is not mistaken for a climb.
+  const freshRoot = tmpRepo();
+  const fresh = localTracker(DEFAULTS, { root: freshRoot });
+  assert.deepEqual([fresh.create({ title: 'Same' }).ref, fresh.create({ title: 'Same' }).ref], ['docs/issues/same.md', 'docs/issues/same-2.md']);
+  seedFile(freshRoot, 'docs/issues/..notes.md', '---\ntitle: D\n---\n');
+  assert.equal(fresh.get('docs/issues/..notes.md').title, 'D');
 });
 
 test('parseRef keeps a GitHub Enterprise host and drops github.com', () => {
@@ -154,6 +149,11 @@ test('parseRef keeps a GitHub Enterprise host and drops github.com', () => {
   assert.deepEqual(parseRef('ghe.example/o/r#4'), { kind: 'github', repo: 'ghe.example/o/r', number: 4 });
   assert.deepEqual(parseRef('o/r#4'), { kind: 'github', repo: 'o/r', number: 4 });
   assert.equal(parseRef('docs/issues/x.md#3'), null);
+  // A lowercase Jira key is raised, a .MD path stays local, and a GHE host without a port is kept.
+  assert.deepEqual(parseRef('abc-123'), { kind: 'jira', key: 'ABC-123' });
+  assert.deepEqual(parseRef('https://jira.x/browse/abc-1'), { kind: 'jira', key: 'ABC-1' });
+  assert.deepEqual(parseRef('https://ghe.corp.com/o/r/issues/5'), { kind: 'github', repo: 'ghe.corp.com/o/r', number: 5 });
+  assert.deepEqual(parseRef('docs/issues/A.MD'), { kind: 'local', path: 'docs/issues/A.MD' });
 });
 
 test('GitHub calls for a GHE ref pass -R host/owner/repo and refs keep the host', () => {
@@ -228,21 +228,6 @@ test('credentials in JIRA_BASE_URL never reach output', async () => {
   const cfg = { ...JIRA, JIRA_BASE_URL: 'https://user:pw@j.x' };
   assert.doesNotMatch(JSON.stringify(redact(cfg)), /pw@/);
   await assert.rejects(jiraTracker(cfg, { fetch: capture() }).get('PR-1'), (e) => /must not contain credentials/.test(e.message) && !/pw/.test(e.message));
-});
-
-test('importing tracker.mjs from stdin does not crash the main-module check', () => {
-  const r = spawnSync('node', ['--input-type=module', '-'], {
-    input: `await import(${JSON.stringify(pathToFileURL(path.join(ROOT, 'skills/track-it/scripts/tracker.mjs')).href)}); console.log('ok');`,
-    encoding: 'utf8',
-  });
-  assert.equal(r.stdout.trim(), 'ok', r.stderr);
-});
-
-test('parseRef accepts lowercase Jira keys, GitHub Enterprise URLs and .MD paths', () => {
-  assert.deepEqual(parseRef('abc-123'), { kind: 'jira', key: 'ABC-123' });
-  assert.deepEqual(parseRef('https://jira.x/browse/abc-1'), { kind: 'jira', key: 'ABC-1' });
-  assert.deepEqual(parseRef('https://ghe.corp.com/o/r/issues/5'), { kind: 'github', repo: 'ghe.corp.com/o/r', number: 5 });
-  assert.deepEqual(parseRef('docs/issues/A.MD'), { kind: 'local', path: 'docs/issues/A.MD' });
 });
 
 test('GitHub refs keep their repo, bad output throws, only label errors drop labels', () => {

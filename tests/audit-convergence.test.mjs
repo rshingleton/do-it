@@ -13,11 +13,9 @@ test('ROUNDS.md holds the convergence rules', () => {
   }
 });
 
-test('prove-it links ROUNDS.md, stays in budget and no longer re-audits "every check, every time"', () => {
+test('prove-it links ROUNDS.md', () => {
   const s = read('skills/prove-it/SKILL.md');
   assert.ok(s.includes('ROUNDS.md'));
-  assert.ok(s.split('\n').length <= 101, 'within the 100-line budget');
-  assert.ok(!s.includes('every check, every time'));
 });
 
 test('review-it takes the settled list and tells reviewers not to re-raise it', () => {

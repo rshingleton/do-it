@@ -8,7 +8,7 @@ import path from 'node:path';
 import { snapshot, treeDiff } from './changeset.mjs';
 import { dirtyHashes, relative } from './commit.mjs';
 import { parseContract, pairTracks } from './contract.mjs';
-import { auditRoom, checkWithRerun, gate, recordMerged, recordVerified, recordVerifyFailure, recordWaited, VERIFY_CAP_ROUNDS } from './gate.mjs';
+import { auditRoom, checkWithRerun, gate, recordMerged, recordSeen, recordVerified, recordVerifyFailure, recordWaited, VERIFY_CAP_ROUNDS } from './gate.mjs';
 import { git } from './git.mjs';
 import { checkShell } from './check-shell.mjs';
 import { lockChecks } from './check-slot.mjs';
@@ -62,7 +62,7 @@ export function runGate({ planningDir, root, slug, id, items, fingerprintOf }) {
 
 // A plan, or null only when the work id has none. `items.get` says "no plan for <id>" for that gap;
 // every other read failure is a real error the caller must see, never a quiet fallback.
-function planOf(items, work) {
+export function planOf(items, work) {
   if (!work) return null;
   try {
     return items.get(work);
@@ -166,7 +166,7 @@ export function runTracks({ planningDir, root, slug, road, items }) {
   const next = nextSlice(road, record, { batch: FREE_BATCH });
   const free = next.next ?? [];
   const gates = record.gates ?? [];
-  // The coordinator counts every round (`run audit`), so the dispatch asks the same cap first.
+  // The coordinator decides every round (`run audit`), so the dispatch asks the same cap first.
   const open = [];
   const refused = [];
   for (const id of free) {
@@ -257,11 +257,14 @@ export function runVerify({ planningDir, root, cwd, slug, id, opts, items, finge
   };
   const phase = opts.phase === undefined ? undefined : Number(opts.phase);
   return withCheckSlot(planningDir, slug, (waited) => {
-    // Queue time is not work time: recorded so the gate's cap counts from `started` plus this.
+    // Queue time is not work time: recorded so the gate takes it off the in-flight spans.
     recordWaited(planningDir, slug, id, waited);
     try {
       items.verifyPhase(g.work, phase, check, { date: opts.date });
     } catch (e) {
+      // A failing check is still a command that showed the slice alive: without the stamp the next
+      // start closes the span at the previous one and the minutes before the failure are lost.
+      recordSeen(planningDir, slug, id, opts.at ?? new Date().toISOString());
       if (!failed) throw e;
       // The round counts against the slice before the flaky check, so a flaky park cannot hide it.
       const failures = recordVerifyFailure(planningDir, slug, id);
@@ -290,6 +293,9 @@ export function runVerify({ planningDir, root, cwd, slug, id, opts, items, finge
     // The fingerprint leaves out the files another slice's plan owns, so the gate compares this
     // slice's change alone; a file no plan names is still in it.
     recordVerified(planningDir, slug, id, fingerprintOf(items.get(g.work), top, foreignPaths(record, id, items)), files, verifiedRoot(root, top));
+    // Taken after the check returns from the slot, so its queue wait is inside the span (and taken
+    // off by `waited_ms`), not left outside it and subtracted a second time.
+    recordSeen(planningDir, slug, id, opts.at ?? new Date().toISOString());
     return showRun(planningDir, slug);
   });
 }
@@ -305,10 +311,19 @@ export function runVerifyMerged({ planningDir, root, cwd, slug, id, opts, items,
   if (!opts.merged) throw new Error('run verify --merged needs the merged directory');
   const where = path.resolve(cwd, String(opts.merged));
   const text = command.length === 1 ? command[0] : command.map(quote).join(' ');
-  // The merged suite is a check like any other: it takes the same slot.
-  const r = withCheckSlot(planningDir, slug, () => checkWithRerun(checkAt(where, text)));
-  if (!r.ok) throw new Error(`verify --merged: ${r.why}; nothing recorded`);
+  // The merged suite is a check like any other: it takes the same slot, and its queue wait is not work.
+  const r = withCheckSlot(planningDir, slug, (waited) => {
+    recordWaited(planningDir, slug, id, waited);
+    return checkWithRerun(checkAt(where, text));
+  });
+  if (!r.ok) {
+    // The failed check still ran: stamp the evidence before the throw, as `run verify` does.
+    recordSeen(planningDir, slug, id, opts.at ?? new Date().toISOString());
+    throw new Error(`verify --merged: ${r.why}; nothing recorded`);
+  }
   recordMerged(planningDir, slug, id, fingerprintOf(items.get(g.work), where));
+  // Taken after the check returns from the slot, as `run verify` does.
+  recordSeen(planningDir, slug, id, opts.at ?? new Date().toISOString());
   return showRun(planningDir, slug);
 }
 

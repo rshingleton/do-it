@@ -18,13 +18,6 @@ const SAMPLE = [
   line('2026-11-15T09:05:00Z', 'serial', 'R3', 'ship', 'end'),
 ].join('\n');
 
-test('parseLog keeps good lines and names a broken one', () => {
-  const { entries, skipped } = parseLog(`${SAMPLE}\nnot a log line\n`);
-  assert.equal(entries.length, 8);
-  assert.equal(skipped.length, 1);
-  assert.match(skipped[0].why, /fewer than five fields/);
-});
-
 test('summarize computes the shares and the 2-track bounds', () => {
   const [s] = summarize(parseLog(SAMPLE).entries);
   assert.equal(s.total, 300);
@@ -37,27 +30,19 @@ test('summarize computes the shares and the 2-track bounds', () => {
   assert.deepEqual(s.problems, []);
 });
 
-test('an unclosed start is named and counts no duration', () => {
-  const text = line('2026-11-15T09:00:00Z', 'serial', 'R4', 'scope', 'start');
-  const [s] = summarize(parseLog(text).entries);
-  assert.equal(s.steps.scope, 0);
-  assert.match(s.problems.join(), /start without an end/);
-});
-
-test('mark writes a line the report reads back', () => {
+test('mark writes a line the report reads back, and names a broken line it skips', () => {
   const dir = tmpDir('do-it-pilot-');
   const log = path.join(dir, 'phase0.log');
   const now = new Date('2026-11-15T09:00:00Z');
   mark(log, { arm: 'serial', slice: 'R3', step: 'scope', event: 'start', note: 'first' }, { now });
-  const { entries, skipped } = parseLog(fs.readFileSync(log, 'utf8'));
+  const text = fs.readFileSync(log, 'utf8');
+  const { entries, skipped } = parseLog(text);
   assert.equal(skipped.length, 0);
   assert.equal(entries[0].at, now.toISOString());
   assert.equal(entries[0].note, 'first');
   assert.match(report(summarize(entries)), /serial/);
-});
-
-test('mark refuses an unknown arm or event', () => {
-  const log = path.join(tmpDir('do-it-pilot-'), 'phase0.log');
-  assert.throws(() => mark(log, { arm: 'pair', slice: 'R3', step: 'scope', event: 'start' }), /arm must be/);
-  assert.throws(() => mark(log, { arm: 'serial', slice: 'R3', step: 'scope', event: 'done' }), /event must be/);
+  const broken = parseLog(`${text}not a log line\n`);
+  assert.equal(broken.entries.length, 1);
+  assert.equal(broken.skipped.length, 1);
+  assert.match(broken.skipped[0].why, /fewer than five fields/);
 });

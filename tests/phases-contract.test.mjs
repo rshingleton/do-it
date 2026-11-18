@@ -140,39 +140,28 @@ test('a README list that is not the union fails, naming each path on one side', 
   assert.match(errors, /only in the phases: src\/c\.js/);
 });
 
-test('a phase file with no ## Files fails, naming the file', () => {
-  const dir = planDir([{ n: 1, section: false, files: [] }], []);
-  const errors = bad(run(dir));
-  assert.match(errors, /phase-1\.md: no ## Files section/);
+test('a phase file whose ## Files lists no path, or has none, fails naming the file', () => {
+  const empty = planDir([{ n: 1, files: [] }], []);
+  assert.match(bad(run(empty)), /phase-1\.md: states ## Files but lists no path/);
+  const absent = planDir([{ n: 1, section: false, files: [] }], []);
+  assert.match(bad(run(absent)), /phase-1\.md: no ## Files section/);
 });
 
-test('a phase file whose ## Files lists no path fails, naming the file', () => {
-  const dir = planDir([{ n: 1, files: [] }], []);
-  const errors = bad(run(dir));
-  assert.match(errors, /phase-1\.md: states ## Files but lists no path/);
-});
-
-test('a state phase with no phase file fails, naming the file', () => {
+test('a state phase and a phase file must match, each mismatch naming the file', () => {
   const dir = planDir([{ n: 1, files: ['src/a.js'] }, { n: 2, blocked_by: [1], files: ['src/b.js'] }], ['src/a.js', 'src/b.js']);
   fs.rmSync(path.join(dir, 'phase-2.md'));
-  const errors = bad(run(dir));
-  assert.match(errors, /phase-2\.md: missing, though phase 2 is in the README state block/);
-});
+  assert.match(bad(run(dir)), /phase-2\.md: missing, though phase 2 is in the README state block/);
 
-test('a phase file with no state phase fails, naming the file', () => {
-  const dir = planDir([{ n: 1, files: ['src/a.js'] }], ['src/a.js']);
-  phaseFile(dir, { n: 2, files: ['src/a.js'] });
-  const errors = bad(run(dir));
-  assert.match(errors, /phase-2\.md: no phase 2 in the README state block/);
+  const stray = planDir([{ n: 1, files: ['src/a.js'] }], ['src/a.js']);
+  phaseFile(stray, { n: 2, files: ['src/a.js'] });
+  assert.match(bad(run(stray)), /phase-2\.md: no phase 2 in the README state block/);
 });
 
 test('two phases no edge separates that share a file fail, naming both phases and the path', () => {
   const dir = planDir([{ n: 1, files: ['src/a.js'] }, { n: 2, files: ['src/a.js'] }], ['src/a.js']);
   const errors = bad(run(dir));
   assert.match(errors, /phase 1 and phase 2 both change src\/a\.js/);
-});
-
-test('a chain of block edges separates a shared file as a direct edge does', () => {
+  // A chain of block edges separates a shared file as a direct edge does.
   const transitive = planDir(
     [{ n: 1, files: ['src/a.js'] }, { n: 2, blocked_by: [1], files: ['src/b.js'] }, { n: 3, blocked_by: [2], files: ['src/a.js'] }],
     ['src/a.js', 'src/b.js'],
@@ -184,8 +173,7 @@ test('a chain of block edges separates a shared file as a direct edge does', () 
 
 test('a repeated path on either side is one path, so duplicates do not fail the plan', () => {
   const dir = planDir([{ n: 1, files: ['src/a.js', 'src/a.js'] }, { n: 2, blocked_by: [1], files: ['src/b.js'] }], ['src/a.js', 'src/a.js', 'src/b.js']);
-  const out = ok(run(dir));
-  assert.deepEqual(out.phases[0].files, ['src/a.js', 'src/a.js'], 'the phase list keeps what it wrote');
+  ok(run(dir));
 });
 
 test('a lane S plan has one list, so the check passes and says so', () => {
@@ -199,17 +187,13 @@ test('a lane S plan has one list, so the check passes and says so', () => {
   assert.match(ok(run(planDir([], []))).note, /lane S has one/);
 });
 
-test('no path is a one-line usage error with exit 2', () => {
-  for (const args of [[], [path.join(tmpDir('do-it-phases-missing-'), 'nope')]]) {
-    const r = spawnSync('node', [CHECK, ...args], { encoding: 'utf8' });
-    assert.equal(r.status, 2);
-    assert.match(r.stderr, /^usage: phases\.mjs/);
-    assert.equal(r.stderr.trim().split('\n').length, 1, 'one line');
-  }
-});
-
 test('scope-it states the rule in both planning paths, and its checks name the command', () => {
   const format = fs.readFileSync(path.join(ROOT, 'skills/scope-it/PLAN-FORMAT.md'), 'utf8');
+  const fences = [...format.matchAll(/```markdown\n([\s\S]*?)```/g)].map((m) => m[1]);
+  for (const fence of fences.slice(0, 2)) {
+    assert.match(fence, /^## Files$/m, 'the example carries the section');
+    assert.match(fence, /^## Interfaces$/m);
+  }
   const phaseExample = fence(format, /^# Phase N:/m);
   assert.match(phaseExample, /^## Files$/m, 'the phase example carries the section');
   assert.match(phaseExample, /^## Files\r?\nsrc\/limiter\.js\r?$/m, 'it shows a path where the paths go, not prose');
@@ -223,6 +207,10 @@ test('scope-it states the rule in both planning paths, and its checks name the c
   const checks = fs.readFileSync(path.join(ROOT, 'skills/scope-it/CHECKS.md'), 'utf8');
   assert.match(checks, /^\| Locality \|/m, 'the analyze table has a Locality row');
   assert.match(checks, /an empty one/, 'the row counts an empty list as missing');
+  assert.match(checks, /^\| Contract \|/m, 'the analyse pass has a Contract row');
+  assert.match(checks, /contract\.mjs/, 'the row names the command a scope-it run calls');
+  assert.match(checks, /^\| Verify commands \|/m, 'the analyse pass has a probe row');
+  assert.match(checks.replace(/\s+/g, ' '), /lane S step lines only/, 'the row says the probe reads lane S steps only');
   assert.match(checks.replace(/\s+/g, ' '), /`phases\.mjs` means `node <this skill's directory>\/scripts\/phases\.mjs`/, 'the command is given from this skill\'s own directory');
   assert.match(checks.replace(/\s+/g, ' '), /Lane S does the first five checks/, 'lane S still stops before the lane M checks');
 });

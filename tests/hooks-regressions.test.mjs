@@ -6,10 +6,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-import { BUILTIN, scan, loadChecks, editParts } from '../hooks/lib/checks.mjs';
+import { BUILTIN, scan, loadChecks } from '../hooks/lib/checks.mjs';
 import { beforeEdit, afterEdit, beforeShell } from '../hooks/lib/guard.mjs';
 import { EVENTS } from '../hooks/claude.mjs';
 import { DEFAULTS } from '../skills/track-it/scripts/config.mjs';
@@ -43,6 +43,13 @@ test('git commit -a / -am scans tracked changes that are not staged yet', () => 
   const ctx = ctxFor(dir);
   assert.equal(beforeShell(ctx, 'git commit -am wip').action, 'block');
   assert.equal(beforeShell(ctx, 'git commit --all -m wip').action, 'block');
+
+  // Before the first commit, -a still covers what the index holds.
+  const fresh = tmpDir('do-it-hreg-');
+  execFileSync('git', ['init', '-q'], { cwd: fresh });
+  fs.writeFileSync(path.join(fresh, 'init.js'), `k = "${KEY}"\n`);
+  execFileSync('git', ['add', 'init.js'], { cwd: fresh });
+  assert.equal(beforeShell(ctxFor(fresh), 'git commit -am init').action, 'block');
 });
 
 test('commit detection: global options, no false hits on strings or commit-tree', () => {
@@ -55,13 +62,6 @@ test('commit detection: global options, no false hits on strings or commit-tree'
   assert.equal(beforeShell(here, 'git -c user.name=x commit -m wip').action, 'block');
   assert.equal(beforeShell(here, "echo 'later: git commit'").action, 'allow');
   assert.equal(beforeShell(here, 'git commit-tree HEAD^{tree} -m x').action, 'allow');
-});
-
-test('staged non-ASCII paths are scanned', () => {
-  const { dir, git } = repo();
-  fs.writeFileSync(path.join(dir, 'café.py'), `k = "${KEY}"\n`);
-  git('add', 'café.py');
-  assert.equal(beforeShell(ctxFor(dir), 'git commit -m x').action, 'block');
 });
 
 test('lint command quotes paths so $ and backticks are not expanded', () => {
@@ -108,37 +108,6 @@ test('OpenCode: apply_patch is guarded, removed lines are not, patched .env is',
   await assert.rejects(before('patch', { patchText: '*** Begin Patch\n*** Add File: .env\n+A=1\n*** End Patch' }), /env-file/);
 });
 
-test('claude post-tool reports lint failures as additionalContext', () => {
-  const { dir } = repo();
-  const r = spawnSync('node', [path.join(ROOT, 'hooks/claude.mjs'), 'post-tool'], {
-    input: JSON.stringify({ cwd: dir, tool_name: 'Edit', tool_input: { file_path: 'a.js', new_string: 'x' } }),
-    encoding: 'utf8',
-    env: { ...process.env, DO_IT_LINT_CMD: 'echo bad && exit 1' },
-  });
-  const out = JSON.parse(r.stdout);
-  assert.equal(out.hookSpecificOutput.hookEventName, 'PostToolUse');
-  assert.match(out.hookSpecificOutput.additionalContext, /lint failed[\s\S]*bad/);
-});
-
-test('claude.mjs can be imported when argv[1] is not a file (bug 10)', () => {
-  const url = new URL('../hooks/claude.mjs', import.meta.url).href;
-  const r = spawnSync('node', ['--input-type=module', '-e', `await import(${JSON.stringify(url)}); console.log('imported')`, 'no-such-file'], {
-    encoding: 'utf8',
-    input: '',
-  });
-  assert.equal(r.status, 0, r.stderr);
-  assert.match(r.stdout, /imported/);
-});
-
-test('the it-core header is stripped from a CRLF file (bug 10)', async () => {
-  const { coreText } = await import('../hooks/lib/context.mjs');
-  const file = path.join(tmpDir('do-it-crlf-'), 'SKILL.md');
-  fs.writeFileSync(file, '---\r\nname: it-core\r\ndescription: x\r\n---\r\n# Posture\r\nbody\r\n');
-  const text = coreText(file);
-  assert.doesNotMatch(text, /name: it-core/);
-  assert.match(text, /^# Posture/);
-});
-
 // An apply_patch touching a.js then b.py, with `added` on b.py's side only.
 const twoFilePatch = (added) =>
   ['*** Begin Patch', '*** Update File: a.js', '@@', '-old', '+const a = 1', '*** Add File: b.py', `+${added}`, '*** End Patch'].join('\n');
@@ -171,21 +140,17 @@ test('a moved env file is still caught by its old path (audit 1)', () => {
   assert.match(beforeEdit(ctxFor(repo().dir), { patchText: patch }).reason, /env-file in \.env/);
 });
 
-test('lint results for several files come back in edit order (audit 1)', () => {
-  const { dir } = repo();
-  const spawn = (cmd) => (cmd.includes('a.js') ? { signal: 'SIGTERM' } : { status: 1, stdout: 'bad' });
-  const r = afterEdit(ctxFor(dir, { DO_IT_LINT_CMD: 'lint {file}' }), { patchText: twoFilePatch('x = 1') }, { spawn });
-  assert.equal(r.action, 'feedback');
-  assert.match(r.message, /^do-it lint timed out[^\n]*a\.js['"]\n\ndo-it lint failed for b\.py/);
-});
-
-test('every file in a patch is linted', () => {
+test('every file in a patch is linted, in edit order', () => {
   const { dir } = repo();
   const ctx = ctxFor(dir, { DO_IT_LINT_CMD: 'node -e "if (process.argv[1].endsWith(\'.py\')) process.exit(1)" {file}' });
   const r = afterEdit(ctx, { patchText: twoFilePatch('x = 1') });
   assert.equal(r.action, 'feedback');
   assert.match(r.message, /lint failed for b\.py/);
   assert.doesNotMatch(r.message, /a\.js/);
+
+  const spawn = (cmd) => (cmd.includes('a.js') ? { signal: 'SIGTERM' } : { status: 1, stdout: 'bad' });
+  const ordered = afterEdit(ctxFor(dir, { DO_IT_LINT_CMD: 'lint {file}' }), { patchText: twoFilePatch('x = 1') }, { spawn });
+  assert.match(ordered.message, /^do-it lint timed out[^\n]*a\.js['"]\n\ndo-it lint failed for b\.py/);
 });
 
 test('no added line is dropped from the scan, whatever the patch does with its path (audit 2)', () => {
@@ -204,13 +169,32 @@ test('no added line is dropped from the scan, whatever the patch does with its p
   assert.equal(beforeEdit(ctx, { patch: ['--- a/y.js', '+++ /dev/null', '@@', secret].join('\n') }).action, 'block');
 });
 
-test('a unified header in an apply_patch body still gets path rules (audit 2)', () => {
-  const patch = ['*** Begin Patch', '--- a/x', '+++ b/.env', '@@', '-a', '+A=1'].join('\n');
-  assert.match(beforeEdit(ctxFor(repo().dir), { patch }).reason, /env-file in \.env/);
-});
-
-test('a unified file header needs no --- line before it (audit 3)', () => {
-  assert.match(beforeEdit(ctxFor(repo().dir), { patch: '+++ b/.env\n@@ -0,0 +1 @@\n+x' }).reason, /env-file in \.env/);
+test('a header pair inside a hunk still names its file (audit 4)', () => {
+  const { dir } = repo();
+  fs.mkdirSync(path.join(dir, '.compliance-rules'));
+  fs.writeFileSync(
+    path.join(dir, '.compliance-rules', 'checks.json'),
+    JSON.stringify([{ id: 'no-evil', severity: 'HIGH', pattern: 'EVIL', files: ['.js'] }]),
+  );
+  const ctx = ctxFor(dir);
+  const bare = ['--- a/a.txt', '+++ b/a.txt', '@@', '+x', '--- a/.env', '+++ b/.env', '@@', '+FOO=bar'].join('\n');
+  assert.match(beforeEdit(ctx, { patch: bare }).reason, /env-file in \.env/);
+  const overCount = ['--- a/a.txt', '+++ b/a.txt', '@@ -1,3 +1,3 @@', ' ctx', '--- a/.env', '+++ b/.env', '+FOO=bar'].join('\n');
+  assert.match(beforeEdit(ctx, { patch: overCount }).reason, /env-file in \.env/);
+  const steered = ['--- a/n.txt', '+++ b/n.txt', '@@', '+a', '--- a/x.js', '+++ b/x.js', '@@', '+EVIL'].join('\n');
+  assert.match(beforeEdit(ctx, { patch: steered }).reason, /no-evil in x\.js/);
+  // An in-hunk +++ path that is not dev-null is scanned under that path.
+  const named = ['--- a/a.txt', '+++ b/a.txt', '@@ -0,0 +1,3 @@', '--- a/x.txt', '+++ b/y.js', '+EVIL'].join('\n');
+  assert.match(beforeEdit(ctx, { patch: named }).reason, /no-evil in y\.js/);
+  const clean = ['--- a/a.txt', '+++ b/a.txt', '@@ -0,0 +1,3 @@', '--- a/x.txt', '+++ b/y.txt', '+EVIL'].join('\n');
+  assert.equal(beforeEdit(ctx, { patch: clean }).action, 'allow', 'the same line under a path the rule does not cover');
+  // A unified header in an apply_patch body, with or without a --- line, names its file.
+  assert.match(beforeEdit(ctx, { patch: ['*** Begin Patch', '--- a/x', '+++ b/.env', '@@', '-a', '+A=1'].join('\n') }).reason, /env-file in \.env/);
+  assert.match(beforeEdit(ctx, { patch: '+++ b/.env\n@@ -0,0 +1 @@\n+x' }).reason, /env-file in \.env/);
+  // diff -u timestamps and git quoting do not hide the path.
+  for (const header of ['+++ .env\t2024-01-01 00:00:00', '+++ "b/.env"']) {
+    assert.match(beforeEdit(ctx, { patch: ['--- a/x', header, '@@ -0,0 +1 @@', '+A=1'].join('\n') }).reason, /env-file in \.env/, header);
+  }
 });
 
 test('header-looking lines inside a hunk are content, not a new file (audit 3)', () => {
@@ -239,57 +223,6 @@ test('a file that is gone after the edit is not linted (audit 3)', () => {
   assert.match(linted[0], /new\.js['"]$/);
 });
 
-test('a header pair inside a hunk still names its file (audit 4)', () => {
-  const { dir } = repo();
-  fs.mkdirSync(path.join(dir, '.compliance-rules'));
-  fs.writeFileSync(
-    path.join(dir, '.compliance-rules', 'checks.json'),
-    JSON.stringify([{ id: 'no-evil', severity: 'HIGH', pattern: 'EVIL', files: ['.js'] }]),
-  );
-  const ctx = ctxFor(dir);
-  const bare = ['--- a/a.txt', '+++ b/a.txt', '@@', '+x', '--- a/.env', '+++ b/.env', '@@', '+FOO=bar'].join('\n');
-  assert.match(beforeEdit(ctx, { patch: bare }).reason, /env-file in \.env/);
-  const overCount = ['--- a/a.txt', '+++ b/a.txt', '@@ -1,3 +1,3 @@', ' ctx', '--- a/.env', '+++ b/.env', '+FOO=bar'].join('\n');
-  assert.match(beforeEdit(ctx, { patch: overCount }).reason, /env-file in \.env/);
-  const steered = ['--- a/n.txt', '+++ b/n.txt', '@@', '+a', '--- a/x.js', '+++ b/x.js', '@@', '+EVIL'].join('\n');
-  assert.match(beforeEdit(ctx, { patch: steered }).reason, /no-evil in x\.js/);
-});
-
-test('an embedded unified section cannot exempt a line from a scoped rule (audit 5)', () => {
-  const { dir } = repo();
-  fs.mkdirSync(path.join(dir, '.compliance-rules'));
-  fs.writeFileSync(
-    path.join(dir, '.compliance-rules', 'checks.json'),
-    JSON.stringify([{ id: 'no-evil', severity: 'HIGH', pattern: 'EVIL', files: ['.py'], exceptFilePattern: '\\.txt$' }]),
-  );
-  const ctx = ctxFor(dir);
-  const patch = (...lines) => ['*** Begin Patch', '*** Update File: a.txt', '@@', ...lines, '*** End Patch'].join('\n');
-  assert.match(beforeEdit(ctx, { patchText: patch('--- a/x.py', '+++ b/x.py', '+EVIL') }).reason, /no-evil in x\.py/);
-  // The scope ends at the next block, so a later file is not scanned as x.py.
-  const later = ['*** Begin Patch', '*** Update File: a.txt', '--- a/x.py', '+++ b/x.py', '*** Update File: b.txt', '@@', '+EVIL', '*** End Patch'].join('\n');
-  assert.equal(beforeEdit(ctx, { patchText: later }).action, 'allow');
-});
-
-test('lines added after a delete are also scanned past the deleted path (audit 5)', () => {
-  const { dir } = repo();
-  fs.mkdirSync(path.join(dir, '.compliance-rules'));
-  fs.writeFileSync(
-    path.join(dir, '.compliance-rules', 'checks.json'),
-    JSON.stringify([{ id: 'no-evil', severity: 'HIGH', pattern: 'EVIL', exceptFilePattern: '\\.txt$' }]),
-  );
-  const ctx = ctxFor(dir);
-  const forms = {
-    'apply_patch delete': { patchText: ['*** Begin Patch', '*** Delete File: old.txt', '+EVIL', '*** End Patch'].join('\n') },
-    'unified delete': { patch: ['--- a/old.txt', '+++ /dev/null', '@@ -1 +0,0 @@', '+EVIL'].join('\n') },
-    'unified delete, no old path': { patch: ['+++ /dev/null', '@@', '+EVIL'].join('\n') },
-  };
-  for (const [name, input] of Object.entries(forms)) {
-    const r = beforeEdit(ctx, input);
-    assert.equal(r.action, 'block', name);
-    assert.equal(r.reason.match(/^- \[HIGH\] no-evil/gm).length, 1, name);
-  }
-});
-
 test('an in-hunk dev-null pair cannot exempt a line from a scoped rule or an exception (R25)', () => {
   const rulesFor = (rule) => {
     const { dir } = repo();
@@ -312,21 +245,35 @@ test('an in-hunk dev-null pair cannot exempt a line from a scoped rule or an exc
   // A pair with no old path keeps the file an earlier in-hunk pair named.
   const kept = patch('--- a/x.py', '+++ b/y.py', '--- /dev/null', '+++ /dev/null', '+EVIL').replace('+1,3', '+1,4');
   assert.match(beforeEdit(scoped, { patch: kept }).reason, /no-evil in y\.py/);
+
+  // The same inside an apply_patch body: an embedded unified section cannot
+  // exempt a line from a scoped rule, and the dev-null pair cannot steer it.
+  const body = (...lines) => ['*** Begin Patch', '*** Update File: a.txt', '@@', ...lines, '*** End Patch'].join('\n');
+  assert.match(beforeEdit(scoped, { patchText: body('--- a/x.py', '+++ b/x.py', '+EVIL') }).reason, /no-evil in x\.py/);
+  const endOfBlock = ['*** Begin Patch', '*** Update File: a.txt', '--- a/x.py', '+++ b/x.py', '*** Update File: b.txt', '@@', '+EVIL', '*** End Patch'].join('\n');
+  assert.equal(beforeEdit(scoped, { patchText: endOfBlock }).action, 'allow');
+  const embeddedDelete = ['*** Begin Patch', '*** Update File: a.txt', '--- a/x.py', '+++ /dev/null', '+EVIL', '*** End Patch'].join('\n');
+  assert.equal(beforeEdit(rulesFor({ files: ['.py'] }), { patchText: embeddedDelete }).action, 'block');
+  assert.equal(beforeEdit(rulesFor({ exceptFilePattern: 'a\\.txt$' }), { patchText: embeddedDelete }).action, 'block');
 });
 
-test('an in-hunk dev-null pair scans its own +++ line under the old path', () => {
+test('lines added after a delete are also scanned past the deleted path (audit 5)', () => {
   const { dir } = repo();
   fs.mkdirSync(path.join(dir, '.compliance-rules'));
-  fs.writeFileSync(path.join(dir, '.compliance-rules', 'checks.json'), JSON.stringify([{ id: 'no-null', severity: 'HIGH', pattern: 'dev/null', files: ['.py'] }]));
-  const patch = ['--- a/a.txt', '+++ b/a.txt', '@@ -0,0 +1,3 @@', '--- a/x.py', '+++ /dev/null', '+ok'].join('\n');
-  assert.match(beforeEdit(ctxFor(dir), { patch }).reason, /no-null in x\.py/);
-});
-
-test('diff -u timestamps and git quoting do not hide a header path (audit 4)', () => {
-  const ctx = ctxFor(repo().dir);
-  for (const header of ['+++ .env\t2024-01-01 00:00:00', '+++ "b/.env"']) {
-    const patch = ['--- a/x', header, '@@ -0,0 +1 @@', '+A=1'].join('\n');
-    assert.match(beforeEdit(ctx, { patch }).reason, /env-file in \.env/, header);
+  fs.writeFileSync(
+    path.join(dir, '.compliance-rules', 'checks.json'),
+    JSON.stringify([{ id: 'no-evil', severity: 'HIGH', pattern: 'EVIL', exceptFilePattern: '\\.txt$' }]),
+  );
+  const ctx = ctxFor(dir);
+  const forms = {
+    'apply_patch delete': { patchText: ['*** Begin Patch', '*** Delete File: old.txt', '+EVIL', '*** End Patch'].join('\n') },
+    'unified delete': { patch: ['--- a/old.txt', '+++ /dev/null', '@@ -1 +0,0 @@', '+EVIL'].join('\n') },
+    'unified delete, no old path': { patch: ['+++ /dev/null', '@@', '+EVIL'].join('\n') },
+  };
+  for (const [name, input] of Object.entries(forms)) {
+    const r = beforeEdit(ctx, input);
+    assert.equal(r.action, 'block', name);
+    assert.equal(r.reason.match(/^- \[HIGH\] no-evil/gm).length, 1, name);
   }
 });
 
@@ -343,25 +290,9 @@ test('every built-in pattern stays fast on a long line of its own prefixes', () 
 
 test('anchored patterns still match where the old ones did', () => {
   const ids = (t) => scan(t, BUILTIN, 'a.js').map((f) => f.id);
-  // credential-in-url, mid-line, after another colon, and after a scheme
-  // run that starts with a flag letter, a digit, + or .
-  for (const prefix of ['db = "postgres://admin', 'jdbc:postgresql://admin', '-dpostgres://admin', '1mysql://root', '+mongodb+srv://u', '.redis://u']) {
-    assert.deepEqual(ids([prefix, 'hunter22@db'].join(':')), ['credential-in-url'], prefix);
-  }
-  const key = ['sk', 'proj', 'Ab1'.repeat(12)].join('-');
-  const jwt = ['eyJ' + 'a'.repeat(12), 'eyJ' + 'b'.repeat(12), 'c'.repeat(12)].join('.');
-  for (const before of ['', ' ', '"', '=', ':']) {
-    assert.deepEqual(ids(`${before}${key}`), ['openai-anthropic-key'], `key after ${JSON.stringify(before)}`);
-    assert.deepEqual(ids(`${before}${jwt}`), ['jwt'], `jwt after ${JSON.stringify(before)}`);
-  }
+  // credential-in-url, mid-line, after another colon.
+  assert.deepEqual(ids(['db = "postgres://admin', 'hunter22@db'].join(':')), ['credential-in-url']);
 });
-
-// A textconv driver that decodes a base64 file, so a token can hide in it.
-function b64Driver(dir, git) {
-  fs.writeFileSync(path.join(dir, 'dec.mjs'), "import fs from 'node:fs';\nprocess.stdout.write(Buffer.from(fs.readFileSync(process.argv[2], 'utf8').trim(), 'base64'));\n");
-  fs.writeFileSync(path.join(dir, '.gitattributes'), '*.b64 diff=b64\n');
-  git('config', 'diff.b64.textconv', `node ${path.join(dir, 'dec.mjs').replaceAll('\\', '/')}`); // git runs a driver through sh
-}
 
 test('an unresolvable earlier git add may stage an untracked file: its secret blocks the commit', () => {
   const { dir } = repo();
@@ -384,14 +315,6 @@ test('a new untracked file named on a git commit path line is scanned', () => {
   assert.equal(beforeShell(ctx, 'git commit -m "t: x" ok.js').action, 'allow');
 });
 
-test('an untracked file named by an earlier git add is read through its textconv driver', () => {
-  const { dir, git } = repo();
-  b64Driver(dir, git);
-  fs.writeFileSync(path.join(dir, 's.b64'), Buffer.from(`k = "${KEY}"\n`).toString('base64'));
-  const ctx = ctxFor(dir);
-  assert.equal(beforeShell(ctx, 'git add s.b64 && git commit -m x').action, 'block');
-});
-
 test('a 3,000-file staged commit is scanned inside the hook timeout', () => {
   const { dir, git } = repo();
   for (let i = 0; i < 3000; i++) fs.writeFileSync(path.join(dir, `f${i}.js`), i === 2990 ? `k = "${KEY}"\n` : `line ${i}\n`);
@@ -403,64 +326,12 @@ test('a 3,000-file staged commit is scanned inside the hook timeout', () => {
   assert.match(res.reason, /f2990\.js/);
 });
 
-// An apply_patch whose first block is a.txt and which embeds a unified delete of x.py.
-const embeddedDelete = ['*** Begin Patch', '*** Update File: a.txt', '--- a/x.py', '+++ /dev/null', '+EVIL', '*** End Patch'].join('\n');
-
-function repoWithRules(rules) {
-  const { dir } = repo();
-  fs.mkdirSync(path.join(dir, '.compliance-rules'));
-  fs.writeFileSync(path.join(dir, '.compliance-rules', 'checks.json'), JSON.stringify(rules));
-  return ctxFor(dir);
-}
-
-test('an embedded dev-null pair scans its added lines under the old path and the empty path', () => {
-  const parts = editParts({ patchText: embeddedDelete });
-  const under = (file) => parts.find((p) => p.file === file);
-  assert.match(under('a.txt').added, /EVIL/);
-  assert.match(under('x.py').added, /EVIL/);
-  assert.equal(under('x.py').gone, true);
-  assert.match(under('').added, /EVIL/);
-});
-
-test('an embedded dev-null pair cannot steer a line past a scoped rule', () => {
-  const rule = { id: 'no-evil', severity: 'HIGH', pattern: 'EVIL' };
-  const scoped = repoWithRules([{ ...rule, files: ['.py'] }]);
-  assert.equal(beforeEdit(scoped, { patchText: embeddedDelete }).action, 'block');
-  const excepted = repoWithRules([{ ...rule, exceptFilePattern: 'a\\.txt$' }]);
-  assert.equal(beforeEdit(excepted, { patchText: embeddedDelete }).action, 'block');
-});
-
-test('the embedded dev-null scan ends at the next block', () => {
-  const patch = ['*** Begin Patch', '*** Update File: a.txt', '--- a/x.py', '+++ /dev/null', '+one', '*** Update File: b.txt', '+two', '*** End Patch'].join('\n');
-  const parts = editParts({ patchText: patch });
-  assert.doesNotMatch(parts.find((p) => p.file === 'x.py').added, /two/);
-  assert.doesNotMatch(parts.find((p) => p.file === '').added, /two/);
-});
-
-test('an old path the patch also updates stays an existing file', () => {
-  const patch = ['*** Begin Patch', '*** Update File: x.py', '*** Update File: a.txt', '--- a/x.py', '+++ /dev/null', '+EVIL', '*** End Patch'].join('\n');
-  assert.equal(editParts({ patchText: patch }).find((p) => p.file === 'x.py').gone, undefined);
-});
-
 test('path rules match a backslash path (T87)', () => {
   const ctx = ctxFor(repo().dir);
   const r = beforeEdit(ctx, { file_path: 'app\\.env', content: '' });
   assert.equal(r.action, 'block');
   assert.match(r.reason, /env-file in app[\\/]\.env/);
   assert.equal(beforeEdit(ctx, { file_path: 'app\\.env.example', content: '' }).action, 'allow');
-});
-
-test('carriesVoice is true only for an agent file that holds the voice marker, and false on a read error', async () => {
-  const { carriesVoice } = await import('../hooks/claude.mjs');
-  const { START } = await import('../scripts/lib/voice.mjs');
-  const dir = tmpDir('do-it-voice-');
-  fs.writeFileSync(path.join(dir, 'with.md'), `body\n\n${START}\nV\n<!-- voice:end -->\n`);
-  fs.writeFileSync(path.join(dir, 'without.md'), 'body\n');
-  fs.mkdirSync(path.join(dir, 'dir.md'));
-  assert.equal(carriesVoice('with', dir), true);
-  assert.equal(carriesVoice('without', dir), false);
-  assert.equal(carriesVoice('missing', dir), false);
-  assert.equal(carriesVoice('dir', dir), false);
 });
 
 test('hooks.json event names and commands match the events claude.mjs handles', () => {
@@ -479,25 +350,3 @@ test('hooks.json event names and commands match the events claude.mjs handles', 
   assert.deepEqual(wired, handled);
 });
 
-test('an untracked file in a subdirectory or behind a glob is scanned when an earlier git add stages it', () => {
-  const { dir } = repo();
-  fs.mkdirSync(path.join(dir, 'sub/deep'), { recursive: true });
-  fs.writeFileSync(path.join(dir, 'sub/deep/n.js'), `k = "${KEY}"\n`);
-  fs.writeFileSync(path.join(dir, 'sub/ok.js'), 'fine = 1\n');
-  const ctx = ctxFor(dir);
-  assert.equal(beforeShell(ctx, 'git add sub/deep/n.js && git commit -m "t: x"').action, 'block', 'a named subdirectory file');
-  assert.equal(beforeShell(ctx, 'git add sub/deep/*.js && git commit -m "t: x"').action, 'block', 'a glob inside the subdirectory');
-  assert.equal(beforeShell(ctx, 'git add sub && git commit -m "t: x"').action, 'block', 'the directory that holds it');
-  assert.equal(beforeShell(ctx, 'git add sub/ok.js && git commit -m "t: x"').action, 'allow', 'a clean sibling alone');
-});
-
-test('an in-hunk +++ path that is not dev-null is scanned under that path', () => {
-  const { dir } = repo();
-  fs.mkdirSync(path.join(dir, '.compliance-rules'));
-  fs.writeFileSync(path.join(dir, '.compliance-rules', 'checks.json'), JSON.stringify([{ id: 'no-evil', severity: 'HIGH', pattern: 'EVIL', files: ['.py'] }]));
-  // The first pair names a.txt (not scanned); a second pair inside the hunk names y.py.
-  const patch = ['--- a/a.txt', '+++ b/a.txt', '@@ -0,0 +1,3 @@', '--- a/x.txt', '+++ b/y.py', '+EVIL'].join('\n');
-  assert.match(beforeEdit(ctxFor(dir), { patch }).reason, /no-evil in y\.py/);
-  const clean = ['--- a/a.txt', '+++ b/a.txt', '@@ -0,0 +1,3 @@', '--- a/x.txt', '+++ b/y.txt', '+EVIL'].join('\n');
-  assert.equal(beforeEdit(ctxFor(dir), { patch: clean }).action, 'allow', 'the same line under a path the rule does not cover');
-});

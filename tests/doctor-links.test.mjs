@@ -170,16 +170,15 @@ test('an unreadable install.json is one finding naming the file, not an empty in
   assert.match(named[0], /delete it, then run the installer with --force/, named[0]);
 });
 
-test('under folds the Windows separator and case, and a sibling is outside', { skip: process.platform !== 'win32' && 'Windows folds case and separators' }, () => {
-  assert.equal(under('C:\\Users\\X\\do-it\\skills\\a-it', 'c:/users/x/do-it/skills'), true);
-  assert.equal(under('c:/users/x/do-it/skills/a-it', 'C:\\Users\\X\\do-it\\skills'), true);
-  assert.equal(under('C:\\Users\\X\\do-it2\\skills', 'C:\\Users\\X\\do-it'), false);
-});
-
-test('under treats a sibling directory with a shared prefix as outside', () => {
+test('under treats a sibling directory with a shared prefix as outside, and folds the Windows separator and case', () => {
   const base = tmpDir('do-it-under-');
   assert.equal(under(path.join(base, 'a', 'b'), path.join(base, 'a')), true);
   assert.equal(under(path.join(base, 'ab'), path.join(base, 'a')), false);
+  if (process.platform === 'win32') {
+    assert.equal(under('C:\\Users\\X\\do-it\\skills\\a-it', 'c:/users/x/do-it/skills'), true);
+    assert.equal(under('c:/users/x/do-it/skills/a-it', 'C:\\Users\\X\\do-it\\skills'), true);
+    assert.equal(under('C:\\Users\\X\\do-it2\\skills', 'C:\\Users\\X\\do-it'), false);
+  }
 });
 
 test('sameTarget resolves a link, and a path that does not exist yet through its nearest ancestor', () => {

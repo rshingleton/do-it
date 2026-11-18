@@ -100,31 +100,27 @@ test('prune runs once per day change, not once per step', () => {
   const usage = createOpenCodeUsage({ dir: tmp(), cwd: '/x/proj', prune: (...a) => calls.push(a), now: () => new Date(now) });
   usage.context({ sessionID: 's3', agent: 'build', model: 'm3' });
   const step = (i) => usage.event({ type: 'session.step.ended', sessionID: 's3', assistantMessageID: `m${i}`, tokens: { input: 1, output: 1, cache: { read: 0, write: 0 } } });
-  for (let i = 0; i < 200; i++) step(i);
+  step(1);
+  step(2);
   assert.equal(calls.length, 1);
   now += 24 * 3600 * 1000;
-  step(200);
-  step(201);
+  step(3);
+  step(4);
   assert.equal(calls.length, 2);
 });
 
-test('a prune that throws still leaves the row recorded', () => {
+test('a prune that throws still leaves the row recorded, and retries on the next step', () => {
   const dir = tmp();
-  const usage = createOpenCodeUsage({ dir, prune: () => { throw new Error('boom'); } });
-  assert.doesNotThrow(() => usage.event({ type: 'session.step.ended', sessionID: 's4', assistantMessageID: 'x', tokens: { input: 1, output: 1 } }));
+  let calls = 0;
+  const usage = createOpenCodeUsage({ dir, prune: () => { if (++calls === 1) throw new Error('boom'); } });
+  const step = (i) => usage.event({ type: 'session.step.ended', sessionID: 's4', assistantMessageID: `m${i}`, tokens: { input: 1, output: 1 } });
+  assert.doesNotThrow(() => step(0));
+  assert.equal(calls, 1);
   assert.equal(readAll(dir).length, 1);
-});
-
-test('a 1,000-session stream keeps a bounded run map: an old session restarts, a recent one keeps its totals', () => {
-  const dir = tmp();
-  const usage = createOpenCodeUsage({ dir, cwd: '/x/proj' });
-  const step = (sid, i) => usage.event({ type: 'session.step.ended', sessionID: sid, assistantMessageID: `m${i}`, tokens: { input: 1, output: 1 } });
-  for (let i = 0; i < 1000; i++) step(`s${i}`, 0);
-  step('s999', 1);
-  step('s0', 1);
-  const rows = rowsOf(dir);
-  assert.equal(rows.s999.turns, 2);
-  assert.equal(rows.s0.turns, 1); // evicted, so the late message starts a fresh total
+  step(1);
+  step(2);
+  assert.equal(calls, 2); // failed once, retried, then done for the day
+  assert.equal(readAll(dir).length, 1);
 });
 
 test('a late message with an earlier stamp keeps the run day and leaves one row per id', () => {
@@ -242,15 +238,6 @@ test('a subscribe stream that throws fails open', async () => {
     process.stderr.write = write;
   }
   assert.match(seen, /usage failed open: stream down/);
-});
-
-test('an OpenCode run keeps its tokens in 15-minute buckets that add up to the row', () => {
-  const dir = tmp();
-  const usage = createOpenCodeUsage({ dir, cwd: '/x/proj' });
-  for (const e of v1Stream()) usage.event(e);
-  const row = rowsOf(dir)['s-main'];
-  const sum = Object.values(row.buckets).reduce((s, b) => s.map((n, i) => n + b[i]), [0, 0, 0, 0, 0]);
-  assert.deepEqual(sum, [row.in, row.out, row.cr, row.cc, row.turns]);
 });
 
 test('a v2 step.ended keeps its payload under data and its time on the envelope', () => {

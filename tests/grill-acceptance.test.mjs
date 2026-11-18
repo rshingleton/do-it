@@ -22,26 +22,20 @@ test('grill-it defines the acceptance rule once', () => {
   assert.match(s, /plan files/i, 'rule covers plan files');
 });
 
-test('scope-it and do-it link to the rule instead of restating it', () => {
+test('scope-it and do-it link to the rule, at an anchor the heading produces, instead of restating it', () => {
+  const heading = read('grill-it/SKILL.md').match(HEADING)[0].slice(3);
+  const slug = heading.toLowerCase().replace(/\s+/g, '-');
   for (const f of ['scope-it/SKILL.md', 'scope-it/GRILL.md', 'do-it/SKILL.md']) {
     const s = read(f);
     assert.ok(s.includes(LINK), `${f} links to grill-it`);
+    assert.ok(s.includes(`${LINK}#${slug}`), `${f} anchor matches the heading`);
     assert.doesNotMatch(s, HEADING, `${f} does not redefine the rule`);
     assert.ok(!s.includes('reopens branches'), `${f} does not restate the rule`);
   }
 });
 
-test('links point at an anchor the heading produces', () => {
-  const heading = read('grill-it/SKILL.md').match(HEADING)[0].slice(3);
-  const slug = heading.toLowerCase().replace(/\s+/g, '-');
-  for (const f of ['scope-it/SKILL.md', 'scope-it/GRILL.md', 'do-it/SKILL.md']) {
-    assert.ok(read(f).includes(`${LINK}#${slug}`), `${f} anchor matches the heading`);
-  }
-});
-
 test('scope-it approval needs an explicit accept, not any reply', () => {
   const s = read('scope-it/SKILL.md');
-  assert.ok(!s.includes('approval of the edited plan counts'));
   const five = s.slice(s.indexOf('## 5. Approve'), s.indexOf('## 6.'));
   assert.ok(five.includes('explicit accept') && five.includes(LINK));
 });

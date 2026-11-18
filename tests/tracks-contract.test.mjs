@@ -86,30 +86,21 @@ test('run contract prints the merge order by milestone, each slice\'s plan, file
   assert.deepEqual(ok(work(dir, 'run', 'contract', 'road')).merge_order, ['R1'], 'without a roadmap the run\'s own start order');
 });
 
-test('the pre-flight refuses a slice whose plan has no contract, naming the missing section', () => {
+test('the pre-flight names a slice with no contract, a shared file and an unpinned interface, and allows a pinned pair', () => {
   const { byId } = fixture();
-  const verdict = pairSlices(byId.R1, { ...byId.R2, files: [], interfaces: [], gaps: ['Files'] });
-  assert.deepEqual([verdict.allow, verdict.reason], [false, 'NO_CONTRACT']);
-  assert.match(verdict.detail, /R2 has no ## Files/);
-});
+  const noContract = pairSlices(byId.R1, { ...byId.R2, files: [], interfaces: [], gaps: ['Files'] });
+  assert.deepEqual([noContract.allow, noContract.reason], [false, 'NO_CONTRACT']);
+  assert.match(noContract.detail, /R2 has no ## Files/);
 
-test('the pre-flight refuses a pair that shares a file, and names the path', () => {
-  const { byId } = fixture();
-  const verdict = pairSlices(byId.R2, byId.R3);
-  assert.deepEqual([verdict.allow, verdict.reason], [false, 'SHARED_FILE']);
-  assert.match(verdict.detail, /src\/bus\.js/, 'the colliding path is named');
-});
+  const shared = pairSlices(byId.R2, byId.R3);
+  assert.deepEqual([shared.allow, shared.reason], [false, 'SHARED_FILE']);
+  assert.match(shared.detail, /src\/bus\.js/, 'the colliding path is named');
 
-test('the pre-flight refuses an interface neither plan pins, and names the interface', () => {
-  const { byId } = fixture();
-  const verdict = pairSlices(byId.R1, byId.R2);
-  assert.deepEqual([verdict.allow, verdict.reason], [false, 'UNPINNED_INTERFACE']);
-  assert.match(verdict.detail, /EventBus\.emit\(name\)/, 'the unpinned interface is named');
-});
+  const unpinned = pairSlices(byId.R1, byId.R2);
+  assert.deepEqual([unpinned.allow, unpinned.reason], [false, 'UNPINNED_INTERFACE']);
+  assert.match(unpinned.detail, /EventBus\.emit\(name\)/, 'the unpinned interface is named');
 
-test('the pre-flight allows a disjoint pair whose one shared interface a plan pins', () => {
-  const { byId } = fixture();
-  assert.deepEqual(pairSlices(byId.R1, byId.R3), { allow: true, reason: null, detail: null });
+  assert.deepEqual(pairSlices(byId.R1, byId.R3), { allow: true, reason: null, detail: null }, 'a disjoint pair whose one shared interface a plan pins');
 });
 
 test('the analyse pass fails a plan with no ## Files section, and passes one that states both', () => {
@@ -122,21 +113,6 @@ test('the analyse pass fails a plan with no ## Files section, and passes one tha
   const whole = path.join(dir, 'whole.md');
   fs.writeFileSync(whole, '---\nid: whole\n---\n\n## Files\nsrc/a.js\n\n## Interfaces\n`A.b() -> c`\n');
   assert.equal(spawnSync('node', [CHECK, whole], { encoding: 'utf8' }).status, 0);
-});
-
-test('scope-it\'s format shows ## Files and ## Interfaces in both examples, and its checks name the step', () => {
-  const doc = fs.readFileSync(path.join(ROOT, 'skills/scope-it/PLAN-FORMAT.md'), 'utf8');
-  const fences = [...doc.matchAll(/```markdown\n([\s\S]*?)```/g)].map((m) => m[1]);
-  for (const fence of fences.slice(0, 2)) {
-    assert.match(fence, /^## Files$/m, 'the example carries the section');
-    assert.match(fence, /^## Interfaces$/m);
-  }
-  assert.match(doc, /union of its phases' files/, 'lane M says where the lists come from');
-  const checks = fs.readFileSync(path.join(ROOT, 'skills/scope-it/CHECKS.md'), 'utf8');
-  assert.match(checks, /^\| Contract \|/m, 'the analyse pass has a Contract row');
-  assert.match(checks, /contract\.mjs/, 'the row names the command a scope-it run calls');
-  assert.match(checks, /^\| Verify commands \|/m, 'the analyse pass has a probe row');
-  assert.match(checks.replace(/\s+/g, ' '), /lane S step lines only/, 'the row says the probe reads lane S steps only');
 });
 
 // The probe: a plan's runnable `→ verify:` command is real and can fail. A step line is the only
