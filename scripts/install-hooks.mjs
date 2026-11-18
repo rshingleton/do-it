@@ -14,6 +14,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { ROOT } from './lib/skills.mjs';
 import { sameTarget } from './lib/install-state.mjs';
+import { hostBin } from './lib/host-bin.mjs';
 import { isMain } from '../skills/it-core/scripts/is-main.mjs';
 
 const [host, ...flags] = process.argv.slice(2);
@@ -100,18 +101,30 @@ export function mergeClaude(settings, root, { strip = false } = {}) {
   return next;
 }
 
+// The major version the host reports, or null when no binary on PATH can answer:
+// a machine without the host, a shim the shell runs and this spawn does not, or
+// an answer that is not a version. `opencode --version` is the only call here.
+function hostMajor() {
+  const { cmd, shell } = hostBin('opencode');
+  const args = ['--version'];
+  try {
+    const out = shell
+      ? execFileSync(`"${cmd}" ${args.join(' ')}`, { encoding: 'utf8', shell: true, timeout: 15000, stdio: ['ignore', 'pipe', 'ignore'] })
+      : execFileSync(cmd, args, { encoding: 'utf8', timeout: 15000, stdio: ['ignore', 'pipe', 'ignore'] });
+    return Number(out.match(/(\d+)\./)?.[1]) || null;
+  } catch {
+    return null;
+  }
+}
+
 // Which OpenCode form the config gets, and where that came from. The host's
 // version is the signal when `opencode` can answer. Failing that, the host's own
 // config is read: v2 writes the `plugins` key, v1 the `plugin` key. With
 // neither, the v1 form is a guess, and the guess is said out loud, because the
 // v2 host would skip it silently.
 function opencodeForm(config) {
-  try {
-    const major = Number(execFileSync('opencode', ['--version'], { encoding: 'utf8' }).match(/(\d+)\./)?.[1]);
-    if (major) return major;
-  } catch {
-    /* the binary cannot answer: fall through to the config */
-  }
+  const major = hostMajor();
+  if (major) return major;
   if (Array.isArray(config.plugins)) {
     console.error('note: opencode --version did not answer; the config\'s "plugins" key names the OpenCode 2 form');
     return 2;
