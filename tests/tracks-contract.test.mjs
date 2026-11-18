@@ -199,6 +199,31 @@ test('the probe prints each command with its reason, and a real node --test file
   assert.deepEqual(out.plans[0].gaps, []);
 });
 
+test('the probe reads an npm script past the flags on either side of run, and refuses a missing one', () => {
+  for (const command of ['npm run check', 'npm run -s check', 'npm run --silent check', 'npm -s run check', 'npm test']) {
+    const { r, out } = probeFixture(`1. Run it → verify: \`${command}\``);
+    assert.equal(r.status, 0, `${command}: ${JSON.stringify(out.errors)}`);
+    assert.deepEqual(out.probes.map((p) => [p.command, p.ok]), [[command, true]], command);
+  }
+  for (const command of ['npm run nope', 'npm -s run nope', 'npm --silent run nope']) {
+    const { r, out } = probeFixture(`1. Run it → verify: \`${command}\``);
+    assert.equal(r.status, 1, `${command} is refused`);
+    assert.equal(out.probes[0].ok, false, `${command} is probed`);
+    assert.match(out.probes[0].reason, /nope/, 'the reason names the absent script');
+  }
+});
+
+test('the probe keeps a real verify when a later prose line names the marker', () => {
+  for (const steps of [
+    '1. Add the limiter → verify: `npm run nope`, and step 3 says → verify: in prose',
+    '1. Add the limiter → verify: `npm run nope`; step 3 says `→ verify:` names the marker and `npm` runs.',
+  ]) {
+    const { r, out } = probeFixture(steps);
+    assert.equal(r.status, 1, steps);
+    assert.deepEqual(out.probes.map((p) => [p.command, p.ok]), [['npm run nope', false]], `the real command is probed, not displaced: ${steps}`);
+  }
+});
+
 test('the probe reads lane S steps only: a lane M README has no steps to probe', () => {
   const dir = tmpDir('do-it-contract-lanem-');
   const file = path.join(dir, 'README.md');
