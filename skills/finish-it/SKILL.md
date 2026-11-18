@@ -13,26 +13,30 @@ until none can go on, then closes once. `work.mjs` is the work-item script in
 
 ## 1. Resolve and gate
 
-- Input is a roadmap file. A request with no file: read
-  [roadmap-it](../roadmap-it/SKILL.md) and chart one first. The slug is the
-  file name without `.md`.
-- `work.mjs run show <slug>`. No record: `work.mjs run new <slug>` with the
-  flags given, then the decision sweep in
+- Input is a roadmap file; with no file, chart one first per
+  [roadmap-it](../roadmap-it/SKILL.md). The slug is the file name without `.md`.
+- Resolve it against the working tree and refuse a path outside the repo root,
+  naming both: "the roadmap `<path>` is outside the repo root `<root>`". This
+  comes before `run new` and before any slice is scoped. A roadmap in another
+  repo starts there with a `cd`, never by moving the session: this skill never
+  moves it.
+- The run's first notice names its repo root: `<root>`, then the roadmap slug.
+- `work.mjs run show <slug>`. No record: `work.mjs run new <slug> --roadmap
+  <file>` with the flags given, then the decision sweep in
   [SWEEP.md](../roadmap-it/SWEEP.md) and its approval turn. That turn and the
   final one are the only two the run waits on.
 - A record exists but the sweep never ran or was not approved: run it now.
 - Level is the record's `level`, set by `work.mjs run new <slug> --level
-  lite|full|ultra` (the `--complete` argument of `/do-it`); flags override config, as
-  [CONFIG.md](../track-it/CONFIG.md) says. Per-level rules: [LEVELS.md](LEVELS.md).
-- `tracks` is the record's too: `work.mjs run new <slug> --tracks N`, default 1,
-  capped by `DO_IT_TRACKS`, never above 5. Above 1, §2 runs by [TRACKS.md](TRACKS.md);
-  at 1 the loop is exactly as written here.
+  lite|full|ultra` (the `--complete` argument of `/do-it`); per-level rules and
+  flag precedence: [LEVELS.md](LEVELS.md).
+- `tracks` is the record's too: `work.mjs run new <slug> --tracks N` (default
+  and cap in [TRACKS.md](TRACKS.md)); above 1, §2 runs by it.
 
 ## 2. Loop
 
 The turn ends only at §4, when `run next` returns no `next`. A parked or
 resumed slice, a status question, a long wait and a finished step are not
-stops: go on to the next slice. `tracks` above 1: [TRACKS.md](TRACKS.md)
+stops: go on to the next slice. At `tracks` >1: [TRACKS.md](TRACKS.md)
 replaces step 1 with its dispatch and adds its merge before step (f); the rest
 is as written here.
 
@@ -40,8 +44,7 @@ is as written here.
    `defects` (open decisions and the slices each holds). It
    skips parked and blocked slices and anything that waits on one, resumes a
    slice already in flight first, and otherwise takes the roadmap's order.
-2. `next` is null: go to §4, and name its `stop` (a `MAX_SLICES` code) there
-   when `run next` returned one.
+2. `next` is null: go to §4, naming its `stop` (`MAX_SLICES`) when there is one.
 3. Size the slice (S or M) per [do-it](../do-it/SKILL.md) §2 and
    [LANES.md](../do-it/LANES.md), then run the lane in this order, as do-it §3
    does. A step that finishes returns here; none closes the turn.
@@ -50,67 +53,48 @@ is as written here.
    - (b) Right after it, before build-it, start the slice's clock:
      `work.mjs run start <slug> <slice> --work <work id>`. `<slice>` is the
      roadmap id (`R<n>`), not the work id.
-   - (c) [build-it](../build-it/SKILL.md), its checks run through
-     `work.mjs run verify <slug> <slice> [--phase n] [--paths a,b] -- "<checks>"`
-     in place of the item-level verify (`--paths`: the slice's mapped files,
-     needed before a lane M slice-mode commit). Lane M: one call per phase with
-     `--phase n`; lane S: no `--phase`. In a run, `run verify` stands in for
-     build-it's `verify-phase`, which stays the command outside a run. A flaky
+   - (c) [build-it](../build-it/SKILL.md), its checks through
+     `work.mjs run verify <slug> <slice> [--phase n] [--paths a,b] -- "<cmd>"`
+     instead of the item-level verify: one call per lane M phase, `--paths`
+     the slice's mapped files. Outside a run it is `verify-phase`. A flaky
      result parks the slice (FLAKY, as step 5).
    - (d) Before each prove-it round, `work.mjs run audit <slug> <slice>`. It
      counts every round started, a re-audit after a fix included; prove-it's own
-     `round` counts only consecutive failed audits, so the two differ and the
-     run's caps follow `run audit`. `allow` false: never start the round; act on
-     `reason` per [STOPS.md](STOPS.md): `SLICE_AUDIT_CAP` parks this slice (the
-     script did it; add the open Must findings to the reason) and the loop goes
-     on, `AUDIT_CAP` stops the run.
+     `round` counts only consecutive failed audits, so the run's caps follow
+     `run audit`. `allow` false: never start the round; act on `reason` per
+     [STOPS.md](STOPS.md) (`SLICE_AUDIT_CAP` parks, `AUDIT_CAP` stops).
    - (e) [prove-it](../prove-it/SKILL.md). The reviewer's final report is the
      result: a first hand-back with an agent still running is not the verdict,
      and a later completion notice with no new report adds nothing.
    - (f) Before ship-it, `work.mjs run gate <slug> <slice>`. `allow` false: ship
-     nothing; park or stop per [STOPS.md](STOPS.md), which lists every stop
-     reason.
+     nothing; park or stop per [STOPS.md](STOPS.md), which lists every reason.
    - (g) [ship-it](../ship-it/SKILL.md) in [run mode](../ship-it/RUNMODE.md).
 4. `done` from ship-it: `work.mjs run slice <slug> <slice> shipped`, back to
    step 1.
 5. A step returns `blocked` or `failed` past what build-it and prove-it fix
-   themselves: park it, never ask.
-   `work.mjs run slice <slug> <slice> parked --needs user|decision --reason "<why>"`,
-   with the stop code first in `--reason`.
-   `needs` is `decision` for an unanswered question, else `user`. Its
-   dependents wait by themselves; back to step 1, so independent slices go on.
-6. Background work (an agent, a long check): never poll or sleep. Wait for the
-   host's completion notice.
+   themselves: park it, never ask, with the stop code first in `--reason`
+   ([STOPS.md](STOPS.md) holds the call and `needs`). Its dependents wait by
+   themselves; back to step 1, so independent slices go on.
+6. Background work (an agent, a long check): never poll or sleep; just wait.
 
 ## 3. Resume
 
 `/finish-it <file> --resume [R<n>]`. The user has settled what parked the
 slice: `work.mjs run slice <slug> <slice> ready` puts slice `<slice>` (`R<n>`)
-back in the queue. With no `R<n>`, run it once for each id in `parked` from
-`work.mjs run next <slug> <file>`. A shipped slice never moves. Then loop from
-§2. The run re-enters at the first slice `run next` returns; finished work is
-never redone.
+back in the queue; with no `R<n>`, once for each id in `parked` from
+`work.mjs run next <slug> <file>`. A shipped slice never moves; loop from §2
+at the first slice `run next` returns. Finished work is never redone.
 
 ## 4. Close
 
-Run the final review and digest in [DIGEST.md](DIGEST.md) first. Only here
-does the turn end. First line: how many slices shipped, and the `stop`
-code and detail when `run next` or `run audit` returned one (`MAX_SLICES`,
-`AUDIT_CAP`, which names the limit that fired; raise it with
-`work.mjs run set <slug> max_slices|audit_cap|final_audit_cap|audit_total_cap <n>`
-before resuming). Then each
-parked slice with its `needs` and reason, and the slices still waiting on
-them. Then each open decision `run next` lists under `defects`, with the slices
-it holds: a slice also parked or waiting is named once, not twice, and no other
-line reports these. Then `Skipped / Not checked / Risk`. Last line, `Next:` the
-command that resumes: `/finish-it <file> --resume`, or nothing when every slice
-shipped.
-When the last slice shipped, say what ship-it finalized for the roadmap
-([FINALIZE.md](../ship-it/FINALIZE.md)).
+Run the final review and digest in [DIGEST.md](DIGEST.md) first; it holds the
+closing message: the counts, the `stop` code, each parked slice, the open
+decisions `run next` lists under `defects` with the slices each holds, then
+`Skipped / Not checked / Risk` and `Next:`. The turn ends only here; a final
+ship says what ship-it finalized ([FINALIZE.md](../ship-it/FINALIZE.md)).
 
 ## Rules
 
-- No question in the loop. An unknown that fails it-core's assume-or-ask
-  parks its slice.
+- No question in the loop: an unknown failing it-core's assume-or-ask parks it.
 - Never touch a parked slice or its dependents; never reorder past one.
 - Never write the run record by hand; `work.mjs run` only.

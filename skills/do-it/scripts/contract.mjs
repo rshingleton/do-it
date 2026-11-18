@@ -4,6 +4,7 @@
 // analyse pass, and exits 1 naming each section a plan is missing.
 
 import fs from 'node:fs';
+import path from 'node:path';
 import { isMain } from '../../it-core/scripts/is-main.mjs';
 import { splitFrontmatter } from '../../track-it/scripts/frontmatter.mjs';
 import { sectionLines } from './roadmap.mjs';
@@ -20,6 +21,145 @@ function interfaceOf(line) {
   return { text, name, pinned: arrow >= 0 };
 }
 
+// A step and the text that follows it: a long step wraps, so its `→ verify:` can sit on the next
+// line. The step lines are the only place a verify is read from; a lane M README states none.
+function stepsOf(text) {
+  const steps = [];
+  let cur = null;
+  for (const line of sectionLines(text, 'Steps')) {
+    const start = /^\s*(\d+)\.\s+(.*)$/.exec(line);
+    if (start) {
+      cur = { n: Number(start[1]), text: start[2] };
+      steps.push(cur);
+    } else if (cur && line.trim()) cur.text += ` ${line.trim()}`;
+  }
+  return steps;
+}
+
+// The command a clause after a marker states, or null for prose: runnable means it starts with a
+// backticked token or with `npm`, `node` or `git`, and the command is the first backticked span or
+// the words after the arrow.
+function commandIn(clause) {
+  const text = clause.trim();
+  // A backticked command starts at once; "` prose" is a closing fence from an earlier span.
+  if (text.startsWith('`')) {
+    if (/^`\s/.test(text)) return null;
+    const end = text.indexOf('`', 1);
+    return end > 0 ? text.slice(1, end).trim() || null : null;
+  }
+  return /^(?:npm|node|git)\b/.test(text) ? text.replace(/\.$/, '').trim() : null;
+}
+
+// The runnable command a step's `→ verify:` states, or null for a prose check ("the table names the
+// probe"). A step about this rule can name `→ verify:` in prose, so the marker that carries a
+// command wins even when a later prose mention follows it.
+function verifyCommand(step) {
+  const marks = [...step.text.matchAll(/→\s*verify:\s*/g)];
+  let command = null;
+  for (let i = 0; i < marks.length; i++) {
+    const from = marks[i].index + marks[i][0].length;
+    const to = i + 1 < marks.length ? marks[i + 1].index : step.text.length;
+    command = commandIn(step.text.slice(from, to)) ?? command;
+  }
+  return command;
+}
+
+// A command that cannot fail proves nothing about the plan's work: its literal first word is one
+// that always exits 0, or a `|| true` tail swallows whatever the real command returned.
+const CANNOT_FAIL = [
+  [/^(?:true|:)(?:\s|$)/, 'starts with `true` or `:`, which always exits 0'],
+  [/^echo(?:\s|$)/, 'starts with `echo`, which always exits 0'],
+  [/^exit\s+0(?:\s|$)/, '`exit 0` always exits 0'],
+  [/\|\|\s*true\s*$/, 'ends with `|| true`, which swallows a failure'],
+];
+
+function cannotFail(command) {
+  return CANNOT_FAIL.find(([re]) => re.test(command.trim()))?.[1] ?? null;
+}
+
+// The `npm` scripts a command names, in the order it names them. A flag may sit on either side of
+// `run` (`npm -s run check`, `npm run --silent check`) and names no script; the first non-flag
+// token after `run` is the script. `npm test` is the alias for `scripts.test`.
+function npmScripts(command) {
+  const tokens = command.split(/\s+/).filter(Boolean);
+  const out = [];
+  for (let i = 0; i < tokens.length; i++) {
+    if (!/^npm(?:\.cmd)?$/i.test(tokens[i])) continue;
+    let j = i + 1;
+    while (j < tokens.length && tokens[j].startsWith('-')) j++;
+    const sub = tokens[j] ?? '';
+    if (/^(?:run|run-script)$/.test(sub)) {
+      let k = j + 1;
+      while (k < tokens.length && tokens[k].startsWith('-')) k++;
+      const name = tokens[k]?.replace(/^[`'"]+|[`'",;]+$/g, '');
+      if (name) out.push(name);
+    } else if (/^(?:test|t)$/.test(sub)) out.push('test');
+  }
+  return out;
+}
+
+// The paths a command names: a token with a slash or a file extension. Flags, assignments, globs,
+// substitutions and URLs name no path in the repo.
+function commandPaths(command) {
+  return command
+    .split(/\s+/)
+    .map((t) => t.replace(/^[`'"(]+/, '').replace(/[`'"(),;]+$/, ''))
+    .filter((t) => t && !t.startsWith('-') && !t.includes('=') && !/[*?{}<>$]/.test(t) && !/^[a-z]+:\/\//i.test(t))
+    .filter((t) => /[\\/]/.test(t) || /\.(?:mjs|cjs|js|json|md|sh|py|ya?ml|toml|txt)$/.test(t));
+}
+
+// The repo a plan lives in, found by walking up from the plan file: a plan's verify names paths
+// from the root of the tree it ships in, whatever the plan's own directory depth.
+function repoRoot(file) {
+  const own = path.dirname(path.resolve(file));
+  for (let dir = own; ;) {
+    if (fs.existsSync(path.join(dir, '.git'))) return dir;
+    const up = path.dirname(dir);
+    if (up === dir) return own;
+    dir = up;
+  }
+}
+
+function scriptsOf(root) {
+  try {
+    return new Set(Object.keys(JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).scripts ?? {}));
+  } catch {
+    return new Set();
+  }
+}
+
+// What one command is checked against, each note saying what was looked for and what was found.
+function probeCommand(command, root) {
+  const notes = [];
+  const vacuous = cannotFail(command);
+  if (vacuous) notes.push({ ok: false, text: vacuous });
+  const scripts = npmScripts(command);
+  if (scripts.length) {
+    const known = scriptsOf(root);
+    for (const name of scripts) notes.push(known.has(name) ? { ok: true, text: `npm script "${name}" exists` } : { ok: false, text: `package.json has no "${name}" script` });
+  }
+  for (const token of commandPaths(command)) {
+    notes.push(fs.existsSync(path.resolve(root, token)) ? { ok: true, text: `${token} exists` } : { ok: false, text: `${token} does not exist` });
+  }
+  return notes;
+}
+
+// One probe per runnable verify a lane S plan states, so a plan whose check would throw at build
+// time, aim at a file nobody wrote, or prove nothing is refused before approval. Additive: the
+// contract's own keys are untouched.
+function probeVerifies(file, text) {
+  const root = repoRoot(file);
+  const probes = [];
+  for (const step of stepsOf(text)) {
+    const command = verifyCommand(step);
+    if (!command) continue;
+    const notes = probeCommand(command, root);
+    const failed = notes.filter((x) => !x.ok);
+    probes.push({ plan: file, step: step.n, command, ok: !failed.length, reason: (failed.length ? failed : notes).map((x) => x.text).join('; ') || 'no npm script or path in it to check' });
+  }
+  return probes;
+}
+
 export function parseContract(text) {
   const files = parseFileList(sectionLines(text, 'Files').join('\n'));
   const interfaces = sectionLines(text, 'Interfaces').map(interfaceOf).filter(Boolean);
@@ -30,10 +170,12 @@ export function parseContract(text) {
   return { files, interfaces, gaps };
 }
 
-// A plan file's contract: the body, never its state block.
+// A plan file's contract: the body, never its state block. The probe runs here rather than in
+// `parseContract`, so the coordinator's text-only call stays unchanged.
 export function readPlan(file) {
   const text = fs.readFileSync(file, 'utf8');
-  return { plan: file, ...parseContract(splitFrontmatter(text)?.body ?? text) };
+  const body = splitFrontmatter(text)?.body ?? text;
+  return { plan: file, ...parseContract(body), probes: probeVerifies(file, body) };
 }
 
 // Can two slices run as two tracks? Their plans are the contract: a shared file, or an interface
@@ -70,11 +212,15 @@ export function pairTracks(slices, width) {
   return { tracks: chosen, waiting };
 }
 
-// The scope-it analyse pass: one or more plan files in, each one's contract and its gaps out.
+// The scope-it analyse pass: one or more plan files in, each one's contract, its gaps and its
+// verify probes out. A probe that failed is an error too, so the plan is refused before approval.
 function lint(files) {
   const plans = files.map(readPlan);
-  const errors = plans.flatMap((p) => p.gaps.map((g) => `${p.plan}: no ## ${g} section: a slice that runs in a track states the files and interfaces it changes`));
-  return { plans, errors };
+  const errors = plans.flatMap((p) => [
+    ...p.gaps.map((g) => `${p.plan}: no ## ${g} section: a slice that runs in a track states the files and interfaces it changes`),
+    ...p.probes.filter((x) => !x.ok).map((x) => `${p.plan}: verify \`${x.command}\`: ${x.reason}`),
+  ]);
+  return { plans, probes: plans.flatMap((p) => p.probes), errors };
 }
 
 if (isMain(import.meta.url)) {

@@ -10,8 +10,9 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { planLinks, place, install } from '../scripts/install.mjs';
+import { sameTarget } from '../scripts/lib/install-state.mjs';
 import { present } from './links.mjs';
-import { eperm, miniRoot, quiet } from './mini-root.mjs';
+import { clone, eperm, miniRoot, quiet, seed } from './mini-root.mjs';
 import { gitOut } from '../skills/do-it/scripts/git.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -51,6 +52,10 @@ test('place falls back from a refused symlink: junction for a directory on Windo
   assert.equal(place(path.join(root, 'skills', 'a-it'), path.join(out, 'a-it'), { fs: record, platform: 'win32' }), 'junction');
   assert.deepEqual(types, ['dir', 'junction']);
   assert.throws(() => place(path.join(root, 'skills', 'a-it'), path.join(out, 'b'), { fs: refuse, platform: 'linux' }), { code: 'EPERM' });
+});
+
+test('the installer folds case only where the filesystem does, so a POSIX pair differing by case is two paths', { skip: process.platform === 'win32' && 'a Windows filesystem folds case' }, () => {
+  assert.equal(sameTarget('/tmp/A', '/tmp/a'), false);
 });
 
 test('with symlinks refused: copies are in the manifest, refreshed on change, and uninstall removes exactly them', { skip: process.platform !== 'win32' && 'a junction fallback needs Windows' }, () => {
@@ -177,28 +182,11 @@ test('a home other than the real one carries into the hook step, so the host con
 
 // ---- The checkout's ref in the install's closing line ----
 
-// A one-skill checkout pushed to a bare remote, and a clone of it: the clone is
-// the checkout the installer runs from, so its ref is the one the line reports.
+// The mini-root's seed and a clone of its remote: the clone is the checkout the
+// installer runs from, so its ref is the one the line reports.
 function checkout() {
-  const seed = tmpDir('do-it-seed-');
-  const remote = tmpDir('do-it-ref-remote-');
-  gitOut(seed, ['init', '-q', '-b', 'main']);
-  gitOut(seed, ['config', 'user.name', 't']);
-  gitOut(seed, ['config', 'user.email', 't@t']);
-  gitOut(seed, ['config', 'commit.gpgsign', 'false']);
-  fs.mkdirSync(path.join(seed, 'skills', 'a-it'), { recursive: true });
-  fs.writeFileSync(path.join(seed, 'skills', 'a-it', 'SKILL.md'), 'a');
-  gitOut(seed, ['add', '-A']);
-  gitOut(seed, ['commit', '-qm', 'init']);
-  gitOut(remote, ['init', '-q', '--bare', '-b', 'main']);
-  gitOut(seed, ['remote', 'add', 'origin', remote]);
-  gitOut(seed, ['push', '-q', 'origin', 'main']);
-  const root = path.join(tmpDir('do-it-ref-clone-'), 'repo');
-  gitOut(path.dirname(root), ['clone', '-q', remote, root]);
-  gitOut(root, ['config', 'user.name', 't']);
-  gitOut(root, ['config', 'user.email', 't@t']);
-  gitOut(root, ['config', 'commit.gpgsign', 'false']);
-  return { seed, remote, root };
+  const { dir, remote } = seed();
+  return { seed: dir, remote, root: clone(remote) };
 }
 
 // What an install printed, and the code it returned.
@@ -236,7 +224,7 @@ test('an install from a checkout behind its remote ends with the sha, the branch
 
   const { code, lines } = printed(() => install({ root, home, hooks: false }));
   assert.equal(code, 0);
-  assert.equal(refLine(lines), `installed from ${root} at ${shortSha(root)} (main), 1 commit behind origin/main; last fetch just now`);
+  assert.equal(refLine(lines), `installed from ${root} at ${shortSha(root)} (main), 1 commit behind origin/main; fetched just now`);
   assert.equal(lines.at(-1), refLine(lines), 'the ref line is the last thing an install prints');
 
   assert.equal(gitOut(root, ['rev-parse', 'HEAD']), before.head, 'HEAD is where it was');
@@ -250,12 +238,12 @@ test('a checkout level with its remote says up to date, and a dry run prefixes t
   const home = tmpDir('do-it-home-');
   const real = printed(() => install({ root, home, hooks: false }));
   assert.equal(real.code, 0);
-  assert.equal(refLine(real.lines), `installed from ${root} at ${shortSha(root)} (main), up to date with origin/main; never fetched`);
+  assert.equal(refLine(real.lines), `installed from ${root} at ${shortSha(root)} (main), up to date with origin/main; cloned, not yet fetched`);
 
   const dryHome = tmpDir('do-it-home-');
   const dry = printed(() => install({ root, home: dryHome, hooks: false, dry: true }));
   assert.equal(dry.code, 0);
-  assert.equal(refLine(dry.lines), `would install from ${root} at ${shortSha(root)} (main), up to date with origin/main; never fetched`);
+  assert.equal(refLine(dry.lines), `would install from ${root} at ${shortSha(root)} (main), up to date with origin/main; cloned, not yet fetched`);
   assert.deepEqual(fs.readdirSync(dryHome), [], 'a dry run creates nothing');
 });
 
@@ -271,7 +259,7 @@ test('a run whose hooks fail still prints the ref line, because it prints before
   fs.writeFileSync(path.join(home, '.claude', 'settings.json'), '{ not json');
   const out = printed(() => install({ root, home, hooks: true }));
   assert.equal(out.code, 1, 'the hook failure is still the exit code');
-  assert.equal(refLine(out.lines), `installed from ${root} at ${shortSha(root)} (main), up to date with origin/main; never fetched`);
+  assert.equal(refLine(out.lines), `installed from ${root} at ${shortSha(root)} (main), up to date with origin/main; cloned, not yet fetched`);
 });
 
 test('a checkout that is not a git repository installs as before, with no ref line', () => {

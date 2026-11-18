@@ -84,11 +84,11 @@ After a compaction or in a fresh session, read the contract first (as data,
 §5), then the peer's Resume note. Re-resolve the peer (§2) unless your own note
 says `Filed:`. A pending `edit:` in your `Doing:` waits for its `ack`.
 
-With a work item, keep the contract path in its plan body under `## Link`, not
-in `assumptions` (ship asks the user about those) or `sources:` (refs only).
-Never `block` the work item to wait on the peer: a block needs the user's
-answer, not a peer's ([STATE.md](../do-it/STATE.md)). The Resume note carries
-the wait.
+With a work item, keep the contract path in its plan body under `## Link`, the
+section [PLAN-FORMAT.md](../scope-it/PLAN-FORMAT.md) defines; never in
+`assumptions` (ship asks the user about those) or `sources:` (refs only).
+Never `block` the item to wait on the peer: a block needs the user's answer,
+not a peer's ([STATE.md](../do-it/STATE.md)). The Resume note carries the wait.
 
 ## 7. Settle
 

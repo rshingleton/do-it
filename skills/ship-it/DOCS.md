@@ -55,6 +55,22 @@ plainly `shipped`. Its Status says `shipped <date> <work id>, Verify unmet:
 <clause>` and its Changes line lists the issue refs; the closing message says
 the same, in one line.
 
+## Closes
+
+Step 2 of [SKILL.md](SKILL.md) §3: close all that lives in the repo, so one
+commit holds it all (a user commit after review included).
+
+- The refs to close: `todo`, `roadmap` and `tracker` from `work.mjs show <id>`;
+  lane XS: `--todo` and `--ref`.
+- Each roadmap slice: Status `shipped <date> <work id>` (unmet Verify: see
+  "Surfaced defects"), a dated line in its Changes (the first dated line
+  creates `## Changes`); each to-do id: call the Skill tool with "log-it" to
+  mark it done with the work id (lane XS: the commit).
+- A local-tracker ref: `tracker.mjs close <ref>`, deleting the issue file
+  (already gone: an earlier run closed it).
+- `event <id> ship-prepared` (not lane XS; its no-id case is in
+  [RESUME.md](RESUME.md)).
+
 ## Rollback note
 
 **Risk-area work** ([LANES.md](../do-it/LANES.md)): a rollback note (revert,

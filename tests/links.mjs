@@ -2,7 +2,7 @@
 // without Developer Mode): make a link by symlink, else junction, and read
 // what an installed entry stands for whether it is a link or a copy.
 import fs from 'node:fs';
-import path from 'node:path';
+import { norm } from '../scripts/lib/install-state.mjs';
 
 // A directory link to `target`; the target is created when absent so a
 // junction (which needs an absolute, existing directory) can stand in.
@@ -15,8 +15,6 @@ export function linkDir(target, at) {
     fs.symlinkSync(target, at, 'junction');
   }
 }
-
-const norm = (p) => path.resolve(String(p).replace(/^\\\\\?\\/, '')).toLowerCase();
 
 // True when `at` is a link to `src`, or (a file) an up-to-date copy of it.
 export function standsFor(at, src) {

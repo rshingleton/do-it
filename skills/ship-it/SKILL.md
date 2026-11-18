@@ -63,18 +63,8 @@ to the last alone keeps the defaults:
 2. **Docs and closes, before any commit:** write what §2 showed per
    [DOCS.md](DOCS.md), updating an earlier run's; park or file the markers; log
    the chosen findings (no changelog), the finalize offers taken
-   ([FINALIZE.md](FINALIZE.md)). Then close all that lives in the repo, so one
-   commit holds it all (a user commit after review included):
-   - the refs to close: `todo`, `roadmap` and `tracker` from
-     `work.mjs show <id>`; lane XS: `--todo` and `--ref`;
-   - each roadmap slice: Status `shipped <date> <work id>` (unmet Verify:
-     DOCS.md), a dated line in its Changes (the first dated line creates
-     `## Changes`); each to-do id: call the Skill tool with "log-it"
-     to mark it done with the work id (lane XS: the commit);
-   - a local-tracker ref: `tracker.mjs close <ref>`, deleting the issue file
-     (already gone: an earlier run closed it);
-   - `event <id> ship-prepared` (not lane XS; its no-id case is in
-     [RESUME.md](RESUME.md)).
+   ([FINALIZE.md](FINALIZE.md)). Then close every ref per DOCS.md "Closes", so
+   one commit holds it all (a user commit after review included).
 3. **Leave it for review:** stop; the plan stays (`status: shipping`), the
    remote tracker stays open. Repeat the commit message and the command that
    finishes, `/ship-it <id>` (lane XS: `--lane xs` with its `--ref` and

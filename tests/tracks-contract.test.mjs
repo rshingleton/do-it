@@ -135,4 +135,101 @@ test('scope-it\'s format shows ## Files and ## Interfaces in both examples, and 
   const checks = fs.readFileSync(path.join(ROOT, 'skills/scope-it/CHECKS.md'), 'utf8');
   assert.match(checks, /^\| Contract \|/m, 'the analyse pass has a Contract row');
   assert.match(checks, /contract\.mjs/, 'the row names the command a scope-it run calls');
+  assert.match(checks, /^\| Verify commands \|/m, 'the analyse pass has a probe row');
+  assert.match(checks.replace(/\s+/g, ' '), /lane S step lines only/, 'the row says the probe reads lane S steps only');
+});
+
+// The probe: a plan's runnable `→ verify:` command is real and can fail. A step line is the only
+// source, and the plan's own repo (found by walking up from the file) is what it is checked against.
+function probeFixture(steps) {
+  const dir = tmpDir('do-it-contract-probe-');
+  git(dir, 'init', '-q');
+  fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ scripts: { test: 'node --test', check: 'node check.mjs' } }));
+  fs.writeFileSync(path.join(dir, 'check.mjs'), 'one\n');
+  fs.mkdirSync(path.join(dir, 'tests'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'tests/a.test.mjs'), 'one\n');
+  fs.mkdirSync(path.join(dir, 'docs/planning'), { recursive: true });
+  const file = path.join(dir, 'docs/planning/p.md');
+  const body = ['---', 'id: p', '---', '', '## Files', 'src/a.js', '', '## Interfaces', '`A.b() -> c`', '', '## Steps', steps, ''];
+  fs.writeFileSync(file, body.join('\n'));
+  const r = spawnSync('node', [CHECK, file], { cwd: dir, encoding: 'utf8' });
+  return { r, out: JSON.parse(r.stdout) };
+}
+
+test('the probe refuses a verify that names an npm script the repo lacks, and names the command', () => {
+  const { r, out } = probeFixture('1. Add the limiter → verify: `npm run nope`');
+  assert.equal(r.status, 1);
+  assert.deepEqual(out.probes.map((p) => [p.command, p.ok]), [['npm run nope', false]]);
+  assert.match(out.probes[0].reason, /nope/, 'the reason names the absent script');
+  assert.match(out.errors.join('\n'), /npm run nope/, 'the refusal names the command');
+});
+
+test('the probe refuses a verify that names a path nobody wrote, and names the path', () => {
+  const { r, out } = probeFixture('1. Wire the login → verify: `node --test tests/missing.test.mjs`');
+  assert.equal(r.status, 1);
+  assert.equal(out.probes[0].ok, false);
+  assert.match(out.probes[0].reason, /tests\/missing\.test\.mjs/);
+  assert.match(out.errors.join('\n'), /node --test tests\/missing\.test\.mjs/);
+});
+
+test('the probe refuses a command that cannot fail, by its literal words', () => {
+  for (const command of ['true', ':', 'echo done', 'exit 0', 'npm run check || true']) {
+    const { r, out } = probeFixture(`1. Do the work → verify: \`${command}\``);
+    assert.equal(r.status, 1, `${command} is refused`);
+    assert.equal(out.probes[0].ok, false, `${command} is probed`);
+    assert.equal(out.probes[0].command, command);
+  }
+});
+
+test('the probe prints each command with its reason, and a real node --test file passes', () => {
+  const { r, out } = probeFixture(
+    [
+      '1. Run the suite → verify: `node --test tests/a.test.mjs`',
+      '2. Read the table → verify: the table names the probe',
+      '3. Collect each step line\'s `→ verify:` command → verify: `npm test`',
+    ].join('\n'),
+  );
+  assert.equal(r.status, 0, JSON.stringify(out));
+  assert.deepEqual(out.probes.map((p) => [p.command, p.ok]), [
+    ['node --test tests/a.test.mjs', true],
+    ['npm test', true],
+  ], 'a prose verify names no command, and prose naming the marker is not the marker');
+  assert.match(out.probes[0].reason, /tests\/a\.test\.mjs/, 'a passing probe says what it checked');
+  assert.deepEqual(out.plans[0].files, ['src/a.js'], 'the existing keys are unchanged');
+  assert.deepEqual(out.plans[0].gaps, []);
+});
+
+test('the probe reads an npm script past the flags on either side of run, and refuses a missing one', () => {
+  for (const command of ['npm run check', 'npm run -s check', 'npm run --silent check', 'npm -s run check', 'npm test']) {
+    const { r, out } = probeFixture(`1. Run it → verify: \`${command}\``);
+    assert.equal(r.status, 0, `${command}: ${JSON.stringify(out.errors)}`);
+    assert.deepEqual(out.probes.map((p) => [p.command, p.ok]), [[command, true]], command);
+  }
+  for (const command of ['npm run nope', 'npm -s run nope', 'npm --silent run nope']) {
+    const { r, out } = probeFixture(`1. Run it → verify: \`${command}\``);
+    assert.equal(r.status, 1, `${command} is refused`);
+    assert.equal(out.probes[0].ok, false, `${command} is probed`);
+    assert.match(out.probes[0].reason, /nope/, 'the reason names the absent script');
+  }
+});
+
+test('the probe keeps a real verify when a later prose line names the marker', () => {
+  for (const steps of [
+    '1. Add the limiter → verify: `npm run nope`, and step 3 says → verify: in prose',
+    '1. Add the limiter → verify: `npm run nope`; step 3 says `→ verify:` names the marker and `npm` runs.',
+  ]) {
+    const { r, out } = probeFixture(steps);
+    assert.equal(r.status, 1, steps);
+    assert.deepEqual(out.probes.map((p) => [p.command, p.ok]), [['npm run nope', false]], `the real command is probed, not displaced: ${steps}`);
+  }
+});
+
+test('the probe reads lane S steps only: a lane M README has no steps to probe', () => {
+  const dir = tmpDir('do-it-contract-lanem-');
+  const file = path.join(dir, 'README.md');
+  const readme = ['---', 'id: m', '---', '', '## Files', 'src/a.js', '', '## Interfaces', '`A.b() -> c`', '', '## Phases', '| Phase | Delivers | Blocked by |', '|---|---|---|', '| [1](phase-1.md) | thing | none |', ''];
+  fs.writeFileSync(file, readme.join('\n'));
+  const r = spawnSync('node', [CHECK, file], { encoding: 'utf8' });
+  assert.equal(r.status, 0);
+  assert.deepEqual(JSON.parse(r.stdout).probes, []);
 });

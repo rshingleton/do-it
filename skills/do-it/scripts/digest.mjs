@@ -12,12 +12,17 @@ const RETRO = ['Worked', 'Failed', 'Change', 'Next'];
 // line, so it cannot open a heading or a bullet of its own.
 const oneLine = (s) => String(s).replace(/\s+/g, ' ').trim();
 const bullets = (items, none = 'none') => (items.length ? items.map((x) => `- ${oneLine(x)}`) : [`- ${none}`]);
+// A usage figure is a count: a value that is not a finite number prints as 0, never as text.
+const figure = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
 // An assumption from a work item is stored `<id>#<n>: text`; show the id and the
-// item-local n that `work.mjs run reject-assumption <slug> <id>#<n>` takes.
+// item-local n that `work.mjs run reject-assumption <slug> <id>#<n>` takes. A re-add
+// marks the item's older rejections `earlier <key>`, so the key still reads and the
+// line says which list it came from.
 const origin = (a) => {
-  const k = splitKey(a);
-  return k?.text === undefined ? a : `${k.id} #${k.n}: ${k.text}`;
+  const earlier = a.startsWith('earlier ');
+  const k = splitKey(earlier ? a.slice('earlier '.length) : a);
+  return k?.text === undefined ? a : `${k.id} #${k.n}: ${k.text}${earlier ? ' (earlier)' : ''}`;
 };
 
 // A marker is `marker: <path> <text>`, the text being `shortcut: <limit>, <upgrade trigger>`.
@@ -48,7 +53,7 @@ export function buildDigest({ record, tags = [], usage = null, findings = [], re
   // A resume clears a slice's own count, so the run total can hold rounds no slice still shows.
   if (counted > perSlice) shares.push(`${counted - perSlice} before a resume`);
   const limits = record.limits.filter((l) => !l.startsWith('marker:'));
-  const out = [`# Run digest: ${record.id}`, '', `Level ${record.level}, commit ${record.commit}, started ${record.started}.`, ''];
+  const out = [`# Run digest: ${oneLine(record.id)}`, '', `Level ${oneLine(record.level)}, commit ${oneLine(record.commit)}, started ${oneLine(record.started)}.`, ''];
   const sec = (title, lines) => out.push(`## ${title}`, '', ...lines, '');
   // The audit limit that last refused a round: the slice, the final review or the run total.
   if (record.audit_stop) sec('Limit fired', [`- ${record.audit_stop.startsWith('slice ') ? 'SLICE_AUDIT_CAP' : 'AUDIT_CAP'}, ${oneLine(record.audit_stop)}`]);
@@ -62,7 +67,7 @@ export function buildDigest({ record, tags = [], usage = null, findings = [], re
   sec(`Verification limits (${limits.length})`, bullets(limits));
   sec(`Findings and defects filed (${findings.length})`, bullets(findings));
   sec(`Shortcut ledger (${marks.length}, ${marks.filter((m) => m.endsWith('(no-trigger)')).length} no-trigger)`, bullets(marks));
-  sec('Tokens', [usage ? `- input ${usage.input ?? 0}, output ${usage.output ?? 0}` : '- not recorded']);
+  sec('Tokens', [usage ? `- input ${figure(usage.input)}, output ${figure(usage.output)}` : '- not recorded']);
   sec(`Rollback (${runTags.length})`, bullets(runTags.map((t) => `\`git revert --no-edit ${t}\``)));
   sec('Retro', RETRO.map((k, i) => `- ${k}: ${oneLine(retro[i] ?? 'none')}`));
   return `${out.join('\n').trimEnd()}\n`;

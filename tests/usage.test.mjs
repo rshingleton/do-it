@@ -166,6 +166,27 @@ test('usage.mjs reports by agent and by model from the recorded files', () => {
   assert.deepEqual(run('--by', 'month').map((r) => [r.month, r.runs]), [[today.slice(0, 7), 3]]);
 });
 
+test('--json adds a whole record\'s runs: two rows of runs 2 print 4', () => {
+  const dir = tmp();
+  const day = new Date().toISOString().slice(0, 10);
+  const row = (runs, out) => JSON.stringify({ day, kind: 'session', agent: 'main', model: 'm', project: 'p', runs, turns: 1, in: 1, out, cr: 0, cc: 0 });
+  fs.writeFileSync(path.join(dir, 'rollup.jsonl'), `${row(2, 10)}\n${row(2, 20)}\n`);
+  const out = JSON.parse(execFileSync('node', [path.join(ROOT, 'skills/usage-it/scripts/usage.mjs'), '--json'], { env: { ...process.env, DO_IT_USAGE_DIR: dir }, encoding: 'utf8' }));
+  assert.deepEqual(out.map((g) => [g.agent, g.runs, g.out]), [['main', 4, 30]]);
+});
+
+test('--json counts a whole record\'s runs, not the record: two records of runs 2 report 4', () => {
+  const dir = tmp();
+  const rec = (id, out) => ({ id, kind: 'session', agent: 'main', model: 'm', project: 'p', day: '2026-10-22', start: '2026-10-22T03:00:00.000Z', runs: 2, turns: 1, in: 1, out, cr: 0, cc: 0 });
+  record(dir, rec('a', 10));
+  record(dir, rec('b', 20));
+  const env = { ...process.env, DO_IT_USAGE_DIR: dir };
+  const run = (...a) => execFileSync('node', [path.join(ROOT, 'skills/usage-it/scripts/usage.mjs'), ...a], { env, encoding: 'utf8' });
+  const out = JSON.parse(run('--json', '--from', '2026-10-22T00:00:00Z', '--to', '2026-10-22T06:00:00Z'));
+  assert.deepEqual(out.map((g) => [g.runs, g.whole, g.out]), [[4, 4, 30]]);
+  assert.match(run('--from', '2026-10-22T00:00:00Z', '--to', '2026-10-22T06:00:00Z'), /window: 4 run\(s\) recorded before time buckets existed count whole/);
+});
+
 test('--hours keeps only runs that ended inside the window', () => {
   const dir = tmp();
   const now = Date.now();
@@ -467,11 +488,12 @@ test('the stop hook and the report take Claude Code\'s cached reading, and the r
 });
 
 test('refreshUtilization runs `claude -p /usage` only when the cached reading is stale, and can be turned off', () => {
-  const bin = tmp();
+  const bin = path.join(tmp(), 'npm prefix'); // a space in the path: the resolved shim must be quoted
+  fs.mkdirSync(bin, { recursive: true });
   const marker = path.join(bin, 'ran');
-  // A shim the shell finds: npm installs claude as claude.cmd on Windows.
+  // A shim Windows installs: npm writes claude.cmd, which a shell or a PATHEXT resolve finds, never a bare spawn.
   if (process.platform === 'win32') fs.writeFileSync(path.join(bin, 'claude.cmd'), `@echo %* >> "${marker}"\r\n`);
-  else fs.writeFileSync(path.join(bin, 'claude'), `#!/bin/sh\necho "$@" >> ${marker}\n`, { mode: 0o755 });
+  else fs.writeFileSync(path.join(bin, 'claude'), `#!/bin/sh\necho "$@" >> "${marker}"\n`, { mode: 0o755 });
   const cfg = tmp();
   const base = { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}`, CLAUDE_CONFIG_DIR: cfg };
   const env = { ...base, DO_IT_USAGE_REFRESH: '1' };
@@ -537,14 +559,19 @@ test('a window cuts a run that straddles its edge by 15-minute buckets, and the 
   assert.equal(before.out + after.out, rec.out, 'nothing is counted twice or dropped');
 });
 
-test('a run recorded before buckets existed counts whole in the window of its last message, and the output says so', () => {
+test('a run recorded before buckets existed counts whole in the window of its last message; only a record with no `at` is labelled', () => {
   const dir = tmp();
   record(dir, { id: 'old', kind: 'session', agent: 'main', model: 'claude-sonnet-5-5', project: 'p', day: '2026-10-22', start: '2026-10-22T02:10:00.000Z', at: '2026-10-22T03:50:00.000Z', turns: 4, in: 8, out: 150, cr: 400, cc: 40 });
   const env = { ...process.env, DO_IT_USAGE_DIR: dir };
   const run = (...a) => execFileSync('node', [USAGE, '--by', 'agent', ...a], { env, encoding: 'utf8' });
-  assert.match(run('--from', '2026-10-22T03:00:00Z', '--to', '2026-10-22T06:00:00Z'), /1 run\(s\) recorded before time buckets existed count whole/);
+  // It carries `at`, so the window places its last message exactly and it needs no "before time buckets"
+  // excuse (T219). The old expectation said the opposite; the label is for a record that has no `at` at all.
+  assert.doesNotMatch(run('--from', '2026-10-22T03:00:00Z', '--to', '2026-10-22T06:00:00Z'), /before time buckets/);
   assert.match(run('--from', '2026-10-22T00:00:00Z', '--to', '2026-10-22T02:59:59Z'), /no usage recorded/);
   assert.equal(windowed(dir, '--from', '2026-10-22T03:00:00Z', '--to', '2026-10-22T06:00:00Z')[0].out, 150);
+  // No `at`: no last message to place it by, so its start places it and the output labels it.
+  record(dir, { id: 'noat', kind: 'session', agent: 'main', model: 'claude-sonnet-5-5', project: 'p', day: '2026-10-22', start: '2026-10-22T03:20:00.000Z', turns: 2, in: 2, out: 30, cr: 50, cc: 5 });
+  assert.match(run('--from', '2026-10-22T03:00:00Z', '--to', '2026-10-22T06:00:00Z'), /1 run\(s\) recorded before time buckets existed count whole/);
 });
 
 test('a transcript with a message that has no time is recorded without buckets and marked partial', () => {

@@ -18,10 +18,24 @@ const SLICE_STATUSES = ['shipped', 'parked', 'blocked'];
 const NEEDS = ['user', 'decision'];
 const SETTABLE = ['level', 'commit', 'branch', 'tracks', 'max_slices', 'slice_cap_min', 'audit_cap', 'final_audit_cap', 'audit_total_cap', 'limits'];
 // The hard ceiling on tracks, whatever the flag, the environment or the record says.
-export const TRACKS_CEILING = 5;
+const TRACKS_CEILING = 5;
 // Changing a cap puts every refusal marker back to unset, so lowering a cap to the value
 // it once refused at cannot revive an old refusal.
 const CAPS = ['max_slices', 'audit_cap', 'final_audit_cap', 'audit_total_cap'];
+
+// A path a record stores uses / on every platform, as runs.mjs does.
+const toPosix = (p) => p.split(path.sep).join('/');
+
+// The repo root a record stores: the real path, in posix form, so a symlink, a Windows
+// short name or another spelling of the same checkout does not read as a different repo.
+export function repoRoot(root) {
+  if (root === null || root === undefined || root === '') return null;
+  try {
+    return toPosix(fs.realpathSync.native(root));
+  } catch {
+    return toPosix(path.resolve(root));
+  }
+}
 
 export function runPath(planningDir, slug) {
   return path.join(planningDir, `${slug}.run`, 'RUN.md');
@@ -73,14 +87,12 @@ export function requireTrackBranch(commit, tracks) {
 }
 
 // How many tracks the run starts now: none at `tracks` 1 (the run builds in place, exactly as a run
-// that never asked), else min(the ready slices, the machine's resource cap, `tracks`). The hard
-// ceiling holds whatever the record says; `resource` stands for the heavy suites the machine runs at
-// once, and the ceiling stands in when the caller does not know it.
-export function trackWidth({ ready, tracks = 1, resource = TRACKS_CEILING }) {
+// that never asked), else min(the ready slices, `tracks`). `tracks` is capped at the hard ceiling where
+// it is read and where it is set; the ceiling term keeps that true for any caller's raw number.
+export function trackWidth({ ready, tracks = 1 }) {
   const n = cap('tracks', tracks);
   if (n === 1) return 0;
-  const room = resource === undefined || resource === null ? TRACKS_CEILING : cap('resource', resource);
-  return Math.max(0, Math.min(Number(ready) || 0, n, room, TRACKS_CEILING));
+  return Math.max(0, Math.min(Number(ready) || 0, n, TRACKS_CEILING));
 }
 
 function validate(key, value) {
@@ -111,27 +123,38 @@ function validate(key, value) {
 }
 
 function read(file, slug) {
-  let text;
+  let bytes;
   try {
-    text = fs.readFileSync(file, 'utf8');
+    bytes = fs.readFileSync(file);
   } catch {
     throw new Error(`no run record for ${slug}: run new ${slug} first`);
   }
-  const parts = splitFrontmatter(text);
+  const parts = splitFrontmatter(bytes.toString('utf8'));
   if (!parts) throw new Error(`${file}: no run record block (YAML frontmatter)`);
   const r = parseBlock(parts.yaml);
   r.slices = Array.isArray(r.slices) ? r.slices : [];
   r.assumptions = Array.isArray(r.assumptions) ? r.assumptions : [];
   r.limits = Array.isArray(r.limits) ? r.limits : [];
   r.rejected = Array.isArray(r.rejected) ? r.rejected : [];
-  return { record: r, body: parts.body, eol: parts.eol };
+  return { record: r, body: parts.body, eol: parts.eol, bytes };
 }
 
-// A temp file and a rename, as block.mjs does: a failed write leaves the old record whole.
-function write(file, { record, body, eol }) {
+// The new record beside the old one: a write that fails leaves the old record whole.
+function stage(file, { record, body, eol }) {
   const tmp = `${file}.${process.pid}.tmp`;
   try {
     fs.writeFileSync(tmp, joinFrontmatter(writeBlock(record), body, eol ?? '\n'));
+    return tmp;
+  } catch (e) {
+    fs.rmSync(tmp, { force: true });
+    throw e;
+  }
+}
+
+// A temp file and a rename, as block.mjs does: a failed write leaves the old record whole.
+function write(file, cur) {
+  const tmp = stage(file, cur);
+  try {
     fs.renameSync(tmp, file);
   } catch (e) {
     fs.rmSync(tmp, { force: true });
@@ -139,18 +162,67 @@ function write(file, { record, body, eol }) {
   }
 }
 
-// The one read-modify-write of a record: `change(record)` edits it in place, and a throw leaves the file as it was.
+// A record that keeps changing under a change is never written over: after this many attempts the
+// caller is told its update was lost.
+const UPDATE_ATTEMPTS = 5;
+// A rename the other writer's open read refused (Windows) is a lost race, not a broken record.
+const RACE_CODES = new Set(['EPERM', 'EBUSY', 'EACCES', 'ENOENT']);
+
+// The record's bytes are still the ones read. Not its mtime: two writes in one clock tick leave it
+// equal, and only the content says whether another writer landed. A read that fails says nothing
+// about the record, so it counts as a change and the caller reads it again.
+function unchanged(file, bytes) {
+  try {
+    return fs.readFileSync(file).equals(bytes);
+  } catch {
+    return false;
+  }
+}
+
+// Replaces the record with the staged copy, unless the bytes read are no longer there. The re-read
+// is taken after the whole new record is staged, so only one system call stands between seeing the
+// old record and renaming over it. A rename the other writer's read refused is that same race.
+// shortcut: the re-read and the rename are two calls, so a writer that publishes between them goes
+// unseen and the later write wins; add a lock file if two writers ever lose a change with nothing reported.
+function replace(file, tmp, bytes) {
+  try {
+    if (!unchanged(file, bytes)) return false;
+    fs.renameSync(tmp, file);
+    return true;
+  } catch (e) {
+    if (!RACE_CODES.has(e.code)) throw e;
+    return false;
+  }
+}
+
+// The one read-modify-write of a record: `change(record)` edits it in place, and a throw leaves the
+// file as it was. Another writer may land between the read and the write, so the bytes are read
+// again before the rename: when they moved, the change is applied again to the record that writer
+// left (never to the copy this attempt read), and a record that keeps moving is reported, not written.
 export function updateRun(planningDir, slug, change) {
   checkSlug(slug);
   const file = runPath(planningDir, slug);
-  const cur = read(file, slug);
-  change(cur.record);
-  write(file, cur);
-  return cur.record;
+  for (let attempt = 1; ; attempt++) {
+    const cur = read(file, slug);
+    change(cur.record);
+    const tmp = stage(file, cur);
+    let wrote = false;
+    try {
+      wrote = replace(file, tmp, cur.bytes);
+    } finally {
+      if (!wrote) fs.rmSync(tmp, { force: true });
+    }
+    if (wrote) return cur.record;
+    if (attempt >= UPDATE_ATTEMPTS) {
+      throw new Error(
+        `lost update: ${file} changed under ${slug} on each of ${attempt} attempts; nothing written: another writer keeps replacing the record, run the command again`,
+      );
+    }
+  }
 }
 
 // `defaults` carries the config's caps; a flag in `opts` wins over it.
-export function createRun(planningDir, slug, opts, defaults, { now = () => new Date().toISOString() } = {}) {
+export function createRun(planningDir, slug, opts, defaults, { now = () => new Date().toISOString(), root = null } = {}) {
   checkSlug(slug);
   const file = runPath(planningDir, slug);
   if (fs.existsSync(file)) throw new Error(`${slug} already has a run record`);
@@ -161,6 +233,9 @@ export function createRun(planningDir, slug, opts, defaults, { now = () => new D
   requireTrackBranch(commit, tracks);
   const record = {
     id: slug,
+    // The repo this run belongs to: it is not settable, and a command from another
+    // checkout is refused (work.mjs) rather than reading a record that is not its own.
+    root: repoRoot(root),
     level: oneOf('level', opts.level ?? 'full', LEVELS),
     commit,
     tracks,
@@ -168,6 +243,9 @@ export function createRun(planningDir, slug, opts, defaults, { now = () => new D
     started: opts.date ?? now(),
     // The commit HEAD resolved to at run new: the final review's fixed point. null outside git.
     base: opts.base ?? null,
+    // Only a run that started on a dirty tree holds this, so a clean run's record keeps
+    // its shape: the uncommitted change is part of the run, measured from the base.
+    ...(opts.base_note ? { base_note: opts.base_note } : {}),
     max_slices: cap('max_slices', opts['max-slices'] ?? defaults.DO_IT_MAX_SLICES, { optional: true }),
     slice_cap_min: cap('slice_cap_min', opts['slice-cap-min'] ?? defaults.DO_IT_SLICE_CAP_MIN),
     // Audit rounds: `audit_cap` per slice, `final_audit_cap` for the final review, `audit_total_cap`
@@ -270,6 +348,8 @@ export function resumeSlice(planningDir, slug, id) {
     if (g) {
       delete g.audit_rounds;
       delete g.audit_refused;
+      // The user settled what kept failing, so the next failure counts from one.
+      delete g.verify_failures;
     }
   });
 }

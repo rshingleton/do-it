@@ -14,11 +14,11 @@ block.
 ## 1. Pin the change
 
 - Work id: read the state block ([STATE.md](../do-it/STATE.md)). The change is
-  `git diff <base_ref>` plus untracked files
-  (`git ls-files --others --exclude-standard`), minus `docs/planning/` and `docs/issues/`.
-  Any phase not `done`: stop, `blocked`.
-- `--since <ref>`: a track's path: the same change, run from its worktree, with
-  no plan read and no state written. The Spec axis uses the spec the user names, or is skipped.
+  the files the plan's `## Files` names (`git diff <base_ref> -- <files>`, plus
+  their untracked ones), or the whole change when it names none, minus
+  `docs/planning/` and `docs/issues/`. Any phase not `done`: stop, `blocked`.
+- `--since <ref>`: the coordinator's audit of a track's slice, run from the
+  worktree: no work item read, no state written, spec from the caller.
 
 Empty change: stop and say so.
 
@@ -37,10 +37,11 @@ An agent cannot call a skill, so run two of these here and start the third:
   `it-reviewer` agents and brings the repo's standards and its baselines.
 - **Compliance:** call the Skill tool with "guard-it" on the change.
 - **Architecture (lane M only):** start one `it-reviewer` agent (mid-tier
-  model, `## Report` shape, under 400 words) on [ARCHITECTURE.md](ARCHITECTURE.md) for every touched module.
+  model, `## Report` shape, 400 words) on [ARCHITECTURE.md](ARCHITECTURE.md).
 
-Give each reviewer pointers (diff command, untracked files, plan path), never the
-build transcript, plus, after round 1, the scope and Settled list ([ROUNDS.md](ROUNDS.md)).
+Give each reviewer pointers (diff command, untracked files, plan path), never
+the build transcript, plus, after round 1, the scope and Settled list
+([ROUNDS.md](ROUNDS.md)).
 
 Lane XS is not audited here; `ship-it` does its self-review.
 
@@ -49,17 +50,16 @@ Lane XS is not audited here; `ship-it` does its self-review.
 Write findings per the contract in [REPORT.md](REPORT.md): concrete case or no
 finding, recorded decisions are not findings, numbered Must / Should / Nice.
 Then validate every Must except failed mechanical checks per
-[VALIDATE.md](VALIDATE.md): a fresh `it-reviewer` agent confirms or rejects each one from
-the code alone; rejected ones move to **Not confirmed** and stop blocking.
+[VALIDATE.md](VALIDATE.md): a fresh `it-reviewer` agent confirms or rejects each
+from the code alone; rejected ones move to **Not confirmed** and stop blocking.
 
 - Any confirmed **Must**: `FAIL`.
 - A review axis that is **unverified** (a reviewer that errored, timed out or
   returned nothing or malformed output: review-it's `Unverified:`, guard-it,
-  the Architecture reviewer, or a bare "No findings." that says nothing of what
-  it read) is no pass. Run that reviewer once more (the same round: `run audit`
-  is not called again); still unverified: fire
-  `work.mjs event <id> block "<axis> unverified: <why>"`, return `blocked` and
-  name the axis. `audit-pass` and `audit-fail` stay un-fired.
+  the Architecture reviewer, or a bare "No findings.") is no pass. Run that
+  reviewer once more (the same round: no second `run audit`); still unverified:
+  fire `work.mjs event <id> block "<axis> unverified: <why>"`, return
+  `blocked` and name the axis. `audit-pass` and `audit-fail` stay un-fired.
 - Otherwise `PASS`.
 
 Lane S: findings go in chat and a short `## Audit` section in the plan file;
@@ -83,7 +83,7 @@ A refused event (the script exits 1) is `blocked`.
 - `FAIL`, round 1 or 2: return `failed` with the Must numbers. `do-it` sends
   them to `build-it`, which fixes only those (its fix mode) and hands back
   for a re-audit scoped and ordered per [ROUNDS.md](ROUNDS.md).
-- `FAIL`, round 3 or later (the script sets `status: blocked`): return `blocked`.
+- `FAIL`, round 3 or later (script sets `status: blocked`): return `blocked`.
   Show the Musts and ask the user whether to fix (`unblock`; the round
   count continues), accept with a recorded decision (add it to the plan's
   `## Decisions`, creating the section in a lane S plan, then `unblock` and
@@ -92,9 +92,9 @@ A refused event (the script exits 1) is `blocked`.
   above set `status: blocked` and the blocker). Once the cause is fixed, the
   user answers: `unblock` then `build-done` re-audits.
 
-Should and Nice findings never block or start a re-audit. `ship-it` carries them into the
-changelog or ADR notes, and with no changelog offers to log them as
-to-dos. Mechanical rules that keep failing are listed as
+Should and Nice findings never block or start a re-audit. `ship-it` carries
+them into the changelog or ADR notes, and with no changelog offers to log them
+as to-dos. Mechanical rules that keep failing are listed as
 **Guardrail candidates**: rules for `.compliance-rules/checks.json` or the
 lint config, so the hooks catch them next time. `/retro-it` turns them into
 those rules.

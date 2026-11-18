@@ -10,7 +10,7 @@
 //   work.mjs review-diff <id>
 //   work.mjs verify-phase <id> [n] [--in dir] -- <command...>
 //   work.mjs roadmap <file>
-//   work.mjs run new <slug> [--level --commit --tracks --max-slices --slice-cap-min --audit-cap --final-audit-cap --audit-total-cap]
+//   work.mjs run new <slug> [--roadmap <file>] [--level --commit --tracks --max-slices --slice-cap-min --audit-cap --final-audit-cap --audit-total-cap]
 //   work.mjs run show <slug> | set <slug> <key> <json> | slice <slug> <id> <status> [--reason --needs]
 //   work.mjs run add-assumptions <slug> <work id> <json array>   (merges; kept as <id>#<n>: text)
 //   work.mjs run reject-assumption <slug> <id>#<n> <instead...>   (by key; reopens the item if its plan is still auditing or shipping)
@@ -38,14 +38,15 @@ import { spawnSync } from 'node:child_process';
 import { loadConfig } from '../../track-it/scripts/config.mjs';
 import { isMain } from '../../it-core/scripts/is-main.mjs';
 import { EMPTY_TREE, fingerprint, hasObject, snapshot, treeDiff } from './changeset.mjs';
+import { readPlan } from './contract.mjs';
 import { needsUser } from './state.mjs';
 import { allowedMoves, firableEvents, workItems } from './items.mjs';
 import { roadmapSlices } from './roadmap.mjs';
-import { commitSlice } from './commit.mjs';
+import { commitSlice, insideRoot } from './commit.mjs';
 import { git } from './git.mjs';
 import { checkShell } from './check-shell.mjs';
 import { buildDigest } from './digest.mjs';
-import { addAssumptions, createRun, nextSlice, resumeSlice, runPath, setRun, showRun, sliceRun } from './run.mjs';
+import { addAssumptions, createRun, nextSlice, repoRoot, resumeSlice, runPath, setRun, showRun, sliceRun } from './run.mjs';
 import { countAudit, startSlice } from './gate.mjs';
 import { runContract, runGate, runRejectAssumption, runReviewChange, runTracks, runVerify, runVerifyMerged } from './runs.mjs';
 
@@ -71,6 +72,30 @@ function parseArgs(argv) {
 
 // Recorded and printed paths use / on every platform.
 const toPosix = (p) => p.split(path.sep).join('/');
+
+// Two checkouts differ by spelling: the record's posix realpath against the caller's,
+// case-folded on win32, where `C:/x` and `c:/x` are one repo.
+function sameRoot(recorded, root) {
+  const here = repoRoot(root);
+  return process.platform === 'win32' ? recorded.toLowerCase() === here.toLowerCase() : recorded === here;
+}
+
+// A roadmap belongs to the repo root it sits under: `../other/road.md` is another repo's.
+// Both sides are real paths, so a symlink or a Windows short name cannot pose as inside.
+function within(file, root) {
+  const rel = path.relative(root, repoRoot(file));
+  return !path.isAbsolute(rel) && !/^\.\.(?:[\\/]|$)/.test(rel);
+}
+
+// The roadmap a run subcommand reads must sit inside the record's repo root. `run contract`
+// without one has nothing to check.
+function runRoadmap(record, file) {
+  if (!file || !record.root) return file;
+  if (!within(file, record.root)) {
+    throw new Error(`the roadmap ${repoRoot(file)} is outside the run's repo root ${record.root}; a run in another repo starts from that repo`);
+  }
+  return file;
+}
 
 function context(cwd) {
   const { root, values } = loadConfig({ cwd });
@@ -108,11 +133,14 @@ function planningExclude(ctx) {
 // The change fingerprint also leaves out what ship-it's closing docs write (the item's roadmap file,
 // the to-do list, the ADR directory) and the issue store, which any session's `log-it` may add to, or
 // closing them (or filing a backlog item) would read as moved code. A hand edit to those files after
-// verify goes unseen, by decision.
+// verify goes unseen, by decision. A name outside the repo cannot be an exclude, and `insideRoot` keeps
+// a repo file named `..env` while dropping `..` and `../x`.
 function closingDocsExclude(ctx, item) {
-  const rel = (p) => toPosix(path.relative(ctx.root, path.resolve(ctx.root, p)));
   const roadmap = String(item.state.roadmap ?? '').split('#')[0];
-  return [roadmap, ctx.config.DO_IT_TODO_FILE || 'docs/TODO.md', ctx.config.DO_IT_ADR_DIR || 'docs/adr', ctx.config.DO_IT_ISSUES_DIR || 'docs/issues'].filter(Boolean).map(rel).filter((p) => p && !p.startsWith('..'));
+  return [roadmap, ctx.config.DO_IT_TODO_FILE || 'docs/TODO.md', ctx.config.DO_IT_ADR_DIR || 'docs/adr', ctx.config.DO_IT_ISSUES_DIR || 'docs/issues']
+    .filter(Boolean)
+    .map((p) => insideRoot(ctx.root, p))
+    .filter(Boolean);
 }
 
 // The fingerprint of the item's change since its base, planning files excluded. `at` is the tree it
@@ -174,6 +202,22 @@ function eventArgs(ctx, item, event, rest, opts) {
 function baseRef(root) {
   const r = git(root, ['rev-parse', '--verify', '--quiet', 'HEAD']);
   return r.status === 0 ? r.stdout.trim() : null;
+}
+
+// A run is never refused for a dirty tree: the uncommitted change is part of what it
+// builds. The record says so, so a reader knows the base is the commit that change is
+// measured from. No base (no repo, no first commit) has nothing to name, and a git that
+// fails says nothing about the tree, so both start without the note.
+function baseNote(ctx, base) {
+  if (!base) return null;
+  let r;
+  try {
+    r = git(ctx.root, ['status', '--porcelain', '-uall', '--', '.', ...planningExclude(ctx).map((p) => `:(exclude,literal)${p}`)]);
+  } catch {
+    return null;
+  }
+  if (r.status !== 0 || !r.stdout.trim()) return null;
+  return 'uncommitted changes were in the tree at run new; base is the commit they are measured from, and they are part of this run';
 }
 
 export async function run(argv, { cwd = process.cwd() } = {}) {
@@ -245,9 +289,25 @@ export async function run(argv, { cwd = process.cwd() } = {}) {
     case 'run': {
       // A complete run's record: id is the subcommand here, rest[0] the roadmap slug.
       const [slug, ...args] = rest;
+      // The record names the repo it belongs to: a command from another checkout refuses,
+      // naming both, instead of reading a record that is not its own. `new` makes the
+      // record, a record without `root` (an older one) keeps working, and a missing one
+      // is the subcommand's own error.
+      const record = id !== 'new' && slug && fs.existsSync(runPath(ctx.planningDir, slug)) ? showRun(ctx.planningDir, slug) : null;
+      if (record?.root && !sameRoot(record.root, ctx.root)) {
+        throw new Error(`${slug} is a run of ${record.root}; this checkout is ${repoRoot(ctx.root)}. A run in another repo starts from that repo`);
+      }
       switch (id) {
-        case 'new':
-          return createRun(ctx.planningDir, slug, { ...opts, base: baseRef(ctx.root) }, ctx.config);
+        case 'new': {
+          // finish-it always passes the roadmap it resolved: a file outside this checkout is
+          // a run in another repo, refused before the record is made.
+          if (opts.roadmap !== undefined && !within(path.resolve(cwd, opts.roadmap), repoRoot(ctx.root))) {
+            const file = repoRoot(path.resolve(cwd, opts.roadmap));
+            throw new Error(`the roadmap ${file} is outside the repo root ${repoRoot(ctx.root)}; a run in another repo starts from that repo`);
+          }
+          const base = baseRef(ctx.root);
+          return createRun(ctx.planningDir, slug, { ...opts, base, base_note: baseNote(ctx, base) }, ctx.config, { root: ctx.root });
+        }
         case 'show':
           return showRun(ctx.planningDir, slug);
         case 'set':
@@ -261,26 +321,29 @@ export async function run(argv, { cwd = process.cwd() } = {}) {
           return sliceRun(ctx.planningDir, slug, args[0], args[1], { reason: opts.reason, needs: opts.needs });
         case 'next': {
           if (!args[0]) throw new Error('run next needs a roadmap file');
-          const file = path.resolve(cwd, args[0]);
+          const rec = record ?? showRun(ctx.planningDir, slug);
+          const file = runRoadmap(rec, path.resolve(cwd, args[0]));
           // --batch n asks for the next n free slices; without the flag `next` is one id, as before.
           const batch = Object.hasOwn(opts, 'batch') ? Number(opts.batch) : undefined;
-          return nextSlice(roadmapSlices(file, ctx), showRun(ctx.planningDir, slug), { batch });
+          return nextSlice(roadmapSlices(file, ctx), rec, { batch });
         }
         case 'contract': {
           // The roadmap is optional: without it the order is the run's own start order.
-          const road = args[0] ? roadmapSlices(path.resolve(cwd, args[0]), ctx) : null;
+          const file = args[0] ? runRoadmap(record ?? showRun(ctx.planningDir, slug), path.resolve(cwd, args[0])) : null;
+          const road = file ? roadmapSlices(file, ctx) : null;
           return runContract({ planningDir: ctx.planningDir, root: ctx.root, slug, road, items });
         }
         case 'tracks': {
           // The tracks this run starts now: the roadmap is required, because a track holds a ready
           // slice and pairs by its plan.
           if (!args[0]) throw new Error('run tracks needs a roadmap file');
-          return runTracks({ planningDir: ctx.planningDir, root: ctx.root, slug, road: roadmapSlices(path.resolve(cwd, args[0]), ctx), items });
+          const file = runRoadmap(record ?? showRun(ctx.planningDir, slug), path.resolve(cwd, args[0]));
+          return runTracks({ planningDir: ctx.planningDir, root: ctx.root, slug, road: roadmapSlices(file, ctx), items });
         }
         case 'start':
           return startSlice(ctx.planningDir, slug, args[0], { work: opts.work, at: opts.at ?? new Date().toISOString() });
         case 'audit':
-          return countAudit(ctx.planningDir, slug, { id: args[0], final: opts.final === true });
+          return countAudit(ctx.planningDir, slug, { id: args[0], final: opts.final === true, items });
         case 'gate':
           return runGate({
             planningDir: ctx.planningDir, root: ctx.root, slug, id: args[0], items,

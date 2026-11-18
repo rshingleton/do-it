@@ -12,6 +12,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { DEFAULTS } from '../skills/track-it/scripts/config.mjs';
 import { nextSlice, trackWidth } from '../skills/do-it/scripts/run.mjs';
+import { runTracks } from '../skills/do-it/scripts/runs.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const WORK = path.join(ROOT, 'skills/do-it/scripts/work.mjs');
@@ -97,14 +98,29 @@ test('tracks: DO_IT_TRACKS is a config default of 3; --tracks defaults to 1 and 
   assert.match(bad.out.error, /positive whole number/);
 });
 
-test('width: min(ready slices, the machine cap, tracks), and a run at 1 starts no track', () => {
+test('width: min(ready slices, tracks), and a run at 1 starts no track', () => {
   assert.equal(trackWidth({ ready: 5, tracks: 5 }), 5);
   assert.equal(trackWidth({ ready: 2, tracks: 5 }), 2, 'two ready slices start two, never five');
-  assert.equal(trackWidth({ ready: 4, tracks: 5, resource: 2 }), 2, 'the machine cap holds the width');
+  assert.equal(trackWidth({ ready: 4, tracks: 5 }), 4, 'four ready slices under five tracks start four');
+  assert.equal(trackWidth({ ready: 4, tracks: 5, resource: 2 }), 4, 'no machine cap narrows the width: no caller produces one');
   assert.equal(trackWidth({ ready: 4, tracks: 1 }), 0, 'at 1 the run builds in place: no track');
   assert.equal(trackWidth({ ready: 9, tracks: 9 }), 5, 'never above the hard ceiling of 5');
   assert.equal(trackWidth({ ready: 0, tracks: 3 }), 0, 'nothing ready, nothing to start');
   assert.throws(() => trackWidth({ ready: 2, tracks: 0 }), /positive whole number/);
+});
+
+test('run contract prints a plan path once, against the repo root, from a subdirectory too', () => {
+  const dir = fixture(2);
+  const plans = (out) => Object.fromEntries(out.slices.filter((s) => s.plan).map((s) => [s.id, s.plan]));
+  const atRoot = ok(work(dir, 'run', 'contract', 'road', 'docs/roadmap/r.md'));
+  const below = ok(work(path.join(dir, 'docs'), 'run', 'contract', 'road', 'roadmap/r.md'));
+  assert.deepEqual(plans(atRoot), {
+    R1: 'docs/planning/api.md',
+    R2: 'docs/planning/bus.md',
+    R3: 'docs/planning/ui.md',
+    R4: 'docs/planning/docs.md',
+  });
+  assert.deepEqual(plans(below), plans(atRoot), 'the same plan path from any directory');
 });
 
 test('run next --batch: every free in-flight slice leads the batch, and one id without it', () => {
@@ -141,6 +157,15 @@ test('run tracks: the paired slices only, each with its worktree, plan, base ref
   assert.equal(fs.existsSync(first.worktree), false, 'the coordinator creates the worktree, never this call');
 });
 
+test('a track brief sends the build, never the audit: the coordinator proves the slice', () => {
+  const dir = fixture(2);
+  const brief = tracksOf(dir).tracks[0].brief;
+  assert.match(brief, /the coordinator audits this slice/, 'the brief names the coordinator as the auditor');
+  assert.doesNotMatch(brief, /prove-it/, 'the track is not told to run prove-it');
+  assert.match(brief, /Run no audit/, 'the brief says so outright');
+  assert.match(brief, /sends back any Must/, 'a Must comes back to the same track');
+});
+
 test('run tracks at 1: no track, no batch, no worktree, so a run that does not ask is unchanged', () => {
   const dir = fixture(1);
   const out = tracksOf(dir);
@@ -175,6 +200,81 @@ test('run tracks: --tracks 5 with two ready slices starts two; the width leaves 
   assert.equal(capped.waiting.find((w) => w.id === 'R4')?.reason, 'WIDTH', 'a disjoint slice past the width waits for the next round');
 });
 
+test('a sixth free slice is named in waiting instead of vanishing past the ceiling', () => {
+  const dir = repo();
+  fs.mkdirSync(path.join(dir, 'docs/roadmap'), { recursive: true });
+  const ids = ['R1', 'R2', 'R3', 'R4', 'R5', 'R6'].map((id) => [id, id.toLowerCase()]);
+  fs.writeFileSync(path.join(dir, 'docs/roadmap/r.md'), table(ids).join('\n'));
+  for (const [slice, id] of ids) plan(dir, id, slice, [`src/${id}.js`]);
+  ok(withTracksEnv(5, dir, 'run', 'new', 'road', '--tracks', '5'));
+  for (const [slice, id] of ids) ok(work(dir, 'run', 'start', 'road', slice, '--work', id));
+  const out = tracksOf(dir);
+  assert.equal(out.ready, 6, 'the free count is every free slice, not the ceiling');
+  assert.equal(out.tracks.length, 5);
+  assert.deepEqual(out.waiting.map((w) => [w.id, w.reason]), [['R6', 'WIDTH']], 'the sixth waits for the next round');
+});
+
+// runTracks reads each track's plan through its own `items.get` after runContract has read the same
+// plans, so a path that fails in both hides the dispatcher's policy. The fake items stand in for the
+// gate alone: a plan that is gone is a gap the dispatch reports, any other read error must throw.
+test('run tracks itself reports a missing plan and throws any other read error', () => {
+  const dir = repo();
+  const planningDir = path.join(dir, 'docs/planning');
+  const road = {
+    slices: [{ id: 'R1', blocked_by: [], state: 'ready', plan: 'held', files: ['src/a.js'] }],
+    ready: ['R1'],
+    blocking: [],
+  };
+  const held = { path: path.join(planningDir, 'held.md'), state: { lane: 's', base_ref: 'base-1' }, body: '\n## Files\nsrc/a.js\n\n## Interfaces\n`a.run() -> ok`\n' };
+  // The contract reads `held`; the track reads the gate's work id, which the fake answers for.
+  const fakes = (id, error) => ({
+    get: (want) => {
+      if (want !== id) return held;
+      throw error;
+    },
+  });
+
+  ok(work(dir, 'run', 'new', 'broken', '--tracks', '2'));
+  ok(work(dir, 'run', 'start', 'broken', 'R1', '--work', 'boom'));
+  const unreadable = new Error('boom: no state block (YAML frontmatter)');
+  assert.throws(() => runTracks({ planningDir, root: dir, slug: 'broken', road, items: fakes('boom', unreadable) }), /no state block/, 'a real read error is raised, as run contract raises it');
+
+  ok(work(dir, 'run', 'new', 'gone', '--tracks', '2'));
+  ok(work(dir, 'run', 'start', 'gone', 'R1', '--work', 'missing'));
+  const out = runTracks({ planningDir, root: dir, slug: 'gone', road, items: fakes('missing', new Error('no plan for missing under docs/planning')) });
+  assert.deepEqual(out.tracks.map((t) => [t.id, t.base]), [['R1', ok(work(dir, 'run', 'show', 'gone')).base]], 'a missing plan is a gap: that track starts on the record base');
+});
+
+test('a track brief names its plan\'s lane: a lane S plan is not called lane M', () => {
+  const s = fixture(2);
+  const brief = tracksOf(s).tracks[0].brief;
+  assert.match(brief, /a lane S plan/, 'the lane S brief says lane S');
+  assert.doesNotMatch(brief, /phase files beside it/, 'a lane S plan has no phase files beside it');
+
+  // A lane M plan, whose files sit beside it, keeps that line.
+  const m = repo();
+  fs.mkdirSync(path.join(m, 'docs/roadmap'), { recursive: true });
+  fs.writeFileSync(path.join(m, 'docs/roadmap/r.md'), table([['R1', 'api']]).join('\n'));
+  ok(work(m, 'new', 'api', '--lane', 'm', '--title', 'api'));
+  ok(work(m, 'set', 'api', 'roadmap', JSON.stringify('docs/roadmap/r.md#R1')));
+  ok(work(m, 'event', 'api', 'approve'));
+  ok(work(m, 'event', 'api', 'start'));
+  fs.appendFileSync(path.join(m, 'docs/planning/api/README.md'), '\n## Files\nsrc/api.js\n\n## Interfaces\n`api.run() -> ok`\n');
+  ok(work(m, 'run', 'new', 'road', '--tracks', '2'));
+  ok(work(m, 'run', 'start', 'road', 'R1', '--work', 'api'));
+  assert.match(tracksOf(m).tracks[0].brief, /a lane M plan: its phase files beside it/);
+});
+
+test('run tracks returns nextSlice\'s stop: a spent max_slices is a stop, not an empty frontier', () => {
+  const dir = fixture(3);
+  ok(work(dir, 'run', 'set', 'road', 'max_slices', '1'));
+  ok(work(dir, 'run', 'slice', 'road', 'R1', 'shipped'));
+  const out = tracksOf(dir);
+  assert.deepEqual(out.tracks, []);
+  assert.equal(out.stop?.reason, 'MAX_SLICES', 'the cap is named, not read as no next slice');
+  assert.match(out.stop.detail, /1 shipped, cap 1/);
+});
+
 test('a failed track parks its slice with its reason and the run goes on with the others', () => {
   const dir = fixture(3);
   ok(work(dir, 'run', 'slice', 'road', 'R1', 'parked', '--needs', 'user', '--reason', 'npm test exits 1 on src/api.js'));
@@ -184,7 +284,7 @@ test('a failed track parks its slice with its reason and the run goes on with th
   const parked = ok(work(dir, 'run', 'show', 'road')).slices.find((s) => s.id === 'R1');
   assert.deepEqual([parked.status, parked.needs], ['parked', 'user']);
   assert.match(parked.reason, /npm test exits 1/);
-  assert.match(fs.readFileSync(path.join(ROOT, 'skills/finish-it/TRACKS.md'), 'utf8'), /park its slice with the\s+report's reason/);
+  assert.match(fs.readFileSync(path.join(ROOT, 'skills/finish-it/TRACKS.md'), 'utf8'), /park its slice with the reason the report or the Must gives/);
 });
 
 test('a merged track: the suite runs once on the merged tree, the merged fingerprint is recorded, then ship', () => {
@@ -258,7 +358,7 @@ test('the track text: dispatch, merge in contract order, the merged suite, one s
   assert.match(merge, /passing the slice's plan path/);
   // A failed track parks its slice and the run goes on.
   const failed = section(doc, 'A failed track');
-  assert.match(failed, /park its slice with the\s+report's reason/);
+  assert.match(failed, /park its slice with the reason the report or the Must gives/);
   assert.match(failed, /go on with the tracks still running/);
   assert.match(failed, /`git merge --abort`/);
   // The record stays the coordinator's.

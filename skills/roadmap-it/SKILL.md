@@ -42,21 +42,21 @@ The destination fixes the scope; everything else follows from it.
 Grill breadth-first across the whole destination, then cut slices per
 [SLICING.md](SLICING.md): vertical, shippable, lane S or M, each with what it
 delivers, covers, is blocked by, and the check that verifies it. What cannot
-be cut yet goes to Open decisions (sharp) or Fog (not yet sharp). Decisions
-that are hard to reverse get an ADR through name-it. For a `--complete`
-run, settle every decision now: [SWEEP.md](SWEEP.md).
+be cut yet is an Open decision or Fog ([SLICING.md](SLICING.md)); a decision
+that is hard to reverse gets an ADR through name-it. For a `--complete` run,
+settle every decision now: [SWEEP.md](SWEEP.md).
 
 ## 4. Sequence
 
-Group slices into milestones, each ending in something a user or operator can
-see; the first proves the path end to end. Order by blocks, then risk (spikes
-and risky slices early), then value; a file hint lets a batch prefer disjoint work.
+Group slices into milestones, each ending in something a user or operator can see; the first proves the path end to end.
+Order by blocks, then risk (spikes and risky slices early), then value; a file hint lets a batch prefer disjoint work.
+It stays a batching hint: the plan's `## Files` is the pairing contract, and a slice with no hint pairs on its plan.
 
 ## 5. Check, write, approve
 
 Write the roadmap per [FORMAT.md](FORMAT.md), then run the checks in
-[SLICING.md](SLICING.md) (coverage of every `G`, no cycles, exit checks,
-slice sizes) and fix what fails before showing it.
+[SLICING.md](SLICING.md): coverage, no cycles, exit checks, slice sizes. Fix
+what fails before showing it.
 
 Present the destination, the milestones with their slices, the open decisions
 and the out-of-scope list; end the turn. On approval record the date in the
@@ -91,13 +91,10 @@ After a slice ships, a spike or decision answers, or the destination moves:
 3. Turn sharp fog into slices or decisions; drop slices the shipped work made
    unnecessary (`dropped <date>: <why>`); re-cut any that grew past lane M.
 4. Re-run the §5 checks, add a dated line to Decisions so far and to Changes,
-   and show the diff for approval. A roadmap that already has `## Shipped`
-   keeps it: the new line goes in a `## Changes` section after it (the first
-   dated line creates one), never in a second Changes beside an existing one.
-   Leave `completed:` as the owner set it.
+   and show the diff for approval ([FORMAT.md](FORMAT.md) holds `## Shipped`
+   and `completed:`).
 
 ## Rules
 
-- No code here: the roadmap decides what and in which order; scope-it decides
-  how. Each slice is at most lane M.
+- No code here: the roadmap decides what and in which order; scope-it decides how. Each slice is at most lane M.
 - ship-it finalizes a finished roadmap ([FINALIZE.md](../ship-it/FINALIZE.md)).

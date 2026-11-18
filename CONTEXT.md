@@ -7,9 +7,9 @@ The size of a piece of work, XS, S, M or L, and the steps that size runs.
 _Not_: track, shard
 
 **Track**:
-One worktree worker in a complete run that builds and proves one slice. A run
-has one track by default and up to five, held below the ceiling by the ready
-frontier.
+One worktree worker in a complete run that builds one slice; the coordinator
+audits it. A run has one track by default and up to five, held below the
+ceiling by the ready frontier.
 _Not_: lane, lane worker, lane mode
 
 **Contract**:

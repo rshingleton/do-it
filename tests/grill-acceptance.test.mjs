@@ -45,3 +45,18 @@ test('scope-it approval needs an explicit accept, not any reply', () => {
   const five = s.slice(s.indexOf('## 5. Approve'), s.indexOf('## 6.'));
   assert.ok(five.includes('explicit accept') && five.includes(LINK));
 });
+
+test('a reply that adds scope reopens branches and re-presents the round', () => {
+  // Line wrapping is not the rule: compare on one line.
+  const oneLine = (s) => s.replace(/\s+/g, ' ');
+  assert.ok(
+    oneLine(read('grill-it/SKILL.md')).includes('A reply that adds scope reopens branches'),
+    'grill-it lost the rule that added scope reopens branches',
+  );
+  const five = oneLine(read('scope-it/SKILL.md'));
+  const approve = five.slice(five.indexOf('## 5. Approve'), five.indexOf('## 6.'));
+  assert.ok(
+    approve.includes('folded in and re-presented'),
+    'scope-it lost the rule that any other reply is re-presented',
+  );
+});

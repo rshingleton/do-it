@@ -99,6 +99,21 @@ description to every turn, so the independent reach has to be worth that.
 When typed skills multiply, one typed entry that names the others (as do-it
 does for the flow) keeps the list a person must remember short.
 
+## Evals
+
+Two kinds, both deterministic and offline:
+
+- **Routing** (`evals/routing.json`): each model-invoked description's own
+  prompts, plus prompts another skill owns, scored lexically. `npm run eval`
+  runs it, and `npm run check` does too. It fails when a description stops
+  pulling its own prompts in, in paraphrase as well as in the original wording.
+- **Behaviour** (an assertion in `tests/*.test.mjs`): pins one sentence of a
+  rule, so deleting the rule fails a named test. `npm test` runs it. It cannot
+  judge whether the sentence is any good, only that it is still there.
+
+Change a description: add a routing variant that rewords an existing prompt.
+Add a rule a run would pay for missing: add its behaviour assertion.
+
 ## Before handing off
 
 ```bash

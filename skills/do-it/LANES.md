@@ -9,6 +9,14 @@ Size the work by its blast radius and risk, not by how easy it sounds.
 | **M** | Several vertical slices, a new seam or interface, or more than one session | `scope-it` (grill, phases) → `build-it` (frontier, parallel when ready) → `prove-it` (full fan-out) → `ship-it` |
 | **L** | Bundled requests, an epic, or work whose shape is still unclear | A roadmap first ([roadmap-it](../roadmap-it/SKILL.md)), then one S or M work item per slice; with `--complete`, [finish-it](../finish-it/SKILL.md) chains the slices |
 
+## Lane XS: the flow
+
+No files under `docs/planning/`. Follow the `it-core` posture, build test-first
+when the change has logic, run the project's checks, then self-review the diff
+against the request (each changed line traces to it; no secrets; nothing left
+half-done). Then follow [ship-it](../ship-it/SKILL.md) with `--lane xs`, plus
+`--ref <ref>` for an issue and `--todo <id>` for a to-do item, so both close.
+
 ## Risk areas
 
 Work that touches any of these is at least **S**, however small:
@@ -42,9 +50,9 @@ slice. Without the flag lane L is unchanged: one slice per `/do-it`. A
 With `--tracks N` above 1, a complete run hands independent slices to worktree
 tracks ([TRACKS.md](../finish-it/TRACKS.md)): each track builds and audits one
 slice on its own branch, while the coordinator keeps scope, the run record, the
-gate, the merges and the ship. Width is bounded by the free slices, the machine
-and `DO_IT_TRACKS` (default 3, ceiling 5). A run that commits nothing holds one
-track, since a track would have no branch to merge.
+gate, the merges and the ship. Width is `min(free ready slices, tracks)`,
+never above `DO_IT_TRACKS` (default 3) or the ceiling of 5. A run that commits
+nothing holds one track, since a track would have no branch to merge.
 
 ## Raising the lane
 

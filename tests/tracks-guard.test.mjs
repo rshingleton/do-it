@@ -77,7 +77,8 @@ test('ADR 0012 is Proposed or Accepted, carries the measured shares and the widt
   for (const want of ['1.08x', '1.19x', '1.65x', '2.0x', 'DO_IT_TRACKS', 'serial', '0008-opt-in-run-commits.md']) {
     assert.ok(adr.includes(want), `the ADR records ${want}`);
   }
-  assert.match(adr, /in\(ready independent slices, the machine's resource cap, DO_IT_TRACKS\)/, 'the width rule is written out');
+  assert.match(adr, /Width is `min\(ready independent slices, tracks, DO_IT_TRACKS\)`/, 'the width rule is the three terms the function uses, under the ceiling');
+  assert.doesNotMatch(adr, /resource cap/, 'the machine cap no caller produces is not part of the rule');
 });
 
 test('DO_IT_TRACKS sits beside the run keys, and the two skills state the mode and link the contract', () => {

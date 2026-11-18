@@ -104,6 +104,40 @@ test('a copy that drifted from its source and a copy someone edited are separate
   assert.doesNotMatch(stale.stdout, /edited copy/);
 });
 
+test('an empty untracked skill directory is not a skill, so it is never ok', () => {
+  const root = miniRoot();
+  fs.mkdirSync(path.join(root, 'skills', 'empty-it'));
+  const home = tmpDir('do-it-home-');
+  quiet(() => install({ root, home, hooks: false }));
+
+  const r = doctor(home, root);
+  assert.equal(r.status, 0, r.stdout);
+  assert.equal(fs.existsSync(path.join(home, '.claude', 'skills', 'empty-it')), false, 'the plan leaves it out, so no link is placed');
+  assert.doesNotMatch(r.stdout, /empty-it/, 'and the read-back cannot call it ok');
+  assert.match(r.stdout, /^ok\s+.*a-it/m, 'the skill beside it still is');
+});
+
+test('the fix the doctor names prunes a link whose source is gone, so the next run is green', () => {
+  const { root, home } = fixture();
+  // A second skill keeps both managed skill directories on the plan, as a real
+  // checkout has, so a link left at the removed name is still read back.
+  fs.mkdirSync(path.join(root, 'skills', 'b-it'));
+  fs.writeFileSync(path.join(root, 'skills', 'b-it', 'SKILL.md'), 'b');
+  quiet(() => install({ root, home, hooks: false }));
+  fs.rmSync(path.join(root, 'skills', 'a-it'), { recursive: true, force: true });
+
+  const red = doctor(home, root);
+  assert.equal(red.status, 1, red.stdout);
+  assert.match(red.stdout, /^orphan\s+.*\.claude.*a-it.*is gone.*fix: node .*install\.mjs$/m, red.stdout);
+
+  quiet(() => install({ root, home, hooks: false }));
+  assert.equal(fs.existsSync(path.join(home, '.claude', 'skills', 'a-it')), false, 'the stale link is gone');
+
+  const green = doctor(home, root);
+  assert.equal(green.status, 0, green.stdout); // the skills that remain are ok
+  assert.doesNotMatch(green.stdout, /orphan/);
+});
+
 test('a synced directory and another repo skill are counted in the summary, never listed', () => {
   const { root, home } = fixture();
   const synced = path.join(home, '.claude', 'skills', 'synced');

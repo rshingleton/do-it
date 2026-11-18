@@ -24,6 +24,14 @@ const lines = (s) => s.split('\n').filter(Boolean);
 // A named path as the records and git list it: relative to the repo root.
 export const relative = (root, p) => path.relative(root, path.resolve(root, p)).split(path.sep).join('/');
 
+// A path as the repo sees it, or null when it leads out of the root: `..` itself, `../x` (and `..\x`
+// where the backslash separates segments), or a name an absolute result puts on another drive or root.
+// A name that merely begins with two dots (`..env`, `..foo/bar`) is an ordinary path inside the root.
+export const insideRoot = (root, p) => {
+  const rel = relative(root, p);
+  return path.isAbsolute(rel) || rel === '..' || rel.startsWith('../') ? null : rel;
+};
+
 function currentBranch(cwd) {
   const r = gitResult(cwd, ['symbolic-ref', '--quiet', '--short', 'HEAD']);
   return r.status === 0 ? r.stdout.trim() : null;
@@ -51,7 +59,11 @@ function safeBranch(cwd, slug, protectedList) {
   return {
     name,
     undo() {
-      const back = gitResult(cwd, ['switch', '-q', '--no-guess', ...(now ? [] : ['--detach']), from]);
+      // A repo with no commit has no tip to switch back to, and `git switch main` cannot create an
+      // unborn branch: pointing HEAD at it again is what the switch out did.
+      const back = !start && now
+        ? gitResult(cwd, ['symbolic-ref', 'HEAD', `refs/heads/${now}`])
+        : gitResult(cwd, ['switch', '-q', '--no-guess', ...(now ? [] : ['--detach']), from]);
       // Still on the scratch branch: it cannot be deleted, and the caller is told where the repo is.
       if (back.status !== 0) return ` (could not switch back to ${now ?? from}, still on ${name}: ${back.stderr.trim()})`;
       if (!made) return '';
@@ -68,8 +80,9 @@ function safeBranch(cwd, slug, protectedList) {
 // for a directory, `sub:<hash>` for a submodule's own state), as `run verify` saw it. A link is its target's hash, never what it points at, so a
 // retargeted or dangling link and a mode-only change both show. A rename is its new path plus its old
 // path gone. Nothing is matched as a pattern: names are read, never expanded. `only` (repo-relative
-// names) keeps just those entries, a rename counting when either side is named, so the record never
-// holds another slice's or the user's files. Throws when git fails.
+// names) keeps just those entries, a rename counting when either side is named, and a worktree-side
+// rename paired by blob id so its gone side travels with the named new one; the record never holds
+// another slice's or the user's files. Throws when git fails.
 //
 // A dirty submodule's state: its HEAD plus a hash of its own status and diff, so an edit inside it shows.
 // shortcut: an untracked file inside the submodule counts by name only, so a re-edit of it goes unseen; hash its content if a slice ever edits one.
@@ -79,14 +92,46 @@ function submoduleState(abs) {
   return gitRaw(abs, ['hash-object', '--stdin'], text).trim();
 }
 
+// git status pairs a rename only when the index holds it: a tracked path deleted and its content back
+// under an untracked name reads as two entries, so `only` naming the new name would drop the gone old
+// one and a later compare would read the old path as its clean self. Pair the two by blob id (the
+// index's for the deleted path, git's filtered hash for the new file) and return each name's partner.
+// Only a named path is hashed, never every untracked file, so the rest of the repo is not read.
+function worktreeRenames(root, wanted, all) {
+  const pairs = new Map();
+  // Nothing to pair without both a worktree delete and an untracked add, so the usual call spawns no git.
+  if (!all.some((e) => e.startsWith(' D ')) || !all.some((e) => e.startsWith('?? '))) return pairs;
+  const fresh = [...wanted].filter((p) => !/[\r\n]/.test(p) && fs.lstatSync(path.resolve(root, p), { throwIfNoEntry: false })?.isFile());
+  if (!fresh.length) return pairs;
+  const gone = new Map();
+  for (const e of gitRaw(root, ['ls-files', '-s', '-d', '-z']).split('\0').filter(Boolean)) {
+    const at = e.indexOf('\t');
+    const id = e.slice(0, at).split(' ')[1];
+    // `-s -d` lists a deleted path once per flag; the index id is the same both times.
+    if (!gone.has(id)) gone.set(id, e.slice(at + 1));
+  }
+  if (!gone.size) return pairs;
+  for (const p of fresh) {
+    const old = gone.get(gitRaw(root, ['hash-object', '--', path.resolve(root, p)]).trim());
+    if (old) {
+      pairs.set(p, old);
+      pairs.set(old, p);
+    }
+  }
+  return pairs;
+}
+
 export function dirtyHashes(root, only = null) {
   const wanted = only && new Set(only);
   const recs = [];
   const all = gitRaw(root, ['status', '--porcelain', '-z', '-uall']).split('\0').filter(Boolean);
+  const pairs = wanted ? worktreeRenames(root, wanted, all) : new Map();
   for (let i = 0; i < all.length; i++) {
     const renamed = /[RC]/.test(all[i][0]);
     const pair = renamed ? [all[i], all[++i]] : [all[i]];
-    if (!wanted || pair.some((r, k) => wanted.has(k === 0 ? r.slice(3) : r))) recs.push(...pair);
+    // Either side of a rename keeps the pair, and so does either side of a worktree rename paired above.
+    const named = pair.map((r, k) => (k === 0 ? r.slice(3) : r));
+    if (!wanted || named.some((n) => wanted.has(n) || wanted.has(pairs.get(n)))) recs.push(...pair);
   }
   const files = {};
   const modes = {};
@@ -152,7 +197,8 @@ function assertCommittable({ root, run, slug, items, id, phase, docs, paths, ret
     throw new Error(`commit stages named files only, got ${paths.join(',')}`);
   }
   // Every lane commits files inside the repo; a path spelled through a symlinked root reads as outside it.
-  const outside = paths.map((p) => relative(root, p)).filter((p) => p.startsWith('..') || path.isAbsolute(p));
+  // `insideRoot` owns the rule, so a file named `..env` or `..foo/bar` stays inside the root.
+  const outside = paths.filter((p) => insideRoot(root, p) === null).map((p) => relative(root, p));
   if (outside.length) throw new Error(`commit stages files inside the repo, ${outside.join(', ')} is not; nothing committed`);
   // A directory, even one deleted from disk, would stage every edit under it, other slices' included.
   // `ls-files -z` reads names unquoted; they are compared with the path's repo-relative form.
@@ -227,7 +273,10 @@ export function commitSlice({ root, planningDir, config, items, slug, id, phase,
     gitText(root, ['commit', '-q', '-F', '-'], message);
   } catch (e) {
     gitResult(root, ['reset', '-q', '--', ...paths]);
-    throw new Error(`${e.message}${onto.undo()}`);
+    // The undo's note is the only change: rethrowing the original keeps the stack of its throw site.
+    const note = onto.undo();
+    if (note) e.message += note;
+    throw e;
   }
   // The run record follows the commit, so a rejected commit leaves it as it was.
   const branch = onto.name;

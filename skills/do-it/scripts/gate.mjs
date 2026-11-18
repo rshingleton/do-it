@@ -1,11 +1,15 @@
 // Checkable stop conditions of a complete run. Per-slice facts live in the run
 // record's `gates` list (work id, start time, fingerprint at the last passing
-// verify, audit rounds spent); run-wide audit rounds in `audit_rounds`, the final
-// review's in `final_audit_rounds`. This holds the rule, the counters and the
-// record writers; the `run <sub>` handlers that call them are in runs.mjs.
-// work.mjs is the only caller.
+// verify, failed verify rounds in a row, audit rounds spent); run-wide audit rounds in
+// `audit_rounds`, the final review's in `final_audit_rounds`. This holds the rule, the
+// counters and the record writers; the `run <sub>` handlers that call them are in runs.mjs.
+// work.mjs calls the start and audit counters; runs.mjs calls the rest.
 
 import { updateRun } from './run.mjs';
+
+// Failed verify rounds in a row that park the slice: a check that keeps failing stops there
+// instead of looping, and the two before it throw as they always have.
+export const VERIFY_CAP_ROUNDS = 3;
 
 function entry(record, id) {
   record.gates = Array.isArray(record.gates) ? record.gates : [];
@@ -43,7 +47,21 @@ export function recordVerified(planningDir, slug, id, fingerprint, files, root) 
     // A verify without --paths records no files, and must not leave an older record standing.
     if (files) g.verified_files = files;
     else delete g.verified_files;
+    // A pass breaks the run of failures, so the next failure counts from one.
+    delete g.verify_failures;
   });
+}
+
+// A verify round whose check ran and failed: `verify_failures` on the slice's gate entry counts
+// the failures in a row (a pass, or a resume, clears them). Returns the count after this round.
+export function recordVerifyFailure(planningDir, slug, id) {
+  let failures = 0;
+  updateRun(planningDir, slug, (r) => {
+    const g = entry(r, id);
+    failures = (Number(g.verify_failures) || 0) + 1;
+    g.verify_failures = failures;
+  });
+  return failures;
 }
 
 // The suite on the merged tree: `run verify --merged`. It says the merge passed too, on the
@@ -88,6 +106,19 @@ const atCap = (l) => spent(l) >= l.cap;
 const isSliceLimit = (l) => l.limit.startsWith('slice ');
 export const auditCode = (l) => (isSliceLimit(l) ? 'SLICE_AUDIT_CAP' : 'AUDIT_CAP');
 
+// A slice whose last allowed round passed is not parked by a refused extra round: the gate entry
+// names its work item, and `shipping` or a PASS verdict says the last round passed. No item, no
+// `items` lookup (a direct call), or an unreadable plan counts as not passed.
+function lastRoundPassed(items, g) {
+  if (!items || !g?.work) return false;
+  try {
+    const { state } = items.get(g.work);
+    return state.status === 'shipping' || state.audit?.verdict === 'PASS';
+  } catch {
+    return false;
+  }
+}
+
 // `audit_refused` (and `final_audit_refused`) is the marker of a round `run audit` turned away: it holds
 // the rounds spent then. A limit is exhausted past its cap, or at it while the marker still equals the
 // rounds spent, so a caller that ignored the refusal is still stopped. Setting a cap again clears the
@@ -99,31 +130,47 @@ const exhausted = (l) => spent(l) > l.cap || (l.at[l.refused] === spent(l) && sp
 // the record for the digest, so the loop stops before another round is spent. Returns `{audit_rounds, allow,
 // reason, limit, detail}`: `limit` and `detail` are null on allow, and a refused call leaves `audit_rounds` at
 // the count already spent.
-export function countAudit(planningDir, slug, { id, final = false } = {}) {
+export function countAudit(planningDir, slug, { id, final = false, items } = {}) {
   if (!final && !id) throw new Error('run audit needs a slice id, or --final for the final review');
-  let refused = null;
+  let refusal = null;
   const record = updateRun(planningDir, slug, (r) => {
+    // Each attempt answers for the record it read: a refusal an earlier attempt saw may not hold
+    // once another writer's round is in, so it is decided again, never carried over.
+    let refused = null;
+    // A slice the run never started holds no gate entry: refuse before one is made, so no round is spent on it.
+    if (!final && !(r.gates ?? []).some((x) => x.id === id)) throw new Error(`run audit: ${id} has no gate entry; run start first`);
     const limits = auditLimits(r, id, final);
     const hit = limits.find(atCap);
     if (hit) {
       refused = hit;
-      hit.at[hit.refused] = spent(hit);
-      r.audit_stop = describe(hit);
-      // The loop's own stop would end the whole run on one slice stuck in a failing audit. Park it
-      // instead (resume gives it fresh rounds); a slice already shipped or parked stays as it is.
-      if (isSliceLimit(hit) && !r.slices.some((s) => s.id === id && (s.status === 'shipped' || s.status === 'parked'))) {
-        const parked = { id, status: 'parked', reason: `${describe(hit)}; its last audit did not pass`, needs: 'decision' };
-        r.slices = r.slices.some((s) => s.id === id) ? r.slices.map((s) => (s.id === id ? parked : s)) : [...r.slices, parked];
+      // The cap still refuses the round, but a slice whose last allowed round passed keeps no marker,
+      // so the gate can ship it; run-total and final-review refusals are unchanged.
+      const passed = isSliceLimit(hit) && lastRoundPassed(items, hit.at);
+      if (passed) {
+        // The passing round excuses the cap, so a marker an earlier refused round left must not
+        // outlive it: the gate would read the stale marker as a spent cap.
+        delete hit.at[hit.refused];
+        if (r.audit_stop?.startsWith(`slice ${id}:`)) delete r.audit_stop;
+      } else {
+        hit.at[hit.refused] = spent(hit);
+        r.audit_stop = describe(hit);
+        // The loop's own stop would end the whole run on one slice stuck in a failing audit. Park it
+        // instead (resume gives it fresh rounds); a slice already shipped or parked stays as it is.
+        if (isSliceLimit(hit) && !r.slices.some((s) => s.id === id && (s.status === 'shipped' || s.status === 'parked'))) {
+          const parked = { id, status: 'parked', reason: `${describe(hit)}; its last audit did not pass`, needs: 'decision' };
+          r.slices = r.slices.some((s) => s.id === id) ? r.slices.map((s) => (s.id === id ? parked : s)) : [...r.slices, parked];
+        }
       }
     } else for (const l of limits) l.at[l.rounds] = spent(l) + 1;
+    refusal = refused;
   });
   const mine = auditLimits(record, id, final)[0];
   return {
     audit_rounds: spent(mine),
-    allow: !refused,
-    reason: refused && auditCode(refused),
-    limit: refused?.limit ?? null,
-    detail: refused && describe(refused),
+    allow: !refusal,
+    reason: refusal && auditCode(refusal),
+    limit: refusal?.limit ?? null,
+    detail: refusal && describe(refusal),
   };
 }
 
@@ -137,7 +184,8 @@ export function auditRoom(record, id) {
 
 // {allow, reason, detail}: reason is a code from stops.mjs. `current` is the
 // slice's fingerprint in the tree its verify recorded; `merged` is the merged tree's now, when
-// the caller has one. Caps first, then freshness of the last verify, then the merged tree.
+// the caller has one. Caps first, then the verified rounds in a row, then freshness of the
+// last verify, then the merged tree.
 export function gate(record, id, { current, merged, now = Date.now() }) {
   const stop = (reason, detail) => ({ allow: false, reason, detail });
   const shipped = record.slices.filter((s) => s.status === 'shipped').length;
@@ -151,6 +199,11 @@ export function gate(record, id, { current, merged, now = Date.now() }) {
     // cap is measured from `started` plus what it queued (`waited_ms`).
     const mins = (now - Date.parse(g.started) - (Number(g.waited_ms) || 0)) / 60000;
     if (mins > record.slice_cap_min) return stop('SLICE_CAP', `${Math.floor(mins)} min, cap ${record.slice_cap_min}`);
+  }
+  // Three failed rounds in a row park the slice, and an older pass cannot ship it: the count is
+  // checked before the freshness of that pass. A pass or a resume clears it.
+  if ((Number(g?.verify_failures) || 0) >= VERIFY_CAP_ROUNDS) {
+    return stop('VERIFY_CAP', `${g.verify_failures} failed verify rounds in a row`);
   }
   if (!g?.verified_fingerprint) return stop('UNVERIFIED', `${id} has no passing verify-phase`);
   if (g.verified_fingerprint !== current) return stop('STALE_VERIFY', `${id} changed since its last passing verify-phase`);

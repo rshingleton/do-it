@@ -212,12 +212,13 @@ updates and what each host answers when asked what it loaded:
 [docs/reference/install-routes.md](docs/reference/install-routes.md).
 
 One route per host. Claude Code takes the symlink install or the plugin, never
-both. OpenCode takes the symlink install or the `skills` CLI, never both; the
-symlink install also carries its commands and agents. Gemini CLI, GitHub
-Copilot and Antigravity read `~/.agents/skills`, which the symlink install
-fills and a global CLI install replaces with copies, so they take one route
-too. That path alone serves four hosts, and the install serves Claude Code
-through `~/.claude/skills` as well.
+both. A `skills` CLI install is the one route for any host the CLI supports:
+on OpenCode that means the symlink install or the CLI, never both, and the
+symlink install also carries its commands and agents. A global CLI install
+replaces the symlink install's links with copies in `~/.agents/skills`, the
+folder they share, so those hosts take one route or the other. That folder
+serves OpenCode, Gemini CLI, GitHub Copilot and Antigravity, and the install
+serves Claude Code through `~/.claude/skills` as well.
 
 **Symlink install, one-liner (Claude Code and OpenCode):**
 
@@ -285,15 +286,15 @@ the Bash tool only on Windows, not PowerShell.
 
 From a shell, or a setup script:
 
-```text
+```bash
 claude plugin marketplace add rshingleton/do-it
 claude plugin install do-it@do-it
 ```
 
-From a local checkout, give the folder instead, which loads it in place and
-follows edits with no version bump:
+From a local checkout, give the folder instead: that marketplace entry loads
+the checkout in place and follows edits with no version bump.
 
-```text
+```bash
 claude plugin marketplace add ./path/to/do-it
 claude plugin install do-it@do-it
 ```
@@ -301,15 +302,15 @@ claude plugin install do-it@do-it
 In a session, run `/plugin marketplace add rshingleton/do-it`, then
 `/plugin install do-it@do-it`. The plugin carries skills, agents and hooks
 (its agents are namespaced, for example
-`do-it:it-reviewer`). Claude Code decides an update from `version` in
-`.claude-plugin/plugin.json`, not from the files, so a skill changed here
-reaches plugin users only when that string moves. `scripts/version-gate.mjs`
-fails a change under `skills/`, `agents/` or `hooks/` that leaves it alone, and
-CI runs the gate.
+`do-it:it-reviewer`). For a published plugin install, Claude Code decides an
+update from `version` in `.claude-plugin/plugin.json`, not from the files, so
+a skill changed here reaches those users only when that string moves.
+`scripts/version-gate.mjs` fails a change under `skills/`, `agents/` or
+`hooks/` that leaves it alone, and CI runs the gate.
 
 **`skills` CLI (skills only, any host the CLI supports):**
 
-```text
+```bash
 npx skills@latest add rshingleton/do-it -a opencode
 npx skills@latest add rshingleton/do-it -a opencode -g   # global
 ```
@@ -319,10 +320,8 @@ and `skills-lock.json`, recording the source commit and a content hash per
 skill. With `-g` it writes `~/.agents/skills` and
 `~/.agents/.skill-lock.json`: the same folder the symlink install fills, so a
 global CLI install replaces its links with copies. `npx skills@latest list`
-shows what is installed; `npx skills@latest update` moves a git install to its
-latest commit; a local path records no commit, so re-run `add` against the path
-to refresh it. Verified on 2026-11-16 with CLI 1.9.0
-([details](docs/reference/install-routes.md#the-cli-route-on-this-machine)).
+shows what is installed. Verified on 2026-11-16 with CLI 1.9.0
+([details](docs/reference/install-routes.md#the-cli-route-probed-on-macos)).
 
 **Check:**
 
@@ -333,14 +332,15 @@ node scripts/doctor.mjs --json   # the same report, for a script
 ```
 
 It prints one line per link and per recorded copy, a summary, the checkout's ref
-and fetch age, and one line for each of the other two routes. Every finding
-names its fix: `node <clone>/scripts/install.mjs` for the symlink route,
-`git -C <clone> pull --ff-only` when the checkout is behind the ref its install
-follows (`origin/main` when it exists, else the branch's upstream),
-`/plugin marketplace update do-it` for the plugin (or
-`claude plugin update do-it@do-it` for a cached copy),
-`npx skills@latest update` for a CLI git install, or `npx skills@latest add
-<path>` for a CLI install from a local path. It runs none of them.
+and where its counts came from, and one line for each of the other three routes.
+Every finding names its fix: `node <clone>/scripts/install.mjs` for the symlink
+route; `git -C <clone> pull --ff-only` when the checkout is behind the ref its
+install follows (`origin/main` when it exists, else the branch's upstream);
+`/plugin marketplace update do-it` for the plugin, or `claude plugin update
+do-it@do-it` for a cached copy; `npx skills@latest add <path>` for a route the
+CLI never installed and `npx skills@latest update` for a CLI git install; and
+`node <clone>/scripts/install-hooks.mjs opencode` for the OpenCode config. It
+runs none of them.
 
 **Update:** re-run the one-liner, which pulls the clone and re-links; or
 `git -C ~/.local/share/do-it pull --ff-only` then
