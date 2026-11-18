@@ -11,6 +11,7 @@ import { parseBlock, writeBlock } from './block.mjs';
 import { splitFrontmatter, joinFrontmatter } from '../../track-it/scripts/frontmatter.mjs';
 import { isId } from './ids.mjs';
 import { sharedPaths } from './fileset.mjs';
+import { lockIsFresh } from './check-slot.mjs';
 
 const LEVELS = ['lite', 'full', 'ultra'];
 const COMMIT_MODES = ['phase', 'slice', 'none'];
@@ -433,6 +434,32 @@ function hintBatch(ids, leadCount, filesOf, batch) {
     picked.push(id);
   }
   return picked.slice(0, batch);
+}
+
+// Delete a finished run's folder (the record, the check-slot lock) and return its path. The roadmap decides
+// whether the run is over: `road.finished` (every slice shipped or dropped, an open decision or an empty
+// roadmap not counting), so a slice that is unstarted, stale or stuck in a cycle keeps the record. A recorded
+// slice the roadmap does not show shipped or dropped keeps it too: a parked or blocked one holds its needs
+// and reason for --resume, and a started one has a gates entry before a status. A fresh checks.lock is a
+// live check, never pulled out from under. `road` is roadmapSlices' result.
+export function removeRun(planningDir, slug, road) {
+  const rec = showRun(planningDir, slug);
+  const closed = (s) => s.state === 'shipped' || s.state === 'dropped';
+  const settled = new Set(road.slices.filter(closed).map((s) => s.id));
+  const recorded = [...new Set([...rec.slices.map((s) => s.id), ...(rec.gates ?? []).map((g) => g.id)])].filter((id) => !settled.has(id) && !rec.slices.some((s) => s.id === id && s.status === 'shipped'));
+  const onRoadmap = road.slices.filter((s) => !closed(s)).map((s) => s.id);
+  const why = [
+    !road.slices.length ? 'the roadmap has no slices (the wrong file?)' : null,
+    recorded.length ? `recorded slices not shipped: ${recorded.join(', ')} (resume them, or ship or drop them on the roadmap)` : null,
+    onRoadmap.length ? `roadmap slices not shipped: ${onRoadmap.join(', ')} (ship or drop them)` : null,
+    road.openDecisions.length ? `open decisions: ${road.openDecisions.join(', ')} (settle them in the roadmap)` : null,
+  ].filter(Boolean);
+  if (!why.length && !road.finished) why.push('the roadmap is not finished');
+  if (why.length) throw new Error(`run ${slug} is not finished (${why.join('; ')}); its record stays for --resume`);
+  if (lockIsFresh(planningDir, slug)) throw new Error(`run ${slug} has a live checks.lock; wait for the check to finish`);
+  const dir = path.dirname(runPath(planningDir, slug));
+  fs.rmSync(dir, { recursive: true, force: true });
+  return dir;
 }
 
 // The slices a run builds next. `road` is roadmapSlices' result, `record` the run

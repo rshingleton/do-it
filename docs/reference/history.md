@@ -1,16 +1,22 @@
 ---
-title: Roadmap history
+title: History
 ---
 
-# Roadmap history
+# History
+
+The one durable record of what shipped and left no file behind. Two kinds of
+entry live here: roadmaps removed from `docs/roadmap`, and work items and runs
+whose plan files were removed at ship. Each kind has its own section below.
+Git history still holds the removed files themselves.
+
+## Roadmaps
 
 Durable record of every roadmap removed from `docs/roadmap`: one row per file.
 A finalize adds its own row
 ([FINALIZE.md](../../skills/ship-it/FINALIZE.md)); a roadmap removed any other
-way is recorded here by hand. This file began on 2026-11-16 with five finished
-roadmaps and one superseded. No file listed below is in the tree; git history
-still holds the roadmaps themselves. A closed roadmap is not work:
-`work.mjs roadmap` offers no slice from one.
+way is recorded here by hand. This section began on 2026-11-16 with five
+finished roadmaps and one superseded. No file listed below is in the tree. A
+closed roadmap is not work: `work.mjs roadmap` offers no slice from one.
 
 | Roadmap | File removed | Approved | Completed | Slices in Shipped |
 |---------|--------------|----------|-----------|-------------------|
@@ -353,3 +359,39 @@ was reached.
   R2 to R16, were carried into
   [todo-clearance-2026-11](../roadmap/todo-clearance-2026-11.md) when it was
   approved on 2026-11-16, where each owns a slice. None was dropped here.
+
+## Work items and runs
+
+One entry per shipped work item or complete run, newest last, under a
+`### <id>` heading, about 12 lines at most. The shape is in
+[skills/ship-it/HISTORY.md](../../skills/ship-it/HISTORY.md).
+
+### run-caps-count-work
+
+Run caps count work, not attempts. 2026-11-18, lane M, PR #37 (merge `7f06cd0`).
+
+- The audit cap stays 3, but only a round that repeats an earlier Must spends
+  one, so a slice parks after the same finding comes back four times. The old
+  "fails twice on the same Must" wording of the audit-cap issue was amended.
+- Musts are read from the plan's `audit.must` and kept across rounds in the run
+  record's `seen_musts`; there is no new `run audit` flag. `audit_rounds` stays
+  the honest count of rounds started; `audit_spent` is the per-slice counter.
+  The final review and the run total still count every round.
+- The slice time cap counts in-flight spans, each closed at the last command
+  that showed the slice alive; `run start` on a running slice opens a new span.
+  That is the interruption seam. Only recorded activity is charged, accepted
+  because the cap is a tripwire and the audit cap still bounds rounds.
+- Not done: the final review's own cap, blocked time, detecting a sleep with no
+  command on return, a different 120-minute default, refunding a spent round.
+- Findings logged: T346 to T350 (no ADR yet for the span fields and
+  `audit_spent`; repeated test helpers and cases in `tests/run-gate.test.mjs`).
+
+### central-history
+
+One central history; shipping removes every plan and run file. 2026-11-18, lane M, commit message prefix `central-history:` (ADR [0016](../adr/0016-one-history-and-shipping-removes-plan-and-run-files.md)).
+
+- `roadmap-history.md` became this file, with one entry per work item or run (shape in `skills/ship-it/HISTORY.md`). Ship writes the entry before it closes the plan; a finished run writes its own in `DIGEST.md` section 4.
+- `run remove <slug> <roadmap>` deletes `<slug>.run/` only when the roadmap is finished: it has slices, each shipped or dropped, no open decision, and no fresh `checks.lock`. A parked, blocked, stale or unstarted slice keeps the record for `--resume`. The roadmap is the authority. The audit found the data-loss cases: removal before the assumption review, a parked run, an unready slice, an empty roadmap.
+- Plan files a review commit swept in are `git rm`ed and committed as `<id>: remove the plan files`; commit-now never stages `docs/planning/`.
+- Assumptions kept: entries are never pruned; no code guard on deleting a plan with no entry.
+- Findings logged: T367 to T372. T309 closed.

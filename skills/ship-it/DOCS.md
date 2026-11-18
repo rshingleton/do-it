@@ -9,7 +9,7 @@ things live), and issues for what was left undone.
 The plan's ADRs are the ones it links that exist under `docs/adr/`. For each:
 status `Proposed` → `Accepted`, then add an `## Execution notes` section with
 the audit's open Should and Nice findings and anything the build learned that
-changes the context. Touch no other ADR. Create none here.
+changes the context. Touch no other ADR. Create only the one ADR [HISTORY.md](HISTORY.md) offers.
 
 ## Area context and the map
 

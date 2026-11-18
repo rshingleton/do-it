@@ -650,7 +650,7 @@ test('ship-it: FINALIZE.md keeps its five offers, its paths and its never-list, 
   const finalize = read('skills/ship-it/FINALIZE.md');
   // The whole set a finalize writes, named in one section that run mode points at.
   const paths = flat(finalize.slice(finalize.indexOf('## Paths'), finalize.indexOf('## Offers')));
-  for (const want of ['roadmap file', 'docs/reference/roadmap-history.md', 'the ADRs offer `a` created', 'docs/TODO.md', 'docs/issues/*.md']) assert.ok(paths.includes(want), `Paths names ${want}`);
+  for (const want of ['roadmap file', 'docs/reference/history.md', 'the ADRs offer `a` created', 'docs/TODO.md', 'docs/issues/*.md']) assert.ok(paths.includes(want), `Paths names ${want}`);
   assert.ok(!paths.includes('stages exactly'), 'no claim the list is exact when offer e edits more');
   // Counted by content: a reworded rule still counts, a dropped one does not.
   const never = finalize.slice(finalize.indexOf('## Never')).split('\n').filter((l) => /^- \S/.test(l));
@@ -880,13 +880,13 @@ test('roadmap-it FORMAT.md describes completed and Shipped and no longer shows C
 test('a finalize appends the roadmap-history row and removes the file, and leaves an unfinished roadmap in place', () => {
   const finalize = fs.readFileSync(path.join(ROOT, 'skills/ship-it/FINALIZE.md'), 'utf8');
   const doc = flat(finalize);
-  const history = fs.readFileSync(path.join(ROOT, 'docs/reference/roadmap-history.md'), 'utf8');
+  const history = fs.readFileSync(path.join(ROOT, 'docs/reference/history.md'), 'utf8');
   assert.equal(
     history.split('\n').find((line) => line.startsWith('| Roadmap |')),
     '| Roadmap | File removed | Approved | Completed | Slices in Shipped |',
     'the history table carries the cells a finalize fills',
   );
-  assert.ok(doc.includes('docs/reference/roadmap-history.md'), 'the finalize appends the history row');
+  assert.ok(doc.includes('docs/reference/history.md'), 'the finalize appends the history row');
   assert.match(doc, /title.*file removed.*approved.*completed.*shipped/i, 'the row holds the title, file, both dates and the shipped count');
   assert.match(doc, /remove the roadmap file in the same change/i, 'the file goes with the commit that finalizes it');
   assert.match(doc, /unfinished roadmap is left/i, 'a roadmap with work left is left in place');

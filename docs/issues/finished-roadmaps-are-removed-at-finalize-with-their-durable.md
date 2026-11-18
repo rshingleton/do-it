@@ -64,5 +64,5 @@ the directory listing.
   roadmaps' decisions; check before creating duplicates.
 - 2026-11-16: the five completed roadmaps were removed by hand. Their
   destinations, Shipped lists, decisions, Fog and Out-of-scope lines are in
-  `docs/reference/roadmap-history.md`. The rule this issue asks for is still
+  `docs/reference/history.md`. The rule this issue asks for is still
   unimplemented: finalize must do this itself.

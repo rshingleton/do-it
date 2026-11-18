@@ -48,7 +48,7 @@ import { commitSlice, insideRoot } from './commit.mjs';
 import { git } from './git.mjs';
 import { checkShell } from './check-shell.mjs';
 import { buildDigest } from './digest.mjs';
-import { addAssumptions, createRun, nextSlice, repoRoot, resumeSlice, runPath, setRun, showRun, sliceRun } from './run.mjs';
+import { addAssumptions, createRun, nextSlice, removeRun, repoRoot, resumeSlice, runPath, setRun, showRun, sliceRun } from './run.mjs';
 import { countAudit, startSlice } from './gate.mjs';
 import { planOf, runContract, runGate, runRejectAssumption, runReviewChange, runTracks, runVerify, runVerifyMerged } from './runs.mjs';
 
@@ -122,6 +122,18 @@ function brief(item) {
 
 function head(root) {
   return baseRef(root) ?? EMPTY_TREE;
+}
+
+// The paths git tracks under the planning dir for these names, asked before a delete. The answer only
+// decides whether the caller must `git rm` them, so any git failure is swallowed on purpose (git.mjs throws on a
+// broken install, but a missing answer must not stop a close) and means none.
+function trackedUnder(ctx, ...names) {
+  try {
+    const rel = toPosix(path.relative(ctx.root, ctx.planningDir));
+    return git(ctx.root, ['ls-files', '-z', '--', ...names.map((n) => `${rel}/${n}`)]).stdout.split('\0').filter(Boolean);
+  } catch {
+    return [];
+  }
 }
 
 // Hash of the change since the item's base, planning files excluded.
@@ -395,17 +407,26 @@ export async function run(argv, { cwd = process.cwd() } = {}) {
           const tags = git(ctx.root, ['tag', '-l', 'do-it/*/phase-*']).stdout.split('\n').filter(Boolean).sort();
           const arg = (k, d) => (opts[k] === undefined ? d : json(opts[k]));
           const text = buildDigest({ record: showRun(ctx.planningDir, slug), tags, usage: arg('usage', null), findings: arg('findings', []), retro: arg('retro', []) });
-          fs.writeFileSync(path.join(path.dirname(runPath(ctx.planningDir, slug)), 'DIGEST.md'), text);
           return text;
         }
+        case 'remove': {
+          // A finished run's folder goes, once `removeRun` finds nothing left on the roadmap (like `run next`, it
+          // takes the roadmap file). `tracked` lists run files a commit swept in, for the caller to git rm.
+          if (!args[0]) throw new Error('run remove needs a roadmap file');
+          const file = runRoadmap(record ?? showRun(ctx.planningDir, slug), path.resolve(cwd, args[0]));
+          const tracked = trackedUnder(ctx, `${slug}.run`);
+          const dir = removeRun(ctx.planningDir, slug, roadmapSlices(file, ctx));
+          return { removed: toPosix(path.relative(ctx.root, dir)), tracked };
+        }
         default:
-          throw new Error('usage: work.mjs run new|show|set|add-assumptions|reject-assumption|slice|next|contract|tracks|start|audit|gate|verify|review-change|commit|digest <slug> ...');
+          throw new Error('usage: work.mjs run new|show|set|add-assumptions|reject-assumption|slice|next|contract|tracks|start|audit|gate|verify|review-change|commit|digest|remove <slug> ...');
       }
     }
     case 'close': {
+      const tracked = trackedUnder(ctx, id, `${id}.md`);
       const item = items.close(id);
       const s = item.state;
-      return { closed: s.id, removed: toPosix(path.relative(ctx.root, item.path)), todo: s.todo, roadmap: s.roadmap, tracker: s.tracker, sources: s.sources };
+      return { closed: s.id, removed: toPosix(path.relative(ctx.root, item.path)), tracked, todo: s.todo, roadmap: s.roadmap, tracker: s.tracker, sources: s.sources };
     }
     default:
       throw new Error('usage: work.mjs new|show|list|event|set|fingerprint|review-diff|verify-phase|roadmap|run|close ...');

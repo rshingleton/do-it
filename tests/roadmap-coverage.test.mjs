@@ -14,7 +14,7 @@ const read = (file) => fs.readFileSync(path.join(ROOT, file), 'utf8');
 const flat = (text) => text.replace(/\s+/g, ' ');
 const cites = (text, id) => new RegExp(`\\b${id}\\b`).test(text);
 
-const HISTORY = 'docs/reference/roadmap-history.md';
+const HISTORY = 'docs/reference/history.md';
 const SUCCESSOR = 'docs/roadmap/todo-clearance-2026-11.md';
 
 // The six source files the history records, oldest first.
@@ -113,4 +113,9 @@ test('every promoted id still has one home: the successor roadmap or the shipped
   assert.deepEqual(lost, [], 'the successor cites every carried id');
   assert.equal(new Set(PROMOTED).size, PROMOTED.length, 'the pinned list holds no duplicate');
   assert.equal(PROMOTED.length, 36, 'five shipped ids and the 31 R2 to R16 carried');
+});
+
+test('one history file holds roadmaps and work items and runs; the old file is gone', () => {
+  assert.match(read(HISTORY), /^## Work items and runs$/m, 'the history has the work items and runs section');
+  assert.ok(!fs.existsSync(path.join(ROOT, 'docs/reference/roadmap-history.md')), 'roadmap-history.md is absent');
 });

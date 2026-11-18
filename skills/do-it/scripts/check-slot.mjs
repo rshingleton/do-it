@@ -27,6 +27,12 @@ function statOf(file) {
   }
 }
 
+// True while a check holds the slot: the lock exists and is younger than STALE_MS.
+export function lockIsFresh(planningDir, slug, { now = Date.now, staleMs = STALE_MS } = {}) {
+  const stat = statOf(lockPath(planningDir, slug));
+  return stat !== null && now() - stat.mtimeMs <= staleMs;
+}
+
 // Take the slot, waiting for a live holder. Returns `{ waited_ms, note, release }`: `waited_ms` is the
 // time spent queuing, `note` is set when a stale lock was taken over (the caller says it), and
 // `release` removes the lock and must run on every exit path.

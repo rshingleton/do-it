@@ -31,8 +31,7 @@ base: commit mode `none`, or closing docs not yet committed). A null `base`
 2. `work.mjs run digest <slug> --usage '{"input":N,"output":N}' --findings
    '["<ref>", ...]' --retro '["worked","failed","change","next"]'`.
    Retro lines are one sentence each, from what the run recorded.
-3. It prints the digest and saves `<planning dir>/<slug>.run/DIGEST.md`,
-   uncommitted. Never commit it.
+3. It prints the digest; nothing is saved. Keep the text for §4.
 
 It lists slices shipped, parked and blocked with reasons, retried slices and
 how each retry ended, the audit rounds the run's one record holds (the run
@@ -56,7 +55,28 @@ still auditing or shipping returns to building and the run is not shipped until
 it passes again. A closed item has no plan to reopen: the user's follow-up is a
 `fix:` or `log-it` entry. A plan still `building` is not reopened either: its
 `fix:` list gets the change. A line with no id came from the sweep: note it for the
-user. No rejection: the run is final.
+user. No rejection pending: go to §4.
+
+## 4. Finish the run
+
+Only when the run is final: the user answered §3 with no rejection pending, and
+`work.mjs run next <slug> <roadmap>`, run now, returns `next` null with no `stop`,
+`parked`, `waiting` or `defects`, so every slice of the roadmap is shipped, not
+only those started. A run with a parked, blocked, waiting or open slice, or
+stopped at a cap, is not final: its record stays for `--resume` (it holds each
+parked slice's `needs` and reason), no entry is written, and `run remove`
+refuses it.
+
+1. Append the run entry to `## Work items and runs` in `history.md`, in the
+   run shape of [ship-it's HISTORY.md](../ship-it/HISTORY.md), under `### <slug>`.
+   Skip it when `### <slug>` is already in `history.md`: a retry after a refused
+   `run remove` must not write a second entry.
+2. Show the digest in the closing report, then `work.mjs run remove <slug>
+   <roadmap>`, which deletes `<planning dir>/<slug>.run/` and returns `tracked`:
+   run files a commit already swept in. `git rm` each of them.
+3. The entry and any `git rm` ride the run's closing-docs commit
+   ([COMMITS.md](../build-it/COMMITS.md) item 4); commit mode `none` leaves them
+   uncommitted, like the rest of the run.
 
 ## The closing report
 
