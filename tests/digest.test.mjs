@@ -65,12 +65,10 @@ test('digest carries no estimate phrase', () => {
   for (const w of ['saved', 'faster', 'cheaper', 'hours', 'dollars', '$']) assert.ok(!text.toLowerCase().includes(w), `digest has "${w}"`);
 });
 
-test('digest is saved under the planning directory and stays untracked', () => {
+test('digest is printed only: no DIGEST.md is written', () => {
   const dir = fixture();
   ok(work(dir, 'run', 'digest', 'road'));
-  const saved = path.join(dir, 'docs/planning/road.run/DIGEST.md');
-  assert.ok(fs.existsSync(saved));
-  assert.match(git(dir, 'status', '--porcelain', '--untracked-files=all'), /\?\? docs\/planning\/road\.run\/DIGEST\.md/);
+  assert.ok(!fs.existsSync(path.join(dir, 'docs/planning/road.run/DIGEST.md')));
 });
 
 test('rejecting an assumption fires reject-assumption for the slice item', () => {

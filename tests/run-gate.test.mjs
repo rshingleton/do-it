@@ -638,8 +638,10 @@ test('audit cap: a slice repeating the same Must four times parks the fifth with
   assert.match(parked.reason, /last fix unreviewed$/);
   start(dir, 'R2');
   assert.equal(audit(dir, 'R2').allow, true, 'another slice has its own rounds');
-  assert.equal(spawnSync('node', [WORK, 'run', 'digest', 'road'], { cwd: dir, encoding: 'utf8', env: { ...process.env, XDG_CONFIG_HOME: dir } }).status, 0);
-  const digest = fs.readFileSync(path.join(dir, 'docs/planning/road.run/DIGEST.md'), 'utf8');
+  const out = spawnSync('node', [WORK, 'run', 'digest', 'road'], { cwd: dir, encoding: 'utf8', env: { ...process.env, XDG_CONFIG_HOME: dir } });
+  assert.equal(out.status, 0);
+  const digest = out.stdout;
+  assert.ok(!fs.existsSync(path.join(dir, 'docs/planning/road.run/DIGEST.md')), 'the digest is printed, not saved');
   assert.match(digest, /## Limit fired[\s\S]*- SLICE_AUDIT_CAP, slice R1: 3 rounds repeated an earlier Must, cap 3/);
 });
 

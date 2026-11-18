@@ -18,7 +18,8 @@ Lane XS with no id: ask for the ref to use, or "file one" with `log-it`.
 
 - **Resumed after review** (`ship.prepared` set), no §2 question:
   - nothing uncommitted outside the plan: the user committed; close the remote
-    tracker and the plan (§3 step 4);
+    tracker and the plan (§3 step 4). The review commit may have swept the plan
+    in: every tracked plan file `git rm`s and commits as `<id>: remove the plan files`;
   - fingerprint equals `ship.fingerprint`: ask one line, "Commit now with
     this message?" (show it), then §3 step 4;
   - it differs: the review edited files. Show `work.mjs review-diff <id>`

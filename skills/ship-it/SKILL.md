@@ -30,6 +30,7 @@ One turn; write nothing yet. **Show** (information, no answer needed):
 
 - `git status --short`: everything that will be in the change.
 - The docs this will write, per [DOCS.md](DOCS.md): ADRs to accept, the
+  history entry and the one ADR it offers ([HISTORY.md](HISTORY.md)), the
   area's `CONTEXT.md` and map row, the changelog entry (lane XS: changelog
   only, when the repo keeps one), a risk-area rollback note.
 - Tracker, to-do and roadmap updates: one `close` per ref (state block refs,
@@ -61,7 +62,8 @@ to the last alone keeps the defaults:
    reject-assumption <n> "<instead>"`; stop. **Next:** `/do-it <id>`. One
    that changes nothing: `work.mjs set` the assumptions.
 2. **Docs and closes, before any commit:** write what §2 showed per
-   [DOCS.md](DOCS.md), updating an earlier run's; park or file the markers; log
+   [DOCS.md](DOCS.md), updating an earlier run's, and the history entry
+   ([HISTORY.md](HISTORY.md)); park or file the markers; log
    the chosen findings (no changelog), the finalize offers taken
    ([FINALIZE.md](FINALIZE.md)). Then close every ref per DOCS.md "Closes", so
    one commit holds it all (a user commit after review included).
@@ -72,9 +74,11 @@ to the last alone keeps the defaults:
 4. **Commit now** (or a resumed run after the user committed). Step 2 has
    already run, so the working tree holds the whole change:
    - create the feature branch if §2 named one; stage by path (never
-     `git add -A`), with the issue, to-do and roadmap edits from step 2; commit
+     `git add -A`, never `docs/planning/`), with the issue, to-do and roadmap edits from step 2; commit
      with the approved message (already committed by the user: nothing to stage);
-   - only after the commit succeeds: `work.mjs close <id>` (lane XS: none),
+   - only after the commit succeeds: `work.mjs close <id>` (lane XS: none);
+     its `tracked` paths: `git rm` them and commit as `<id>: remove the plan files`,
+     then `git ls-files` must list none of them;
      then the remote tracker (GitHub, Jira) closes with a comment drawn from
      the changelog; it cannot be part of the commit, and a tracker failure
      never undoes the commit.

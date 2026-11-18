@@ -77,7 +77,7 @@ while work goes on (the first dated line creates it, e.g. `- 2026-10-22: R1
 answered; R2 ready.`). When ship-it finalizes a finished roadmap
 ([FINALIZE.md](../ship-it/FINALIZE.md)) it adds `completed: <date>` to the
 frontmatter, turns `## Changes` into a `## Shipped` bullet list, appends the
-roadmap's row to `docs/reference/roadmap-history.md` and removes the file, so a
+roadmap's row to `docs/reference/history.md` and removes the file, so a
 finished roadmap leaves none in `docs/roadmap`. A replan keeps both: it never
 drops `completed:` or turns `## Shipped` back into a Changes section. A
 roadmap that already has `## Shipped` keeps it: a replan's new dated line goes

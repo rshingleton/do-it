@@ -28,7 +28,7 @@ removed in the same commit. An unfinished roadmap is left in place and named.
 ## Paths
 
 The roadmap file, removed; the row appended to
-`docs/reference/roadmap-history.md`; the ADRs offer `a` created; `docs/TODO.md`
+`docs/reference/history.md`; the ADRs offer `a` created; `docs/TODO.md`
 when offer `b` added to-dos; and the milestone issue files offer `e` closed,
 which on a local tracker are the `docs/issues/*.md` files themselves (the
 repo's configured paths, not these defaults). "Commit now" stages these and
@@ -66,7 +66,7 @@ decision open. An unfinished roadmap is left in place, and the slice or
 decision that holds it is named in the closing line.
 
 1. Write offers a to d first, so the content is durable before the file goes.
-2. Append one row to `docs/reference/roadmap-history.md`, in the table below
+2. Append one row to `docs/reference/history.md`, in the table below
    its intro: the title, the file removed, the `approved:` date, the
    `completed:` date and the count of slices in `## Shipped`.
 3. Remove the roadmap file in the same change, before the commit, so the

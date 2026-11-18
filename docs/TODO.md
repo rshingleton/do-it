@@ -3,7 +3,7 @@
 Nice-to-haves and things to circle back to. Managed by log-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T367
+Next id: T373
 
 ## Open
 
@@ -65,14 +65,13 @@ Next id: T367
 - [ ] T292 `docs/reference/install-routes.md:212` records a macOS probe under "The CLI route on this machine", beside the doc's Windows facts `nice-to-have` (install-routes audit, 2026-11-16)
 - [ ] T293 `docs/reference/install-routes.md:28` opens with "One route per host." and closes with "Either way, one route per host" `nice-to-have` (install-routes audit, 2026-11-16)
 - [ ] T298 A complete run defaults to three tracks and no ask below three is accepted, except a commit mode that writes no branch `debt` (sweep 2026-11-16, user request; roadmap todo-clearance-2026-11 R67)
-- [ ] T299 `docs/reference/roadmap-history.md:8` says every file was removed after the record was written, false for backlog-cleanup-2026-11 (deleted in 0d2a310, its section added in 8157e83) `nice-to-have` (R4 ship review)
+- [ ] T299 `docs/reference/history.md:8` says every file was removed after the record was written, false for backlog-cleanup-2026-11 (deleted in 0d2a310, its section added in 8157e83) `nice-to-have` (R4 ship review)
 - [ ] T300 `tests/roadmap-coverage.test.mjs:102` pins the words "R2 to R16", so a reword to "R2 through R16" fails with "the open slices are named" `nice-to-have` (R4 ship review)
 - [ ] T301 `tests/roadmap-coverage.test.mjs:110` accepts any mention, so moving T234 from R63's Items into a Fog bullet stays green while "each owns a slice" becomes false `nice-to-have` (R4 ship review)
 - [ ] T302 `skills/do-it/STATE.md:26` says `show` prints `root` while every other run command refuses, but `run show` refuses too; say "every run command but `new`" `nice-to-have` (R2 ship review)
 - [ ] T303 `tests/finish-run.test.mjs:140,168` calls `mentions(record.root, ...)` before asserting `record.root`, so a missing root throws a TypeError instead of naming it `nice-to-have` (R2 ship review)
 - [ ] T306 `skills/guard-it/SKILL.md:34` says the digest prints the gap under "not checked", but `skills/do-it/scripts/digest.mjs:62` prints `## Verification limits (n)`; align the wording or the heading `nice-to-have` (R68 ship review)
 - [ ] T308 `skills/ship-it/FINALIZE.md:21,69` re-runs finalize after a crash between writing and removal and appends a second history row, against the one-row-per-file rule; add a skip guard like offer d `debt` (R3 ship review)
-- [ ] T309 `skills/ship-it/FINALIZE.md:68,71` says the content is durable before the file goes, but offer c deletes the Shipped bullets and the row keeps only a count; slice dates and outcomes live only in git history, not in the named record the issue asked for `debt` (R3 ship review)
 - [ ] T311 `skills/roadmap-it/FORMAT.md:81-86` states the Shipped and `completed:` replan rule twice after the R6 merge resolution; collapse it on the next edit `nice-to-have` (R6 ship review)
 - [ ] T312 `skills/usage-it/SKILL.md:44-98` was reflowed to long lines because it links no sibling, so the R6 goal ("detail in a sibling") does not cover it `nice-to-have` (R6 ship review)
 - [ ] T310 `tests/work.test.mjs:895`'s `/unfinished roadmap is left/i` also matches the intro, so deleting "and is named" from the Remove section stays green `nice-to-have` (R3 ship review)
@@ -121,3 +120,9 @@ Next id: T367
 - [ ] T364 `skills/prove-it/ROUNDS.md:56` runs 103 columns where its neighbours wrap near 80; `tests/audit-convergence.test.mjs` and `tests/tracks-record.test.mjs` repeat the whitespace-flatten shape instead of sharing `flat`, and `tests/tracks-record.test.mjs:317` picks a section by a length check `nice-to-have` (should-fix-policy audit)
 - [ ] T365 The Should pass cannot be told apart from a review-driven `reaudit` in state; both spend `clean_passes`, so the cap of 3 is the only hard backstop, and only the prose `Should pass` marker separates them (a `reaudit --should` event would) `idea` (should-fix-policy audit)
 - [ ] T366 The tests for the Should policy pin a phrase per caller (`small and local`, `open Should and Nice`), so a sentence that moves or is contradicted still passes; one test that checks ROUNDS.md's rules against each caller would pin the policy itself `nice-to-have` (should-fix-policy audit)
+- [ ] T367 `skills/do-it/scripts/run.mjs:449-453` and `work.mjs:415-418`: a recorded slice whose roadmap row was renamed or deleted refuses `run remove` forever with "ship or drop them on the roadmap", which cannot work (the escape is `run slice <id> shipped`; say so); the roadmap argument is not compared with the run's own roadmap (refuse unless its basename equals the slug, no stored field needed); and `tests/run-remove.test.mjs:115` passes for the wrong reason, since `removeRun` never reads `max_slices`, with no open-decisions case `debt` (central-history audit)
+- [ ] T368 `skills/do-it/scripts/run.mjs:449`: the `recorded` filter is a dense one-liner doing three things (build a `shippedHere` set); `showRun` runs twice on one `remove`; `toPosix(path.relative(ctx.root, ctx.planningDir))` is computed in `trackedUnder` and `planningExclude`; two comments restate the code; the `!why.length && !road.finished` fallback is unreachable `nice-to-have` (central-history audit)
+- [ ] T369 `skills/do-it/scripts/check-slot.mjs:31`: `lockIsFresh` takes `now` and `staleMs` options that nothing passes `nice-to-have` (central-history audit)
+- [ ] T370 A `--complete` run that stops early (a cap, a parked slice nobody resumes) keeps `<slug>.run/` indefinitely: no abandon path removes it with its record `nice-to-have` (central-history audit)
+- [ ] T371 `tests/run-remove.test.mjs` repeats the shipped-rows roadmap fixture and its unknown-slug assertion does not match its error; the DIGEST and plan-removal tests pin substrings; the not-written-DIGEST assertion is in `tests/digest.test.mjs` and `tests/run-gate.test.mjs` `nice-to-have` (central-history audit)
+- [ ] T372 `skills/finish-it/DIGEST.md:34` says "for §4" where SKILL.md's §4 is the closing report; `skills/ship-it/SKILL.md:77`, `DOCS.md:12` and `RESUME.md:22` run past the 80 columns their neighbours wrap at `nice-to-have` (central-history audit)
