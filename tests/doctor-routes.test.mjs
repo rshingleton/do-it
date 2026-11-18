@@ -63,6 +63,20 @@ test('a fresh clone with no FETCH_HEAD reports its branch, short sha and that th
   assert.deepEqual(ref.followed, { name: 'origin/main', behind: 0 });
 });
 
+test('a repository pushed to its remote was never cloned, so it keeps never fetched', () => {
+  // init, commit, `git remote add`, `git push`: origin/main exists with no
+  // clone behind it and no FETCH_HEAD.
+  const { dir } = seed();
+  const home = installed(dir);
+
+  const r = doctor(dir, home);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(refLine(r.stdout), /, never fetched$/, r.stdout);
+  const ref = json(doctor(dir, home, '--json')).ref;
+  assert.equal(ref.cloned, false, 'a push is not a clone');
+  assert.equal(ref.fetchedAt, null);
+});
+
 test('a clone whose remote moved keeps its old count without --fetch and gets the new one with it', () => {
   const { dir, remote } = seed();
   const root = clone(remote);
