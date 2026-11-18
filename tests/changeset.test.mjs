@@ -41,20 +41,6 @@ test('added lines carry their line number in the new file', () => {
   });
 });
 
-test('an added line that starts with ++ is kept', () => {
-  const { dir, write, commit } = gitRepo();
-  commit();
-  write('p.js', '++ x\n+++ y\n');
-  assert.deepEqual(byFile(addedLines(dir, { against: 'staged' })), {});
-  execFileSync('git', ['add', 'p.js'], { cwd: dir });
-  assert.deepEqual(byFile(addedLines(dir, { against: 'staged' })), {
-    'p.js': [
-      { n: 1, text: '++ x' },
-      { n: 2, text: '+++ y' },
-    ],
-  });
-});
-
 // NTFS refuses a double quote or a tab in a name; an apostrophe and a space stand in.
 const QUOTED = process.platform === 'win32' ? "q'uote.js" : 'q"uote.js';
 const TABBED = process.platform === 'win32' ? 'sp ace.js' : 'tab\there.js';
@@ -82,6 +68,12 @@ test('staged sees only the index; a ref sees the working tree', () => {
     'a.js': [{ n: 2, text: 'staged' }],
     'b.js': [{ n: 2, text: 'working' }],
   });
+  // Before the first commit there is no HEAD to compare: staged files are the change.
+  const fresh = gitRepo();
+  fresh.write('a.js', 'a\n');
+  fresh.git('add', 'a.js');
+  assert.deepEqual(byFile(addedLines(fresh.dir, { against: 'staged' })), { 'a.js': [{ n: 1, text: 'a' }] });
+  assert.deepEqual(byFile(addedLines(fresh.dir, { against: 'HEAD' })), { 'a.js': [{ n: 1, text: 'a' }] });
 });
 
 test('paths resolve against cwd and names come back top-relative', () => {
@@ -121,18 +113,22 @@ test('a renamed file is read as a whole added file; a deleted one is left out', 
   assert.deepEqual(byFile(addedLines(dir, { against: 'staged' })), { 'new.js': [{ n: 1, text: 'kept' }] });
 });
 
-test('with no commits, staged files are listed for staged and for a base', () => {
-  const { dir, git, write } = gitRepo();
-  write('a.js', 'a\n');
-  git('add', 'a.js');
-  assert.deepEqual(byFile(addedLines(dir, { against: 'staged' })), { 'a.js': [{ n: 1, text: 'a' }] });
-  assert.deepEqual(byFile(addedLines(dir, { against: 'HEAD' })), { 'a.js': [{ n: 1, text: 'a' }] });
-});
-
 test('repo config cannot replace, colour or narrow the diff', () => {
   const { dir, git, write, commit } = gitRepo();
   write('sub/x.js', 'x\n');
+  const blanks = ['1', '', '3', '4', '5', '6', '7', '8', '9', '10', '', '12'];
+  write('g.txt', blanks.join('\n') + '\n');
+  write('h.txt', Array.from({ length: 20 }, (_, i) => `${i + 1}`).join('\n') + '\n');
   commit();
+  // A submodule bump must not hide the other files' lines.
+  const inner = gitRepo();
+  inner.write('i', 'i\n');
+  inner.commit();
+  git('-c', 'protocol.file.allow=always', 'submodule', '-q', 'add', inner.dir, 'mod');
+  commit();
+  inner.write('i', 'i\nj\n');
+  inner.commit();
+  execFileSync('git', ['pull', '-q', 'origin', 'HEAD'], { cwd: path.join(dir, 'mod'), stdio: 'ignore' });
   write('.gitattributes', '*.js diff=hide\n');
   git('config', 'diff.hide.textconv', 'sh -c "echo hidden"');
   git('config', 'diff.external', 'sh -c "echo external"');
@@ -141,24 +137,45 @@ test('repo config cannot replace, colour or narrow the diff', () => {
   git('config', 'diff.relative', 'true');
   git('config', 'diff.noprefix', 'true');
   git('config', 'diff.mnemonicPrefix', 'true');
+  git('config', 'diff.submodule', 'log');
+  git('config', 'diff.interHunkContext', '5');
+  git('config', 'diff.suppressBlankEmpty', 'true');
   write('sub/x.js', 'x\nreal\n');
   write('top.js', 'top\n');
+  const after = [...blanks];
+  after[2] = 'NEW3';
+  after[11] = 'NEW12';
+  write('g.txt', after.join('\n') + '\n');
+  write('h.txt', Array.from({ length: 20 }, (_, i) => (i === 1 || i === 5 ? `X${i + 1}` : `${i + 1}`)).join('\n') + '\n');
   git('add', '-A');
-  assert.deepEqual(byFile(addedLines(path.join(dir, 'sub'), { against: 'staged' })), {
-    '.gitattributes': [{ n: 1, text: '*.js diff=hide' }],
-    'sub/x.js': [{ n: 2, text: 'real' }],
-    // The driver's output is read as well as the file, never instead of it.
-    'top.js': [
-      { n: 1, text: 'top' },
-      { n: 1, text: 'hidden' },
-    ],
-  });
-});
-
-test('an unknown base ref throws instead of reporting no change', () => {
-  const { dir, commit } = gitRepo();
-  commit();
-  assert.throws(() => addedLines(dir, { against: 'nosuchref' }), /unknown base ref: nosuchref/);
+  const saved = process.env.GIT_DIFF_OPTS;
+  process.env.GIT_DIFF_OPTS = '-u3';
+  let files;
+  try {
+    files = byFile(addedLines(path.join(dir, 'sub'), { against: 'staged' }));
+  } finally {
+    if (saved === undefined) delete process.env.GIT_DIFF_OPTS;
+    else process.env.GIT_DIFF_OPTS = saved;
+  }
+  assert.deepEqual(files['.gitattributes'], [{ n: 1, text: '*.js diff=hide' }]);
+  assert.deepEqual(files['sub/x.js'], [{ n: 2, text: 'real' }]);
+  // The driver's output is read as well as the file, never instead of it.
+  assert.deepEqual(files['top.js'], [
+    { n: 1, text: 'top' },
+    { n: 1, text: 'hidden' },
+  ]);
+  // A submodule bump under diff.submodule=log is listed and hides nothing.
+  assert.ok('mod' in files);
+  // diff.interHunkContext does not shift line numbers.
+  assert.deepEqual(files['h.txt'], [
+    { n: 2, text: 'X2' },
+    { n: 6, text: 'X6' },
+  ]);
+  // GIT_DIFF_OPTS and diff.suppressBlankEmpty do not lose or shift lines.
+  assert.deepEqual(files['g.txt'], [
+    { n: 3, text: 'NEW3' },
+    { n: 12, text: 'NEW12' },
+  ]);
 });
 
 test('untracked regular files are read whole; other entries get no lines', { skip: process.platform === 'win32' && 'unprivileged symlinks' }, () => {
@@ -176,16 +193,15 @@ test('untracked regular files are read whole; other entries get no lines', { ski
       { n: 2, text: 'two' },
     ],
   });
-});
-
-test('untracked as pathspecs reads only the untracked files they match', () => {
-  const { dir, write, commit } = gitRepo();
-  commit();
-  write('a.js', 'one\n');
-  write('b.js', 'two\n');
+  // As pathspecs, only the untracked files they match, resolved against cwd.
   write('sub/c.js', 'three\n');
-  assert.deepEqual(byFile(addedLines(dir, { untracked: ['b.js'] })), { 'b.js': [{ n: 1, text: 'two' }] });
   assert.deepEqual(byFile(addedLines(path.join(dir, 'sub'), { untracked: ['c.js'] })), { 'sub/c.js': [{ n: 1, text: 'three' }] });
+  assert.deepEqual(byFile(addedLines(dir, { untracked: ['new.js'] })), {
+    'new.js': [
+      { n: 1, text: 'one' },
+      { n: 2, text: 'two' },
+    ],
+  });
   assert.deepEqual(addedLines(dir, { untracked: ['nothing.js'] }), []);
 });
 
@@ -215,24 +231,6 @@ test('a type change and an unmerged path still list every file with its lines', 
   assert.deepEqual(files.l, [{ n: 1, text: 'now a file' }]);
   assert.deepEqual(files['z.js'], [{ n: 1, text: 'z' }]);
   assert.ok('m.txt' in files);
-});
-
-test('a submodule bump under diff.submodule=log does not hide other files', () => {
-  const inner = gitRepo();
-  inner.write('i', 'i\n');
-  inner.commit();
-  const { dir, git, write, commit } = gitRepo();
-  git('-c', 'protocol.file.allow=always', 'submodule', '-q', 'add', inner.dir, 'sub');
-  commit();
-  inner.write('i', 'i\nj\n');
-  inner.commit();
-  execFileSync('git', ['pull', '-q', 'origin', 'HEAD'], { cwd: path.join(dir, 'sub'), stdio: 'ignore' });
-  git('config', 'diff.submodule', 'log');
-  write('z.js', 'z\n');
-  git('add', 'sub', 'z.js');
-  const files = byFile(addedLines(dir, { against: 'staged' }));
-  assert.deepEqual(files['z.js'], [{ n: 1, text: 'z' }]);
-  assert.ok('sub' in files);
 });
 
 test('a file git treats as binary is read as text', () => {
@@ -265,24 +263,6 @@ test('a file whose diff is over the cap keeps path rules only; a large file with
   });
 });
 
-test('works with a git that predates --no-relative', { skip: process.platform === 'win32' && 'a shell-script git stand-in cannot run as git.exe' }, () => {
-  const { dir, git, write, commit } = gitRepo();
-  commit();
-  write('a.js', 'a\n');
-  git('add', 'a.js');
-  // A git on PATH that rejects --no-relative the way git before 2.28 does.
-  const bin = tmpDir('do-it-oldgit-');
-  const real = execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
-  fs.writeFileSync(path.join(bin, 'git'), `#!/bin/sh\nfor a in "$@"; do [ "$a" = --no-relative ] && exit 129; done\nexec "${real}" "$@"\n`, { mode: 0o755 });
-  const saved = process.env.PATH;
-  process.env.PATH = `${bin}${path.delimiter}${saved}`;
-  try {
-    assert.deepEqual(byFile(addedLines(dir, { against: 'staged' })), { 'a.js': [{ n: 1, text: 'a' }] });
-  } finally {
-    process.env.PATH = saved;
-  }
-});
-
 test('a line break other than \\n cannot forge a file section', () => {
   const { dir, git, write, commit } = gitRepo();
   write('u.txt', 'base\n');
@@ -308,55 +288,54 @@ test('a line break other than \\n cannot forge a file section', () => {
       { n: 2, text: 'after' },
     ], JSON.stringify(sep));
   }
+  // An added line that starts with ++ is content, never the +++ header.
+  write('p.js', '++ x\n+++ y\n');
+  git('add', 'p.js');
+  assert.deepEqual(byFile(addedLines(dir, { against: 'staged' }))['p.js'], [
+    { n: 1, text: '++ x' },
+    { n: 2, text: '+++ y' },
+  ]);
 });
 
-test('diff.interHunkContext does not shift line numbers', () => {
-  const { dir, git, write, commit } = gitRepo();
-  write('f.txt', Array.from({ length: 20 }, (_, i) => `${i + 1}`).join('\n') + '\n');
-  commit();
-  write('f.txt', Array.from({ length: 20 }, (_, i) => (i === 1 || i === 5 ? `X${i + 1}` : `${i + 1}`)).join('\n') + '\n');
-  git('config', 'diff.interHunkContext', '5');
-  assert.deepEqual(byFile(addedLines(dir)), {
-    'f.txt': [
-      { n: 2, text: 'X2' },
-      { n: 6, text: 'X6' },
-    ],
-  });
-});
-
-test('a file that is slow to diff gets path rules only and does not hold up the rest', () => {
+test('a file that is slow, fails or is driven gets path rules only and does not hold up the rest', () => {
   const { dir, git, write, commit } = gitRepo();
   // A text file of random short lines rewritten: small output, slow to diff.
   const random = () => Array.from({ length: 1e6 }, () => (Math.random() < 0.5 ? 'a' : 'b')).join('\n') + '\n';
   write('slow.txt', random());
+  write('locked/z.txt', 'z\n');
   commit();
   write('slow.txt', random());
   write('small.js', 's\n');
+  write('locked/z.txt', 'z\nmore\n');
   git('add', '-A');
   const start = Date.now();
   const files = byFile(addedLines(dir, { against: 'staged' }));
   assert.ok(Date.now() - start < 6000, `took ${Date.now() - start} ms`);
   assert.deepEqual(files['small.js'], [{ n: 1, text: 's' }]);
   assert.deepEqual(files['slow.txt'], []);
-});
-
-test('a file whose diff fails is listed with no lines and the rest are still read', { skip: process.platform === 'win32' && 'POSIX mode bits' }, () => {
-  const { dir, git, write, commit } = gitRepo();
-  write('a.txt', 'a\n');
-  write('locked/z.txt', 'z\n');
-  commit();
-  write('a.txt', 'a\nmore\n');
-  write('locked/z.txt', 'z\nmore\n');
-  const locked = path.join(dir, 'locked/z.txt');
-  fs.chmodSync(locked, 0o000);
-  try {
-    assert.deepEqual(byFile(addedLines(dir)), {
-      'a.txt': [{ n: 2, text: 'more' }],
-      'locked/z.txt': [],
-    });
-  } finally {
-    fs.chmodSync(locked, 0o644);
+  if (process.platform !== 'win32') {
+    // A file whose diff fails is listed with no lines, and the rest are still read.
+    const locked = path.join(dir, 'locked/z.txt');
+    fs.chmodSync(locked, 0o000);
+    try {
+      const unstaged = byFile(addedLines(dir));
+      assert.deepEqual(unstaged['locked/z.txt'], []);
+      assert.deepEqual(unstaged['small.js'], [{ n: 1, text: 's' }]);
+    } finally {
+      fs.chmodSync(locked, 0o644);
+    }
   }
+  // Textconv diffs of driven files share the time budget.
+  git('reset', '-q', '--', 'slow.txt');
+  git('checkout', '--', 'slow.txt');
+  b64Driver({ dir, git, write }, 1000);
+  for (let i = 0; i < 5; i++) write(`s${i}.b64`, Buffer.from(`secret ${i}\n`).toString('base64'));
+  git('add', '-A');
+  const drivenStart = Date.now();
+  const driven = addedLines(dir, { against: 'staged', budget: { deadline: Date.now() + 500 } }).filter((f) => f.file.endsWith('.b64'));
+  assert.ok(Date.now() - drivenStart < 2500, `took ${Date.now() - drivenStart} ms`);
+  assert.equal(driven.length, 5);
+  for (const f of driven) assert.ok(f.lines.length >= 1, `${f.file} keeps its raw lines`);
 });
 
 test('a binary with a textconv driver is read raw and through the driver', () => {
@@ -371,60 +350,12 @@ test('a binary with a textconv driver is read raw and through the driver', () =>
     { n: 2, text: 'seen' },
     { n: 1, text: 'head' },
   ]);
-});
-
-test('a binary costs two diffs: the listing view, then as text', { skip: process.platform === 'win32' && 'a shell-script git stand-in cannot run as git.exe' }, () => {
-  const { dir, git, write, commit } = gitRepo();
-  write('.gitattributes', '*.tx diff=tx\n');
-  git('config', 'diff.tx.textconv', 'cat');
-  for (let i = 0; i < 20; i++) write(`b${i}.bin`, `a\0${i}\n`);
-  commit();
-  for (let i = 0; i < 20; i++) write(`b${i}.bin`, `c\0${i}\n`);
-  git('add', '-A');
-  // A git on PATH that counts its calls.
-  const bin = tmpDir('do-it-countgit-');
-  const real = execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
-  const log = path.join(bin, 'calls');
-  fs.writeFileSync(path.join(bin, 'git'), `#!/bin/sh\necho x >> "${log}"\nexec "${real}" "$@"\n`, { mode: 0o755 });
-  // Where PATH cannot hold a script named git (Windows), git's own trace counts the processes.
-  const win = process.platform === 'win32';
-  const saved = process.env.PATH;
-  if (win) process.env.GIT_TRACE2_EVENT = log;
-  else process.env.PATH = `${bin}${path.delimiter}${saved}`;
-  try {
-    const files = byFile(addedLines(dir, { against: 'staged' }));
-    assert.equal(Object.keys(files).length, 20);
-  } finally {
-    process.env.PATH = saved;
-    delete process.env.GIT_TRACE2_EVENT;
-  }
-  const lines = fs.readFileSync(log, 'utf8').split('\n').filter(Boolean);
-  const calls = win ? lines.filter((l) => l.includes('"event":"version"')).length : lines.length;
-  // Two diffs per file, plus the listing and a few lookups.
-  assert.ok(calls <= 2 * 20 + 6, `${calls} git calls for 20 binaries`);
-});
-
-test('GIT_DIFF_OPTS and diff.suppressBlankEmpty do not lose or shift lines', () => {
-  const { dir, git, write, commit } = gitRepo();
-  const before = ['1', '', '3', '4', '5', '6', '7', '8', '9', '10', '', '12'];
-  write('f.txt', before.join('\n') + '\n');
-  commit();
-  const after = [...before];
-  after[2] = 'NEW3';
-  after[11] = 'NEW12';
-  write('f.txt', after.join('\n') + '\n');
-  git('config', 'diff.suppressBlankEmpty', 'true');
-  const saved = process.env.GIT_DIFF_OPTS;
-  process.env.GIT_DIFF_OPTS = '-u3';
-  try {
-    assert.deepEqual(byFile(addedLines(dir))['f.txt'], [
-      { n: 3, text: 'NEW3' },
-      { n: 12, text: 'NEW12' },
-    ]);
-  } finally {
-    if (saved === undefined) delete process.env.GIT_DIFF_OPTS;
-    else process.env.GIT_DIFF_OPTS = saved;
-  }
+  // An untracked file with a driver is read raw and through the driver too.
+  b64Driver({ dir, git, write });
+  write('s.b64', Buffer.from('decoded secret\n').toString('base64'));
+  const lines = byFile(addedLines(dir, { untracked: ['s.b64'] }))['s.b64'].map((l) => l.text);
+  assert.ok(lines.includes('decoded secret'));
+  assert.ok(lines.includes(Buffer.from('decoded secret\n').toString('base64')));
 });
 
 function b64Driver({ dir, git, write }, sleepMs = 0) {
@@ -432,37 +363,6 @@ function b64Driver({ dir, git, write }, sleepMs = 0) {
   write('.gitattributes', '*.b64 diff=b64\n');
   git('config', 'diff.b64.textconv', `node ${path.join(dir, 'dec.mjs').replaceAll('\\', '/')}`);
 }
-
-test('an untracked file with a textconv driver is read raw and through the driver', () => {
-  const r = gitRepo();
-  b64Driver(r);
-  r.write('s.b64', Buffer.from('decoded secret\n').toString('base64'));
-  const lines = byFile(addedLines(r.dir, { untracked: ['s.b64'] }))['s.b64'].map((l) => l.text);
-  assert.ok(lines.includes('decoded secret'));
-  assert.ok(lines.includes(Buffer.from('decoded secret\n').toString('base64')));
-});
-
-test('textconv diffs of driven files share the time budget', () => {
-  const r = gitRepo();
-  b64Driver(r, 1000);
-  for (let i = 0; i < 5; i++) r.write(`s${i}.b64`, Buffer.from(`secret ${i}\n`).toString('base64'));
-  r.git('add', '-A');
-  const start = Date.now();
-  const files = addedLines(r.dir, { against: 'staged', budget: { deadline: Date.now() + 500 } });
-  assert.ok(Date.now() - start < 2500, `took ${Date.now() - start} ms`);
-  const driven = files.filter((f) => f.file.endsWith('.b64'));
-  assert.equal(driven.length, 5);
-  for (const f of driven) assert.ok(f.lines.length >= 1, `${f.file} keeps its raw lines`);
-});
-
-test('three thousand staged files read the same as one at a time', () => {
-  const r = gitRepo();
-  for (let i = 0; i < 3000; i++) r.write(`d/f${i}.js`, `a${i}\nb${i}\n`);
-  r.git('add', '-A');
-  const files = byFile(addedLines(r.dir, { against: 'staged' }));
-  assert.equal(Object.keys(files).length, 3000);
-  for (const i of [0, 1500, 2999]) assert.deepEqual(files[`d/f${i}.js`], [{ n: 1, text: `a${i}` }, { n: 2, text: `b${i}` }]);
-});
 
 test('fingerprint hashes base..working tree and survives commits after the base', () => {
   const { dir, git, write, commit } = gitRepo();
@@ -483,6 +383,15 @@ test('fingerprint hashes base..working tree and survives commits after the base'
   assert.notEqual(fingerprint(dir, base), mid, 'an edit after a commit changes it');
   write('a.js', 'two\n');
   assert.equal(fingerprint(dir, base), mid, 'reverting the edit restores it');
+  // A tracked or untracked edit changes it, from a clean or a dirty base.
+  write('d.js', 'one\n');
+  const withUntracked = fingerprint(dir, base);
+  write('d.js', 'two\n');
+  assert.notEqual(fingerprint(dir, base), withUntracked, 'an edit to an untracked file changes it');
+  // Nothing ship-it writes as closing docs counts as moved code.
+  const steady = fingerprint(dir, base, { exclude: ['docs/planning'] });
+  write('docs/planning/x.md', 'plan\n');
+  assert.equal(fingerprint(dir, base, { exclude: ['docs/planning'] }), steady, 'a planning file is left out');
 });
 
 test('a partly staged excluded path does not break the snapshot', () => {

@@ -47,7 +47,7 @@ the repo's ADR 0006 (repo files are untrusted for commands).
 | `DO_IT_COMMIT` | `ask` | `ask`: ship-it offers to commit. `never`: ship-it only proposes the message |
 | `DO_IT_PROTECTED_BRANCHES` | `main,master` | ship-it, and a run's phase commits, move to a feature branch before committing here |
 | `DO_IT_MAX_SLICES` | empty (no cap) | A complete run stops after this many slices; `work.mjs run new --max-slices` overrides |
-| `DO_IT_SLICE_CAP_MIN` | `120` | Wall-clock minutes one slice may take in a complete run; `--slice-cap-min` overrides |
+| `DO_IT_SLICE_CAP_MIN` | `120` | In-flight minutes one slice may spend in a complete run, parked and queued time excluded; empty means no cap; `--slice-cap-min` overrides |
 | `DO_IT_AUDIT_CAP` | `3` | Audit rounds one slice of a complete run may spend; `--audit-cap` overrides |
 | `DO_IT_FINAL_AUDIT_CAP` | `3` | Audit rounds the run's final review may spend; `--final-audit-cap` overrides |
 | `DO_IT_AUDIT_TOTAL_CAP` | empty | Backstop on every slice's rounds together; empty means `max_slices` x the per-slice cap, or none without `max_slices`; `--audit-total-cap` overrides |

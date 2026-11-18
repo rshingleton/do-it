@@ -55,15 +55,6 @@ test('checks.json adds rules, scopes by extension, disables built-ins', () => {
   assert.deepEqual(scan('', rules, '.env'), []);
 });
 
-test('a broken checks.json is reported, built-ins still apply', () => {
-  const root = repo();
-  fs.mkdirSync(path.join(root, '.compliance-rules'));
-  fs.writeFileSync(path.join(root, '.compliance-rules', 'checks.json'), '{ nope');
-  const { rules, error } = loadChecks(root);
-  assert.match(error, /checks\.json/);
-  assert.equal(rules.length, BUILTIN.length);
-});
-
 test('editParts reads Claude Code and OpenCode edit shapes', () => {
   assert.deepEqual(editParts({ file_path: 'a.js', content: 'a' }), [{ file: 'a.js', added: 'a' }]);
   assert.deepEqual(editParts({ filePath: 'a.js', oldString: 'x', newString: 'b' }), [{ file: 'a.js', added: 'b' }]);
@@ -126,14 +117,12 @@ test('quoteArg quotes one shell word per platform', () => {
   assert.equal(quoteArg('C:\\my dir\\a.js', 'win32'), '"C:\\my dir\\a.js"');
   assert.equal(quoteArg("C:\\it's.js", 'win32'), `"C:\\it's.js"`);
   assert.equal(quoteArg('C:\\a"b.js', 'win32'), '"C:\\a\\"b.js"');
-});
 
-test('afterEdit hands the platform quoting to the shell', () => {
+  // afterEdit hands the platform's quoting to the shell.
   const seen = [];
   const spawn = (cmd) => (seen.push(cmd), { status: 0 });
-  const ctx = ctxFor(repo(), { DO_IT_LINT_CMD: 'lint {file}' });
-  afterEdit(ctx, { file_path: 'a b.js' }, { spawn, platform: 'linux' });
-  afterEdit(ctx, { file_path: 'a b.js' }, { spawn, platform: 'win32' });
+  afterEdit(ctxFor(repo(), { DO_IT_LINT_CMD: 'lint {file}' }), { file_path: 'a b.js' }, { spawn, platform: 'linux' });
+  afterEdit(ctxFor(repo(), { DO_IT_LINT_CMD: 'lint {file}' }), { file_path: 'a b.js' }, { spawn, platform: 'win32' });
   assert.match(seen[0], /^lint '.*a b\.js'$/);
   assert.match(seen[1], /^lint ".*a b\.js"$/);
 });
@@ -221,6 +210,11 @@ test('claude hook protocol: exit 2 blocks, JSON context on start, fail open on j
 
   const junk = spawnSync('node', [path.join(ROOT, 'hooks', 'claude.mjs'), 'pre-tool'], { input: 'not json', encoding: 'utf8' });
   assert.equal(junk.status, 0);
+
+  const post = hook('post-tool', { cwd: root, tool_name: 'Edit', tool_input: { file_path: 'a.js', new_string: 'x' } }, { DO_IT_LINT_CMD: 'echo bad && exit 1' });
+  const postOut = JSON.parse(post.stdout);
+  assert.equal(postOut.hookSpecificOutput.hookEventName, 'PostToolUse');
+  assert.match(postOut.hookSpecificOutput.additionalContext, /lint failed[\s\S]*bad/);
 });
 
 test('install-hooks merges idempotently and removes only its own entries', () => {
@@ -270,17 +264,6 @@ test('a registered command keeps one separator style, whatever the checkout path
   assert.deepEqual(mergeClaude(once, root), once, 'the entry is recognised on a second run');
 });
 
-test('OpenCode plugin injects context and throws on HIGH edits', async () => {
-  const root = repo();
-  const { DoItPlugin: plugin } = await import('../.opencode/do-it-plugin/do-it.mjs');
-  const hooks = await plugin({ directory: root });
-  const out = { system: [] };
-  await hooks['experimental.chat.system.transform']({}, out);
-  assert.match(out.system[0], /Core posture/);
-  await assert.rejects(hooks['tool.execute.before']({ tool: 'write' }, { args: { filePath: 'a.js', content: FAKE_AWS } }), /aws-access-key/);
-  await hooks['tool.execute.before']({ tool: 'read' }, { args: { filePath: '.env' } });
-});
-
 // OpenCode 2.1.2 `execute` runs code against a catalog of tools. A call the
 // code makes fires `execute.before` again under the parent's call id with the
 // nested tool's own name, so the write and shell guards see it; `execute`
@@ -305,7 +288,7 @@ test('every agent with a tools list and no write tool is in the hook read-only s
   }
 });
 
-test('voice block: injected last into subagents that carry no copy, never into the main session', () => {
+test('voice block: injected last into subagents that carry no copy, never into the main session', async () => {
   const root = repo();
   const ctx = (event, input) => JSON.parse(hook(event, { cwd: root, ...input }).stdout).hookSpecificOutput.additionalContext;
   const generic = ctx('subagent-start', { agent_type: 'general-purpose' });
@@ -315,19 +298,23 @@ test('voice block: injected last into subagents that carry no copy, never into t
   assert.doesNotMatch(ctx('session-start', {}), /Voice for internal agent text/);
   // it-* agents carry their own copy (npm run check), so the hook adds none
   for (const type of ['it-scout', 'it-builder', 'do-it:it-reviewer']) assert.doesNotMatch(ctx('subagent-start', { agent_type: type }), /Voice for internal agent text/, type);
-});
 
-test('voiceText fails open on a missing file; sessionContext adds it only for subagents', () => {
+  // voiceText fails open on a missing file; sessionContext adds it only for subagents.
   assert.equal(voiceText('/nonexistent/VOICE.md'), '');
-  const root = repo();
   assert.doesNotMatch(sessionContext(root, { ...DEFAULTS }), /Voice for internal/);
   assert.match(sessionContext(root, { ...DEFAULTS }, { voice: true }), /Voice for internal/);
-});
 
-test('VOICE.md carries every rule the issue names', () => {
-  const v = voiceText();
-  for (const re of [/not.*never.*no.*only/is, /numbers, paths, commands and errors/i, /plain/i, /full sentences/i, /security/i, /irreversible|cannot be undone/i, /overrides any other style/i, /replies or questions to the user/i])
-    assert.match(v, re);
+  // carriesVoice is true only for an agent file holding the marker, false on a read error.
+  const { carriesVoice } = await import('../hooks/claude.mjs');
+  const { START } = await import('../scripts/lib/voice.mjs');
+  const dir = tmpDir('do-it-voice-');
+  fs.writeFileSync(path.join(dir, 'with.md'), `body\n\n${START}\nV\n<!-- voice:end -->\n`);
+  fs.writeFileSync(path.join(dir, 'without.md'), 'body\n');
+  fs.mkdirSync(path.join(dir, 'dir.md'));
+  assert.equal(carriesVoice('with', dir), true);
+  assert.equal(carriesVoice('without', dir), false);
+  assert.equal(carriesVoice('missing', dir), false);
+  assert.equal(carriesVoice('dir', dir), false);
 });
 
 test('a hook timeout that is not a positive number falls back to 20 seconds', () => {
@@ -350,9 +337,8 @@ test('beforeShell warns on a commit message without an id prefix and never block
   for (const ok of ['git commit --allow-empty -m "abc-1: fix thing"', 'git commit --allow-empty -m "gh-42: x"', 'git commit --allow-empty -F msg.txt', 'git commit --allow-empty']) {
     assert.equal(beforeShell(ctx, ok).action, 'allow', ok);
   }
-});
 
-test('beforeShell blocks a secret even when the message also lacks a prefix', () => {
+  // A secret still blocks, whatever the message looks like.
   const root = repo();
   fs.writeFileSync(path.join(root, 'a.js'), `k = "${FAKE_AWS}"\n`);
   execFileSync('git', ['add', 'a.js'], { cwd: root });

@@ -49,7 +49,9 @@ is as written here.
      [non-interactive form](../scope-it/NONINTERACTIVE.md).
    - (b) Right after it, before build-it, start the slice's clock:
      `work.mjs run start <slug> <slice> --work <work id>`. `<slice>` is the
-     roadmap id (`R<n>`), not the work id.
+     roadmap id (`R<n>`), not the work id. A slice already in flight calls it
+     again when a session resumes it: that closes the old span and opens a new
+     one, so the time no command saw is not charged to the cap.
    - (c) [build-it](../build-it/SKILL.md), its checks run through
      `work.mjs run verify <slug> <slice> [--phase n] [--paths a,b] -- "<checks>"`
      in place of the item-level verify (`--paths`: the slice's mapped files,
@@ -58,9 +60,12 @@ is as written here.
      build-it's `verify-phase`, which stays the command outside a run. A flaky
      result parks the slice (FLAKY, as step 5).
    - (d) Before each prove-it round, `work.mjs run audit <slug> <slice>`. It
-     counts every round started, a re-audit after a fix included; prove-it's own
-     `round` counts only consecutive failed audits, so the two differ and the
-     run's caps follow `run audit`. `allow` false: never start the round; act on
+     counts every round it starts in `audit_rounds` and reads the plan's Musts,
+     so only a round whose findings repeat a Must an earlier round raised spends
+     one of the slice's `audit_cap` rounds; a round that found something new spends none, so
+     a converging audit is not parked. Prove-it's own `round` counts only
+     consecutive failed audits, so the two differ and the run's caps follow
+     `run audit`. `allow` false: never start the round; act on
      `reason` per [STOPS.md](STOPS.md): `SLICE_AUDIT_CAP` parks this slice (the
      script did it; add the open Must findings to the reason) and the loop goes
      on, `AUDIT_CAP` stops the run.

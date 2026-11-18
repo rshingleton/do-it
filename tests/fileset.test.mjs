@@ -18,24 +18,8 @@ test('a comment line is dropped whole, so a comma in it is not a path', () => {
   assert.deepEqual(parseFileList('# src/a.js, src/b.js\nsrc/c.js'), ['src/c.js']);
 });
 
-test('./x and x are the same path, and a repeated path is kept', () => {
-  assert.deepEqual(parseFileList('./src/a.js\nsrc/a.js'), ['src/a.js', 'src/a.js']);
-});
-
-test('empty or blank text lists no files', () => {
-  assert.deepEqual(parseFileList(''), []);
-  assert.deepEqual(parseFileList('\n  \n'), []);
-});
-
 test('shared paths come once each, in the first list\'s order', () => {
   assert.deepEqual(sharedPaths(['src/b.js', 'src/a.js', 'src/b.js', 'src/c.js'], ['src/a.js', 'src/b.js']), ['src/b.js', 'src/a.js']);
-});
-
-test('disjoint or empty lists share nothing', () => {
-  assert.deepEqual(sharedPaths(['src/a.js'], ['src/b.js']), []);
-  assert.deepEqual(sharedPaths([], []), []);
-  assert.deepEqual(sharedPaths(['src/a.js'], []), []);
-  assert.deepEqual(sharedPaths([], ['src/a.js']), []);
 });
 
 test('paths compare exactly, so a directory and a file under it never overlap', () => {

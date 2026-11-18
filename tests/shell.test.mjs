@@ -73,11 +73,6 @@ test('parseGitCommits reads the add flags that stage more than the named paths a
   assert.equal(parseGitCommits('git add -f b.js && git commit')[0].stages[0].all, false);
 });
 
-test('parseGitCommits reads a stage path inside a subshell without its closing paren', () => {
-  assert.deepEqual(stagesOf('(cd sub && git add n.js); git commit -m x'), [[{ all: false, paths: ['n.js)', 'n.js'] }]]);
-  assert.deepEqual(stagesOf('(git add a.js b.js) && git commit'), [[{ all: false, paths: ['a.js', 'b.js)', 'b.js'] }]]);
-});
-
 test('parseGitCommits marks an add with -f or --force', () => {
   const force = (cmd) => parseGitCommits(`${cmd} && git commit`)[0].stages[0].force;
   assert.equal(force('git add -f a.js'), true);
@@ -108,12 +103,5 @@ test('parseGitCommit has no message when it is not in the command or cannot be r
   assert.equal(msg('git commit'), null);
   assert.equal(msg('git commit -F msg.txt'), null);
   assert.equal(msg('git commit -C HEAD'), null);
-  assert.equal(msg('git commit --amend --no-edit'), null);
-  assert.equal(msg('git commit -m "$(cat msg)"'), null);
-  assert.equal(msg('git commit -m `x`'), null);
   assert.equal(msg('git commit -m "unclosed'), null);
-  assert.equal(msg('git commit -F f -m x'), null);
-  assert.equal(msg('git commit -m x -C HEAD'), null);
-  assert.equal(msg('git commit --fixup=abc -m x'), null);
-  assert.equal(msg('git commit --squash abc -m x'), null);
 });

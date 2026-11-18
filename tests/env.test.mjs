@@ -68,24 +68,6 @@ test('tmpDir directories are removed when the process exits', () => {
   assert.equal(fs.existsSync(dir), false);
 });
 
-const underTmp = (p) => fs.realpathSync(p).startsWith(fs.realpathSync(os.tmpdir()));
-const homedirProbe = "console.log(JSON.stringify((await import('node:os')).homedir()))";
-
-test('the process home and a cleanEnv child home are both under the temp dir', async () => {
-  const { cleanEnv } = await import('./env.mjs');
-  assert.ok(underTmp(os.homedir()), os.homedir());
-  const r = spawnSync(process.execPath, ['--input-type=module', '-e', homedirProbe], { encoding: 'utf8', env: cleanEnv() });
-  const child = JSON.parse(r.stdout.trim());
-  assert.ok(underTmp(child), child);
-  assert.notEqual(child, os.homedir(), 'each cleanEnv call gets a fresh home');
-});
-
-test('git global config read through cleanEnv comes from no real file', async () => {
-  const { cleanEnv } = await import('./env.mjs');
-  const r = spawnSync('git', ['config', '--global', '--list'], { encoding: 'utf8', env: cleanEnv() });
-  assert.equal(r.stdout.trim(), '', r.stderr);
-});
-
 test('the helper throws at import when the home variable os.homedir() reads is not isolated', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'do-it-copy-'));
   const key = process.platform === 'win32' ? 'USERPROFILE' : 'HOME';

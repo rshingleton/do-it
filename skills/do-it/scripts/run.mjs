@@ -98,7 +98,8 @@ function validate(key, value) {
     case 'max_slices':
       return cap('max_slices', value, { optional: true });
     case 'slice_cap_min':
-      return cap('slice_cap_min', value);
+      // Empty is the off switch, as it is for max_slices.
+      return cap('slice_cap_min', value, { optional: true });
     case 'audit_cap':
       return cap('audit_cap', value);
     case 'final_audit_cap':
@@ -149,7 +150,50 @@ export function updateRun(planningDir, slug, change) {
   return cur.record;
 }
 
-// `defaults` carries the config's caps; a flag in `opts` wins over it.
+// Close a slice's open in-flight span (`g`, a gates entry) at `at` and add it to `active_ms`. The
+// close is clamped at zero, so a stamp before the span opened never refunds work. It stops at
+// `last_seen` when that is earlier, so the gap since the last evidence of work is not charged. A
+// record written before spans opened one at `started` and has no `last_seen`: it closes where it
+// began, charging nothing, and `active_ms` marks it closed so `gate` stops reading the fallback.
+export function closeSpan(g, at) {
+  if (!g) return;
+  if (!g.active_since && g.active_ms !== undefined) return;
+  // A record written before spans has no open span to close: drop its `started` fallback rather
+  // than bank a wall clock no command ever measured. It gated from `started` until this moment.
+  if (!g.active_since) {
+    if (g.started === undefined) return;
+    g.active_ms = 0;
+    delete g.started;
+    clampWaited(g);
+    return;
+  }
+  const start = Date.parse(g.active_since);
+  if (!Number.isFinite(start)) return;
+  const seen = g.last_seen === undefined ? start : Date.parse(g.last_seen);
+  const end = Math.min(Date.parse(at), Number.isFinite(seen) ? seen : start);
+  if (!Number.isFinite(end)) return;
+  g.active_ms = (Number(g.active_ms) || 0) + Math.max(0, end - start);
+  delete g.active_since;
+  clampWaited(g);
+}
+
+// A queue credit only offsets queue time inside the spans it was recorded with. A close that banks
+// no span (a stamp before it opened, a pre-span record) drops the credit with it, so the next span
+// is never charged less than it worked.
+function clampWaited(g) {
+  if (g.waited_ms === undefined) return;
+  g.waited_ms = Math.min(Number(g.waited_ms) || 0, Number(g.active_ms) || 0);
+  if (!g.waited_ms) delete g.waited_ms;
+}
+
+// Opening a span: close the old one where the last command saw it, then start the new one here.
+export function openSpan(g, at) {
+  if (!g) return;
+  closeSpan(g, at);
+  g.active_since = at;
+  g.last_seen = at;
+}
+
 export function createRun(planningDir, slug, opts, defaults, { now = () => new Date().toISOString() } = {}) {
   checkSlug(slug);
   const file = runPath(planningDir, slug);
@@ -169,7 +213,7 @@ export function createRun(planningDir, slug, opts, defaults, { now = () => new D
     // The commit HEAD resolved to at run new: the final review's fixed point. null outside git.
     base: opts.base ?? null,
     max_slices: cap('max_slices', opts['max-slices'] ?? defaults.DO_IT_MAX_SLICES, { optional: true }),
-    slice_cap_min: cap('slice_cap_min', opts['slice-cap-min'] ?? defaults.DO_IT_SLICE_CAP_MIN),
+    slice_cap_min: cap('slice_cap_min', opts['slice-cap-min'] ?? defaults.DO_IT_SLICE_CAP_MIN, { optional: true }),
     // Audit rounds: `audit_cap` per slice, `final_audit_cap` for the final review, `audit_total_cap`
     // over every slice's rounds (unset: max_slices x audit_cap when max_slices is set, else none).
     // A round `run audit` turns away is remembered as `audit_refused` on the slice's gates entry or
@@ -237,8 +281,9 @@ export function rejectAssumption(planningDir, slug, key, instead) {
 }
 
 // A slice moves to shipped, parked (with a reason and who must act) or
-// blocked (waiting on a parked slice). A shipped slice never moves again.
-export function sliceRun(planningDir, slug, id, status, { reason, needs } = {}) {
+// blocked (waiting on a parked slice). A shipped slice never moves again. A park closes the slice's
+// in-flight span, so the time it waits outside the loop is not work.
+export function sliceRun(planningDir, slug, id, status, { reason, needs, at } = {}) {
   if (!id) throw new Error('run slice needs a slice id');
   oneOf('status', status, SLICE_STATUSES);
   const entry = { id, status };
@@ -251,13 +296,16 @@ export function sliceRun(planningDir, slug, id, status, { reason, needs } = {}) 
     const prior = r.slices.find((s) => s.id === id);
     if (prior?.status === 'shipped') throw new Error(`slice ${id} is shipped; a shipped slice does not move`);
     r.slices = prior ? r.slices.map((s) => (s.id === id ? entry : s)) : [...r.slices, entry];
+    // Parked and shipped both stop the clock: a slice that left the queue is not still working.
+    if (status === 'parked' || status === 'shipped') closeSpan((r.gates ?? []).find((g) => g.id === id), at ?? new Date().toISOString());
   });
 }
 
 // Resume (`run slice <id> ready`): the user settled what parked the slice, so it rejoins the queue.
-// What it was is kept in `retries`, so the digest can say how the retry ended, and its audit rounds
-// start again: what stopped it is settled.
-export function resumeSlice(planningDir, slug, id) {
+// What it was is kept in `retries`, so the digest can say how the retry ended, and its audit counters
+// start again: what stopped it is settled, and the Musts it raised are not held against it. A fresh
+// span opens here, so the parked time and the gap since it are not work.
+export function resumeSlice(planningDir, slug, id, { at = new Date().toISOString() } = {}) {
   if (!id) throw new Error('run slice needs a slice id');
   return updateRun(planningDir, slug, (r) => {
     const prior = r.slices.find((s) => s.id === id);
@@ -269,7 +317,11 @@ export function resumeSlice(planningDir, slug, id) {
     const g = (r.gates ?? []).find((x) => x.id === id);
     if (g) {
       delete g.audit_rounds;
+      delete g.audit_spent;
+      delete g.last_musts;
+      delete g.seen_musts;
       delete g.audit_refused;
+      openSpan(g, at);
     }
   });
 }

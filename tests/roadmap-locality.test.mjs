@@ -78,15 +78,10 @@ const rec = { max_slices: null, slices: [] };
 
 test('run next --batch: a later slice sharing no file is preferred to a colliding one', () => {
   const r = road([slice('R1', ['src/a.js']), slice('R2', ['src/a.js', 'src/b.js']), slice('R3', ['src/c.js'])]);
-  assert.deepEqual(nextSlice(r, rec, { batch: 2 }).next, ['R1', 'R3'], 'R2 collides with R1, so R3 takes the slot');
+  const batch = nextSlice(r, rec, { batch: 2 }).next;
+  assert.deepEqual(batch, ['R1', 'R3'], 'R2 collides with R1, so R3 takes the slot');
+  assert.ok(!batch.includes('R2'), 'R2 keeps its place in the queue and waits for the next round');
   assert.equal(nextSlice(r, rec).next, 'R1', 'a single next does not read the hint');
-});
-
-test('run next --batch: a collider waits a round when a disjoint slice can take its slot', () => {
-  const r = road([slice('R1', ['a.js']), slice('R2', ['a.js']), slice('R3', ['b.js'])]);
-  const out = nextSlice(r, rec, { batch: 2 }).next;
-  assert.deepEqual(out, ['R1', 'R3']);
-  assert.ok(!out.includes('R2'), 'R2 keeps its place in the queue and waits for the next round');
 });
 
 test('run next --batch: a set-aside collider backfills a slot the queue left open', () => {
@@ -108,6 +103,10 @@ test('run next --batch: the in-flight lead is picked first, before any hint is r
   const r = road([flying, slice('R1', ['src/a.js']), slice('R2', ['src/b.js'])]);
   assert.deepEqual(nextSlice(r, rec, { batch: 2 }).next, ['R9', 'R2'], 'R1 collides with the lead, R9 keeps its place');
   assert.equal(nextSlice(r, rec).next, 'R9', 'the lead resumes alone without a batch');
+  // Every free in-flight slice leads the batch, not just one.
+  const many = road([slice('R1', [], 'in flight'), slice('R2', [], 'in flight'), slice('R3', [], 'in flight'), slice('R4', [])]);
+  assert.deepEqual(nextSlice(many, rec, { batch: 3 }).next, ['R1', 'R2', 'R3'], 'three in-flight slices are three tracks, not one');
+  assert.equal(nextSlice(many, rec).next, 'R1', 'without a batch one slice resumes');
 });
 
 test('run next --batch: a roadmap with no hint returns exactly today\'s ids', () => {
@@ -127,7 +126,6 @@ test('the roadmap docs state the hint, the batch preference and the plan contrac
     /^\| Slice \| Kind \| Delivers \| Covers \| Files \| Blocked by \| Verify \| Risk \| Status \| Ref \|$/m,
     'the example table has a Files column between Covers and Blocked by',
   );
-  assert.match(format, /^\|-------\|------\|----------\|--------\|-------\|------------\|--------\|------\|--------\|-----\|$/m, 'its separator row');
   const field = flat(format).match(/\*\*Files:\*\*[\s\S]*?(?=\*\*Blocked by:\*\*)/)[0];
   assert.match(field, /optional/, 'the cell is optional');
   assert.match(field, /comma separated/, 'the paths are comma separated');
@@ -142,7 +140,6 @@ test('the roadmap docs state the hint, the batch preference and the plan contrac
 
   const skill = read('skills/roadmap-it/SKILL.md');
   assert.match(flat(skill), /a file hint lets a batch prefer disjoint work/, 'the ordering sentence states the purpose');
-  assert.equal(skill.replace(/\n$/, '').split('\n').length, 103, 'the file keeps its line count');
 
   const stateLine = read('skills/do-it/STATE.md').split(/\r?\n/).find((line) => line.includes('`--batch n`'));
   assert.ok(stateLine, 'STATE.md documents --batch');

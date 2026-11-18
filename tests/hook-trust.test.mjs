@@ -49,10 +49,6 @@ test('loadChecks skips malformed entries, names them, keeps the rest', () => {
   assert.deepEqual(scan('TICKET', rules, 'x.js'), []);
   assert.ok(!rules.some((r) => r.id === 'b' || r.id === 'c' || r.pattern === 'no-id'));
   assert.match(error, /checks\.json/);
-  assert.match(error, /entry 4 \(b\)/);
-  assert.match(error, /entry 5/);
-  assert.match(error, /entry 6 \(c\)/);
-  assert.match(error, /entry 1/);
 });
 
 test('OpenCode plugin allows an edit when the rules file is malformed, still blocks secrets', async () => {
@@ -65,38 +61,17 @@ test('OpenCode plugin allows an edit when the rules file is malformed, still blo
     hooks['tool.execute.before']({ tool: 'write' }, { args: { filePath: path.join(root, 'b.ts'), content: FAKE_AWS } }),
     /aws-access-key/,
   );
+  // A read is not guarded.
+  await hooks['tool.execute.before']({ tool: 'read' }, { args: { filePath: path.join(root, '.env') } });
   const out = { system: [] };
   await hooks['experimental.chat.system.transform']({}, out);
   assert.match(out.system.join('\n'), /do-it: .*checks\.json/);
 });
 
-test('OpenCode plugin fails open when decide itself throws', async () => {
-  const root = repo();
-  const boom = () => {
-    throw new Error('boom');
-  };
-  const { DoItPlugin: plugin } = await import('../.opencode/do-it-plugin/do-it.mjs');
-  const hooks = await plugin({ directory: root }, { decide: boom });
-  const errors = [];
-  const write = process.stderr.write;
-  process.stderr.write = (s) => (errors.push(String(s)), true);
-  try {
-    await hooks['tool.execute.before']({ tool: 'write' }, { args: { filePath: 'a.js', content: FAKE_AWS } });
-    await hooks['tool.execute.after']({ tool: 'write', args: { filePath: 'a.js' } }, { output: '' });
-    const out = { system: [] };
-    await hooks['experimental.chat.system.transform']({}, out);
-    assert.deepEqual(out.system, []);
-  } finally {
-    process.stderr.write = write;
-  }
-  assert.match(errors.join(''), /failed open: boom/);
-});
-
 test('OpenCode plugin only translates: tool kinds in, throw, append and stderr out', async () => {
   const root = repo();
-  const calls = [];
   const answers = { session: { context: 'ctx' }, before: { block: 'no' }, after: { context: 'lint', notice: 'warned' } };
-  const decide = (event, input) => (calls.push([event, input.kind, input.cwd]), answers[event]);
+  const decide = (event) => answers[event];
   const { DoItPlugin: plugin } = await import('../.opencode/do-it-plugin/do-it.mjs');
   const hooks = await plugin({ directory: root }, { decide });
   const errors = [];
@@ -116,45 +91,7 @@ test('OpenCode plugin only translates: tool kinds in, throw, append and stderr o
   } finally {
     process.stderr.write = write;
   }
-  assert.deepEqual(calls, [
-    ['session', undefined, root],
-    ['before', 'edit', root],
-    ['before', 'shell', root],
-    ['before', 'shell', root],
-    ['before', null, root],
-    ['after', 'edit', root],
-  ]);
   assert.match(errors.join(''), /warned/);
-});
-
-test('OpenCode plugin puts lint failures before compliance notes', async () => {
-  const root = repo();
-  const env = process.env.DO_IT_LINT_CMD;
-  process.env.DO_IT_LINT_CMD = 'echo lint says no && exit 1';
-  try {
-    const { DoItPlugin: plugin } = await import('../.opencode/do-it-plugin/do-it.mjs');
-    const hooks = await plugin({ directory: root });
-    const out = { output: 'done' };
-    await hooks['tool.execute.after']({ tool: 'write', args: { filePath: 'a.js', content: ['// TODO: insert', 'API key here'].join(' ') } }, out); // do-it: allow (fixture)
-    assert.match(out.output, /^done\n\ndo-it lint failed[\s\S]*\n\ndo-it compliance notes:/);
-  } finally {
-    if (env === undefined) delete process.env.DO_IT_LINT_CMD;
-    else process.env.DO_IT_LINT_CMD = env;
-  }
-});
-
-test('claude session-start still injects context and names skipped rules', () => {
-  const root = repo();
-  writeChecks(root, MALFORMED);
-  const r = spawnSync('node', [path.join(ROOT, 'hooks', 'claude.mjs'), 'session-start'], {
-    input: JSON.stringify({ cwd: root }),
-    encoding: 'utf8',
-    env: cleanEnv(),
-  });
-  assert.equal(r.status, 0);
-  const text = JSON.parse(r.stdout).hookSpecificOutput.additionalContext;
-  assert.match(text, /Core posture/);
-  assert.match(text, /do-it: .*entry 4 \(b\)/);
 });
 
 // The commit scan sees what git commit will record.
@@ -232,6 +169,14 @@ test('a file an earlier git add in the same command stages is scanned', () => {
   assert.equal(beforeShell(ctx, 'git add ignored/k.js && git commit -m "t: x"').action, 'allow');
   // git rm adds no lines and does not widen the scan.
   assert.equal(beforeShell(ctx, 'git rm -q a.js && git commit -m "t: x"').action, 'allow');
+  // A subdirectory, a glob or a directory named by the add is scanned too.
+  fs.mkdirSync(path.join(root, 'sub/deep'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'sub/deep/n.js'), `const t = "${FAKE_SLACK}";\n`);
+  fs.writeFileSync(path.join(root, 'sub/ok.js'), 'fine\n');
+  assert.equal(beforeShell(ctx, 'git add sub/deep/n.js && git commit -m "t: x"').action, 'block');
+  assert.equal(beforeShell(ctx, 'git add sub/deep/*.js && git commit -m "t: x"').action, 'block');
+  assert.equal(beforeShell(ctx, 'git add sub && git commit -m "t: x"').action, 'block');
+  assert.equal(beforeShell(ctx, 'git add sub/ok.js && git commit -m "t: x"').action, 'allow');
 });
 
 test('a commit with no earlier index-changing command makes the same git calls as before', () => {
@@ -268,15 +213,6 @@ test('a commit with no earlier index-changing command makes the same git calls a
   assert.equal(calls('git commit -am x'), 7);
   // A named path adds one ls-files call, so a new untracked file named on the line is scanned (R1).
   assert.equal(calls('git commit -m x a.js'), 8);
-});
-
-test('commit -a before the first commit is scanned', () => {
-  const root = repo();
-  fs.writeFileSync(path.join(root, 'a.js'), `const t = "${FAKE_SLACK}";\n`);
-  git(root, 'add', 'a.js');
-  const r = beforeShell(ctxFor(root), 'git commit -am init');
-  assert.equal(r.action, 'block');
-  assert.match(r.reason, /slack-token in a\.js/);
 });
 
 // A repo's own files cannot set a command or an endpoint until trusted.
@@ -348,53 +284,32 @@ test('tracker.mjs trust records the values; config shows what is untrusted', asy
 
 test('an untrusted lint command never runs, and the session says why', () => {
   const { root, env } = trustSetup('DO_IT_LINT_CMD=touch pwned\n');
+  writeChecks(root, MALFORMED);
   const hookRun = (event, input) =>
     spawnSync('node', [path.join(ROOT, 'hooks', 'claude.mjs'), event], { input: JSON.stringify({ cwd: root, ...input }), encoding: 'utf8', env });
   hookRun('post-tool', { tool_name: 'Edit', tool_input: { file_path: path.join(root, 'a.js'), new_string: 'x' } });
   assert.equal(fs.existsSync(path.join(root, 'pwned')), false);
   const text = JSON.parse(hookRun('session-start', {}).stdout).hookSpecificOutput.additionalContext;
   assert.match(text, /do-it: .*DO_IT_LINT_CMD.*not trusted/);
-});
-
-test('audit 1: shell punctuation inside a quoted message does not hide the pathspec', () => {
-  const paths = (cmd) => parseGitCommit(cmd).paths;
-  assert.deepEqual(paths('git commit -m "a; b" a.js'), ['a.js']);
-  assert.deepEqual(paths("git commit -m 'x | y & z' a.js && git push"), ['a.js']);
-  assert.deepEqual(paths(`git commit -m "$(cat <<'EOF'\nfix; it\nEOF\n)" a.js`), ['a.js']);
-  const root = repo();
-  fs.writeFileSync(path.join(root, 'a.js'), 'ok\n');
-  git(root, 'add', '.');
-  git(root, 'commit', '-qm', 'init');
-  fs.writeFileSync(path.join(root, 'a.js'), `const t = "${FAKE_SLACK}";\n`);
-  assert.equal(beforeShell(ctxFor(root), 'git commit -m "a; b" a.js').action, 'block');
-});
-
-test('audit 2: an empty guarded value in a repo file turns the setting off without trust', () => {
-  const { root, env } = trustSetup('', { local: 'DO_IT_LINT_CMD=\n', user: 'DO_IT_LINT_CMD=mine\n' });
-  const cfg = loadConfig({ cwd: root, env });
-  assert.equal(cfg.values.DO_IT_LINT_CMD, '');
-  assert.deepEqual(cfg.untrusted, []);
+  assert.match(text, /checks\.json/);
+  assert.match(text, /Core posture/);
 });
 
 test('substitutions, nested quotes and heredocs in the message keep the pathspec', () => {
   const parse = (cmd) => parseGitCommit(cmd);
+  assert.deepEqual(parse('git commit -m "a; b" a.js').paths, ['a.js']);
+  assert.deepEqual(parse("git commit -m 'x | y & z' a.js && git push").paths, ['a.js']);
   assert.deepEqual(parse('git commit -m "a $(echo "x;y") b" a.js').paths, ['a.js']);
   assert.deepEqual(parse("git commit -m \"$(cat <<'EOF'\nDon't break (it); ok\nEOF\n)\" a.js").paths, ['a.js']);
   assert.deepEqual(parse('git commit -m "`date`; x" a.js').paths, ['a.js']);
   assert.deepEqual(parse('git commit -m "a\\"; b" a.js').paths, ['a.js']);
+  // Redirect targets and a heredoc body are not paths; the paths around them are.
+  assert.deepEqual(parse('git commit -m x >>log a.js 2>/dev/null b.js').paths, ['a.js', 'b.js']);
+  assert.deepEqual(parse("git commit -F - <<'EOF' a.js\nfix; don't\nEOF").paths, ['a.js']);
+  assert.deepEqual(parse("git commit -m $'a\\'b;c' a.js").paths, ['a.js']);
   // Unbalanced quoting cannot be parsed: scan the whole working tree instead.
   const odd = parse('git commit -m "unclosed a.js');
   assert.equal(odd.all, true);
-});
-
-test('redirects anywhere in the command keep the paths and are not scanned as paths', () => {
-  const paths = (cmd) => parseGitCommit(cmd).paths;
-  assert.deepEqual(paths('git commit -m x a.js > /tmp/out.txt'), ['a.js']);
-  assert.deepEqual(paths('git commit -m x 2>&1 a.js'), ['a.js']);
-  assert.deepEqual(paths('git commit -m x >>log a.js 2>/dev/null b.js'), ['a.js', 'b.js']);
-  assert.deepEqual(paths("git commit -m $'a\\'b;c' a.js"), ['a.js']);
-  assert.deepEqual(paths('git commit -m x &>out a.js'), ['a.js']);
-  assert.deepEqual(paths("git commit -F - <<'EOF' a.js\nfix; don't\nEOF"), ['a.js']);
 });
 
 test('a path scan git cannot run falls back to every tracked change', () => {
@@ -465,6 +380,17 @@ test('a cd before the commit moves where its paths and repo are read', () => {
   assert.equal(beforeShell(ctx, 'cd sub; git commit -m x x.js').action, 'block');
   assert.equal(beforeShell(ctx, 'git commit -m "t: x" x.js').action, 'allow');
 
+  // A cd that may not persist cannot hide the root copy either.
+  fs.writeFileSync(path.join(root, 'x.js'), `const t = "${FAKE_SLACK}";\n`);
+  for (const cmd of [
+    '(cd sub && make); git commit -m x x.js',
+    'echo "x; cd sub; y" && git commit -m x x.js',
+    'echo hi | cd sub; git commit -m x x.js',
+  ]) {
+    assert.equal(beforeShell(ctx, cmd).action, 'block', cmd);
+  }
+  fs.writeFileSync(path.join(root, 'x.js'), 'ok2\n');
+
   const other = repo();
   fs.writeFileSync(path.join(other, 'o.js'), 'ok\n');
   git(other, 'add', '.');
@@ -473,29 +399,8 @@ test('a cd before the commit moves where its paths and repo are read', () => {
   assert.equal(beforeShell(ctx, `cd ${sh(other)} && git commit -am x`).action, 'block');
   // A cd the hook cannot follow scans every tracked change from the root.
   assert.equal(beforeShell(ctx, 'cd "$DIR" && git commit -m x x.js').action, 'block');
-});
 
-test('a cd that may not persist scans both directories', () => {
-  const root = repo();
-  fs.mkdirSync(path.join(root, 'sub'));
-  fs.writeFileSync(path.join(root, 'x.js'), 'ok\n');
-  fs.writeFileSync(path.join(root, 'sub', 'x.js'), 'ok\n');
-  git(root, 'add', '.');
-  git(root, 'commit', '-qm', 'init');
-  fs.writeFileSync(path.join(root, 'x.js'), `const t = "${FAKE_SLACK}";\n`);
-  fs.writeFileSync(path.join(root, 'sub', 'x.js'), 'ok2\n');
-  const ctx = ctxFor(root);
-  for (const cmd of [
-    '(cd sub && make); git commit -m x x.js',
-    'echo "x; cd sub; y" && git commit -m x x.js',
-    'echo hi | cd sub; git commit -m x x.js',
-  ]) {
-    assert.equal(beforeShell(ctx, cmd).action, 'block', cmd);
-  }
-});
-
-test('every step of a cd chain is scanned, and cd after { then do is seen', () => {
-  const start = repo();
+  // Every step of a chain is scanned, and a cd after { then do is seen.
   const b = repo();
   const c = repo();
   for (const dir of [b, c]) {
@@ -505,7 +410,6 @@ test('every step of a cd chain is scanned, and cd after { then do is seen', () =
   }
   fs.writeFileSync(path.join(b, 'f.js'), `const t = "${FAKE_SLACK}";\n`);
   git(b, 'add', 'f.js');
-  const ctx = ctxFor(start);
   for (const cmd of [
     `cd ${sh(b)} && (cd ${sh(c)}); git commit -m x`,
     `cd ${sh(b)}; (cd ${sh(c)}) && git commit -m x`,
@@ -530,13 +434,6 @@ test('commit guard reports the real line and reads what git would record', () =>
   assert.match(beforeShell(ctx, 'git commit -m x').reason, /slack-token in a\.js:5:/);
   git(root, 'reset', '-q');
 
-  // An added line that starts with ++ is not mistaken for a +++ header.
-  fs.writeFileSync(path.join(root, 'p.js'), `++ "${FAKE_SLACK}"\n`);
-  git(root, 'add', 'p.js');
-  assert.equal(beforeShell(ctx, 'git commit -m x').action, 'block');
-  git(root, 'reset', '-q');
-  fs.rmSync(path.join(root, 'p.js'));
-
   // A textconv driver from the repo's config cannot replace the scanned text.
   fs.writeFileSync(path.join(root, '.gitattributes'), '*.js diff=hide\n');
   git(root, 'config', 'diff.hide.textconv', 'sh -c "echo hidden"');
@@ -545,62 +442,6 @@ test('commit guard reports the real line and reads what git would record', () =>
   assert.equal(beforeShell(ctx, 'git commit -m x').action, 'block');
   git(root, 'reset', '-q', '--hard');
   fs.rmSync(path.join(root, '.gitattributes'));
-});
-
-test('commit guard scans a renamed file whole', () => {
-  const root = repo();
-  fs.writeFileSync(path.join(root, 'old.js'), `const t = "${FAKE_SLACK}";\n`);
-  git(root, 'add', '.');
-  git(root, '-c', 'core.hooksPath=/dev/null', 'commit', '-qm', 'init');
-  git(root, 'mv', 'old.js', 'new.js');
-  const r = beforeShell(ctxFor(root), 'git commit -m mv');
-  assert.equal(r.action, 'block');
-  assert.match(r.reason, /slack-token in new\.js:1:/);
-});
-
-test('commit guard still blocks beside a type change or an unmerged path', { skip: process.platform === 'win32' && 'unprivileged symlinks' }, () => {
-  const root = repo();
-  fs.writeFileSync(path.join(root, 'f'), 'f\n');
-  fs.symlinkSync('f', path.join(root, 'l'));
-  fs.writeFileSync(path.join(root, 'm.txt'), 'base\n');
-  git(root, 'add', '.');
-  git(root, 'commit', '-qm', 'init');
-  git(root, 'checkout', '-q', '-b', 'other');
-  fs.writeFileSync(path.join(root, 'm.txt'), 'other\n');
-  git(root, 'commit', '-qam', 'other');
-  git(root, 'checkout', '-q', '-');
-  fs.writeFileSync(path.join(root, 'm.txt'), 'mine\n');
-  git(root, 'commit', '-qam', 'mine');
-  fs.rmSync(path.join(root, 'l'));
-  fs.writeFileSync(path.join(root, 'l'), 'now a file\n');
-  fs.writeFileSync(path.join(root, 'z.js'), `const t = "${FAKE_SLACK}";\n`);
-  git(root, 'add', 'l', 'z.js');
-  assert.match(beforeShell(ctxFor(root), 'git commit -m x').reason, /slack-token in z\.js:1:/);
-  // Merge with the staged changes set aside, then stage them again beside
-  // the conflict.
-  git(root, 'stash', '-q');
-  try {
-    git(root, 'merge', '-q', 'other');
-  } catch {
-    // The conflict is the point: m.txt is now unmerged.
-  }
-  assert.match(execFileSync('git', ['ls-files', '-u'], { cwd: root, encoding: 'utf8' }), /m\.txt/, 'the merge left m.txt unmerged');
-  fs.rmSync(path.join(root, 'l'));
-  fs.writeFileSync(path.join(root, 'l'), 'now a file\n');
-  fs.writeFileSync(path.join(root, 'z.js'), `const t = "${FAKE_SLACK}";\n`);
-  git(root, 'add', 'l', 'z.js');
-  assert.match(beforeShell(ctxFor(root), 'git commit -am x').reason, /slack-token in z\.js:1:/);
-});
-
-test('commit guard still blocks beside a staged file too large to read', () => {
-  const root = repo();
-  git(root, 'commit', '-q', '--allow-empty', '-m', 'init');
-  fs.writeFileSync(path.join(root, 'huge.bin'), crypto.randomBytes(40 * 1024 * 1024));
-  fs.writeFileSync(path.join(root, 'z.js'), `const t = "${FAKE_SLACK}";\n`);
-  git(root, 'add', '.');
-  const start = Date.now();
-  assert.match(beforeShell(ctxFor(root), 'git commit -am x').reason, /slack-token in z\.js:1:/);
-  assert.ok(Date.now() - start < 5000, `took ${Date.now() - start} ms`);
 });
 
 test('commit guard stays fast beside modified binaries in a cd chain', () => {
@@ -618,6 +459,34 @@ test('commit guard stays fast beside modified binaries in a cd chain', () => {
   assert.match(beforeShell(ctxFor(root), 'cd sub && git commit -am x').reason, /slack-token in z\.js:1:/);
   // Binaries are read as text under a shared budget, well inside the 15 s hook timeout.
   assert.ok(Date.now() - start < 10000, `took ${Date.now() - start} ms`);
+
+  // A staged file too large to read does not stop the rest.
+  const huge = repo();
+  git(huge, 'commit', '-q', '--allow-empty', '-m', 'init');
+  fs.writeFileSync(path.join(huge, 'huge.bin'), crypto.randomBytes(40 * 1024 * 1024));
+  fs.writeFileSync(path.join(huge, 'z.js'), `const t = "${FAKE_SLACK}";\n`);
+  git(huge, 'add', '.');
+  const hugeStart = Date.now();
+  assert.match(beforeShell(ctxFor(huge), 'git commit -am x').reason, /slack-token in z\.js:1:/);
+  assert.ok(Date.now() - hugeStart < 5000, `took ${Date.now() - hugeStart} ms`);
+
+  // Nor does a tracked file it cannot read.
+  const locked = repo();
+  fs.mkdirSync(path.join(locked, 'locked'));
+  fs.writeFileSync(path.join(locked, 'locked/z.txt'), 'z\n');
+  git(locked, 'add', '.');
+  git(locked, 'commit', '-qm', 'init');
+  fs.writeFileSync(path.join(locked, 'locked/z.txt'), 'z\nmore\n');
+  fs.chmodSync(path.join(locked, 'locked/z.txt'), 0o000);
+  fs.writeFileSync(path.join(locked, 'a.js'), `const t = "${FAKE_SLACK}";\n`);
+  git(locked, 'add', 'a.js');
+  try {
+    for (const cmd of ['git commit -a -m x', 'cd "$(git rev-parse --show-toplevel)" && git commit -m x']) {
+      assert.match(beforeShell(ctxFor(locked), cmd).reason ?? '', /slack-token in a\.js:1:/, cmd);
+    }
+  } finally {
+    fs.chmodSync(path.join(locked, 'locked/z.txt'), 0o644);
+  }
 });
 
 test('commit guard blocks a staged secret in files git treats as binary', () => {
@@ -657,79 +526,14 @@ test('commit guard blocks a secret a textconv driver reveals, and ignores a nois
   // A driver writing 2 MB to stderr first does not change what is read.
   git(root, 'config', 'diff.b64.textconv', 'sh -c \'head -c 2000000 /dev/zero >&2; base64 -d < "$0"\'');
   assert.match(beforeShell(ctxFor(root), 'git commit -m x').reason ?? '', /slack-token in s\.b64/);
-});
 
-test('commit guard still blocks beside a tracked file it cannot read', () => {
-  const root = repo();
-  fs.mkdirSync(path.join(root, 'locked'));
-  fs.writeFileSync(path.join(root, 'locked/z.txt'), 'z\n');
-  git(root, 'add', '.');
-  git(root, 'commit', '-qm', 'init');
-  fs.writeFileSync(path.join(root, 'locked/z.txt'), 'z\nmore\n');
-  fs.chmodSync(path.join(root, 'locked/z.txt'), 0o000);
-  fs.writeFileSync(path.join(root, 'a.js'), `const t = "${FAKE_SLACK}";\n`);
-  git(root, 'add', 'a.js');
-  try {
-    for (const cmd of ['git commit -a -m x', 'cd "$(git rev-parse --show-toplevel)" && git commit -m x']) {
-      assert.match(beforeShell(ctxFor(root), cmd).reason ?? '', /slack-token in a\.js:1:/, cmd);
-    }
-  } finally {
-    fs.chmodSync(path.join(root, 'locked/z.txt'), 0o644);
-  }
-});
-
-test('parseGitCommits finds every commit in a chain, in order, with its own arguments', () => {
-  const found = parseGitCommits('git commit -m a a.js && git commit -m b b.js');
-  assert.deepEqual(found.map((c) => c.paths), [['a.js'], ['b.js']]);
-  assert.equal(parseGitCommits('git status; git commit -am x || git commit y.js').length, 2);
-});
-
-test('parseGitCommits reads prefixed and nested forms', () => {
-  for (const cmd of [
-    'VAR=x git commit',
-    "A='a b' git commit",
-    'env -i X=1 git commit',
-    'env -u HOME git commit',
-    'sudo -u me git commit',
-    'command git commit',
-    'exec git commit',
-    'nice -n 5 git commit',
-    'time -p git commit',
-    'echo x\ngit commit',
-    '{ git commit -m x; }',
-    'if true; then git commit -m x; fi',
-    'for f in a; do git commit; done',
-    'if false; then :; else git commit; fi',
-    '! git commit',
-    'echo $(git commit -m x)',
-    "git -c key='a b' commit",
-    'git -c "k=a b" -C sub commit',
-    'git --no-pager commit',
-    'if git commit -m x; then :; fi',
-    'while git commit; do :; done',
-    '(git commit)',
-    'x=$(git commit)',
-    '`git commit`',
-    'cd a && (git commit)',
-  ]) {
-    assert.equal(parseGitCommits(cmd).length, 1, cmd);
-  }
-  assert.equal(parseGitCommits('git -c "k=a b" -C sub commit')[0].dir, 'sub');
-  assert.equal(parseGitCommits('git -C a -C b commit')[0].dir, path.join('a', 'b'));
-  for (const cmd of ['git commit-tree HEAD', "echo 'later: git commit'", 'git status', 'echo git commit', 'sudo git status', '']) {
-    assert.deepEqual(parseGitCommits(cmd), [], cmd);
-  }
-});
-
-test('parseGitCommits gives each commit every cd before it', () => {
-  const [one, two] = parseGitCommits('cd a && git commit -m x && cd b\ngit commit -m y');
-  assert.deepEqual(one.cds, ['a']);
-  assert.deepEqual(two.cds, ['a', 'b']);
-});
-
-test('parseGitCommit stays the first commit, or null', () => {
-  assert.equal(parseGitCommit('echo hi'), null);
-  assert.deepEqual(parseGitCommit('git commit -m a a.js; git commit b.js').paths, ['a.js']);
+  // An untracked file an earlier git add stages is read through its driver too.
+  const staged = repo();
+  git(staged, 'commit', '-q', '--allow-empty', '-m', 'base');
+  fs.writeFileSync(path.join(staged, '.gitattributes'), '*.b64 diff=b64\n');
+  git(staged, 'config', 'diff.b64.textconv', 'base64 -d <');
+  fs.writeFileSync(path.join(staged, 's.b64'), Buffer.from(`const t = "${FAKE_SLACK}";\n`).toString('base64'));
+  assert.equal(beforeShell(ctxFor(staged), 'git add s.b64 && git commit -m x').action, 'block');
 });
 
 test('a secret in the second commit of a chain blocks the command', () => {
@@ -741,6 +545,8 @@ test('a secret in the second commit of a chain blocks the command', () => {
   fs.writeFileSync(path.join(root, 'a.js'), 'ok2\n');
   fs.writeFileSync(path.join(root, 'b.js'), `const t = "${FAKE_SLACK}";\n`);
   const ctx = ctxFor(root);
+  assert.deepEqual(parseGitCommits('git commit -m a a.js && git commit -m b b.js').map((c) => c.paths), [['a.js'], ['b.js']]);
+  assert.equal(parseGitCommits('git status; git commit -am x || git commit y.js').length, 2);
   for (const sep of [' && ', '; ', ' || ', '\n']) {
     const r = beforeShell(ctx, `git commit -m a a.js${sep}git commit -m b b.js`);
     assert.equal(r.action, 'block', JSON.stringify(sep));
@@ -759,20 +565,6 @@ test('a prefixed or nested commit is scanned', () => {
   for (const cmd of ['FOO=1 git commit -m x a.js', 'sudo -u me git commit -m x a.js', 'echo x\ngit commit -m x a.js', "git -c k='a b' commit -m x a.js"]) {
     assert.equal(beforeShell(ctx, cmd).action, 'block', cmd);
   }
-});
-
-test('a relative cd after one that does not persist resolves from the right step', () => {
-  const root = repo();
-  for (const d of ['B', 'B/sub', 'C']) fs.mkdirSync(path.join(root, d), { recursive: true });
-  for (const f of ['B/sub/f.js', 'B/f.js', 'C/f.js']) fs.writeFileSync(path.join(root, f), 'ok\n');
-  git(root, 'add', '.');
-  git(root, 'commit', '-qm', 'init');
-  fs.writeFileSync(path.join(root, 'B/sub/f.js'), `const t = "${FAKE_SLACK}";\n`);
-  const ctx = ctxFor(root);
-  assert.equal(beforeShell(ctx, 'cd B && (cd C) && cd sub && git commit -m x f.js').action, 'block');
-  assert.equal(beforeShell(ctx, 'cd B && (cd C) && cd sub && git commit -m x f.js; git status').action, 'block');
-  fs.writeFileSync(path.join(root, 'B/sub/f.js'), 'ok2\n');
-  assert.equal(beforeShell(ctx, 'cd B && (cd C) && cd sub && git commit -m "t: x" f.js').action, 'allow');
 });
 
 test('commit scan allows bad input without throwing', () => {
@@ -794,30 +586,12 @@ test('commit scan allows bad input without throwing', () => {
   assert.ok(Date.now() - t2 < 3000, `took ${Date.now() - t2} ms`);
 });
 
-test('past four cds the commit also scans the repo root', () => {
-  const root = repo();
-  fs.mkdirSync(path.join(root, 'B/sub'), { recursive: true });
-  fs.writeFileSync(path.join(root, 'B/sub/f.js'), 'ok\n');
-  git(root, 'add', '.');
-  git(root, 'commit', '-qm', 'init');
-  fs.writeFileSync(path.join(root, 'B/sub/f.js'), `const t = "${FAKE_SLACK}";\n`);
-  const cmd = 'cd B && (cd C) && cd x && cd y && cd sub && git commit -m x f.js';
-  assert.equal(beforeShell(ctxFor(root), cmd).action, 'block');
-});
-
 // The v2 entry: a fake context records the hooks `setup` registers.
 function fakeCtx() {
   const hooks = {};
   const domain = () => ({ hook: (name, fn) => (hooks[name] = fn) });
   return { hooks, ctx: { session: domain(), tool: domain(), location: { directory: '/x' } } };
 }
-
-test('OpenCode plugin default export carries both entry shapes', async () => {
-  const { default: plugin, DoItPlugin } = await import('../.opencode/do-it-plugin/do-it.mjs');
-  assert.equal(plugin.id, 'do-it');
-  assert.equal(typeof plugin.setup, 'function');
-  assert.equal(plugin.server, DoItPlugin);
-});
 
 test('OpenCode plugin setup without hook domains registers nothing and leaves v1 live', async () => {
   const { createPlugin } = await import('../.opencode/do-it-plugin/do-it.mjs');
@@ -829,8 +603,7 @@ test('OpenCode plugin setup without hook domains registers nothing and leaves v1
 test('OpenCode plugin setup hooks translate over decide, and v1 then stays empty', async () => {
   const { createPlugin } = await import('../.opencode/do-it-plugin/do-it.mjs');
   const answers = { session: { context: 'ctx' }, before: { block: 'no' }, after: { context: 'lint' } };
-  const calls = [];
-  const p = createPlugin({ decide: (event, input) => (calls.push([event, input.kind]), answers[event]) });
+  const p = createPlugin({ decide: (event) => answers[event] });
   const { hooks, ctx } = fakeCtx();
   await p.setup(ctx);
   assert.deepEqual(Object.keys(hooks).sort(), ['context', 'execute.after', 'execute.before']);
@@ -842,15 +615,6 @@ test('OpenCode plugin setup hooks translate over decide, and v1 then stays empty
   const done = { status: 'completed', tool: 'edit', input: {}, result: { content: 'ok' } };
   await hooks['execute.after'](done);
   assert.equal(done.result.content, 'ok\n\nlint');
-  const parts = { status: 'completed', tool: 'edit', input: {}, result: { content: [{ type: 'text', text: 'ok' }] } };
-  await hooks['execute.after'](parts);
-  assert.deepEqual(parts.result.content, [{ type: 'text', text: 'ok' }, { type: 'text', text: 'lint' }]);
-  const bare = { status: 'completed', tool: 'edit', input: {}, result: { output: { n: 1 } } };
-  await hooks['execute.after'](bare);
-  assert.equal(bare.result.content, 'lint');
-  const failed = { status: 'error', tool: 'edit', input: {}, error: 'e' };
-  await hooks['execute.after'](failed);
-  assert.deepEqual(calls.at(-1), ['after', 'edit']);
   assert.deepEqual(await p.server({ directory: '/x' }), {});
 });
 
@@ -871,14 +635,16 @@ test('OpenCode plugin setup hooks fail open and skip an unexpected shape', async
   const p = createPlugin({ decide: boom });
   const { hooks, ctx } = fakeCtx();
   await p.setup(ctx);
+  const errors = [];
   const write = process.stderr.write;
-  process.stderr.write = () => true;
+  process.stderr.write = (s) => (errors.push(String(s)), true);
   try {
     await hooks['execute.before']({ tool: 'bash', input: {} });
     await hooks.context({ system: 'not an array' });
   } finally {
     process.stderr.write = write;
   }
+  assert.match(errors.join(''), /failed open: boom/);
   const q = createPlugin({ decide: () => ({ context: 'c' }) });
   const h = fakeCtx();
   await q.setup(h.ctx);

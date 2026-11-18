@@ -34,25 +34,21 @@ test('the default applies when nothing sets the key', () => {
   assert.equal(c.sources[KEY], 'default');
 });
 
-test('the user file sets the key when it is the only layer', () => {
-  const l = layers({ user: `${KEY}=user\n` });
-  const c = loadConfig({ cwd: l.root, env: l.env });
-  assert.equal(c.values[KEY], 'user');
-  assert.equal(c.sources[KEY], l.files.user);
-});
+test('each file layer beats the one before it: user, then project, then local', () => {
+  const user = layers({ user: `${KEY}=user\n` });
+  const u = loadConfig({ cwd: user.root, env: user.env });
+  assert.equal(u.values[KEY], 'user');
+  assert.equal(u.sources[KEY], user.files.user);
 
-test('the project file beats the user file', () => {
-  const l = layers({ user: `${KEY}=user\n`, project: `${KEY}=project\n` });
-  const c = loadConfig({ cwd: l.root, env: l.env });
-  assert.equal(c.values[KEY], 'project');
-  assert.equal(c.sources[KEY], l.files.project);
-});
+  const project = layers({ user: `${KEY}=user\n`, project: `${KEY}=project\n` });
+  const p = loadConfig({ cwd: project.root, env: project.env });
+  assert.equal(p.values[KEY], 'project');
+  assert.equal(p.sources[KEY], project.files.project);
 
-test('the local file beats the project and user files', () => {
-  const l = layers({ user: `${KEY}=user\n`, project: `${KEY}=project\n`, local: `${KEY}=local\n` });
-  const c = loadConfig({ cwd: l.root, env: l.env });
-  assert.equal(c.values[KEY], 'local');
-  assert.equal(c.sources[KEY], l.files.local);
+  const local = layers({ user: `${KEY}=user\n`, project: `${KEY}=project\n`, local: `${KEY}=local\n` });
+  const l = loadConfig({ cwd: local.root, env: local.env });
+  assert.equal(l.values[KEY], 'local');
+  assert.equal(l.sources[KEY], local.files.local);
 });
 
 test('the environment beats every file', () => {

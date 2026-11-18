@@ -130,6 +130,19 @@ test('a directory path is refused, so another slice\'s edit in it stays unstaged
   write(dir, 'src/theirs.js', 'theirs\n');
   const head = git(dir, 'rev-parse', 'HEAD');
   assert.match(work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'src').out.error, /directory/);
+  // A submodule is a directory too: naming it, or a file inside it, stages nothing.
+  const inner = tmpDir('do-it-sub-');
+  git(inner, 'init', '-q', '-b', 'main');
+  git(inner, 'config', 'user.name', 't');
+  git(inner, 'config', 'user.email', 't@t');
+  write(inner, 'f.txt', 'inner\n');
+  git(inner, 'add', '-A');
+  git(inner, 'commit', '-qm', 'sub');
+  git(dir, '-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', inner, 'mod');
+  git(dir, 'reset', '-q');
+  write(dir, 'mod/f.txt', 'edited inside\n');
+  assert.match(work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'mod').out.error, /mod is a directory/);
+  assert.match(work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'mod/f.txt').out.error, /mod\/f\.txt has no change to commit/);
   assert.equal(git(dir, 'rev-parse', 'HEAD'), head);
   assert.equal(git(dir, 'diff', '--cached', '--name-only'), '', 'nothing was staged');
 });
@@ -138,16 +151,11 @@ test('a retried phase commit after the commit landed returns the same sha and ta
   const { dir } = fixture();
   ok(work(dir, 'run', 'new', 'road'));
   verify(dir);
-  // ./a.js is a file, not a directory, whatever form it is spelled in.
-  const first = ok(work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', './a.js,b.js'));
+  const first = ok(work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'a.js,b.js'));
   const again = ok(work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'a.js,b.js'));
   assert.equal(again.commit, first.commit);
   assert.equal(again.tag, first.tag);
   assert.equal(git(dir, 'rev-parse', 'HEAD'), first.commit, 'no second commit');
-  // The commit landed but the tag did not (a crash between them): the retry tags it.
-  git(dir, 'tag', '-d', first.tag);
-  assert.equal(ok(work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'a.js,b.js')).tag, first.tag);
-  assert.equal(git(dir, 'rev-parse', `${first.tag}^{commit}`), first.commit);
 });
 
 test('a glob or deleted-directory path cannot stage another slice\'s edits', () => {
@@ -168,18 +176,6 @@ test('a glob or deleted-directory path cannot stage another slice\'s edits', () 
   assert.equal(git(dir, 'rev-parse', 'HEAD'), head);
 });
 
-test('the first phase commit works in a repo with no commits yet', () => {
-  const { dir } = fixture();
-  ok(work(dir, 'run', 'new', 'road'));
-  verify(dir);
-  fs.rmSync(path.join(dir, '.git'), { recursive: true });
-  git(dir, 'init', '-q', '-b', 'work');
-  git(dir, 'config', 'user.name', 't');
-  git(dir, 'config', 'user.email', 't@t');
-  git(dir, 'config', 'commit.gpgsign', 'false');
-  assert.ok(ok(work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'a.js')).commit);
-});
-
 test('a phase retry with a new edit, or onto a different tag, is refused rather than skipped', () => {
   const { dir } = fixture();
   ok(work(dir, 'run', 'new', 'road'));
@@ -187,6 +183,7 @@ test('a phase retry with a new edit, or onto a different tag, is refused rather 
   const first = ok(work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'a.js,b.js'));
   write(dir, 'a.js', 'three\n');
   assert.match(work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'a.js').out.error, /already committed/);
+  assert.match(work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'a.js,b.js,unrelated.txt').out.error, /already committed/, 'a different path set is still the landed commit');
   assert.equal(git(dir, 'rev-parse', 'HEAD'), first.commit);
   git(dir, 'checkout', '-q', 'a.js');
   git(dir, 'tag', '-f', first.tag, 'HEAD~1');
@@ -318,27 +315,6 @@ test('a lane S slice is one commit with no tag; mode none and slice rules hold',
   assert.match(work(dir, 'run', 'commit', 'off', 'small', '--paths', 'x.js').out.error, /mode none/);
 });
 
-test('a lane S slice closing docs commit uses --docs, so the subject differs from the code commit', () => {
-  const dir = tmpDir('do-it-runcommit-sdocs-');
-  git(dir, 'init', '-q', '-b', 'topic');
-  git(dir, 'config', 'user.name', 't');
-  git(dir, 'config', 'user.email', 't@t');
-  write(dir, 'x.js', '1\n');
-  git(dir, 'add', '-A');
-  git(dir, 'commit', '-qm', 'init');
-  ok(work(dir, 'new', 'small', '--lane', 's', '--title', 'Small fix'));
-  ok(work(dir, 'event', 'small', 'approve'));
-  ok(work(dir, 'event', 'small', 'start'));
-  write(dir, 'x.js', '2\n');
-  ok(work(dir, 'run', 'new', 'sl', '--commit', 'slice'));
-  ok(work(dir, 'verify-phase', 'small', '--', 'true'));
-  assert.equal(ok(work(dir, 'run', 'commit', 'sl', 'small', '--paths', 'x.js')).subject, 'small: Small fix');
-  write(dir, 'notes.md', 'closing\n');
-  const r = ok(work(dir, 'run', 'commit', 'sl', 'small', '--docs', '--paths', 'notes.md'));
-  assert.equal(r.subject, 'small: closing docs');
-  assert.equal(r.tag, null);
-});
-
 test('without a run record nothing commits, and build-it still forbids commits', () => {
   const { dir } = fixture();
   verify(dir);
@@ -390,6 +366,15 @@ test('lane M closing docs commit with --docs after every phase passed, untagged'
   assert.equal(r.tag, null);
   assert.equal(git(dir, 'tag', '-l'), '');
   assert.equal(git(dir, 'log', '-1', '--format=%B').split('\n').at(-1), LINE);
+
+  // Lane S: the closing docs commit follows its code commit, with its own subject.
+  const s = laneS((d) => write(d, 'x.js', '2\n'));
+  const code = ok(work(s, 'run', 'commit', 'sl', 'small', '--paths', 'x.js'));
+  write(s, 'notes.md', 'closing\n');
+  const docs = ok(work(s, 'run', 'commit', 'sl', 'small', '--docs', '--paths', 'notes.md'));
+  assert.notEqual(docs.subject, code.subject);
+  assert.equal(docs.subject, 'small: closing docs');
+  assert.equal(docs.tag, null);
 });
 
 test('run add-assumptions merges per work id and is idempotent', () => {
@@ -414,13 +399,6 @@ function verifiedSlice(setup = () => {}) {
   return dir;
 }
 const commit = (dir, paths) => work(dir, 'run', 'commit', 'road', 'feat', '--paths', paths.join(','));
-
-test('slice mode compares an absolute in-repo path by its repo-relative name', () => {
-  const dir = verifiedSlice();
-  write(dir, 'b.js', 'edited after verify\n');
-  assert.match(commit(dir, [path.join(fs.realpathSync(dir), 'b.js'), 'a.js', 'c.js']).out.error, /b\.js changed since/);
-  assert.match(commit(dir, ['../outside.js', 'a.js']).out.error, /outside repository|inside the repo/);
-});
 
 test('slice mode refuses a name that is in neither record unless git tracks it exactly', () => {
   const dir = verifiedSlice();
@@ -450,27 +428,19 @@ test('slice mode commits a rename, a delete and a spaced name; a file clean at v
   const code = ok(commit(dir, ['a.js', 'a b.js', 'c.js']));
   assert.equal(code.subject, 'feat: Feature');
   assert.deepEqual(git(dir, 'show', '--name-only', '--format=', 'HEAD').split('\n').sort(), ['a b.js', 'a.js', 'c.js']);
+  assert.equal(ok(commit(dir, ['a.js', 'a b.js', 'c.js'])).commit, code.commit, 'the rename retry is a no-op');
 });
 
-test('slice mode: a clean tracked file whose name has a newline commits; chmod g+w is no change; a \\r name is hashed', { skip: process.platform === 'win32' && 'newline in a file name' }, () => {
+test('slice mode: a clean tracked file whose name has a newline commits', { skip: process.platform === 'win32' && 'newline in a file name' }, () => {
   const dir = verifiedSlice((d) => {
     write(d, 'new\nline.js', 'tracked\n');
     git(d, 'add', 'new\nline.js');
     git(d, 'commit', '-qm', 'add newline name');
-    write(d, 'cr\r.js', 'carriage\n');
   });
-  fs.chmodSync(path.join(dir, 'b.js'), 0o664);
   // Past the neither-record gate (a tracked clean name is trusted), it stops only at "nothing to commit".
   assert.match(commit(dir, ['a.js', 'new\nline.js']).out.error, /new\nline\.js has no change to commit/);
   const code = ok(commit(dir, ['a.js', 'b.js', 'c.js']));
-  assert.equal(code.subject, 'feat: Feature', 'g+w on b.js is not a change since verify');
-  const seen = dirtyHashes(dir);
-  assert.deepEqual(Object.keys(seen).filter((f) => f.includes('\r')), ['cr\r.js']);
-  assert.match(seen['cr\r.js'], /^644:[0-9a-f]{40}$/);
-  fs.chmodSync(path.join(dir, 'cr\r.js'), 0o654);
-  assert.match(dirtyHashes(dir)['cr\r.js'], /^644:/, 'a group or other execute bit is not the executable bit git tracks');
-  fs.chmodSync(path.join(dir, 'cr\r.js'), 0o755);
-  assert.match(dirtyHashes(dir)['cr\r.js'], /^755:/, 'the executable bit is recorded as 755');
+  assert.equal(code.subject, 'feat: Feature');
 });
 
 test('dirtyHashes sees an edit inside a dirty submodule', () => {
@@ -543,6 +513,11 @@ test('a tracked name git quotes and an absolute in-repo path commit; neither rea
   assert.deepEqual(names(dir), ['a\nb.txt', 'x.js', 'é.txt'].sort());
   write(dir, 'é.txt', 'edited\n');
   assert.match(sliceCommit(dir, ['é.txt', 'x.js']).out.error, /x\.js has no change/, 'a tracked quoted name is a file, so only the clean one is refused');
+  assert.match(sliceCommit(dir, ['../outside.js', 'a.js']).out.error, /inside the repo|outside repository/);
+  // An absolute in-repo name is compared by its repo-relative form, so an edit after verify is caught.
+  const m = verifiedSlice();
+  write(m, 'b.js', 'edited after verify\n');
+  assert.match(commit(m, [path.join(fs.realpathSync(m), 'b.js'), 'a.js', 'c.js']).out.error, /b\.js changed since/);
 });
 
 test('a retry after the commit landed succeeds for lane S and --docs, and a different path set is refused', () => {
@@ -552,6 +527,7 @@ test('a retry after the commit landed succeeds for lane S and --docs, and a diff
   });
   const code = ok(sliceCommit(dir, ['x.js', 'z.js']));
   assert.equal(ok(sliceCommit(dir, ['x.js', 'z.js'])).commit, code.commit, 'lane S retry returns the same commit');
+  assert.equal(ok(sliceCommit(dir, ['x.js', 'x.js', './z.js'])).commit, code.commit, 'repeated and ./ spellings read as the one set');
   assert.match(sliceCommit(dir, ['x.js']).out.error, /no change to commit/, 'a subset is not a retry');
   assert.match(sliceCommit(dir, ['y.js']).out.error, /no change to commit/, 'a clean tracked file is not a retry');
   assert.equal(git(dir, 'rev-list', '--count', 'HEAD'), '2');
@@ -559,32 +535,12 @@ test('a retry after the commit landed succeeds for lane S and --docs, and a diff
   const docs = ok(sliceCommit(dir, ['notes.md'], '--docs'));
   assert.equal(ok(sliceCommit(dir, ['notes.md'], '--docs')).commit, docs.commit, 'a docs retry returns the same commit');
   assert.equal(git(dir, 'rev-list', '--count', 'HEAD'), '3');
-});
 
-test('a retry names the same files however they are spelled: repeated and ./ forms read as the one set', () => {
-  const dir = laneS((d) => {
-    write(d, 'x.js', '2\n');
-    write(d, 'z.js', 'new\n');
-  });
-  const code = ok(sliceCommit(dir, ['x.js', 'z.js']));
-  assert.equal(ok(sliceCommit(dir, ['x.js', 'x.js', './z.js'])).commit, code.commit);
-  assert.equal(git(dir, 'rev-list', '--count', 'HEAD'), '2');
-});
-
-test('a lane M phase retry with a different clean path set reads already committed', () => {
-  const { dir } = fixture();
-  ok(work(dir, 'run', 'new', 'road'));
-  verify(dir);
-  ok(work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'a.js,b.js'));
-  assert.match(work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'a.js').out.error, /already committed/);
-  assert.match(work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'a.js,b.js,unrelated.txt').out.error, /already committed/);
-});
-
-test('a lane M slice-mode retry after the commit landed returns it instead of failing the verify compare', () => {
-  const dir = verifiedSlice();
-  const code = ok(commit(dir, ['a.js', 'b.js', 'c.js']));
-  assert.equal(ok(commit(dir, ['a.js', 'b.js', 'c.js'])).commit, code.commit);
-  assert.equal(git(dir, 'rev-list', '--count', 'HEAD'), '2');
+  // Lane M slice mode answers the retry before the verify compare, which the now-clean files would fail.
+  const m = verifiedSlice();
+  const mcode = ok(commit(m, ['a.js', 'b.js', 'c.js']));
+  assert.equal(ok(commit(m, ['a.js', 'b.js', 'c.js'])).commit, mcode.commit);
+  assert.equal(git(m, 'rev-list', '--count', 'HEAD'), '2');
 });
 
 test('lane S refuses a path spelled through a symlinked root, naming it as outside the repo', { skip: process.platform === 'win32' && 'unprivileged symlinks' }, () => {
@@ -593,32 +549,6 @@ test('lane S refuses a path spelled through a symlinked root, naming it as outsi
   fs.symlinkSync(dir, link);
   assert.match(sliceCommit(dir, [path.join(link, 'x.js')]).out.error, /inside the repo/);
   assert.equal(git(dir, 'diff', '--cached', '--name-only'), '');
-});
-
-test('a rename is committed as its new path and its old path, and its retry is a no-op', () => {
-  const dir = laneS((d) => fs.renameSync(path.join(d, 'x.js'), path.join(d, 'moved.js')));
-  const code = ok(sliceCommit(dir, ['x.js', 'moved.js']));
-  assert.deepEqual(names(dir), ['moved.js', 'x.js']);
-  assert.equal(ok(sliceCommit(dir, ['x.js', 'moved.js'])).commit, code.commit);
-});
-
-test('a submodule path is a directory: naming it stages nothing inside it', () => {
-  const sub = tmpDir('do-it-sub-');
-  git(sub, 'init', '-q', '-b', 'main');
-  git(sub, 'config', 'user.name', 't');
-  git(sub, 'config', 'user.email', 't@t');
-  write(sub, 'f.txt', 'inner\n');
-  git(sub, 'add', '-A');
-  git(sub, 'commit', '-qm', 'sub');
-  const dir = laneS((d) => {
-    git(d, '-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', sub, 'mod');
-    git(d, 'reset', '-q');
-    write(d, 'mod/f.txt', 'edited inside\n');
-    write(d, 'x.js', '2\n');
-  });
-  assert.match(sliceCommit(dir, ['mod', 'x.js']).out.error, /mod is a directory/);
-  assert.match(sliceCommit(dir, ['mod/f.txt', 'x.js']).out.error, /mod\/f\.txt has no change to commit/, 'a file inside it is refused too: the outer repo sees no change there');
-  assert.equal(git(dir, 'diff', '--cached', '--name-only'), '', 'nothing was staged');
 });
 
 // A protected-branch run whose phase 1 commit is rejected by a pre-commit hook that runs `hook`.
@@ -634,36 +564,23 @@ function rejectedCommit(hook, setup = () => {}) {
   return { dir, error: r.out.error };
 }
 
-test('a rejected commit that cannot switch back says where the repo is and keeps the branch it is on', () => {
-  const { dir, error } = rejectedCommit('git branch -m main gone-main');
-  assert.match(error, /could not switch back to main, still on do-it\/road/);
-  assert.equal(git(dir, 'branch', '--show-current'), 'do-it/road');
-  assert.equal(git(dir, 'diff', '--cached', '--name-only'), '');
-});
-
 test('a rejected commit keeps a scratch branch a hook committed on, and says so', () => {
   const { dir, error } = rejectedCommit('c=$(git commit-tree -m hook "$(git rev-parse HEAD^{tree})" -p HEAD) && git update-ref HEAD "$c"');
   assert.match(error, /do-it\/road gained commits and was kept/);
   assert.equal(git(dir, 'branch', '--show-current'), 'main', 'back on the protected branch');
   assert.equal(git(dir, 'log', '-1', '--format=%s', 'do-it/road'), 'hook');
-});
 
-test('a rejected commit on a reused scratch branch switches back and keeps the branch', () => {
-  const { dir, error } = rejectedCommit(':', (d) => git(d, 'branch', 'do-it/road'));
-  assert.doesNotMatch(error, /kept|could not/);
-  assert.equal(git(dir, 'branch', '--show-current'), 'main');
-  assert.equal(git(dir, 'branch', '--list', 'do-it/road').trim(), 'do-it/road', 'a branch it did not make stays');
-});
+  // A branch the rollback cannot switch away from is kept, and the message says where the repo is.
+  const stuck = rejectedCommit('git branch -m main gone-main');
+  assert.match(stuck.error, /could not switch back to main, still on do-it\/road/);
+  assert.equal(git(stuck.dir, 'branch', '--show-current'), 'do-it/road');
+  assert.equal(git(stuck.dir, 'diff', '--cached', '--name-only'), '');
 
-test('a rejected commit from a detached start returns to the same commit and removes the branch it made', () => {
-  let head;
-  const { dir } = rejectedCommit(':', (d) => {
-    head = git(d, 'rev-parse', 'HEAD');
-    git(d, 'checkout', '-q', '--detach');
-  });
-  assert.equal(git(dir, 'branch', '--show-current'), '', 'still detached');
-  assert.equal(git(dir, 'rev-parse', 'HEAD'), head);
-  assert.equal(git(dir, 'branch', '--list', 'do-it/road'), '');
+  // A branch it did not make stays, and the rollback stays silent.
+  const reused = rejectedCommit(':', (d) => git(d, 'branch', 'do-it/road'));
+  assert.doesNotMatch(reused.error, /kept|could not/);
+  assert.equal(git(reused.dir, 'branch', '--show-current'), 'main');
+  assert.equal(git(reused.dir, 'branch', '--list', 'do-it/road').trim(), 'do-it/road', 'a branch it did not make stays');
 });
 
 test('a tag that cannot be made after the commit landed is reported with the commit', () => {

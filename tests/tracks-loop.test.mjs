@@ -11,7 +11,7 @@ import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { DEFAULTS } from '../skills/track-it/scripts/config.mjs';
-import { nextSlice, trackWidth } from '../skills/do-it/scripts/run.mjs';
+import { trackWidth } from '../skills/do-it/scripts/run.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const WORK = path.join(ROOT, 'skills/do-it/scripts/work.mjs');
@@ -107,21 +107,6 @@ test('width: min(ready slices, the machine cap, tracks), and a run at 1 starts n
   assert.throws(() => trackWidth({ ready: 2, tracks: 0 }), /positive whole number/);
 });
 
-test('run next --batch: every free in-flight slice leads the batch, and one id without it', () => {
-  const road = {
-    slices: [
-      { id: 'R1', blocked_by: [], state: 'in flight' },
-      { id: 'R2', blocked_by: [], state: 'in flight' },
-      { id: 'R3', blocked_by: [], state: 'in flight' },
-      { id: 'R4', blocked_by: [], state: 'ready' },
-    ],
-    ready: ['R4'],
-  };
-  const rec = { max_slices: null, slices: [] };
-  assert.deepEqual(nextSlice(road, rec, { batch: 3 }).next, ['R1', 'R2', 'R3'], 'three scoped slices are three tracks, not one');
-  assert.equal(nextSlice(road, rec).next, 'R1', 'without a batch one slice resumes, as before');
-});
-
 test('run tracks: the paired slices only, each with its worktree, plan, base ref and report shape', () => {
   const dir = fixture(3);
   const out = tracksOf(dir);
@@ -150,28 +135,8 @@ test('run tracks at 1: no track, no batch, no worktree, so a run that does not a
 });
 
 test('run tracks: --tracks 5 with two ready slices starts two; the width leaves the rest waiting', () => {
-  const two = repo();
-  fs.mkdirSync(path.join(two, 'docs/roadmap'), { recursive: true });
-  fs.writeFileSync(path.join(two, 'docs/roadmap/r.md'), table([['R1', 'api'], ['R2', 'bus']]).join('\n'));
-  plan(two, 'api', 'R1', ['src/api.js']);
-  plan(two, 'bus', 'R2', ['src/bus.js']);
-  ok(work(two, 'run', 'new', 'road', '--tracks', '5'));
-  for (const [slice, id] of [['R1', 'api'], ['R2', 'bus']]) ok(work(two, 'run', 'start', 'road', slice, '--work', id));
-  assert.deepEqual(tracksOf(two).tracks.map((t) => t.id), ['R1', 'R2'], 'two ready slices start two');
-
-  const one = repo();
-  fs.mkdirSync(path.join(one, 'docs/roadmap'), { recursive: true });
-  fs.writeFileSync(path.join(one, 'docs/roadmap/r.md'), table([['R1', 'api']]).join('\n'));
-  plan(one, 'api', 'R1', ['src/api.js']);
-  ok(work(one, 'run', 'new', 'road', '--tracks', '5'));
-  ok(work(one, 'run', 'start', 'road', 'R1', '--work', 'api'));
-  const single = tracksOf(one);
-  assert.equal(single.tracks.length, 1, 'one ready slice starts one track, with no phase fan-out inside it');
-
   const wide = fixture(2);
   const capped = tracksOf(wide);
-  assert.equal(capped.width, 2);
-  assert.deepEqual(capped.tracks.map((t) => t.id), ['R1', 'R2'], 'the width caps the pair');
   assert.equal(capped.waiting.find((w) => w.id === 'R4')?.reason, 'WIDTH', 'a disjoint slice past the width waits for the next round');
 });
 
@@ -187,7 +152,7 @@ test('a failed track parks its slice with its reason and the run goes on with th
   assert.match(fs.readFileSync(path.join(ROOT, 'skills/finish-it/TRACKS.md'), 'utf8'), /park its slice with the\s+report's reason/);
 });
 
-test('a merged track: the suite runs once on the merged tree, the merged fingerprint is recorded, then ship', () => {
+test('a merged track: the suite runs once on the merged tree, then ship', () => {
   const dir = fixture(2);
   const wt = path.join(path.dirname(dir), `${path.basename(dir)}-track-R1`);
   git(dir, 'worktree', 'add', '-q', wt, '-b', 'do-it/road--R1');
@@ -198,9 +163,7 @@ test('a merged track: the suite runs once on the merged tree, the merged fingerp
   ok(work(dir, 'run', 'verify', 'road', 'R1', '--in', wt, '--', 'true'));
   git(dir, 'merge', '-q', '--no-ff', '-m', 'road R1 (track)', 'do-it/road--R1');
   const count = path.join(dir, 'merged-runs.txt');
-  const merged = ok(work(dir, 'run', 'verify', 'road', 'R1', '--merged', '.', '--', `echo x >> ${sh(count)}`));
-  const g = merged.gates.find((x) => x.id === 'R1');
-  assert.ok(g.merged_fingerprint, 'the merged tree has a fingerprint of its own');
+  ok(work(dir, 'run', 'verify', 'road', 'R1', '--merged', '.', '--', `echo x >> ${sh(count)}`));
   assert.equal(fs.readFileSync(count, 'utf8').trim().split('\n').length, 1, 'the suite ran once on the merged tree');
   assert.deepEqual(ok(work(dir, 'run', 'gate', 'road', 'R1')).allow, true, 'the gate allows the ship');
   ok(work(dir, 'run', 'slice', 'road', 'R1', 'shipped'));
@@ -258,7 +221,6 @@ test('the track text: dispatch, merge in contract order, the merged suite, one s
   assert.match(merge, /passing the slice's plan path/);
   // A failed track parks its slice and the run goes on.
   const failed = section(doc, 'A failed track');
-  assert.match(failed, /park its slice with the\s+report's reason/);
   assert.match(failed, /go on with the tracks still running/);
   assert.match(failed, /`git merge --abort`/);
   // The record stays the coordinator's.

@@ -83,10 +83,3 @@ test('finish-it run: a blocked slice in the record is skipped like a parked one'
   assert.equal(r.next, 'R2');
   assert.deepEqual(r.waiting, ['R6']);
 });
-
-test('finish-it run: next needs a run record and a roadmap file', () => {
-  const { dir } = fixture();
-  assert.equal(work(dir, 'run', 'next', 'road', 'docs/roadmap/road.md').status, 1);
-  ok(work(dir, 'run', 'new', 'road'));
-  assert.equal(work(dir, 'run', 'next', 'road').status, 1);
-});

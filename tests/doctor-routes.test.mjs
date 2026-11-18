@@ -312,6 +312,13 @@ test('the plugin route compares the version loaded in place with the manifest an
   const plugin = json(runDoctor(root, home, ['--json'], withClaude(bin, home))).routes.find((x) => x.route === 'plugin');
   assert.equal(plugin.state, 'stale');
   assert.equal(plugin.fix, '/plugin marketplace update do-it');
+
+  // A folder whose version matches the manifest is ok, and the route exits 0.
+  const okRoot = pluginRoot('0.2.0');
+  const okHome = installed(okRoot);
+  const ok = runDoctor(okRoot, okHome, [], withClaude(fakeClaude(listing(okRoot, '0.2.0')).bin, okHome));
+  assert.equal(ok.status, 0, ok.stdout + ok.stderr);
+  assert.match(ok.stdout, /^\s+plugin: ok, the folder is 0\.2\.0, the manifest 0\.2\.0/m, ok.stdout);
 });
 
 test('a cached plugin copy is compared by the version its cache holds, not by a folder another checkout owns', () => {
@@ -324,16 +331,6 @@ test('a cached plugin copy is compared by the version its cache holds, not by a 
   assert.equal(plugin.state, 'stale');
   assert.match(plugin.detail, /the cached copy is 0\.1\.0, the manifest 0\.2\.0/);
   assert.equal(plugin.fix, 'claude plugin update do-it@do-it');
-});
-
-test('a plugin whose loaded version matches the manifest is ok and exits 0', () => {
-  const root = pluginRoot('0.2.0');
-  const home = installed(root);
-  const { bin } = fakeClaude(listing(root, '0.2.0'));
-
-  const r = runDoctor(root, home, [], withClaude(bin, home));
-  assert.equal(r.status, 0, r.stdout + r.stderr);
-  assert.match(r.stdout, /^\s+plugin: ok, the folder is 0\.2\.0, the manifest 0\.2\.0/m, r.stdout);
 });
 
 test('a host that cannot answer reports unknown and adds no finding', () => {

@@ -37,6 +37,10 @@ test('code map from git: shared dirs first, counts, tests separate, vendored dir
   fs.mkdirSync(path.join(dir, 'src/billing'), { recursive: true });
   fs.writeFileSync(path.join(dir, 'src/billing/new.ts'), 'x');
   assert.match(mapFromGit(dir), /`billing\/` 1/, 'untracked new modules appear');
+
+  // Without containers the lines are exactly the top-level dirs and their children.
+  const plain = mapFromGit('/', listing(['src/a.ts', 'src/b/c.ts', 'lib/x.ts']));
+  assert.equal(plain.split('\n').filter((l) => l.startsWith('- ')).join('\n'), '- `lib/` (1)\n- `src/` (2): `b/` 1');
 });
 
 test('code map prefers the reference module map', () => {
@@ -50,14 +54,6 @@ test('code map prefers the reference module map', () => {
   assert.match(map, /docs\/reference\/module-map\.md/);
   assert.match(map, /\| Orders \|/);
   assert.equal(mapFromReference(dir, { ...DEFAULTS, DO_IT_REFERENCE_DIR: 'nowhere' }), '');
-});
-
-test('code map stays within budget', () => {
-  const files = [];
-  for (let i = 0; i < 120; i++) files.push(`pkg${String(i).padStart(3, '0')}-with-a-long-directory-name/sub/f.ts`);
-  const map = mapFromGit(repoWith(files));
-  assert.ok(map.length <= MAP_BUDGET, String(map.length));
-  assert.match(map, /…$/);
 });
 
 const listing = (files) => ({ run: () => ({ status: 0, stdout: files.join('\0') }) });
@@ -86,19 +82,18 @@ test('code map caps a container at 12 packages and keeps the tests line', () => 
   assert.equal(map.split('\n').filter((l) => l.startsWith('- `packages/p')).length, 12);
   assert.match(map, /More packages: `packages\/` \+28/);
   assert.match(map, /Tests: `tests\/` 1/);
-});
 
-test('code map keeps the summary lines when several containers fill the budget', () => {
-  const files = ['lib/u.ts', 'tests/a.test.ts', 'packages/README.md'];
+  // Several containers each over the cap keep their summary lines when the budget is full.
+  const wide = ['lib/u.ts', 'tests/a.test.ts', 'packages/README.md'];
   for (const c of ['packages', 'apps', 'services']) {
-    for (let i = 0; i < 20; i++) files.push(`${c}/p${i}/src/index.ts`, `${c}/p${i}/components/x.ts`);
+    for (let i = 0; i < 20; i++) wide.push(`${c}/p${i}/src/index.ts`, `${c}/p${i}/components/x.ts`);
   }
-  const map = mapFromGit('/', listing(files));
-  assert.ok(map.length <= MAP_BUDGET, String(map.length));
-  assert.match(map, /More packages: `apps\/` \+8, `packages\/` \+8, `services\/` \+8/);
-  assert.match(map, /Tests: `tests\/` 1$/);
-  assert.match(map, /\n…\n/, 'the directory lines are what gets clipped');
-  assert.doesNotMatch(map, /- `packages\/` \(/, 'a file directly in a container is not an entry');
+  const filled = mapFromGit('/', listing(wide));
+  assert.ok(filled.length <= MAP_BUDGET, String(filled.length));
+  assert.match(filled, /More packages: `apps\/` \+8, `packages\/` \+8, `services\/` \+8/);
+  assert.match(filled, /Tests: `tests\/` 1$/);
+  assert.match(filled, /\n…\n/, 'the directory lines are what gets clipped');
+  assert.doesNotMatch(filled, /- `packages\/` \(/, 'a file directly in a container is not an entry');
 });
 
 test('code map never exceeds its budget, however long the tests tail', () => {
@@ -110,11 +105,13 @@ test('code map never exceeds its budget, however long the tests tail', () => {
   }
   const map = mapFromGit('/', listing(many));
   assert.match(map, /Tests: .*\+394 more$/, 'tests are capped like children, so the line survives');
-});
 
-test('code map without containers is unchanged by them', () => {
-  const map = mapFromGit('/', listing(['src/a.ts', 'src/b/c.ts', 'lib/x.ts']));
-  assert.equal(map.split('\n').filter((l) => l.startsWith('- ')).join('\n'), '- `lib/` (1)\n- `src/` (2): `b/` 1');
+  // The default budget also holds when the tail is many long-named top-level packages.
+  const files = [];
+  for (let i = 0; i < 120; i++) files.push(`pkg${String(i).padStart(3, '0')}-with-a-long-directory-name/sub/f.ts`);
+  const wide = mapFromGit(repoWith(files));
+  assert.ok(wide.length <= MAP_BUDGET, String(wide.length));
+  assert.match(wide, /…$/);
 });
 
 test('code map fails open and can be switched off', () => {
@@ -219,17 +216,16 @@ test('routing eval: ranks, negatives, similarity and missing entries', () => {
   assert.match(r.failures.join('\n'), /too similar: fix-it and same-it/);
   assert.match(r.failures.join('\n'), /same-it: no routing entries/);
   assert.equal(r.rows.find((x) => x.name === 'fix-it').negOk, 1);
-});
 
-test('routing eval: a skill with no spec entry fails; one entry per skill passes', () => {
-  const skills = [
+  // A skill with no spec entry fails on its own; one entry per skill passes.
+  const pair = [
     { name: 'fix-it', description: 'Diagnose and fix bugs, crashes and failing code.' },
     { name: 'note-it', description: 'File an issue in the tracker for later.' },
   ];
   const entry = { 'fix-it': { positive: ['diagnose this crash'] }, 'note-it': { positive: ['file an issue in the tracker'] } };
-  const missing = evaluate(skills, { threshold: 0.5, skills: { 'fix-it': entry['fix-it'] } });
+  const missing = evaluate(pair, { threshold: 0.5, skills: { 'fix-it': entry['fix-it'] } });
   assert.equal(missing.ok, false);
   assert.deepEqual(missing.failures.filter((f) => /no routing entries/.test(f)), ['note-it: no routing entries; add positives and negatives to evals/routing.json']);
-  const full = evaluate(skills, { threshold: 0.5, skills: entry });
+  const full = evaluate(pair, { threshold: 0.5, skills: entry });
   assert.equal(full.ok, true, full.failures.join('\n'));
 });

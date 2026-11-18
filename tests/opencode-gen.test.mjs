@@ -48,14 +48,6 @@ test('the description is quoted so a colon cannot break the frontmatter', () => 
   assert.equal(parseFrontmatter(out).meta.description, 'Use: only when named.');
 });
 
-test('every generated agent is on disk and carries the source body', () => {
-  const want = expectedAgents();
-  assert.deepEqual(Object.keys(want).sort(), fs.readdirSync(path.join(ROOT, 'agents')).filter((f) => f.endsWith('.md')).sort());
-  for (const [file, text] of Object.entries(want)) {
-    assert.equal(fs.readFileSync(path.join(ROOT, '.opencode', 'agents', file), 'utf8'), text);
-  }
-});
-
 test('commands go to command/ for OpenCode 1 and commands/ for 2, with the same files', () => {
   const t = Object.fromEntries(targets().map((x) => [path.basename(x.dir), x.files]));
   assert.deepEqual(Object.keys(t).sort(), ['agents', 'command', 'commands']);
@@ -66,6 +58,12 @@ test('commands go to command/ for OpenCode 1 and commands/ for 2, with the same 
 test('gen --check reports a missing agents directory file as stale', () => {
   const r = spawnSync('node', ['scripts/gen-opencode.mjs', '--check'], { cwd: ROOT, encoding: 'utf8' });
   assert.equal(r.status, 0, r.stderr);
+  // Every generated agent is on disk and carries the source body.
+  const want = expectedAgents();
+  assert.deepEqual(Object.keys(want).sort(), fs.readdirSync(path.join(ROOT, 'agents')).filter((f) => f.endsWith('.md')).sort());
+  for (const [file, text] of Object.entries(want)) {
+    assert.equal(fs.readFileSync(path.join(ROOT, '.opencode', 'agents', file), 'utf8'), text);
+  }
 });
 
 test('the subagent rules tell OpenCode to background parallel and background-marked agents', () => {

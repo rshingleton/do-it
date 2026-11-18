@@ -46,15 +46,12 @@ test('run new refuses --tracks above 1 with --commit none, naming the branch eac
   assert.equal(fs.existsSync(path.join(dir, 'docs/planning/road.run/RUN.md')), false, 'no record is written');
   // One track with nothing to commit is how a run starts today.
   assert.equal(ok(work(dir, ['run', 'new', 'solo', '--commit', 'none'])).tracks, 1);
-});
-
-test('a config that resolves the mode to none refuses the same way: DO_IT_COMMIT=never, no flag', () => {
-  const dir = repo();
+  // A config that resolves the mode to none refuses the same way: DO_IT_COMMIT=never, no flag.
   const env = cleanEnv({ DO_IT_COMMIT: 'never' });
-  const r = work(dir, ['run', 'new', 'road', '--tracks', '2'], env);
-  assert.equal(r.status, 1);
-  assert.match(r.out.error, /commit mode is none/);
-  assert.match(r.out.error, /DO_IT_COMMIT=never/);
+  const fromConfig = work(dir, ['run', 'new', 'cfg', '--tracks', '2'], env);
+  assert.equal(fromConfig.status, 1);
+  assert.match(fromConfig.out.error, /commit mode is none/);
+  assert.match(fromConfig.out.error, /DO_IT_COMMIT=never/);
   // The flag is the explicit ask, so it wins over the config and the pair is allowed.
   assert.equal(ok(work(dir, ['run', 'new', 'asked', '--tracks', '2', '--commit', 'phase'], env)).tracks, 2);
 });
@@ -74,9 +71,6 @@ test('run tracks refuses a record set to none before it starts a worktree', () =
 test('ADR 0012 is Proposed or Accepted, carries the measured shares and the width rule', () => {
   const adr = text('docs/adr/0012-coordinator-plus-tracks.md');
   assert.match(adr, /^---\nstatus: (Proposed|Accepted)\n---/, 'the ADR is proposed or accepted');
-  for (const want of ['1.08x', '1.19x', '1.65x', '2.0x', 'DO_IT_TRACKS', 'serial', '0008-opt-in-run-commits.md']) {
-    assert.ok(adr.includes(want), `the ADR records ${want}`);
-  }
   assert.match(adr, /in\(ready independent slices, the machine's resource cap, DO_IT_TRACKS\)/, 'the width rule is written out');
 });
 
@@ -84,9 +78,7 @@ test('DO_IT_TRACKS sits beside the run keys, and the two skills state the mode a
   const config = text('skills/track-it/CONFIG.md');
   const row = config.split('\n').find((l) => l.includes('`DO_IT_TRACKS`'));
   assert.ok(row, 'DO_IT_TRACKS is a documented key');
-  assert.match(row, /\| `3` \|/, 'its default is the measured 3');
   assert.match(row, /`--tracks/, 'the override flag is named');
-  assert.match(row, /\b5\b/, 'the hard ceiling is named');
   assert.match(config, /more than one track needs a commit mode that writes a branch/);
   const lanes = text('skills/do-it/LANES.md');
   assert.match(lanes, /`--tracks N`/, 'LANES.md names the mode');

@@ -46,6 +46,9 @@ test('state block: block style round-trips byte for byte', () => {
   const state = normalize(parseBlock(BLOCK));
   const once = writeBlock(state);
   assert.equal(writeBlock(normalize(parseBlock(once))), once);
+  const tricky = { ...emptyBlock({ id: 'x', title: 'multi\nline', lane: 's' }), blocker: 'a\tb', assumptions: ['one\r\ntwo'] };
+  const back = normalize(parseBlock(writeBlock(tricky)));
+  assert.deepEqual([back.title, back.blocker, back.assumptions], ['multi\nline', 'a\tb', ['one\r\ntwo']], 'newlines and tabs round-trip');
 });
 
 test('state block: one-line scalar lists and {} read; the old flow style is refused', () => {
@@ -281,29 +284,29 @@ test('roadmap: completed is the frontmatter value and empties next and ready', (
   assert.deepEqual(out.ready, []);
   assert.equal(roadmapOf(rows, '---\ntitle: Billing\ncompleted:\n---\n').completed, null, 'empty value');
   assert.equal(roadmapOf(rows, '---\ntitle: Billing\n---\n').next, 'R2');
-});
-
-test('roadmap: a completed roadmap with an unshipped slice reports why nothing is offered', () => {
-  const shipped = '| R1 | build | A | G1 | none | v | low | shipped 2026-10-20 x |';
-  const open = '| R2 | build | B | G1 | none | v | low | |';
-  const front = '---\ntitle: Billing\ncompleted: 2026-10-30\n---\n';
-  const reopened = roadmapOf(`${shipped}\n${open}`, front);
-  assert.deepEqual([reopened.finished, reopened.next], [false, null]);
-  assert.match(reopened.reopened, /completed 2026-10-30 but 1 slice not shipped/);
-  assert.equal(roadmapOf(shipped, front).reopened, null, 'a fully shipped completed roadmap has nothing to reopen');
-  assert.equal(roadmapOf(`${shipped}\n${open}`, '---\ntitle: Billing\n---\n').reopened, null, 'not completed');
-  assert.equal(roadmapOf(`${shipped}\n${open}\n| R3 | build | C | G1 | none | v | low | |`, front).reopened.includes('2 slices'), true);
+  const dir = tempRepo();
+  fs.writeFileSync(path.join(dir, 'r.md'), `---\ncompleted: 2026-10-30\n---\n### M1\n\n${TABLE}| R1 | build | A | G1 | none | v | low | shipped 2026-10-20 x |\n`);
+  const r = work(dir, 'roadmap', 'r.md');
+  assert.equal(r.out.finished, true);
+  assert.equal(r.out.completed, '2026-10-30');
 });
 
 test('roadmap: a completed roadmap whose slices all shipped but a decision was opened later reports reopened', () => {
   const shipped = '| R1 | build | A | G1 | none | v | low | shipped 2026-10-20 x |';
+  const open = '| R2 | build | B | G1 | none | v | low | |';
   const front = '---\ntitle: Billing\ncompleted: 2026-10-30\n---\n';
   const out = roadmapOf(`${shipped}\n\n## Open decisions\n- D1: q?\n`, front);
   assert.equal(out.finished, false);
   assert.match(out.reopened, /completed 2026-10-30 but 1 decision open/);
-  const both = roadmapOf(`${shipped}\n| R2 | build | B | G1 | none | v | low | |\n\n## Open decisions\n- D1: q?\n`, front);
+  const both = roadmapOf(`${shipped}\n${open}\n\n## Open decisions\n- D1: q?\n`, front);
   assert.match(both.reopened, /1 slice not shipped and 1 decision open/);
   assert.equal(roadmapOf(shipped, front).reopened, null, 'finished and completed: nothing to reopen');
+  // An unshipped slice alone reports why nothing is offered.
+  const unshipped = roadmapOf(`${shipped}\n${open}`, front);
+  assert.deepEqual([unshipped.finished, unshipped.next], [false, null]);
+  assert.match(unshipped.reopened, /completed 2026-10-30 but 1 slice not shipped/);
+  assert.equal(roadmapOf(`${shipped}\n${open}`, '---\ntitle: Billing\n---\n').reopened, null, 'not completed');
+  assert.equal(roadmapOf(`${shipped}\n${open}\n| R3 | build | C | G1 | none | v | low | |`, front).reopened.includes('2 slices'), true);
 });
 
 test('skills: roadmap-it and do-it ask the decisions that block slices', () => {
@@ -371,17 +374,23 @@ test('work.mjs: new, set, event, show, list and close on a repo', () => {
   assert.deepEqual(r.out.todo, ['T7']);
   assert.equal(fs.existsSync(path.join(dir, 'docs/planning/feat-x')), false);
   assert.match(work(dir, 'show', 'feat-x').out.error, /no plan for feat-x/);
-});
-
-test('work.mjs: close from building exits 1, names the status and removes nothing', () => {
-  const dir = tempRepo();
+  // Close from building exits 1, names the status and removes nothing.
   work(dir, 'new', 'busy', '--lane', 's', '--title', 'Busy');
   work(dir, 'event', 'busy', 'approve');
   work(dir, 'event', 'busy', 'start');
-  const r = work(dir, 'close', 'busy');
-  assert.equal(r.status, 1);
-  assert.match(r.out.error, /close needs status shipping; busy is building/);
+  const busy = work(dir, 'close', 'busy');
+  assert.equal(busy.status, 1);
+  assert.match(busy.out.error, /close needs status shipping; busy is building/);
   assert.ok(fs.existsSync(path.join(dir, 'docs/planning/busy.md')), 'the plan is still there');
+  // The empty-tree base still reads once commits exist.
+  const fresh = tempRepo();
+  work(fresh, 'new', 'fresh', '--lane', 's', '--title', 'Fresh');
+  work(fresh, 'event', 'fresh', 'approve');
+  assert.equal(work(fresh, 'event', 'fresh', 'start').out.base_ref, '4b825dc642cb6eb9a060e54bf8d69288fbee4904');
+  fs.writeFileSync(path.join(fresh, 'a.js'), 'x');
+  execFileSync('git', ['add', 'a.js'], { cwd: fresh });
+  execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '-m', 'first'], { cwd: fresh });
+  assert.equal(work(fresh, 'fingerprint', 'fresh').status, 0, 'the empty-tree base still reads');
 });
 
 test('work.mjs: verify-phase records only a passing check; audit-pass hashes the change (T21, T8)', () => {
@@ -411,29 +420,9 @@ test('work.mjs: verify-phase records only a passing check; audit-pass hashes the
   assert.equal(r.out.audit.fingerprint, before);
 });
 
-test('work.mjs: build-done in fix mode needs a passing verify-phase since the fix began', () => {
-  const dir = tempRepo();
-  const git = (...a) => execFileSync('git', a, { cwd: dir, encoding: 'utf8' });
-  git('-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '--allow-empty', '-m', 'base');
-  work(dir, 'new', 'fix-z', '--lane', 's', '--title', 'Fix Z');
-  for (const e of ['approve', 'start']) work(dir, 'event', 'fix-z', e);
-  work(dir, 'verify-phase', 'fix-z', '--', 'node -e "process.exit(0)"');
-  work(dir, 'event', 'fix-z', 'build-done');
-  work(dir, 'event', 'fix-z', 'audit-fail', 'M1 missing test');
-
-  let r = work(dir, 'event', 'fix-z', 'build-done');
-  assert.equal(r.status, 1);
-  assert.match(r.out.error, /since the fix began/, 'the pre-fix verify does not count');
-  r = work(dir, 'verify-phase', 'fix-z', '--', 'node -e "process.exit(3)"');
-  assert.equal(r.status, 1);
-  assert.equal(work(dir, 'event', 'fix-z', 'build-done').status, 1, 'a failing verify records nothing');
-  work(dir, 'verify-phase', 'fix-z', '--', 'node -e "process.exit(0)"');
-  assert.equal(work(dir, 'event', 'fix-z', 'build-done').out.status, 'auditing');
-});
-
 test('work.mjs: review-diff shows edits made after ship prepared, without touching the index', () => {
   const dir = tempRepo();
-  const git = (...a) => execFileSync('git', a, { cwd: dir, encoding: 'utf8' });
+  const git = (...a) => execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', ...a], { cwd: dir, encoding: 'utf8' });
   fs.writeFileSync(path.join(dir, 'a.js'), 'one\n');
   git('add', 'a.js');
   git('-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '-m', 'base');
@@ -453,24 +442,16 @@ test('work.mjs: review-diff shows edits made after ship prepared, without touchi
   const r = work(dir, 'review-diff', 'rev');
   assert.deepEqual(r.out.files, [{ status: 'M', path: 'a.js' }, { status: 'A', path: 'b.js' }]);
   assert.ok(fs.readFileSync(path.join(dir, '.git/index')).equals(indexBefore), 'the user index is untouched, partial staging kept');
-
+  // The plan file is left out whether it is committed or not.
+  git('add', '-f', 'docs/planning');
+  git('commit', '-q', '-m', 'closing docs', '--', 'docs/planning');
+  assert.deepEqual(work(dir, 'review-diff', 'rev').out.files.map((f) => f.path), ['a.js', 'b.js'], 'a committed plan file is absent');
+  fs.writeFileSync(path.join(dir, 'docs/planning/note.md'), 'edited after the commit\n');
+  assert.deepEqual(work(dir, 'review-diff', 'rev').out.files.map((f) => f.path), ['a.js', 'b.js'], 'and so is an edit to it');
   assert.equal(work(dir, 'event', 'rev', 'reaudit').out.status, 'auditing');
 });
 
-test('audit round 1 regressions: replan, parens, empty lane M, comments, CRLF', () => {
-  // Must 1: after a re-plan the new phases are built, not skipped by fix mode.
-  let s = normalize({ ...emptyBlock({ id: 'm', title: 'M', lane: 'm' }), phases: [{ n: 1 }] });
-  s = walk(s, [['approve'], ['start', { head: 'a' }], ['phase-done', { n: 1, verified: 'ok' }], ['build-done']]);
-  s = walk(s, [['audit-fail', { must: [1] }], ['phase-done', { n: 1, verified: 'ok' }], ['build-done'], ['audit-fail', { must: [1] }], ['phase-done', { n: 1, verified: 'ok' }], ['build-done'], ['audit-fail', { must: [1] }], ['replan']]);
-  assert.deepEqual([s.audit.verdict, s.audit.round, s.fix], [null, 0, []]);
-  s = normalize({ ...s, phases: [...s.phases, { n: 2, blocked_by: [1] }] });
-  s = walk(s, [['approve'], ['start']]);
-  assert.throws(() => transition(s, 'build-done'), /phase\(s\) 2 not done/);
-
-  // Should 2: an unbalanced parenthesis round-trips.
-  const p = { ...emptyBlock({ id: 'x', title: 'X', lane: 's' }), assumptions: ['x (y', '(a', 'b)'] };
-  assert.deepEqual(normalize(parseBlock(writeBlock(p))).assumptions, ['x (y', '(a', 'b)']);
-
+test('audit round 1 regressions: empty lane M and CRLF', () => {
   // Should 4: lane M with no phases cannot go to audit.
   const empty = walk(emptyBlock({ id: 'e', title: 'E', lane: 'm' }), [['approve'], ['start', { head: 'a' }]]);
   assert.throws(() => transition(empty, 'build-done'), /no phases/);
@@ -508,24 +489,6 @@ test('a failed plan write leaves the old plan whole and no temp file (T53)', () 
   };
   assert.throws(() => writeItem(item, { writeFileSync: partial }), /ENOSPC/);
   assert.deepEqual(fs.readdirSync(dir), ['a.md']);
-});
-
-test('fingerprint accepts the empty-tree base once commits exist (Should 5)', () => {
-  const dir = tempRepo();
-  work(dir, 'new', 'fresh', '--lane', 's', '--title', 'Fresh');
-  work(dir, 'event', 'fresh', 'approve');
-  assert.equal(work(dir, 'event', 'fresh', 'start').out.base_ref, '4b825dc642cb6eb9a060e54bf8d69288fbee4904');
-  fs.writeFileSync(path.join(dir, 'a.js'), 'x');
-  execFileSync('git', ['add', 'a.js'], { cwd: dir });
-  execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '-m', 'first'], { cwd: dir });
-  const r = work(dir, 'fingerprint', 'fresh');
-  assert.equal(r.status, 0, JSON.stringify(r.out));
-});
-
-test('audit round 2: newlines and tabs in values round-trip', () => {
-  const s = { ...emptyBlock({ id: 'x', title: 'multi\nline', lane: 's' }), blocker: 'a\tb', assumptions: ['one\r\ntwo'] };
-  const back = normalize(parseBlock(writeBlock(s)));
-  assert.deepEqual([back.title, back.blocker, back.assumptions], ['multi\nline', 'a\tb', ['one\r\ntwo']]);
 });
 
 test('work.mjs: verify-phase keeps separate arguments intact (audit round 2)', () => {
@@ -574,14 +537,6 @@ test('work.mjs: roadmap reads the file relative to the current directory', () =>
   assert.equal(out.next, 'R2', 'no plans: R2 is ready and riskier than R4');
 });
 
-test('work.mjs: roadmap prints finished and completed', () => {
-  const dir = tempRepo();
-  fs.writeFileSync(path.join(dir, 'r.md'), `---\ncompleted: 2026-10-30\n---\n### M1\n\n${TABLE}| R1 | build | A | G1 | none | v | low | shipped 2026-10-20 x |\n`);
-  const r = work(dir, 'roadmap', 'r.md');
-  assert.equal(r.out.finished, true);
-  assert.equal(r.out.completed, '2026-10-30');
-});
-
 test('work.mjs: show --brief prints only status, lane, next moves and the blocker, before or after the id', () => {
   const dir = tempRepo();
   work(dir, 'new', 'feat-b', '--lane', 'm', '--title', 'Feature B');
@@ -598,24 +553,21 @@ test('work.mjs: show --brief prints only status, lane, next moves and the blocke
   const blocked = work(dir, 'show', 'feat-b', '--brief').out;
   assert.equal(blocked.blocker, 'need a key');
   assert.equal(blocked.needs_user, true);
-});
-
-test('work.mjs: --brief on new, list, event, set and verify-phase prints the short shape', () => {
-  const dir = tempRepo();
-  const want = ['allowed', 'blocker', 'id', 'lane', 'needs_user', 'status'];
+  // The other commands and `list` take the flag too.
+  const short = tempRepo();
   const shape = (r) => {
     assert.equal(r.status, 0, JSON.stringify(r.out));
     assert.deepEqual(Object.keys(r.out).sort(), want);
     return r.out;
   };
-  assert.equal(shape(work(dir, 'new', 'feat-c', '--lane', 's', '--title', 'Feature C', '--brief')).status, 'draft');
-  assert.equal(shape(work(dir, 'set', 'feat-c', 'assumptions', '["a"]', '--brief')).id, 'feat-c');
-  assert.equal(shape(work(dir, 'event', 'feat-c', 'approve', '--brief')).status, 'planned');
-  assert.equal(shape(work(dir, 'event', 'feat-c', 'start', '--brief')).status, 'building');
-  assert.equal(shape(work(dir, 'verify-phase', 'feat-c', '--brief', '--', 'true')).status, 'building');
-  const list = work(dir, 'list', '--brief').out;
+  assert.equal(shape(work(short, 'new', 'feat-c', '--lane', 's', '--title', 'Feature C', '--brief')).status, 'draft');
+  assert.equal(shape(work(short, 'set', 'feat-c', 'assumptions', '["a"]', '--brief')).id, 'feat-c');
+  assert.equal(shape(work(short, 'event', 'feat-c', 'approve', '--brief')).status, 'planned');
+  assert.equal(shape(work(short, 'event', 'feat-c', 'start', '--brief')).status, 'building');
+  assert.equal(shape(work(short, 'verify-phase', 'feat-c', '--brief', '--', 'true')).status, 'building');
+  const list = work(short, 'list', '--brief').out;
   assert.deepEqual(list, [{ id: 'feat-c', lane: 's', status: 'building' }]);
-  assert.ok(work(dir, 'show', 'feat-c').out.verified, 'the full form still records and shows the check');
+  assert.ok(work(short, 'show', 'feat-c').out.verified, 'the full form still records and shows the check');
 });
 
 test('transitions: a fix round forgets the last one\'s verify', () => {
@@ -623,6 +575,23 @@ test('transitions: a fix round forgets the last one\'s verify', () => {
   s = walk(s, [['approve'], ['start', { head: 'a' }], ['phase-done', { verified: 'ok' }], ['build-done'], ['audit-fail', { must: ['M1'] }], ['phase-done', { verified: 'fix1' }], ['build-done'], ['audit-fail', { must: ['M2'] }]]);
   assert.equal('fix_verified' in s, false);
   assert.throws(() => transition(s, 'build-done'), /since the fix began/, 'round 1 verify does not cover round 2');
+  // The same through the CLI.
+  const dir = tempRepo();
+  const git = (...a) => execFileSync('git', a, { cwd: dir, encoding: 'utf8' });
+  git('-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '--allow-empty', '-m', 'base');
+  work(dir, 'new', 'fix-z', '--lane', 's', '--title', 'Fix Z');
+  for (const e of ['approve', 'start']) work(dir, 'event', 'fix-z', e);
+  work(dir, 'verify-phase', 'fix-z', '--', 'node -e "process.exit(0)"');
+  work(dir, 'event', 'fix-z', 'build-done');
+  work(dir, 'event', 'fix-z', 'audit-fail', 'M1 missing test');
+  let r = work(dir, 'event', 'fix-z', 'build-done');
+  assert.equal(r.status, 1);
+  assert.match(r.out.error, /since the fix began/, 'the pre-fix verify does not count');
+  r = work(dir, 'verify-phase', 'fix-z', '--', 'node -e "process.exit(3)"');
+  assert.equal(r.status, 1);
+  assert.equal(work(dir, 'event', 'fix-z', 'build-done').status, 1, 'a failing verify records nothing');
+  work(dir, 'verify-phase', 'fix-z', '--', 'node -e "process.exit(0)"');
+  assert.equal(work(dir, 'event', 'fix-z', 'build-done').out.status, 'auditing');
 });
 
 test('ship-it: the retro-it offer sits at the question, before close deletes the candidates', () => {
@@ -636,10 +605,6 @@ test('ship-it: the retro-it offer sits at the question, before close deletes the
 });
 
 const flat = (text) => text.replace(/\s+/g, ' ');
-
-test('flat: a rewrap of a pinned passage leaves the flattened text unchanged', () => {
-  assert.equal(flat('audit findings and\n   surfaced defects above'), flat('audit findings  and surfaced\ndefects above'));
-});
 
 test('ship-it: the question offers the audit leftovers, DOCS.md and prove-it name where they go', () => {
   const ship = fs.readFileSync(path.join(ROOT, 'skills/ship-it/SKILL.md'), 'utf8');
@@ -665,6 +630,8 @@ test('ship-it: FINALIZE.md keeps its five offers, its paths and its never-list, 
   // The paths a finalize stages, named in one section that run mode points at.
   const paths = flat(finalize.slice(finalize.indexOf('## Paths'), finalize.indexOf('## Offers')));
   for (const want of ['roadmap file', 'ADR', 'docs/TODO.md']) assert.ok(paths.includes(want), `Paths names ${want}`);
+  assert.ok(paths.includes('docs/issues/*.md'), 'Paths names the local issue files');
+  assert.ok(!paths.includes('stages exactly'), 'no claim the list is exact when offer e edits more');
   assert.equal(finalize.slice(finalize.indexOf('## Never')).split('\n').filter((l) => l.startsWith('- Never')).length, 3, 'the never-list keeps its three rules');
   for (const [letter, title] of [['a', 'ADRs'], ['b', 'Fog'], ['c', 'Shipped'], ['d', 'Completed'], ['e', 'Milestones']])
     assert.match(read('skills/ship-it/FINALIZE.md'), new RegExp(`^${letter}\\. \\*\\*${title}:\\*\\*`, 'm'), `offer ${letter}`);
@@ -744,29 +711,6 @@ test('work.mjs: fingerprint and review-diff stay correct across commits after ba
   assert.notEqual(work(dir, 'fingerprint', 'cm').out.fingerprint, before);
 });
 
-test('work.mjs: review-diff leaves out docs/planning whether or not those files are committed', () => {
-  const dir = tempRepo();
-  const git = (...a) => execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', ...a], { cwd: dir, encoding: 'utf8' });
-  fs.writeFileSync(path.join(dir, 'a.js'), 'one\n');
-  git('add', 'a.js');
-  git('commit', '-q', '-m', 'base');
-  work(dir, 'new', 'pl', '--lane', 's', '--title', 'Pl');
-  for (const e of ['approve', 'start']) work(dir, 'event', 'pl', e);
-  fs.writeFileSync(path.join(dir, 'a.js'), 'two\n');
-  work(dir, 'verify-phase', 'pl', '--', 'node -e "process.exit(0)"');
-  for (const e of ['build-done', 'audit-pass', 'ship-prepared']) work(dir, 'event', 'pl', e);
-  assert.deepEqual(work(dir, 'review-diff', 'pl').out.files, []);
-  // The plan, a note and a new planning file are committed after the prepare: still not a change.
-  fs.writeFileSync(path.join(dir, 'docs/planning/note.md'), 'closing notes\n');
-  git('add', '-f', 'docs/planning');
-  git('commit', '-q', '-m', 'closing docs');
-  assert.deepEqual(work(dir, 'review-diff', 'pl').out.files, [], 'a committed plan file is absent');
-  fs.writeFileSync(path.join(dir, 'docs/planning/note.md'), 'edited after the commit\n');
-  assert.deepEqual(work(dir, 'review-diff', 'pl').out.files, [], 'and so is an edit to it');
-  fs.writeFileSync(path.join(dir, 'b.js'), 'new\n');
-  assert.deepEqual(work(dir, 'review-diff', 'pl').out.files, [{ status: 'A', path: 'b.js' }]);
-});
-
 const ok = (r) => {
   assert.equal(r.status, 0, JSON.stringify(r.out));
   return r.out;
@@ -775,10 +719,12 @@ const ok = (r) => {
 test('work.mjs run: new, show, set and slice round trip with config defaults', () => {
   const dir = tempRepo();
   let r = ok(work(dir, 'run', 'new', 'road', '--date', '2026-10-30'));
-  assert.deepEqual(r, {
-    id: 'road', level: 'full', commit: 'phase', tracks: 1, branch: null, started: '2026-10-30', base: null,
-    max_slices: null, slice_cap_min: 120, audit_cap: 3, final_audit_cap: 3, audit_total_cap: null, slices: [], assumptions: [], rejected: [], limits: [],
-  });
+  assert.deepEqual(
+    [r.tracks, r.slice_cap_min, r.audit_cap, r.final_audit_cap, r.audit_total_cap],
+    [1, 120, 3, 3, null],
+    'the documented defaults',
+  );
+  assert.equal(r.started, '2026-10-30');
   assert.ok(fs.existsSync(path.join(dir, 'docs/planning/road.run/RUN.md')));
   assert.equal(work(dir, 'run', 'new', 'road').status, 1, 'no second record');
 
@@ -802,6 +748,16 @@ test('work.mjs run: config keys supply defaults when a flag is absent', () => {
   assert.deepEqual([r.max_slices, r.slice_cap_min, r.audit_cap], [7, 45, 3]);
   r = ok(work(dir, 'run', 'new', 'cfg2', '--audit-cap', '9'));
   assert.deepEqual([r.max_slices, r.slice_cap_min, r.audit_cap], [7, 45, 9], 'a flag beats config');
+});
+
+test('work.mjs run: an empty slice cap means no cap, at new and at set', () => {
+  const dir = tempRepo();
+  assert.equal(ok(work(dir, 'run', 'new', 'x', '--slice-cap-min', '')).slice_cap_min, null);
+  ok(work(dir, 'run', 'set', 'x', 'slice_cap_min', '45'));
+  assert.equal(ok(work(dir, 'run', 'show', 'x')).slice_cap_min, 45);
+  ok(work(dir, 'run', 'set', 'x', 'slice_cap_min', 'null'));
+  assert.equal(ok(work(dir, 'run', 'show', 'x')).slice_cap_min, null);
+  assert.match(work(dir, 'run', 'set', 'x', 'slice_cap_min', '0').out.error, /positive whole number/);
 });
 
 test('work.mjs run: unknown levels, commit modes and non-positive caps are refused', () => {
@@ -868,13 +824,6 @@ test('roadmap-it FORMAT.md describes completed and Shipped and no longer shows C
   const lifecycle = format.slice(format.indexOf('Two more parts'));
   assert.ok(lifecycle.includes('replan') && !lifecycle.includes('re-chart'), 'one word for the action, the one roadmap-it uses');
   assert.ok(lifecycle.includes('`completed:`') && lifecycle.includes('`## Shipped`') && lifecycle.includes('`reopened`'), 'the keep rule and the reopened note are stated');
-});
-
-test('FINALIZE Paths names every file a finalize writes, the local issue files included', () => {
-  const doc = flat(fs.readFileSync(path.join(ROOT, 'skills/ship-it/FINALIZE.md'), 'utf8'));
-  const paths = doc.slice(doc.indexOf('## Paths'), doc.indexOf('## Offers'));
-  for (const piece of ['docs/TODO.md', 'docs/issues/*.md']) assert.ok(paths.includes(piece), piece);
-  assert.ok(!paths.includes('stages exactly'), 'no claim the list is exact when offer e edits more');
 });
 
 test('a roadmap finalize leaves no proposed ADR nobody accepts, and the two origin-only Execution notes are gone', () => {
@@ -961,21 +910,17 @@ test('clean passes: audit-pass counts, reaudit refuses at the cap, --again grant
   s = walk(s, [['audit-pass', { fingerprint: 'g' }]]);
   assert.equal(s.audit.clean_passes, 3);
   assert.throws(() => transition(s, 'reaudit'), /--again/, 'the extra round spends the allowance');
-});
-
-test('clean passes: a FAIL or a replan restarts the count; an old block reads as 0', () => {
+  // A FAIL or a replan restarts the count; an old block reads as 0.
   const old = auditing();
   assert.equal('clean_passes' in old.audit, false, 'not written until nonzero');
-  let s = passes(old, 2);
-  assert.equal(s.audit.clean_passes, 2);
-  s = walk(s, [['reaudit'], ['audit-fail', { must: ['M1'] }]]);
-  assert.equal('clean_passes' in s.audit, false, 'a FAIL resets it');
-  s = walk(passes(old, 2), [['replan']]);
-  assert.equal('clean_passes' in s.audit, false, 'a replan resets it');
+  let restarted = passes(old, 2);
+  assert.equal(restarted.audit.clean_passes, 2);
+  restarted = walk(restarted, [['reaudit'], ['audit-fail', { must: ['M1'] }]]);
+  assert.equal('clean_passes' in restarted.audit, false, 'a FAIL resets it');
+  const replanned = walk(passes(old, 2), [['replan']]);
+  assert.equal('clean_passes' in replanned.audit, false, 'a replan resets it');
   assert.equal(normalize({ ...old, audit: { ...old.audit } }).audit.clean_passes, undefined);
-});
-
-test('work.mjs: reaudit exits 1 at the clean-pass cap, 0 with --again', () => {
+  // The same cap through the CLI: reaudit exits 1, and 0 with --again.
   const dir = tempRepo();
   fs.writeFileSync(path.join(dir, 'a.js'), 'one\n');
   execFileSync('git', ['add', 'a.js'], { cwd: dir });

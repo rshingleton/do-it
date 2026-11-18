@@ -23,6 +23,8 @@ function tmpRepo() {
 test('parseEnv handles comments, export, quotes', () => {
   const env = parseEnv(`# c\nexport A=1\nB = "two words"\nC='x # y'\nD=plain # trailing\nbad line\n`);
   assert.deepEqual(env, { A: '1', B: 'two words', C: 'x # y', D: 'plain' });
+  // A quoted value with an inline comment loses its quotes but keeps the spaces.
+  assert.deepEqual(parseEnv(`A="quoted" # note\nB='x y' # c\n`), { A: 'quoted', B: 'x y' });
 });
 
 test('loadConfig layers user < project < local < env and warns on committed secrets', () => {
@@ -77,11 +79,8 @@ test('resolveDocs: config wins, then first existing candidate, then default', ()
   docs = resolveDocs(root, { ...DEFAULTS, DO_IT_CONTEXT: 'docs/terms.md', DO_IT_CONTEXT_MAP: 'docs/areas.md' });
   assert.deepEqual(docs.context, { path: 'docs/terms.md', exists: false, source: 'config' });
   assert.deepEqual(docs.contextMap, { path: 'docs/areas.md', exists: false, source: 'config' });
-});
 
-test('resolveDocs: DO_IT_GLOSSARY still names the context when DO_IT_CONTEXT is unset', () => {
-  const root = tmpRepo();
-  fs.writeFileSync(path.join(root, 'CONTEXT.md'), '# area');
+  // The old name still sets the context when DO_IT_CONTEXT is unset, and loses to it when both are set.
   assert.equal(resolveDocs(root, { ...DEFAULTS, DO_IT_GLOSSARY: 'docs/old.md' }).context.path, 'docs/old.md');
   assert.equal(resolveDocs(root, { ...DEFAULTS, DO_IT_GLOSSARY: 'docs/old.md', DO_IT_CONTEXT: 'docs/new.md' }).context.path, 'docs/new.md');
 });
@@ -190,6 +189,14 @@ test('jira create: components and epic from flags or config, sent as Jira spells
   const cloud = fetch2.calls.find((c) => c.method === 'POST').body.fields;
   assert.deepEqual(cloud.components, [{ name: 'Core' }, { name: 'UI' }]);
   assert.deepEqual(cloud.parent, { key: 'CDS-5' });
+
+  // The same flags through the CLI reach the same fields.
+  const root = tmpRepo();
+  const cliFetch = fakeFetch({ 'GET /project/CDS': PROJECT, 'POST /issue': { key: 'CDS-3' } });
+  await run(['create', '--tracker', 'jira', '--title', 'T', '--project', 'CDS', '--component', 'Core', '--component', 'UI', '--epic', 'CDS-5'], { config: { root, values: { ...JIRA }, sources: {}, warnings: [] }, deps: { fetch: cliFetch } });
+  const cliSent = cliFetch.calls.find((c) => c.method === 'POST').body.fields;
+  assert.deepEqual(cliSent.components, [{ name: 'Core' }, { name: 'UI' }]);
+  assert.deepEqual(cliSent.parent, { key: 'CDS-5' });
 });
 
 test('jira create: --parent makes a sub-task and --project overrides the default', async () => {
@@ -213,6 +220,32 @@ test('jira create: refuses before creating when the project, a component or the 
   await refuses({}, { components: ['none', 'Core'], epic: 'CDS-5' }, /cannot be mixed/);
   await refuses({}, { components: ['Core'], epic: 'CDS-5', parent: 'CDS-6' }, /--epic or --parent, not both/);
   await refuses({}, { project: 'ZZZ', components: ['Core'], epic: 'CDS-5' }, /project ZZZ/);
+  // A blank epic, parent or project counts as unset, so the same refusal fires.
+  await refuses({}, { components: ['Core'], epic: ' ' }, /epic or parent/);
+  await refuses({}, { components: ['Core'], parent: '  ' }, /epic or parent/);
+  const blank = fakeFetch({ 'GET /project/CDS': PROJECT, 'POST /issue': { key: 'CDS-9' } });
+  await jiraTracker(JIRA, { fetch: blank }).create({ title: 'T', project: ' ', components: ['Core'], epic: 'CDS-5' });
+  assert.deepEqual(blank.calls.find((c) => c.method === 'POST').body.fields.project, { key: 'CDS' });
+
+  // A blank JIRA_DEFAULT_EPIC is unset too: create refuses, publish creates the epic itself.
+  const unsetDefault = fakeFetch({ 'GET /project/CDS': PROJECT, 'POST /issue': { key: 'CDS-9' } });
+  const blanked = jiraTracker({ ...JIRA, JIRA_DEFAULT_EPIC: '  ' }, { fetch: unsetDefault });
+  await assert.rejects(blanked.create({ title: 'T', components: ['none'] }), /epic or parent/);
+  assert.ok(!unsetDefault.calls.some((c) => c.method === 'POST'));
+
+  let n = 40;
+  const bodies = [];
+  const pub = async (url, init) => {
+    if (url.endsWith('/project/CDS')) return { ok: true, status: 200, text: async () => JSON.stringify(PROJECT) };
+    bodies.push(JSON.parse(init.body));
+    return { ok: true, status: 201, text: async () => JSON.stringify({ key: `CDS-${n++}` }) };
+  };
+  const published = await jiraTracker({ ...JIRA, JIRA_DEFAULT_EPIC: '  ' }, { fetch: pub }).publish({ title: 'Plan', parent: ' ', components: ['UI'], phases: [{ n: 1, title: 'A' }] });
+  assert.equal(bodies[0].fields.issuetype.name, 'Epic');
+  assert.equal(published.parent, 'CDS-40');
+
+  // A null component is refused like a missing one.
+  await refuses({}, { components: [null], epic: 'CDS-5' }, /needs a component/);
 });
 
 test('jira create: none skips the component and epic checks', async () => {
@@ -221,6 +254,26 @@ test('jira create: none skips the component and epic checks', async () => {
   const sent = fetch.calls.find((c) => c.method === 'POST').body.fields;
   assert.equal(sent.components, undefined);
   assert.equal(sent.parent, undefined);
+
+  // --parent none files a task with no parent, and publish with no epic creates none.
+  const parentless = fakeFetch({ 'GET /project/CDS': PROJECT, 'POST /issue': { key: 'CDS-9' } });
+  await jiraTracker(JIRA, { fetch: parentless }).create({ title: 'T', components: ['Core'], parent: 'none' });
+  const direct = parentless.calls.find((c) => c.method === 'POST').body.fields;
+  assert.equal(direct.parent, undefined);
+  assert.equal(direct.issuetype.name, 'Task');
+
+  let n = 30;
+  const bodies = [];
+  const pub = async (url, init) => {
+    if (url.endsWith('/project/CDS')) return { ok: true, status: 200, text: async () => JSON.stringify(PROJECT) };
+    bodies.push(JSON.parse(init.body));
+    return { ok: true, status: 201, text: async () => JSON.stringify({ key: `CDS-${n++}` }) };
+  };
+  const r = await jiraTracker({ ...JIRA, JIRA_DEFAULT_EPIC: 'none' }, { fetch: pub }).publish({ title: 'Plan', components: ['UI'], phases: [{ n: 1, title: 'A' }] });
+  assert.equal(r.parent, null);
+  assert.equal(bodies.length, 1);
+  assert.equal(bodies[0].fields.issuetype.name, 'Task');
+  assert.equal(bodies[0].fields.parent, undefined);
 });
 
 test('jira publish: the epic it creates and every child carry the components', async () => {
@@ -254,16 +307,6 @@ test('jira publish that fails partway returns the refs it made', async () => {
   assert.match(epic.error, /500/);
 });
 
-test('CLI: create passes project, components, epic and parent to Jira', async () => {
-  const root = tmpRepo();
-  const fetch = fakeFetch({ 'GET /project/CDS': PROJECT, 'POST /issue': { key: 'CDS-3' } });
-  const config = { root, values: { ...JIRA }, sources: {}, warnings: [] };
-  await run(['create', '--tracker', 'jira', '--title', 'T', '--project', 'CDS', '--component', 'Core', '--component', 'UI', '--epic', 'CDS-5'], { config, deps: { fetch } });
-  const sent = fetch.calls.find((c) => c.method === 'POST').body.fields;
-  assert.deepEqual(sent.components, [{ name: 'Core' }, { name: 'UI' }]);
-  assert.deepEqual(sent.parent, { key: 'CDS-5' });
-});
-
 test('jira basic auth when JIRA_EMAIL is set', async () => {
   const fetch = fakeFetch({ 'GET /issue/CDS-3?fields=summary,description,status,issuetype,assignee,comment': { fields: { summary: 'S' } } });
   await jiraTracker({ ...JIRA, JIRA_EMAIL: 'a@b.c' }, { fetch }).get('CDS-3');
@@ -279,27 +322,6 @@ test('CLI: config redacts, create uses the default tracker, refs route by shape'
   assert.equal(created.ref, 'docs/issues/a-thing.md');
   await assert.rejects(run(['get', 'nonsense'], { config }), /cannot tell which tracker/);
   await assert.rejects(run(['create'], { config }), /needs --title/);
-});
-
-test('jira: --parent none and an epic of none file with no parent; publish with none makes no epic', async () => {
-  const fetch = fakeFetch({ 'GET /project/CDS': PROJECT, 'POST /issue': { key: 'CDS-9' } });
-  await jiraTracker(JIRA, { fetch }).create({ title: 'T', components: ['Core'], parent: 'none' });
-  const sent = fetch.calls.find((c) => c.method === 'POST').body.fields;
-  assert.equal(sent.parent, undefined);
-  assert.equal(sent.issuetype.name, 'Task');
-
-  let n = 30;
-  const bodies = [];
-  const pub = async (url, init) => {
-    if (url.endsWith('/project/CDS')) return { ok: true, status: 200, text: async () => JSON.stringify(PROJECT) };
-    bodies.push(JSON.parse(init.body));
-    return { ok: true, status: 201, text: async () => JSON.stringify({ key: `CDS-${n++}` }) };
-  };
-  const r = await jiraTracker({ ...JIRA, JIRA_DEFAULT_EPIC: 'none' }, { fetch: pub }).publish({ title: 'Plan', components: ['UI'], phases: [{ n: 1, title: 'A' }] });
-  assert.equal(r.parent, null);
-  assert.equal(bodies.length, 1);
-  assert.equal(bodies[0].fields.issuetype.name, 'Task');
-  assert.equal(bodies[0].fields.parent, undefined);
 });
 
 test('jira: an error page that echoes the auth header does not leak the token', async () => {
@@ -323,35 +345,6 @@ test('jira: a token inside the basic value, or a non-JSON 2xx body, does not lea
   assert.doesNotMatch(bad.message, /abc123/);
 });
 
-test('jira create: a blank epic, parent or project counts as unset', async () => {
-  for (const args of [{ epic: ' ' }, { parent: '  ' }]) {
-    const fetch = fakeFetch({ 'GET /project/CDS': PROJECT, 'POST /issue': { key: 'CDS-9' } });
-    await assert.rejects(jiraTracker(JIRA, { fetch }).create({ title: 'T', components: ['Core'], ...args }), /epic or parent/);
-    assert.ok(!fetch.calls.some((c) => c.method === 'POST'));
-  }
-  const fetch = fakeFetch({ 'GET /project/CDS': PROJECT, 'POST /issue': { key: 'CDS-9' } });
-  await jiraTracker(JIRA, { fetch }).create({ title: 'T', project: ' ', components: ['Core'], epic: 'CDS-5' });
-  assert.deepEqual(fetch.calls.find((c) => c.method === 'POST').body.fields.project, { key: 'CDS' });
-});
-
-test('jira: a blank JIRA_DEFAULT_EPIC is unset for create and publish', async () => {
-  const fetch = fakeFetch({ 'GET /project/CDS': PROJECT, 'POST /issue': { key: 'CDS-9' } });
-  const t = jiraTracker({ ...JIRA, JIRA_DEFAULT_EPIC: '  ' }, { fetch });
-  await assert.rejects(t.create({ title: 'T', components: ['none'] }), /epic or parent/);
-  assert.ok(!fetch.calls.some((c) => c.method === 'POST'));
-
-  let n = 40;
-  const bodies = [];
-  const pub = async (url, init) => {
-    if (url.endsWith('/project/CDS')) return { ok: true, status: 200, text: async () => JSON.stringify(PROJECT) };
-    bodies.push(JSON.parse(init.body));
-    return { ok: true, status: 201, text: async () => JSON.stringify({ key: `CDS-${n++}` }) };
-  };
-  const r = await jiraTracker({ ...JIRA, JIRA_DEFAULT_EPIC: '  ' }, { fetch: pub }).publish({ title: 'Plan', parent: ' ', components: ['UI'], phases: [{ n: 1, title: 'A' }] });
-  assert.equal(bodies[0].fields.issuetype.name, 'Epic');
-  assert.equal(r.parent, 'CDS-40');
-});
-
 test('jira: a fetch that throws quoting the auth header does not leak the token', async () => {
   const token = ['fa', 'ke\nmid'].join('');
   const fetch = recordingFetch((url, init) => {
@@ -360,11 +353,6 @@ test('jira: a fetch that throws quoting the auth header does not leak the token'
   const err = await jiraTracker({ ...JIRA, JIRA_API_TOKEN: token }, { fetch }).get('CDS-1').catch((e) => e);
   assert.match(err.message, /request failed/);
   assert.doesNotMatch(err.message, /mid/);
-});
-
-test('jira create: a null component in a spec is refused like a missing one', async () => {
-  const fetch = fakeFetch({ 'GET /project/CDS': PROJECT, 'POST /issue': { key: 'CDS-9' } });
-  await assert.rejects(jiraTracker(JIRA, { fetch }).create({ title: 'T', components: [null], epic: 'CDS-5' }), /needs a component/);
 });
 
 test('CLI: list shows open local issues, a closed one is gone, a remote tracker adds a note', async () => {

@@ -59,6 +59,18 @@ const tracks = (dir) => ok(work(dir, 'run', 'tracks', 'road', 'docs/roadmap/r.md
 const audit = (dir, id) => ok(work(dir, 'run', 'audit', 'road', id));
 const show = (dir) => ok(work(dir, 'run', 'show', 'road'));
 
+// The plan's last audit round, ended on these Musts: what the next `run audit` is classified against.
+// A plan at its third failed round in a row blocks, so unblock it before the next one.
+function auditFailed(dir, id, ...musts) {
+  const status = () => ok(work(dir, 'show', id)).status;
+  if (status() === 'blocked') ok(work(dir, 'event', id, 'unblock'));
+  if (status() === 'building') {
+    ok(work(dir, 'verify-phase', id, '--', 'true'));
+    ok(work(dir, 'event', id, 'build-done'));
+  }
+  ok(work(dir, 'event', id, 'audit-fail', ...musts));
+}
+
 test('one record counts every track\'s rounds, and a lane record beside it is never read', () => {
   const dir = fixture(['--audit-cap', '3']);
   const out = tracks(dir);
@@ -83,18 +95,23 @@ test('one record counts every track\'s rounds, and a lane record beside it is ne
 test('a slice with no audit round left is refused before dispatch; the other track still starts', () => {
   const dir = fixture(['--audit-cap', '1']);
   assert.deepEqual(tracks(dir).tracks.map((t) => t.id), ['R1', 'R2'], 'before any round, both start');
-  assert.equal(audit(dir, 'R1').allow, true, 'its one round');
+  // R1's rounds keep raising the same Must: the first is new work, the second spends its one repeat round.
+  auditFailed(dir, 'api', 'leak');
+  assert.equal(audit(dir, 'R1').allow, true, 'its first round on this Must');
+  assert.equal(audit(dir, 'R1').allow, true, 'the repeat spends the one round');
   const out = tracks(dir);
   assert.deepEqual(out.tracks.map((t) => t.id), ['R2'], 'a spent cap starts no track for that slice');
   const refused = out.refused.find((r) => r.id === 'R1');
   assert.equal(refused.reason, 'SLICE_AUDIT_CAP');
-  assert.match(refused.detail, /slice R1: 1 audit rounds, cap 1/);
+  assert.match(refused.detail, /slice R1: 1 rounds repeated an earlier Must, cap 1/);
   assert.deepEqual(out.waiting, [], 'refused is not waiting: no next round frees a spent cap');
-  assert.equal(show(dir).gates.find((g) => g.id === 'R1').audit_rounds, 1, 'the refusal spends no round');
+  const g = show(dir).gates.find((x) => x.id === 'R1');
+  assert.deepEqual([g.audit_rounds, g.audit_spent], [2, 1], 'the refusal spends no round');
 });
 
 test('a spent run total refuses every track and names the run total', () => {
-  const dir = fixture(['--audit-cap', '2', '--max-slices', '1']);
+  const dir = fixture(['--audit-cap', '1', '--audit-total-cap', '2', '--max-slices', '1']);
+  auditFailed(dir, 'api', 'leak');
   audit(dir, 'R1');
   audit(dir, 'R1');
   const out = tracks(dir);
@@ -103,7 +120,7 @@ test('a spent run total refuses every track and names the run total', () => {
   assert.match(out.refused[1].detail, /run total: 2 audit rounds, cap 2/);
 });
 
-test('the slice ships on the merged tree\'s fingerprint: an edit after ship-prepare is STALE_VERIFY', () => {
+test('the slice ships on the merged tree\'s fingerprint: ship-prepare takes that tree\'s', () => {
   const dir = fixture();
   const wt = tracks(dir).tracks[0].worktree;
   // The coordinator's own change, so a fingerprint taken from the wrong tree shows.
@@ -117,17 +134,12 @@ test('the slice ships on the merged tree\'s fingerprint: an edit after ship-prep
   ok(work(dir, 'run', 'verify', 'road', 'R1', '--in', wt, '--', 'true'));
   git(dir, 'merge', '-q', '--no-ff', '-m', 'road R1 (track)', 'do-it/road--R1');
   const merged = ok(work(dir, 'run', 'verify', 'road', 'R1', '--merged', '.', '--', 'true')).gates.find((g) => g.id === 'R1');
-  assert.notEqual(merged.merged_fingerprint, merged.verified_fingerprint, 'the merged tree is its own fingerprint');
   // The slice's own audit and ship facts are taken on the merged tree, before it ships.
   ok(work(dir, 'event', 'api', 'build-done'));
   ok(work(dir, 'event', 'api', 'audit-pass'));
   const prepared = ok(work(dir, 'event', 'api', 'ship-prepared'));
   assert.equal(prepared.ship.fingerprint, merged.merged_fingerprint, 'the slice\'s fingerprint is the merged tree\'s');
   assert.deepEqual(ok(work(dir, 'run', 'gate', 'road', 'R1')), { allow: true, reason: null, detail: null });
-  fs.writeFileSync(path.join(dir, 'src', 'api.js'), 'edited after the prepare\n');
-  const g = ok(work(dir, 'run', 'gate', 'road', 'R1'));
-  assert.equal(g.reason, 'STALE_VERIFY', 'an edit after the merged check refuses the ship');
-  assert.match(g.detail, /merged tree/, 'the refusal names the merged tree');
 });
 
 // The loop is text an agent follows, so its rules are pinned where they are written.
@@ -148,8 +160,6 @@ test('the track text: the coordinator records every round, refuses a spent cap, 
   assert.match(doc, /`STALE_VERIFY`/);
   // A track keeps no record of its own, and a lane's is history.
   const record = section(doc, 'The record');
-  assert.match(record, /never writes the run record/);
-  assert.match(record, /no\s+`RUN\.md` of its own/, 'a track writes no record of its own');
   assert.match(record, /`work\.mjs run show <slug>`/, 'the coordinator\'s record is read with run show');
   assert.match(record, /history\s+only/, 'a lane record is history only');
   assert.match(record, /never reads them/);

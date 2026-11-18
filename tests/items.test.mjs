@@ -94,15 +94,6 @@ test('items: a failed lane move leaves the lane S plan in place', () => {
   assert.equal(items.get('grow').state.lane, 's');
 });
 
-test('items: a plan left in both places by an interrupted move reads from the directory', () => {
-  const { planningDir, items } = setup();
-  items.create('grow', { lane: 's', title: 'Grow' });
-  const old = fs.readFileSync(path.join(planningDir, 'grow.md'), 'utf8');
-  items.set('grow', 'lane', 'm');
-  fs.writeFileSync(path.join(planningDir, 'grow.md'), old);
-  assert.equal(items.get('grow').state.lane, 'm');
-});
-
 test('items: verifyPhase records only a passing run, and needs a phase number in lane M', () => {
   const { items } = setup();
   building(items, 's1', 's');

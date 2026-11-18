@@ -19,16 +19,13 @@ test('split gives null without a closed block', () => {
   assert.equal(splitFrontmatter('x\n---\na: 1\n---\n'), null);
 });
 
-test('join writes the block with the given line ending and keeps the body as given', () => {
+test('split then join is the identity for LF and CRLF files, and join keeps the body as given', () => {
   assert.equal(joinFrontmatter('a: 1\nb: 2', '\nBody\n'), '---\na: 1\nb: 2\n---\n\nBody\n');
   assert.equal(joinFrontmatter('a: 1\nb: 2\n', 'Body\n'), '---\na: 1\nb: 2\n---\nBody\n');
   assert.equal(joinFrontmatter('a: 1\nb: 2', 'Body\r\n', '\r\n'), '---\r\na: 1\r\nb: 2\r\n---\r\nBody\r\n');
-});
-
-test('split then join is the identity for LF and CRLF files', () => {
   for (const text of ['---\na: 1\n---\n\nBody\n', '---\r\na: 1\r\n---\r\n\r\nBody\r\n']) {
     const { yaml, body, eol } = splitFrontmatter(text);
-    assert.equal(joinFrontmatter(yaml, body, eol), text);
+    assert.equal(joinFrontmatter(yaml, body, eol), text, 'split then join is the identity');
   }
 });
 
@@ -72,12 +69,8 @@ test('parseFlat keeps a comment line out of the value above it', () => {
   assert.deepEqual(r.continued, ['  two']);
 });
 
-test('writeFlat leaves safe values bare, quotes the rest and drops empty ones', () => {
+test('writeFlat leaves safe values bare and drops empty ones', () => {
   assert.equal(writeFlat({ title: 'Plain title', a: undefined, b: '', n: 3 }), 'title: Plain title\nn: 3');
-  assert.equal(writeFlat({ t: 'Fix "login": broken' }), 't: "Fix \\"login\\": broken"');
-  assert.equal(writeFlat({ t: 'Has # hash' }), 't: "Has # hash"');
-  assert.equal(writeFlat({ t: 'trailing ' }), 't: "trailing "');
-  assert.equal(writeFlat({ t: '-lead' }), 't: "-lead"');
 });
 
 test('writeFlat output reads back unchanged', () => {

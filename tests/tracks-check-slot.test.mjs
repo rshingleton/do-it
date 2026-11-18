@@ -67,6 +67,17 @@ function verifyAsync(dir, cmd) {
   });
 }
 
+// The same check after a merge: it queues on the same slot.
+function mergedAsync(dir, cmd) {
+  return new Promise((resolve) => {
+    const p = spawn('node', [WORK, 'run', 'verify', 'road', 'R1', '--merged', '.', '--', cmd], { cwd: dir, env: env(dir) });
+    let out = '';
+    p.stdout.on('data', (d) => (out += d));
+    p.stderr.on('data', () => {});
+    p.on('close', (status) => resolve({ status, out: JSON.parse(out) }));
+  });
+}
+
 async function waitFor(what, ms = 20000) {
   const end = Date.now() + ms;
   while (Date.now() < end) {
@@ -83,11 +94,17 @@ test('two checks on one run take the slot in turn, and the second records the ti
   const cmd = `echo start >> ${sh(log)}; sleep 1; echo end >> ${sh(log)}`;
   const first = verifyAsync(dir, cmd);
   await waitFor(() => fs.existsSync(log) && fs.readFileSync(log, 'utf8').includes('start'));
-  const second = verifyAsync(dir, cmd);
+  // A merged check queues on the same slot, and its queue time is recorded too.
+  const second = mergedAsync(dir, cmd);
   const done = await Promise.all([first, second]);
-  assert.deepEqual(done.map((r) => r.status), [0, 0]);
-  assert.deepEqual(fs.readFileSync(log, 'utf8').trim().split('\n'), ['start', 'end', 'start', 'end'], 'the second check waited for the first to finish');
+  assert.deepEqual(done.map((r) => r.status), [0, 0], JSON.stringify(done.map((r) => r.out)));
+  assert.deepEqual(fs.readFileSync(log, 'utf8').trim().split('\n'), ['start', 'end', 'start', 'end'], 'the merged check waited for the first to finish');
   assert.ok(entry(dir).waited_ms >= 300, `the queue time is on the slice: ${entry(dir).waited_ms}`);
+  // The wait is inside the span and taken off by waited_ms once: last_seen is the check's end,
+  // not the moment the command was typed.
+  const e = entry(dir);
+  const span = Date.parse(e.last_seen) - Date.parse(e.active_since ?? e.started);
+  assert.ok(span >= e.waited_ms, `the queue wait is inside the span it is taken off: span ${span}, waited ${e.waited_ms}`);
   assert.equal(fs.existsSync(lockOf(dir)), false, 'the slot is released');
 });
 
@@ -112,16 +129,34 @@ test('a failing check releases the slot, so the next check is not made to wait',
   assert.equal(verifyAt(dir, 'true').status, 0);
 });
 
-test('queue time does not spend the cap: the gate counts work from started plus the wait', () => {
-  // 45 minutes into a slice with a 30 minute cap.
-  const started = new Date(Date.now() - 45 * 60000).toISOString();
+test('queue time does not spend the cap: the gate counts the open span less the wait', () => {
+  const start = Date.parse('2026-01-01T00:00:00Z');
+  const at = (min) => new Date(start + min * 60000).toISOString();
+  const now = start + 45 * 60000;
   const rec = (waited) => ({
     slices: [],
     audit_cap: 3,
     slice_cap_min: 30,
-    gates: [{ id: 'R1', started, verified_fingerprint: 'fp', ...(waited ? { waited_ms: waited } : {}) }],
+    gates: [{ id: 'R1', active_since: at(0), verified_fingerprint: 'fp', ...(waited ? { waited_ms: waited } : {}) }],
   });
-  assert.equal(gateRule(rec(0), 'R1', { current: 'fp' }).reason, 'SLICE_CAP', '45 min of work is past the cap');
-  assert.deepEqual(gateRule(rec(35 * 60000), 'R1', { current: 'fp' }), { allow: true, reason: null, detail: null }, '35 of the 45 min queued, so 10 min of work');
-  assert.equal(gateRule(rec(5 * 60000), 'R1', { current: 'fp' }).reason, 'SLICE_CAP', '40 min of work is still past the cap');
+  assert.equal(gateRule(rec(0), 'R1', { current: 'fp', now }).reason, 'SLICE_CAP', '45 min of work is past the cap');
+  assert.deepEqual(gateRule(rec(35 * 60000), 'R1', { current: 'fp', now }), { allow: true, reason: null, detail: null }, '35 of the 45 min queued, so 10 min of work');
+  assert.equal(gateRule(rec(5 * 60000), 'R1', { current: 'fp', now }).reason, 'SLICE_CAP', '40 min of work is still past the cap');
+});
+
+test('a park that banks no span drops the queue credit with it', async () => {
+  const dir = fixture(['--slice-cap-min', '30']);
+  const log = path.join(dir, 'check.log');
+  const cmd = `echo start >> ${sh(log)}; sleep 1`;
+  const first = verifyAsync(dir, cmd);
+  await waitFor(() => fs.existsSync(log));
+  const second = mergedAsync(dir, cmd);
+  const done = await Promise.all([first, second]);
+  assert.deepEqual(done.map((r) => r.status), [0, 0], JSON.stringify(done.map((r) => r.out)));
+  assert.ok(entry(dir).waited_ms > 0, 'the merged check queued for the slot');
+  // A park stamped before the span opened banks nothing, so the queue credit must go with it.
+  ok(work(dir, 'run', 'slice', 'road', 'R1', 'parked', '--reason', 'x', '--needs', 'user', '--at', '2000-01-01T00:00:00.000Z'));
+  const g = entry(dir);
+  assert.equal(g.active_ms, 0);
+  assert.equal(g.waited_ms, undefined, 'no credit outlives the span it was recorded with');
 });

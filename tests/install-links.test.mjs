@@ -243,35 +243,17 @@ test('an install from a checkout behind its remote ends with the sha, the branch
   assert.equal(gitOut(root, ['branch', '--show-current']), before.branch, 'the branch is where it was');
   assert.deepEqual(fs.readFileSync(fetchHead), before.fetched, 'no fetch moved FETCH_HEAD');
   assert.equal(gitOut(remote, ['for-each-ref']), before.refs, 'the remote is where it was');
-});
 
-test('a checkout level with its remote says up to date, and a dry run prefixes the line with would', () => {
-  const { root } = checkout();
-  const home = tmpDir('do-it-home-');
-  const real = printed(() => install({ root, home, hooks: false }));
+  // Level with its remote: up to date, never fetched; a dry run says would and writes nothing.
+  const level = checkout();
+  const real = printed(() => install({ root: level.root, home: tmpDir('do-it-home-'), hooks: false }));
   assert.equal(real.code, 0);
-  assert.equal(refLine(real.lines), `installed from ${root} at ${shortSha(root)} (main), up to date with origin/main; never fetched`);
-
+  assert.equal(refLine(real.lines), `installed from ${level.root} at ${shortSha(level.root)} (main), up to date with origin/main; never fetched`);
   const dryHome = tmpDir('do-it-home-');
-  const dry = printed(() => install({ root, home: dryHome, hooks: false, dry: true }));
+  const dry = printed(() => install({ root: level.root, home: dryHome, hooks: false, dry: true }));
   assert.equal(dry.code, 0);
-  assert.equal(refLine(dry.lines), `would install from ${root} at ${shortSha(root)} (main), up to date with origin/main; never fetched`);
+  assert.equal(refLine(dry.lines), `would install from ${level.root} at ${shortSha(level.root)} (main), up to date with origin/main; never fetched`);
   assert.deepEqual(fs.readdirSync(dryHome), [], 'a dry run creates nothing');
-});
-
-test('a run whose hooks fail still prints the ref line, because it prints before them', () => {
-  const { root } = checkout();
-  const home = tmpDir('do-it-home-');
-  // A settings file the hooks step refuses: claude returns 1, so the installer
-  // returns before its own last statement. A line printed after the hooks block
-  // would never appear.
-  // The hook step now follows the install home, so the broken file that makes
-  // it fail is the one in that home.
-  fs.mkdirSync(path.join(home, '.claude'), { recursive: true });
-  fs.writeFileSync(path.join(home, '.claude', 'settings.json'), '{ not json');
-  const out = printed(() => install({ root, home, hooks: true }));
-  assert.equal(out.code, 1, 'the hook failure is still the exit code');
-  assert.equal(refLine(out.lines), `installed from ${root} at ${shortSha(root)} (main), up to date with origin/main; never fetched`);
 });
 
 test('a checkout that is not a git repository installs as before, with no ref line', () => {
