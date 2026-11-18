@@ -34,7 +34,7 @@ jobs:
         # A push to a branch compares against the branch's previous tip, which
         # may already carry the bump; the pull request run compares against main.
         if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
-        run:node scripts/version-gate.mjs
+        run: node scripts/version-gate.mjs
       - name: Install dry run
         run: node scripts/install.mjs --dry-run --no-hooks
       - name: Install dry run (bash bootstrap)
