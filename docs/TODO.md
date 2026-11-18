@@ -51,18 +51,11 @@ Next id: T346
 - [ ] T264 `run.mjs` states the hint rule three times, in `hintBatch`'s comment and twice at 301-306, and the copies can drift `nice-to-have` (planning-locality audit; run.mjs:301-306)
 - [ ] T267 A roadmap `Files: none` cell parses as a hint path named `none`, so two such slices collide; treat `none`, `n/a`, `-` and empty as no hint `debt` (planning-locality audit; roadmap.mjs:69)
 - [ ] T270 `parseFileList` takes text while every caller already holds section lines; accept an array of lines too `nice-to-have` (planning-locality audit; fileset.mjs:19)
-- [ ] T273 `scripts/install.mjs` and `scripts/doctor.mjs` import each other (`readRef` against `planLinks`), which works only because both are hoisted declarations `debt` (install-freshness phase 5)
   - Move one side into `scripts/lib/` so the import graph is a DAG.
-- [ ] T275 A fresh clone has no `FETCH_HEAD`, so `scripts/doctor.mjs` reports `never fetched` for a checkout that was just cloned `nice-to-have` (install-freshness phase 3)
-- [ ] T276 The doctor resolves `claude` from PATH entries, so a PATH entry with a stray quote hides it while `where` still finds it `nice-to-have` (install-freshness phase 4)
-- [ ] T277 A commented `opencode.json` fails the OpenCode hook step on a real install while the exit stays 0 `debt` (install-freshness phase 5, pre-existing)
   - T78's hook-registration check is where this belongs.
-- [ ] T278 The probe prompt "skills whose name starts with it- or do-it-" matches no do-it skill, since the names end in `-it`; the same probe written as a suffix lists 16 `nice-to-have` (install-freshness phase 6; copied from the T250 notes)
-- [ ] T279 An empty untracked `skills/<name>` directory gets an `ok` link from the doctor, so a stray empty directory reads as installed `nice-to-have` (install-freshness phase 6)
   - One shared helper, as `tests/mini-root.mjs` already did for the two install fixtures.
 - [ ] T281 `docs/DESIGN.md`'s `scripts/` tree names neither `doctor.mjs` nor `version-gate.mjs`, the two files a reader would look for `nice-to-have` (install-freshness audit 10)
 - [ ] T282 `docs/reference/install-routes.md` quotes a home path and this checkout's branch as evidence, which no other doc does and no reader can reproduce `nice-to-have` (install-freshness audit 11)
-- [ ] T288 `scripts/doctor.mjs` reports an absent plugin or `skills` CLI route with `fix: null`, so the one route a new user has not installed gets no install command while every broken entry does `nice-to-have` (install-routes review, 2026-11-16; doctor.mjs `pluginRoute`, the `absent` object)
 - [ ] T289 `docs/reference/install-routes.md:242` says a machine with either lock gets a `skills CLI:` line, but the doctor reads the project lock only at `cwd` and a project lock stores no date `nice-to-have` (install-routes audit, 2026-11-16)
 - [ ] T290 `docs/reference/install-routes.md:240` leaves the sixth CLI host unnamed and credits six hosts to one `.agents/skills` install `nice-to-have` (install-routes audit, 2026-11-16)
 - [ ] T291 `docs/reference/install-routes.md:41` says "the symlink install command", which now reads as the Install column's one-liner, not the doctor's `node <checkout>/scripts/install.mjs` `nice-to-have` (install-routes audit, 2026-11-16)
@@ -111,6 +104,9 @@ Next id: T346
 - [ ] T339 `skills/do-it/scripts/runs.mjs:239` claims a flaky park cannot hide the count, but no test asserts `verify_failures` after a FLAKY round `nice-to-have` (R23 review)
 - [ ] T340 `skills/setup-it/scripts/default-branch.mjs:10` says "Always exits 0", then states `git()` throws; with git off PATH the CLI exits 1 with a stack, so the line should read "exits 0 for every answer" `nice-to-have` (R26 review)
 - [ ] T341 `tests/opencode-usage.test.mjs:43` ("v1 events: each completed message counts once, a subagent session keeps its agent") failed once as `true !== false` under load in R32's verify and passed on rerun, parking R32; it must be time- or order-dependent `debt` (R32 verify, 2026-11-17)
+- [ ] T342 `skills/do-it/scripts/changeset.mjs:270` freezes the hash at git's empty blob when a plan's `## Files` entry cannot be matched (a line like `- a.js (new)`), so that item's own change never reads `STALE_VERIFY`; an unmatched path should throw or fall back to the whole tree `debt` (R30 review)
+- [ ] T343 `skills/do-it/scripts/work.mjs:148` says "so only the audit's diff catches it", but `skills/prove-it/SKILL.md` scopes the audit diff to the same `## Files`, so an out-of-plan edit is caught by neither `nice-to-have` (R30 review)
+- [ ] T344 The merged gate inherits the fingerprint's file scope, so it no longer reports `STALE_VERIFY` when another item's file changes after a slice's merged check; the plan's Non-goals said the merged check was out of scope `nice-to-have` (R30 review)
 - [ ] T342 `skills/do-it/LANES.md:51` still says each track "builds and audits one slice", the claim t305-track-audit reverses; say builds and point at TRACKS.md's audit `nice-to-have` (t305-track-audit audit)
 - [ ] T343 `docs/adr/0012-coordinator-plus-tracks.md:7` says "A track builds and audits its slice" while the amendment in the same ADR reverses it; mark the clause superseded by 0015 `nice-to-have` (t305-track-audit audit)
 - [ ] T344 `skills/finish-it/TRACKS.md:81` parks a slice whose review axis is unverified, while prove-it blocks and `A failed track` removes the worktree; a `run slice ... blocked` keeps the tree the retry needs `debt` (t305-track-audit audit)
