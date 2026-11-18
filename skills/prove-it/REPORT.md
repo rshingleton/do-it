@@ -10,7 +10,8 @@
   flagged, unless the change contradicts it; then cite the decision.
 - **Groups.** **Must** blocks: a failed mechanical check, a missing or wrong
   requirement, scope creep, a HIGH (or unrated) compliance rule, egregious
-  accretion against the plan. **Should** and **Nice** do not block. A Must
+  accretion against the plan. **Should** and **Nice** do not block; a fixed Should is marked
+  `fixed Should` and listed under `### Settled` ([ROUNDS.md](ROUNDS.md)). A Must
   counts only once validated ([VALIDATE.md](VALIDATE.md)); rejected ones are
   listed under **Not confirmed** with the validator's reason.
 - **One numbering** across groups, Must first, so the user can say "fix 2

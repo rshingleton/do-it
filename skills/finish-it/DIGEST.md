@@ -15,11 +15,14 @@ the upstream's own content in it) or `worktree` (the working tree against
 base: commit mode `none`, or closing docs not yet committed). A null `base`
 (no git): review the working tree.
 
-- Fix only Must findings, then review again. Before each round,
-  `work.mjs run audit <slug> --final`; at the record's `final_audit_cap` it is
-  refused, and a Must left then goes in the digest as open.
-- Should and Nice findings and surfaced defects: `log-it`, never fixed. Keep
-  each filed ref for the digest's findings list.
+- Fix Must findings, with any Should of the same round, then review again.
+  Before each round, `work.mjs run audit <slug> --final`; at the record's
+  `final_audit_cap` it is refused, and a Must left then goes in the digest as open.
+- After a clean review, fix each small and local Should (one file, no
+  interface, no behaviour change) once, then review the fix scoped. That pass
+  spends no `final_audit_cap`; a Should it raises is logged, never fixed.
+- Other Should and Nice findings and surfaced defects: `log-it`. Keep each filed
+  ref for the digest's findings list.
 
 ## 2. Digest
 

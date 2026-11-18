@@ -93,8 +93,8 @@ A refused event (the script exits 1) is `blocked`.
   above set `status: blocked` and the blocker). Once the cause is fixed, the
   user answers: `unblock` then `build-done` re-audits.
 
-Should and Nice findings never block or start a re-audit. `ship-it` carries
-them into the changelog or ADR notes, and with no changelog offers to log them
-as to-dos. Mechanical rules that keep failing are listed as **Guardrail
+Should and Nice never block; [ROUNDS.md](ROUNDS.md) says when they are fixed.
+`ship-it` carries the open ones into the changelog or ADR notes, and with no
+changelog offers to log them as to-dos. Mechanical rules that keep failing are listed as **Guardrail
 candidates** (rules for `.compliance-rules/checks.json` or the lint
 config); `/retro-it` turns them into those rules.

@@ -3,7 +3,7 @@
 Nice-to-haves and things to circle back to. Managed by log-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T359
+Next id: T367
 
 ## Open
 
@@ -113,3 +113,11 @@ Next id: T359
 - [ ] T356 `skills/prove-it/SKILL.md:82`: "Called by `do-it` or with `--since`, let it continue" gives "it" no referent when the coordinator is the caller `nice-to-have` (track-audit-followups audit)
 - [ ] T357 `tests/tracks-verify.test.mjs:168-185` repeats the 100-line budget that `npm run check` enforces, and slices §4 with `indexOf('## 4.')`, which hides a renamed heading behind an empty slice `nice-to-have` (track-audit-followups audit)
 - [ ] T358 `skills/do-it/LANES.md:51-53` runs one line past the others where two sentences join, and `skills/prove-it/SKILL.md` rewords the Guardrail paragraph only to free a line for the 100-line budget `nice-to-have` (track-audit-followups audit)
+- [ ] T359 `skills/finish-it/DIGEST.md:21` and `TRACKS.md:113`: a final review or merge review fixes small Shoulds without reading the `Should pass` marker, so a resumed run can start a second Should pass; point both at ROUNDS.md and log instead when the marker exists `debt` (should-fix-policy audit)
+- [ ] T360 `skills/prove-it/ROUNDS.md:43`: the `Should pass` marker lives in the plan's `## Audit` (lane S) or `audit-report.md` (lane M); say that `replan` and a scope-it rewrite keep it, or a second pass is allowed `debt` (should-fix-policy audit)
+- [ ] T361 `skills/prove-it/ROUNDS.md:37-38` says a failing round fixes its Shoulds, but `skills/build-it/SKILL.md:33-34` fix mode takes only the small and local ones; say a large Should in a failing round is logged `debt` (should-fix-policy audit)
+- [ ] T362 `skills/prove-it/ROUNDS.md:38` and `:46` disagree for a Should-pass `reaudit` that raises a Must and a Should: that round fails, so one line says fix the Should and the other says log it; make line 46 apply to a passing reaudit only `debt` (should-fix-policy audit)
+- [ ] T363 `skills/finish-it/DIGEST.md:24` and `TRACKS.md:113` log every other Nice, with no trivial-Nice exception, and the merge-review Should fix at `TRACKS.md:112-115` has no verify or revert step; a slice with a clean audit and a small Should is only logged `nice-to-have` (should-fix-policy audit)
+- [ ] T364 `skills/prove-it/ROUNDS.md:56` runs 103 columns where its neighbours wrap near 80; `tests/audit-convergence.test.mjs` and `tests/tracks-record.test.mjs` repeat the whitespace-flatten shape instead of sharing `flat`, and `tests/tracks-record.test.mjs:317` picks a section by a length check `nice-to-have` (should-fix-policy audit)
+- [ ] T365 The Should pass cannot be told apart from a review-driven `reaudit` in state; both spend `clean_passes`, so the cap of 3 is the only hard backstop, and only the prose `Should pass` marker separates them (a `reaudit --should` event would) `idea` (should-fix-policy audit)
+- [ ] T366 The tests for the Should policy pin a phrase per caller (`small and local`, `open Should and Nice`), so a sentence that moves or is contradicted still passes; one test that checks ROUNDS.md's rules against each caller would pin the policy itself `nice-to-have` (should-fix-policy audit)

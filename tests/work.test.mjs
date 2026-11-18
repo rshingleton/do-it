@@ -629,7 +629,7 @@ test('ship-it: §2 names the audit leftovers and links the docs it writes, and p
   const docs = read('skills/ship-it/DOCS.md');
   const prove = read('skills/prove-it/SKILL.md');
   const question = ship.slice(ship.indexOf('## 2. The one question'), ship.indexOf('## 3. After the answer'));
-  assert.match(question, /the audit's Should and Nice findings \(no changelog\)/, 'the question shows the findings');
+  assert.match(question, /the audit's open Should and Nice findings \(no changelog\)/, 'the question shows the findings');
   assert.ok(flat(question).includes('audit findings and surfaced defects above (default: findings and defects'), 'question 2 offers them, default log');
   assert.ok(question.includes('](DOCS.md)'), 'the question links the docs it will write');
   assert.ok(question.includes('](FINALIZE.md)'), 'and the finalize it offers');
