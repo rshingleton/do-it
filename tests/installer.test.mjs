@@ -207,4 +207,37 @@ test('with no version and no config key, the guessed form is reported', () => {
   assert.match(r.stderr, /guessing the OpenCode 1 form/);
 });
 
+// An `opencode` on PATH that reports a version, and nothing else: npm installs
+// it as opencode.cmd on Windows, which a bare spawn never finds.
+function fakeOpencode(answer) {
+  const bin = tmpDir('do-it-opencode-bin-');
+  if (process.platform === 'win32') fs.writeFileSync(path.join(bin, 'opencode.cmd'), `@echo ${answer}\r\n`);
+  else fs.writeFileSync(path.join(bin, 'opencode'), `#!/bin/sh\necho ${answer}\n`, { mode: 0o755 });
+  return bin;
+}
+
+const opencodeRunWith = (home, bin) =>
+  spawnSync(process.execPath, [INSTALL, 'opencode'], { encoding: 'utf8', env: cleanEnv({ PATH: `${bin}${path.delimiter}${process.env.PATH}` }, home) });
+
+test('a version on PATH decides the form, and no note is printed', () => {
+  const home = tmpDir('do-it-inst-');
+  const r = opencodeRunWith(home, fakeOpencode('2.3.0'));
+  assert.equal(r.status, 0, r.stderr);
+  const config = JSON.parse(fs.readFileSync(opencodeFile(home), 'utf8'));
+  assert.match(config.plugins[0], /do-it-plugin$/);
+  assert.equal(config.plugin, undefined, 'the v2 key alone');
+  assert.doesNotMatch(r.stderr, /OpenCode/, 'the form was named by the version, not read from the config');
+});
+
+test('a v1 host on PATH keeps the v1 form, and another tool\'s v2 entry stays put', () => {
+  const home = tmpDir('do-it-inst-');
+  fs.mkdirSync(path.join(home, '.config', 'opencode'), { recursive: true });
+  fs.writeFileSync(opencodeFile(home), JSON.stringify({ plugins: ['other'] }));
+  const r = opencodeRunWith(home, fakeOpencode('1.19.5'));
+  assert.equal(r.status, 0, r.stderr);
+  const config = JSON.parse(fs.readFileSync(opencodeFile(home), 'utf8'));
+  assert.match(config.plugin[0], /do-it-plugin[\\/]do-it\.mjs$/);
+  assert.deepEqual(config.plugins, ['other'], 'an entry that is not ours is left alone');
+});
+
 
