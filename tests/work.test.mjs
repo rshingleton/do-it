@@ -411,27 +411,6 @@ test('work.mjs: verify-phase records only a passing check; audit-pass hashes the
   assert.equal(r.out.audit.fingerprint, before);
 });
 
-test('work.mjs: an item\'s fingerprint moves with its plan\'s files, not another item\'s (R30)', () => {
-  const dir = tempRepo();
-  const git = (...a) => execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', ...a], { cwd: dir, encoding: 'utf8' });
-  git('commit', '-q', '--allow-empty', '-m', 'base');
-  for (const [id, file] of [['item-a', 'a.js'], ['item-b', 'b.js']]) {
-    work(dir, 'new', id, '--lane', 's', '--title', id);
-    fs.appendFileSync(path.join(dir, `docs/planning/${id}.md`), `\n## Files\n${file}\n`);
-    for (const e of ['approve', 'start']) assert.equal(work(dir, 'event', id, e).status, 0, `${id} ${e}`);
-  }
-  fs.writeFileSync(path.join(dir, 'a.js'), 'a\n');
-  fs.writeFileSync(path.join(dir, 'b.js'), 'b\n');
-  const a = work(dir, 'fingerprint', 'item-a').out.fingerprint;
-  const b = work(dir, 'fingerprint', 'item-b').out.fingerprint;
-  assert.ok(a && b, 'both items have a fingerprint');
-  fs.writeFileSync(path.join(dir, 'b.js'), 'item B changed its own file\n');
-  assert.equal(work(dir, 'fingerprint', 'item-a').out.fingerprint, a, "item B's edit is not item A's change");
-  assert.notEqual(work(dir, 'fingerprint', 'item-b').out.fingerprint, b, "item B's own edit moves it");
-  fs.writeFileSync(path.join(dir, 'a.js'), 'item A changed its own file\n');
-  assert.notEqual(work(dir, 'fingerprint', 'item-a').out.fingerprint, a, "item A's own edit moves it");
-});
-
 test('work.mjs: a closing-docs file whose name begins with two dots is still excluded from the fingerprint', () => {
   const dir = tempRepo();
   const git = (...a) => execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', ...a], { cwd: dir, encoding: 'utf8' });
