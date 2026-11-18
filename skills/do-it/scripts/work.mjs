@@ -11,7 +11,8 @@
 //   work.mjs verify-phase <id> [n] [--in dir] -- <command...>
 //   work.mjs roadmap <file>
 //   work.mjs run new <slug> [--roadmap <file>] [--level --commit --tracks --max-slices --slice-cap-min --audit-cap --final-audit-cap --audit-total-cap]
-//   work.mjs run show <slug> | set <slug> <key> <json> | slice <slug> <id> <status> [--reason --needs --at iso]//   work.mjs run add-assumptions <slug> <work id> <json array>   (merges; kept as <id>#<n>: text)
+//   work.mjs run show <slug> | set <slug> <key> <json> | slice <slug> <id> <status> [--reason --needs --at iso]
+//   work.mjs run add-assumptions <slug> <work id> <json array>   (merges; kept as <id>#<n>: text)
 //   work.mjs run reject-assumption <slug> <id>#<n> <instead...>   (by key; reopens the item if its plan is still auditing or shipping)
 //   work.mjs run next <slug> <roadmap file> [--batch n]   (slice ready|parked|blocked|shipped; ready un-parks)
 //   work.mjs run contract <slug> [roadmap file]   (each slice's files and interfaces, in merge order)
@@ -49,7 +50,7 @@ import { checkShell } from './check-shell.mjs';
 import { buildDigest } from './digest.mjs';
 import { addAssumptions, createRun, nextSlice, repoRoot, resumeSlice, runPath, setRun, showRun, sliceRun } from './run.mjs';
 import { countAudit, startSlice } from './gate.mjs';
-import { runContract, runGate, runRejectAssumption, runReviewChange, runTracks, runVerify, runVerifyMerged } from './runs.mjs';
+import { planOf, runContract, runGate, runRejectAssumption, runReviewChange, runTracks, runVerify, runVerifyMerged } from './runs.mjs';
 
 // Flags that take no value.
 const FLAGS = new Set(['brief', 'docs', 'final', 'again']);
@@ -205,21 +206,17 @@ function baseRef(root) {
   return r.status === 0 ? r.stdout.trim() : null;
 }
 
-// The Musts the slice's plan last raised, which `run audit` classifies the finished round against: the
-// plan of the slice's latest work id. No gate entry, no work id or no plan is no classification, so the
-// round counts as new work and spends nothing of the slice's cap. A plan that cannot be read is not
-// "no plan": the error stands, so a broken plan is never silently classified as new work.
+// The claims the slice's plan last raised, which `run audit` classifies the finished round against:
+// the plan of the slice's current work id. A claim is text; a bare Must number is an ordinal in one
+// report and says nothing about the next round's finding, so a plan that lists only numbers is no
+// classification and the round spends nothing of the slice's cap. A plan that cannot be read is not
+// "no plan": `planOf` lets the error stand, so a broken plan is never classified as new work.
 function planMusts(planningDir, slug, id, items) {
   if (!id) return undefined;
   const g = (showRun(planningDir, slug).gates ?? []).find((x) => x.id === id);
-  const work = g?.works?.at(-1) ?? g?.work;
-  if (!work) return undefined;
-  try {
-    return items.get(work).state.audit?.must ?? [];
-  } catch (e) {
-    if (/^no plan for /.test(e.message)) return undefined;
-    throw e;
-  }
+  const plan = planOf(items, g?.work);
+  const musts = plan?.state?.audit?.must ?? [];
+  return musts.length && musts.every((m) => typeof m === 'string') ? musts : undefined;
 }
 
 // A run is never refused for a dirty tree: the uncommitted change is part of what it
@@ -370,7 +367,8 @@ export async function run(argv, { cwd = process.cwd() } = {}) {
             id: args[0], final, items, at: opts.at ?? new Date().toISOString(),
             musts: final ? undefined : planMusts(ctx.planningDir, slug, args[0], items),
           });
-        }        case 'gate':
+        }
+        case 'gate':
           return runGate({
             planningDir: ctx.planningDir, root: ctx.root, slug, id: args[0], items,
             fingerprintOf: (item, at, extra) => itemFingerprint(ctx, item, at, extra),

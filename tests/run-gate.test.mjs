@@ -418,6 +418,39 @@ test('run audit: the plan\'s last Must classifies the round; a slice with no pla
   assert.deepEqual([plain.audit_rounds, plain.audit_spent], [1, 0], 'a slice with no plan has nothing to repeat');
 });
 
+test('run start: an unparseable --at is refused and leaves the span as it was', () => {
+  const dir = fixture();
+  const gates = () => showRun(path.join(dir, 'docs/planning'), 'road').gates.find((x) => x.id === 'R1');
+  const before = gates();
+  const bad = work(dir, 'run', 'start', 'road', 'R1', '--work', 'feat', '--at', 'nope');
+  assert.equal(bad.status, 1);
+  assert.match(bad.out.error, /--at must be an ISO time/);
+  assert.deepEqual(gates(), before, 'no field of the span moved');
+});
+
+test('countAudit: a record written before audit_spent reports zero repeats, not its round count', () => {
+  const dir = fixture(['--audit-cap', '3']);
+  const planned = path.join(dir, 'docs/planning');
+  updateRun(planned, 'road', (r) => {
+    const g = r.gates.find((x) => x.id === 'R1');
+    g.audit_rounds = 2;
+    delete g.audit_spent;
+  });
+  const round = countAudit(planned, 'road', { id: 'R1', musts: ['a new claim'] });
+  assert.equal(round.audit_spent, 0, 'no repeat has been counted on this record');
+  assert.equal(round.audit_rounds, 3);
+});
+
+test('run audit: a bare Must number classifies nothing, so two findings both numbered 1 never repeat', () => {
+  const dir = fixture(['--audit-cap', '1']);
+  auditFailed(dir, '1');
+  assert.equal(audit(dir, 'R1').audit_spent, 0);
+  auditFailed(dir, '1');
+  const second = audit(dir, 'R1');
+  assert.equal(second.audit_spent, 0, 'a number is an ordinal, not a claim');
+  assert.equal(second.allow, true, 'two different findings filed as Must 1 are new work');
+});
+
 test('audit cap: a resume starts both counters, so a repeat after it spends one', () => {
   const dir = fixture(['--audit-cap', '2']);
   const planningDir = path.join(dir, 'docs/planning');
@@ -439,7 +472,7 @@ test('gate: the slice cap reads audit_spent, not the rounds the slice started', 
   assert.equal(gateRule(rec({ audit_rounds: 2, audit_spent: 2 }), 'R1', { current: 'fp' }).reason, 'SLICE_AUDIT_CAP');
   const room = auditRoom(rec({ audit_rounds: 2, audit_spent: 1 }), 'R1');
   assert.deepEqual([room.allow, room.reason], [false, 'SLICE_AUDIT_CAP']);
-  assert.match(room.detail, /slice R1: 1 rounds repeated an earlier Must, cap 1/, 'the dispatch detail keeps its counter line');
+  assert.match(room.detail, /slice R1: 1 round repeated an earlier Must, cap 1/, 'the dispatch detail keeps its counter line');
 });
 
 test('run audit: an id the record holds no gate entry for is refused, so no round is spent on it', () => {
@@ -487,7 +520,7 @@ test('audit cap: a slice at its cap parks and the run goes on; resume gives it f
   assert.deepEqual([over.allow, over.reason], [false, 'SLICE_AUDIT_CAP']);
   const parked = ok(work(dir, 'run', 'show', 'road')).slices.find((s) => s.id === 'R1');
   assert.deepEqual([parked.status, parked.needs], ['parked', 'decision']);
-  assert.match(parked.reason, /slice R1: 1 rounds repeated an earlier Must, cap 1/);
+  assert.match(parked.reason, /slice R1: 1 round repeated an earlier Must, cap 1/);
   assert.match(parked.reason, /last fix unreviewed$/);
   start(dir, 'R2');
   assert.equal(audit(dir, 'R2').allow, true, 'another slice still audits');

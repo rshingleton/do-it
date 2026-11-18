@@ -58,12 +58,12 @@ is as written here.
      instead of `verify-phase`: one call per lane M phase with `--phase n`, none for
      lane S, `--paths` the slice's mapped files (needed for a lane M slice-mode
      commit). A flaky result parks the slice (FLAKY, as step 5).
-   - (d) Before each prove-it round, `work.mjs run audit <slug> <slice>`. It
-     counts every round started in `audit_rounds`, and spends one of the slice's
-     `audit_cap` rounds only when the round repeats a Must an earlier round
-     raised, so a converging audit is not parked. `allow` false: never start the round;
-     `SLICE_AUDIT_CAP` parks the slice (add the open Musts to the reason), `AUDIT_CAP`
-     stops the run ([STOPS.md](STOPS.md)).
+   - (d) Before each prove-it round, `work.mjs run audit <slug> <slice>`. It counts
+     every round started in `audit_rounds`, and spends one of the slice's `audit_cap`
+     rounds only when every claim it raises repeats one an earlier round raised. File
+     every claim in one `event <id> audit-fail "<claim>" "<claim>"` call: a bare
+     number is an ordinal and spends nothing. `allow` false: never start the round.
+     `SLICE_AUDIT_CAP` parks, `AUDIT_CAP` stops the run ([STOPS.md](STOPS.md)).
    - (e) [prove-it](../prove-it/SKILL.md). The reviewer's final report is the
      result: a first hand-back with an agent still running is not the verdict,
      and a later completion notice with no new report adds nothing.

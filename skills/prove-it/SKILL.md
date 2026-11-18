@@ -70,9 +70,9 @@ Record the verdict with the work-item script ([STATE.md](../do-it/STATE.md)):
 - `PASS`: `work.mjs event <id> audit-pass`. It hashes the change since
   `base_ref` and records it as `audit.fingerprint`, sets `round` back to 0
   and `status: shipping`.
-- `FAIL`: `work.mjs event <id> audit-fail <must numbers>`, e.g.
-  `audit-fail 1 3`. It adds one to `round` (consecutive failed audits) and
-  sets `status: building`.
+- `FAIL`: `work.mjs event <id> audit-fail '<claim>' '<claim>'`, one call with every
+  Must, each by claim text, shell-quoted (the cap counts a repeated claim, not an
+  ordinal); it adds one to `round` and sets `status: building`.
 
 A refused event (the script exits 1) is `blocked`.
 
@@ -80,7 +80,7 @@ A refused event (the script exits 1) is `blocked`.
 
 - `PASS`: return `done`. Called by `do-it`, let it continue; run alone, say
   **Next:** `/ship-it <id>`.
-- `FAIL`, round 1 or 2: return `failed` with the Must numbers. `do-it` sends
+- `FAIL`, round 1 or 2: return `failed` with the claims. `do-it` sends
   them to `build-it`, which fixes only those (its fix mode) and hands back
   for a re-audit scoped and ordered per [ROUNDS.md](ROUNDS.md).
 - `FAIL`, round 3 or later (script sets `status: blocked`): return `blocked`.

@@ -8,7 +8,8 @@ import path from 'node:path';
 import { snapshot, treeDiff } from './changeset.mjs';
 import { dirtyHashes, relative } from './commit.mjs';
 import { parseContract, pairTracks } from './contract.mjs';
-import { auditRoom, checkWithRerun, gate, recordMerged, recordSeen, recordVerified, recordVerifyFailure, recordWaited, VERIFY_CAP_ROUNDS } from './gate.mjs';import { git } from './git.mjs';
+import { auditRoom, checkWithRerun, gate, recordMerged, recordSeen, recordVerified, recordVerifyFailure, recordWaited, VERIFY_CAP_ROUNDS } from './gate.mjs';
+import { git } from './git.mjs';
 import { checkShell } from './check-shell.mjs';
 import { lockChecks } from './check-slot.mjs';
 import { readyOrder } from './roadmap.mjs';
@@ -61,7 +62,7 @@ export function runGate({ planningDir, root, slug, id, items, fingerprintOf }) {
 
 // A plan, or null only when the work id has none. `items.get` says "no plan for <id>" for that gap;
 // every other read failure is a real error the caller must see, never a quiet fallback.
-function planOf(items, work) {
+export function planOf(items, work) {
   if (!work) return null;
   try {
     return items.get(work);

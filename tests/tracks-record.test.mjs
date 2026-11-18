@@ -103,7 +103,7 @@ test('a slice with no audit round left is refused before dispatch; the other tra
   assert.deepEqual(out.tracks.map((t) => t.id), ['R2'], 'a spent cap starts no track for that slice');
   const refused = out.refused.find((r) => r.id === 'R1');
   assert.equal(refused.reason, 'SLICE_AUDIT_CAP');
-  assert.match(refused.detail, /slice R1: 1 rounds repeated an earlier Must, cap 1/);
+  assert.match(refused.detail, /slice R1: 1 round repeated an earlier Must, cap 1/);
   assert.deepEqual(out.waiting, [], 'refused is not waiting: no next round frees a spent cap');
   const g = show(dir).gates.find((x) => x.id === 'R1');
   assert.deepEqual([g.audit_rounds, g.audit_spent], [2, 1], 'the refusal spends no round');
@@ -142,7 +142,7 @@ test('a failed last round still parks the slice at the cap', () => {
   assert.deepEqual([refused.allow, refused.reason], [false, 'SLICE_AUDIT_CAP']);
   const rec = show(dir);
   assert.equal(rec.gates.find((g) => g.id === 'R1').audit_refused, 1, 'the refusal is marked on the gate');
-  assert.match(rec.audit_stop, /^slice R1: 1 rounds repeated an earlier Must, cap 1/);
+  assert.match(rec.audit_stop, /^slice R1: 1 round repeated an earlier Must, cap 1/);
   const parked = rec.slices.find((s) => s.id === 'R1');
   assert.deepEqual([parked.status, parked.needs], ['parked', 'decision']);
   assert.match(parked.reason, /last fix unreviewed$/);
@@ -158,7 +158,7 @@ test('a passing round clears the refusal marker an earlier refused round left', 
   assert.equal(audit(dir, 'R1').reason, 'SLICE_AUDIT_CAP', 'the extra round is refused and marked');
   let rec = show(dir);
   assert.equal(rec.gates.find((g) => g.id === 'R1').audit_refused, 1);
-  assert.match(rec.audit_stop, /^slice R1: 1 rounds repeated an earlier Must, cap 1/);
+  assert.match(rec.audit_stop, /^slice R1: 1 round repeated an earlier Must, cap 1/);
   ok(work(dir, 'event', 'api', 'audit-pass'));
   const refused = audit(dir, 'R1');
   assert.deepEqual([refused.allow, refused.reason], [false, 'SLICE_AUDIT_CAP'], 'the refusal shape stays');

@@ -3,9 +3,15 @@
 Nice-to-haves and things to circle back to. Managed by log-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T346
+Next id: T351
 
 ## Open
+
+- [ ] T346 `docs/adr/` has no ADR for the run record's span fields (`active_ms`, `active_since`, `last_seen`) and for `audit_spent` redefining what `audit_cap` counts `debt` (run-caps-count-work audit)
+- [ ] T347 `tests/run-gate.test.mjs:51` repeats the `auditFailed` helper that `tests/tracks-record.test.mjs:64` also adds; one helper in `tests/fakes.mjs` serves both `debt` (run-caps-count-work audit)
+- [ ] T348 `tests/run-gate.test.mjs:171` `fresh()` reads like a boolean but returns a timestamp; `resetRun` or `newRunAt` says what it does `nice-to-have` (run-caps-count-work audit)
+- [ ] T349 `tests/run-gate.test.mjs:239` repeats the empty-cap case already asserted at 201-207 `nice-to-have` (run-caps-count-work audit)
+- [ ] T350 `tests/run-gate.test.mjs:271,335,347` pass `fixture()` flags that the `fresh()` call on the next line discards `nice-to-have` (run-caps-count-work audit)
 
 - [ ] T2 Dogfood /setup-it on another repo (/do-it has already run on this one) `circle-back` (session 2026-10-19; narrowed 2026-10-25)
 - [ ] T4 Add a provenance check script that flags skill text copied from known source repos `nice-to-have` (session 2026-10-19)

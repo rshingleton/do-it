@@ -222,6 +222,13 @@ export function updateRun(planningDir, slug, change) {
   }
 }
 
+// A record's clock is an ISO time. An unparseable stamp would bank a NaN span, and `gate` then
+// compares against NaN and lets the cap go, so a bad `--at` is refused where it is written.
+export function checkAt(at, what) {
+  if (!Number.isFinite(Date.parse(at))) throw new Error(`${what}: --at must be an ISO time, got ${JSON.stringify(at)}`);
+  return at;
+}
+
 // Close a slice's open in-flight span (`g`, a gates entry) at `at` and add it to `active_ms`. The
 // close is clamped at zero, so a stamp before the span opened never refunds work. It stops at
 // `last_seen` when that is earlier, so the gap since the last evidence of work is not charged. A
@@ -231,7 +238,7 @@ export function closeSpan(g, at) {
   if (!g) return;
   if (!g.active_since && g.active_ms !== undefined) return;
   // A record written before spans has no open span to close: drop its `started` fallback rather
-  // than bank a wall clock no command ever measured. It gated from `started` until this moment.
+  // than bank a wall clock no command ever measured. It gated from `started` until this command.
   if (!g.active_since) {
     if (g.started === undefined) return;
     g.active_ms = 0;
@@ -376,7 +383,7 @@ export function sliceRun(planningDir, slug, id, status, { reason, needs, at } = 
     if (prior?.status === 'shipped') throw new Error(`slice ${id} is shipped; a shipped slice does not move`);
     r.slices = prior ? r.slices.map((s) => (s.id === id ? entry : s)) : [...r.slices, entry];
     // Parked and shipped both stop the clock: a slice that left the queue is not still working.
-    if (status === 'parked' || status === 'shipped') closeSpan((r.gates ?? []).find((g) => g.id === id), at ?? new Date().toISOString());
+    if (status === 'parked' || status === 'shipped') closeSpan((r.gates ?? []).find((g) => g.id === id), at === undefined ? new Date().toISOString() : checkAt(at, `run slice ${status}`));
   });
 }
 
@@ -384,8 +391,9 @@ export function sliceRun(planningDir, slug, id, status, { reason, needs, at } = 
 // What it was is kept in `retries`, so the digest can say how the retry ended, and its audit counters
 // start again: what stopped it is settled, and the Musts it raised are not held against it. A fresh
 // span opens here, so the parked time and the gap since it are not work.
-export function resumeSlice(planningDir, slug, id, { at = new Date().toISOString() } = {}) {
+export function resumeSlice(planningDir, slug, id, { at: stamp = new Date().toISOString() } = {}) {
   if (!id) throw new Error('run slice needs a slice id');
+  const at = checkAt(stamp, 'run slice ready');
   return updateRun(planningDir, slug, (r) => {
     const prior = r.slices.find((s) => s.id === id);
     if (prior?.status === 'shipped') throw new Error(`slice ${id} is shipped; a shipped slice does not move`);
@@ -402,7 +410,8 @@ export function resumeSlice(planningDir, slug, id, { at = new Date().toISOString
       delete g.audit_refused;
       openSpan(g, at);
       // The user settled what kept failing, so the next failure counts from one.
-      delete g.verify_failures;    }
+      delete g.verify_failures;
+    }
   });
 }
 

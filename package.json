@@ -1,6 +1,7 @@
 {
   "name": "do-it-skills",
-  "version": "0.3.1",  "private": true,
+  "version": "0.3.1",
+  "private": true,
   "description": "A size-scaled issue, plan, build, audit, ship workflow for Claude Code and OpenCode.",
   "license": "MIT",
   "type": "module",

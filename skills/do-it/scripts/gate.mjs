@@ -6,7 +6,7 @@
 // the `run <sub>` handlers that call them are in runs.mjs. work.mjs calls the start
 // and audit counters; runs.mjs calls the rest.
 
-import { closeSpan, openSpan, updateRun } from './run.mjs';
+import { checkAt, closeSpan, openSpan, updateRun } from './run.mjs';
 
 // Failed verify rounds in a row that park the slice: a check that keeps failing stops there
 // instead of looping, and the two before it throw as they always have.
@@ -22,22 +22,25 @@ function entry(record, id) {
 // Start the slice's clock (`at`, an ISO time) and name its work item. A slice already in flight
 // closes its open span where the last command saw it (`last_seen`), so the gap since then is not
 // work, and opens a fresh one; `started` keeps the first time, for a pre-span record's fallback.
-export function startSlice(planningDir, slug, id, { work, at }) {
-  if (!id || !work || !at) throw new Error('run start needs a slice id, --work <id> and a start time');
+export function startSlice(planningDir, slug, id, { work, at: stamp }) {
+  if (!id || !work || !stamp) throw new Error('run start needs a slice id, --work <id> and a start time');
+  const at = checkAt(stamp, 'run start');
   return updateRun(planningDir, slug, (r) => {
     const g = entry(r, id);
     g.work = work;
     // A slice resumed under a new work item keeps the old ones, so the digest still lists their phase tags.
     g.works = [...new Set([...(g.works ?? []), work])];
+    // The record keeps the first time it ever started, across a restart and a pre-span fallback.
+    const first = g.started ?? at;
     openSpan(g, at);
-    // A first start keeps the time, after the open has decided whether there was a span to close.
-    g.started ??= at;
+    g.started = first;
   });
 }
 
 // The last moment a command showed the slice alive. The next close charges work up to here, so a
 // machine that slept or a session that lost its host does not spend the cap on the gap.
-export function recordSeen(planningDir, slug, id, at) {
+export function recordSeen(planningDir, slug, id, stamp) {
+  const at = checkAt(stamp, 'run seen');
   return updateRun(planningDir, slug, (r) => {
     entry(r, id).last_seen = at;
   });
@@ -107,7 +110,11 @@ function auditLimits(record, id, final, { create = true } = {}) {
   const total = record.audit_total_cap ?? (record.max_slices == null ? null : record.max_slices * record.audit_cap);
   // `gate` only reads: it must not add a gates entry to the record it was handed.
   const g = create ? entry(record, id) : (record.gates ?? []).find((x) => x.id === id) ?? {};
-  const limits = [{ limit: `slice ${id}`, at: g, rounds: 'audit_spent', refused: 'audit_refused', cap: record.audit_cap }];
+  const slice = { limit: `slice ${id}`, at: g, rounds: 'audit_spent', refused: 'audit_refused', cap: record.audit_cap };
+  // A record written before `audit_spent` existed counts every round, as it always has; its first
+  // counted round writes the field, and only repeats spend from then on.
+  if (g.audit_spent === undefined) slice.rounds = 'audit_rounds';
+  const limits = [slice];
   // No total cap still counts, so the digest and a later `audit_total_cap` see the rounds spent.
   limits.push({ limit: 'run total', at: record, rounds: 'audit_rounds', refused: 'audit_refused', cap: total ?? Infinity });
   return limits;
@@ -116,7 +123,9 @@ function auditLimits(record, id, final, { create = true } = {}) {
 const spent = (l) => Number(l.at[l.rounds]) || 0;
 // A slice's cap counts the rounds that repeated a Must already raised; the run total and the final
 // review count every round, so their line says so.
-const describe = (l) => `${l.limit}: ${spent(l)} ${l.rounds === 'audit_spent' ? 'rounds repeated an earlier Must' : 'audit rounds'}, cap ${l.cap}`;
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+const describe = (l) =>
+  `${l.limit}: ${l.rounds === 'audit_spent' ? plural(spent(l), 'round repeated an earlier Must', 'rounds repeated an earlier Must') : plural(spent(l), 'audit round', 'audit rounds')}, cap ${l.cap}`;
 // No round is left: the cap is spent, whether or not a round was already refused at it.
 const atCap = (l) => spent(l) >= l.cap;
 // A slice's own cap parks that slice and the run goes on; the final review and the run total stop the run.
@@ -154,8 +163,9 @@ const exhausted = (l) => spent(l) > l.cap || (l.at[l.refused] === spent(l) && sp
 // honest count the digest reports, `audit_spent` the counter the slice's cap reads; `limit` and
 // `detail` are null on allow, and a refusal says the last fix went unreviewed. A slice's round stamps
 // `last_seen`; the final review has no slice, so none.
-export function countAudit(planningDir, slug, { id, final = false, musts, items, at = new Date().toISOString() } = {}) {
+export function countAudit(planningDir, slug, { id, final = false, musts, items, at: stamp = new Date().toISOString() } = {}) {
   if (!final && !id) throw new Error('run audit needs a slice id, or --final for the final review');
+  const at = checkAt(stamp, 'run audit');
   let refusal = null;
   const record = updateRun(planningDir, slug, (r) => {
     // Each attempt answers for the record it read: a refusal an earlier attempt saw may not hold
@@ -195,6 +205,8 @@ export function countAudit(planningDir, slug, { id, final = false, musts, items,
     } else {
       g.audit_rounds = (Number(g.audit_rounds) || 0) + 1;
       r.audit_rounds = (Number(r.audit_rounds) || 0) + 1;
+      // Writing the counter marks the record as post-change, even when this round spends nothing.
+      g.audit_spent = Number(g.audit_spent) || 0;
       const raised = Array.isArray(musts) ? musts.map((m) => String(m).trim()) : [];
       // Any earlier round counts, not just the one before: A, B, A is the same loop as A, A.
       const before = [...new Set([...(g.seen_musts ?? []), ...(g.last_musts ?? [])])];
@@ -214,8 +226,9 @@ export function countAudit(planningDir, slug, { id, final = false, musts, items,
   const g = final ? null : (record.gates ?? []).find((x) => x.id === id);
   return {
     audit_rounds: final ? spent(mine) : Number(g?.audit_rounds) || 0,
-    // The final review has no slice, so it has no per-slice counter to report.
-    audit_spent: final ? null : spent(mine),
+    // The final review has no slice, so it has no per-slice counter; a record written before the
+    // counter existed has spent nothing.
+    audit_spent: final ? null : Number(g?.audit_spent) || 0,
     allow: !refusal,
     reason: refusal && auditCode(refusal),
     limit: refusal?.limit ?? null,
