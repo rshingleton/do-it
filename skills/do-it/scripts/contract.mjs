@@ -36,20 +36,32 @@ function stepsOf(text) {
   return steps;
 }
 
-// The runnable command a step's `→ verify:` states, or null for a prose check ("the table names the
-// probe"). The last marker is the real one: a step about this rule can name `→ verify:` in prose.
-// Runnable means it starts with a backticked token or with `npm`, `node` or `git`; the command is
-// the first backticked span, or the words after the arrow.
-function verifyCommand(step) {
-  const marks = [...step.text.matchAll(/→\s*verify:\s*/g)];
-  const last = marks.at(-1);
-  if (!last) return null;
-  const text = step.text.slice(last.index + last[0].length).trim();
+// The command a clause after a marker states, or null for prose: runnable means it starts with a
+// backticked token or with `npm`, `node` or `git`, and the command is the first backticked span or
+// the words after the arrow.
+function commandIn(clause) {
+  const text = clause.trim();
+  // A backticked command starts at once; "` prose" is a closing fence from an earlier span.
   if (text.startsWith('`')) {
+    if (/^`\s/.test(text)) return null;
     const end = text.indexOf('`', 1);
     return end > 0 ? text.slice(1, end).trim() || null : null;
   }
   return /^(?:npm|node|git)\b/.test(text) ? text.replace(/\.$/, '').trim() : null;
+}
+
+// The runnable command a step's `→ verify:` states, or null for a prose check ("the table names the
+// probe"). A step about this rule can name `→ verify:` in prose, so the marker that carries a
+// command wins even when a later prose mention follows it.
+function verifyCommand(step) {
+  const marks = [...step.text.matchAll(/→\s*verify:\s*/g)];
+  let command = null;
+  for (let i = 0; i < marks.length; i++) {
+    const from = marks[i].index + marks[i][0].length;
+    const to = i + 1 < marks.length ? marks[i + 1].index : step.text.length;
+    command = commandIn(step.text.slice(from, to)) ?? command;
+  }
+  return command;
 }
 
 // A command that cannot fail proves nothing about the plan's work: its literal first word is one
@@ -65,12 +77,25 @@ function cannotFail(command) {
   return CANNOT_FAIL.find(([re]) => re.test(command.trim()))?.[1] ?? null;
 }
 
-// The `npm` scripts a command names, in the order it names them. `npm test` is the alias for
-// `scripts.test`, so it names one too; `-s`/`--prefix` and the rest do not change which script runs.
+// The `npm` scripts a command names, in the order it names them. A flag may sit on either side of
+// `run` (`npm -s run check`, `npm run --silent check`) and names no script; the first non-flag
+// token after `run` is the script. `npm test` is the alias for `scripts.test`.
 function npmScripts(command) {
-  const found = [...command.matchAll(/\bnpm\s+run(?:-script)?\s+([^\s&|;]+)/g)].map((m) => ({ at: m.index, name: m[1] }));
-  for (const m of command.matchAll(/\bnpm\s+(?:test|t)\b/g)) found.push({ at: m.index, name: 'test' });
-  return found.sort((a, b) => a.at - b.at).map((x) => x.name);
+  const tokens = command.split(/\s+/).filter(Boolean);
+  const out = [];
+  for (let i = 0; i < tokens.length; i++) {
+    if (!/^npm(?:\.cmd)?$/i.test(tokens[i])) continue;
+    let j = i + 1;
+    while (j < tokens.length && tokens[j].startsWith('-')) j++;
+    const sub = tokens[j] ?? '';
+    if (/^(?:run|run-script)$/.test(sub)) {
+      let k = j + 1;
+      while (k < tokens.length && tokens[k].startsWith('-')) k++;
+      const name = tokens[k]?.replace(/^[`'"]+|[`'",;]+$/g, '');
+      if (name) out.push(name);
+    } else if (/^(?:test|t)$/.test(sub)) out.push('test');
+  }
+  return out;
 }
 
 // The paths a command names: a token with a slash or a file extension. Flags, assignments, globs,
