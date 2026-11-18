@@ -75,11 +75,14 @@ instead, where a reviewer does start cold.
    `<base>` is review-it's fixed point. `--since` writes no state, so the coordinator
    writes the report where the lane keeps it: `## Audit` in a lane S plan,
    `audit-report.md` for lane M, with round 1's `### Settled` and `### Touched`.
-4. A Must goes back to the same `it-builder` session, numbered Musts only. It fixes
-   them, `run verify --in` records the fix, and the next round repeats 2 and 3. A Must
-   that session cannot fix parks the slice (A failed track).
+4. A Must goes back to the same `it-builder` session, numbered, with the slice's small
+   and local Shoulds (one file, no interface, no behaviour change). It fixes them,
+   `run verify --in` records the fix, and the next round repeats 2 and 3. Shoulds that
+   are not small and local, and any a fix reverts, are logged. A Must that session
+   cannot fix parks the slice (A failed track).
 5. An unverified axis is no pass: run that reviewer once more in the same round, and
-   if it is still unverified, park the slice naming the axis. Nothing merges.
+   if it is still unverified, park the slice naming the axis, which keeps its worktree
+   and branch (A failed track). Nothing merges.
 6. PASS: merge (below). After the merged check and the scoped merge review, the
    coordinator fires `build-done` then `audit-pass`, as a slice built in place does.
 
@@ -107,8 +110,9 @@ the coordinator's tree is the merged tree, so never two at once.
 4. One reviewer, scoped to the merge and never a second full audit: start one
    `it-reviewer` agent on the mid-tier model with the slice's plan and the merge
    diff (`git diff <base>..HEAD -- <the slice's files>`), report under 150 words. A
-   Must finding parks the slice with the finding; Should and Nice go to ship-it's
-   digest. The coordinator already audited the slice on its tree (The audit), so
+   Must finding parks the slice with the finding. Small and local Shoulds are fixed
+   in the coordinator's tree before the gate; open ones go to ship-it's digest, as do
+   Nice. The coordinator already audited the slice on its tree (The audit), so
    this review reads the merge only.
 5. `work.mjs run gate <slug> <slice>`. `allow` true: ship-it in run mode
    ([RUNMODE.md](../ship-it/RUNMODE.md)), then `work.mjs run slice <slug> <slice>
@@ -123,7 +127,9 @@ the coordinator's tree is the merged tree, so never two at once.
   `work.mjs run slice <slug> <slice> parked --needs user --reason "<why>"`
   (`--needs decision` when the report asks a question), remove its worktree and
   branch, and go on with the tracks still running and the next round. The run never
-  reruns a failed track; `--resume` starts it again.
+  reruns a failed track; `--resume` starts it again. An unverified axis is the
+  exception: that slice keeps its worktree and branch, and `--resume` audits that
+  tree again, because the build is sound and only the review failed.
 - A conflict merge-it cannot settle: `git merge --abort`, park the slice with the
   conflicting files and what merge-it tried, and go on.
 

@@ -13,8 +13,8 @@ Take §1 as written; a stale fingerprint still stops. In place of §2's question
 2. Assumptions: keep all. Merge the plan's `assumptions:` into the run record
    with `work.mjs run add-assumptions <slug> <id> '<json array>'` (it keeps the
    others), so the final review can list them.
-3. Findings: file every audit Should and Nice finding and every surfaced
-   `defects:` entry with `log-it`. Never fix them in the run.
+3. Findings: file every open Should and Nice audit finding and every surfaced
+   `defects:` entry with `log-it`. Never fix a surfaced defect in the run.
 4. Markers: a new `shortcut:` marker with no upgrade trigger is not filed.
    Append `marker: <path> <text>` to the record's `limits` for the digest.
 5. Commit: follow [COMMITS.md](../build-it/COMMITS.md) and the record's

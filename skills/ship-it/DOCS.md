@@ -8,7 +8,7 @@ things live), and issues for what was left undone.
 
 The plan's ADRs are the ones it links that exist under `docs/adr/`. For each:
 status `Proposed` → `Accepted`, then add an `## Execution notes` section with
-the audit's Should and Nice findings and anything the build learned that
+the audit's open Should and Nice findings and anything the build learned that
 changes the context. Touch no other ADR. Create none here.
 
 ## Area context and the map
@@ -35,7 +35,7 @@ decisions as sub-bullets. No changelog in the repo: skip, do not create one.
 ## Audit findings
 
 With no changelog (no resolved changelog and no `.changeset/`) to carry them,
-the audit's Should and Nice findings would be lost when the plan is deleted.
+the audit's open Should and Nice findings would be lost when the plan is deleted.
 Take them from the plan's `## Audit` section (lane M: `audit-report.md`), in
 the `Must|Should|Nice | file:line | claim` shape. For each one the user chose,
 call the Skill tool with "log-it": one to-do, `source: <work id> audit`, the

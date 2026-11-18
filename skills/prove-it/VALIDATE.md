@@ -2,7 +2,8 @@
 
 A reviewer that found a problem is the worst judge of whether it is real. Before
 a **Must** counts, a fresh `it-reviewer` agent (mid-tier model) tries to
-confirm it from the code alone. Should and Nice findings skip this step: they never block.
+confirm it from the code alone. Should and Nice findings skip this step: they never block, and a
+Should is fixed on the reviewer's word, with no validation ([ROUNDS.md](ROUNDS.md)).
 
 ## Who gets what
 

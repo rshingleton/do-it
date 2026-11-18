@@ -30,7 +30,8 @@ Builds what the plan approved, nothing else, uncommitted; `ship-it` commits.
 ## 2. Pick the work
 
 - **Fix mode** (`audit.verdict: FAIL`, or a non-empty `fix:` list): the work
-  is only the Must findings listed in `audit.must`, read from the audit
+  is the Musts in `audit.must` plus the small and local Shoulds of the same
+  round (one file, no interface, no behaviour change), read from the audit
   report (lane M) or the plan's `## Audit` section (lane S), and each `fix:`
   entry (an assumption the user rejected at ship). Fix each one test-first
   where it has a seam, run the checks, record `### Settled` and `### Touched`

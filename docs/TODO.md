@@ -3,7 +3,7 @@
 Nice-to-haves and things to circle back to. Managed by log-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T351
+Next id: T367
 
 ## Open
 
@@ -45,13 +45,11 @@ Next id: T351
 - [ ] T233 link-it v1 limit: an agreed Interface edit whose proposer never writes it stays unapplied (skills/link-it/CONTRACT.md Rules) `debt` (link-it-todos audit)
   - Related: T23 (behaviour evals).
 - [ ] T245 The spawn-a-check block is duplicated in runs.mjs and work.mjs; share it when a third caller appears `nice-to-have` (skills/do-it/scripts/runs.mjs:174-180, work.mjs:230-235; windows-support audit)
-- [ ] T247 The R1 wraps leave `skills/do-it/SKILL.md` at 103 lines and `skills/finish-it/SKILL.md` at 116 (111 at R1; tracks-mode added five); R3's repo-wide line count brings both under 100 `nice-to-have` (source: r1-text-truth; counts re-read 2026-11-16)
 - [ ] T255 The coordinator's `prove-it` of a track's slice takes no check slot, so the two heavy suites the slot exists for never queue `debt` (tracks-mode audit; check-slot.mjs:1; R22, T305)
 - [ ] T257 The Contract check hard-codes `node skills/do-it/scripts/contract.mjs`, so it exits ENOENT in a project without a skills directory `debt` (tracks-mode audit; CHECKS.md:22)
 - [ ] T258 The Contract analyze row sits among the lane S checks, so every plan outside a track now fails the pass `debt` (tracks-mode audit; CHECKS.md:16)
 - [ ] T259 `runVerifyMerged` lacks `runVerify`'s non-git guard: it runs the suite, then fails in `fingerprintOf` and records nothing `debt` (tracks-mode audit; runs.mjs:243-254)
 - [ ] T260 `run verify --merged` takes the check slot but records no `waited_ms`, so its queue time counts against the slice cap `nice-to-have` (tracks-mode audit; runs.mjs:252)
-- [ ] T262 `tests/roadmap-locality.test.mjs` pins `roadmap-it/SKILL.md` at exactly 103 lines, over the 100-line budget, so cutting it to 100 turns the suite red `debt` (planning-locality audit; tests/roadmap-locality.test.mjs:145)
 - [ ] T263 `hintBatch` takes a lead count and a one-adapter closure while `byId` is already in scope; pass the lead ids and the slice map `debt` (planning-locality audit; run.mjs:281,328)
 - [ ] T264 `run.mjs` states the hint rule three times, in `hintBatch`'s comment and twice at 301-306, and the copies can drift `nice-to-have` (planning-locality audit; run.mjs:301-306)
 - [ ] T267 A roadmap `Files: none` cell parses as a hint path named `none`, so two such slices collide; treat `none`, `n/a`, `-` and empty as no hint `debt` (planning-locality audit; roadmap.mjs:69)
@@ -79,7 +77,7 @@ Next id: T351
 - [ ] T312 `skills/usage-it/SKILL.md:44-98` was reflowed to long lines because it links no sibling, so the R6 goal ("detail in a sibling") does not cover it `nice-to-have` (R6 ship review)
 - [ ] T310 `tests/work.test.mjs:895`'s `/unfinished roadmap is left/i` also matches the intro, so deleting "and is named" from the Remove section stays green `nice-to-have` (R3 ship review)
 - [ ] T307 `skills/guard-it/scripts/scan.mjs:34-35` never reaches the sibling skill layout in an install (line 32 exits first), and the `load` catch at 51-57 is untested; a present but broken module is its only path `nice-to-have` (R68 ship review)
-- [ ] T304 `tests/changeset.test.mjs:329` fails intermittently on timing; it failed once in R1's worktree (the run parked R1 as FLAKY) and once in R2's merged run; a third time in R9's worktree under three concurrent suites (6729 ms against its budget) and parked R9; twice more in R5's worktree and merged check with another suite running (6266 ms, 6272 ms) `debt` (R1 and R2 audits; R5 and R9 verifies, 2026-11-16)
+- [ ] T304 `tests/changeset.test.mjs:329` fails intermittently on timing; it failed once in R1's worktree (the run parked R1 as FLAKY) and once in R2's merged run; a third time in R9's worktree under three concurrent suites (6729 ms against its budget) and parked R9; twice more in R5's worktree and merged check with another suite running (6266 ms, 6272 ms); `:132`'s textconv budget failed under load in R20's worktree and passed on rerun (formerly T329) `debt` (R1 and R2 audits; R5 and R9 verifies, 2026-11-16; R20 build, 2026-11-17)
 - [ ] T313 `tests/tracks-record.test.mjs:96` says a refused round "ships" but only proves the cap clears (the gate there is `UNVERIFIED`), and the case at `:114` passes on the old code, so R1's "new cases fail on the old code" holds for two of its three cases `nice-to-have` (R1 ship review)
 - [ ] T314 `tests/hook-trust.test.mjs` has a timing-dependent case that failed under a full-suite run (10.8 s) in R7's worktree, then passed alone and on rerun `debt` (R7 build, 2026-11-16)
 - [ ] T315 `tests/work.test.mjs` reads the `## Link` rule with `doc.slice(doc.indexOf('...'))` to EOF, so moving that paragraph below `## Lane M` still passes while the format states the rule after the section it describes `nice-to-have` (R7 round-2 review)
@@ -96,7 +94,6 @@ Next id: T351
 - [ ] T326 `tests/run-gate.test.mjs:624-633` stopped pinning `skills/finish-it/SKILL.md:37-38`, so deleting "a parked or resumed slice" leaves it green while the test name still claims it `nice-to-have` (R11 round-1 review)
 - [ ] T327 `evals/routing.json:164,169` share the clause "one failing test at a time"; a reword keeps the positives distinct `nice-to-have` (R17 round-1 review)
 - [ ] T328 `tests/run-gate.test.mjs:862-865`'s users scan is unobservable: every `run.mjs` export also appears in `skills/do-it/scripts`, so deleting the tests/hooks/plugin spreads stays green; a test-only export fixture would pin it `nice-to-have` (R12 round-1 review)
-- [ ] T329 `tests/changeset.test.mjs:132`'s textconv budget failed under load in R20's worktree and passed on rerun, a second timing-dependent case beside T304's `:329` `debt` (R20 build, 2026-11-17)
 - [ ] T330 `skills/do-it/scripts/work.mjs:129`'s `planningExclude` still filters with `!rel.startsWith('..')`, so a root-level `..plans` directory yields an empty exclude and its files enter the fingerprint; use `insideRoot` there too `nice-to-have` (R20 round-1 review)
 - [ ] T331 `skills/do-it/scripts/commit.mjs:104`'s `worktreeRenames` keeps only `isFile()` names, so a renamed symlink is unpaired and its old path never reads `gone` `nice-to-have` (R20 round-1 review)
 - [ ] T332 `skills/usage-it/scripts/usage.mjs:123-124` and `ledger.mjs:91` still say a record counted whole is placed "by their last message", but after R25 the "before time buckets" label fires only on a record with no `at`, which `ledger.mjs:112-113` places by its `start` `nice-to-have` (R25 review)
@@ -104,7 +101,6 @@ Next id: T351
 - [ ] T334 `skills/do-it/scripts/digest.mjs:16` uses `Number.isFinite(Number(v))`, so a usage figure of `true` prints `input 1` and `[5]` prints 5; require a number or numeric string `nice-to-have` (R19 review)
 - [ ] T335 `scripts/install-hooks.mjs:119-121`'s `plugin`-key signal is untested: deleting that branch leaves the suite green, while it works when tried by hand `nice-to-have` (R27 round-3 review)
 - [ ] T336 On Windows `opencode --version` never runs (a `.cmd` `execFileSync` cannot launch), so the hook-form note fires on every install there; a probe that works or a quieter note would `debt` (R27 round-3 review)
-- [ ] T337 `tests/hooks-regressions.test.mjs:387` (textconv warn vs block) failed once under load in R23's worktree and passed standalone and on the full rerun, a third timing-sensitive case beside T304 and T329 `debt` (R23 build, 2026-11-17)
 - [ ] T338 `skills/do-it/scripts/gate.mjs:187`'s comment says "the verified rounds in a row" where the check counts failed rounds `nice-to-have` (R23 review)
 - [ ] T339 `skills/do-it/scripts/runs.mjs:239` claims a flaky park cannot hide the count, but no test asserts `verify_failures` after a FLAKY round `nice-to-have` (R23 review)
 - [ ] T340 `skills/setup-it/scripts/default-branch.mjs:10` says "Always exits 0", then states `git()` throws; with git off PATH the CLI exits 1 with a stack, so the line should read "exits 0 for every answer" `nice-to-have` (R26 review)
@@ -112,7 +108,16 @@ Next id: T351
 - [ ] T342 `skills/do-it/scripts/changeset.mjs:270` freezes the hash at git's empty blob when a plan's `## Files` entry cannot be matched (a line like `- a.js (new)`), so that item's own change never reads `STALE_VERIFY`; an unmatched path should throw or fall back to the whole tree `debt` (R30 review)
 - [ ] T343 `skills/do-it/scripts/work.mjs:148` says "so only the audit's diff catches it", but `skills/prove-it/SKILL.md` scopes the audit diff to the same `## Files`, so an out-of-plan edit is caught by neither `nice-to-have` (R30 review)
 - [ ] T344 The merged gate inherits the fingerprint's file scope, so it no longer reports `STALE_VERIFY` when another item's file changes after a slice's merged check; the plan's Non-goals said the merged check was out of scope `nice-to-have` (R30 review)
-- [ ] T342 `skills/do-it/LANES.md:51` still says each track "builds and audits one slice", the claim t305-track-audit reverses; say builds and point at TRACKS.md's audit `nice-to-have` (t305-track-audit audit)
-- [ ] T343 `docs/adr/0012-coordinator-plus-tracks.md:7` says "A track builds and audits its slice" while the amendment in the same ADR reverses it; mark the clause superseded by 0015 `nice-to-have` (t305-track-audit audit)
-- [ ] T344 `skills/finish-it/TRACKS.md:81` parks a slice whose review axis is unverified, while prove-it blocks and `A failed track` removes the worktree; a `run slice ... blocked` keeps the tree the retry needs `debt` (t305-track-audit audit)
-- [ ] T345 `skills/finish-it/TRACKS.md:75` says the coordinator writes the audit report, while prove-it §4 still writes findings and fires `audit-pass` in every mode; carve `--since` out in prove-it §4 `debt` (t305-track-audit audit)
+- [ ] T354 `skills/prove-it/SKILL.md:92-94` still says "the `block` event above set" and names `unblock`/`build-done`, with no `--since` case; a fresh reviewer rejected it as a nit in round 2, two later reviewers raised it as a Should `nice-to-have` (track-audit-followups audit)
+- [ ] T355 `skills/prove-it/SKILL.md:55`: the `--since` sentence ends the validate paragraph instead of leading §4 (the test comment says it leads), and "audit write" does not plainly cover the lane S and M write-up at line 66 `nice-to-have` (track-audit-followups audit)
+- [ ] T356 `skills/prove-it/SKILL.md:82`: "Called by `do-it` or with `--since`, let it continue" gives "it" no referent when the coordinator is the caller `nice-to-have` (track-audit-followups audit)
+- [ ] T357 `tests/tracks-verify.test.mjs:168-185` repeats the 100-line budget that `npm run check` enforces, and slices §4 with `indexOf('## 4.')`, which hides a renamed heading behind an empty slice `nice-to-have` (track-audit-followups audit)
+- [ ] T358 `skills/do-it/LANES.md:51-53` runs one line past the others where two sentences join, and `skills/prove-it/SKILL.md` rewords the Guardrail paragraph only to free a line for the 100-line budget `nice-to-have` (track-audit-followups audit)
+- [ ] T359 `skills/finish-it/DIGEST.md:21` and `TRACKS.md:113`: a final review or merge review fixes small Shoulds without reading the `Should pass` marker, so a resumed run can start a second Should pass; point both at ROUNDS.md and log instead when the marker exists `debt` (should-fix-policy audit)
+- [ ] T360 `skills/prove-it/ROUNDS.md:43`: the `Should pass` marker lives in the plan's `## Audit` (lane S) or `audit-report.md` (lane M); say that `replan` and a scope-it rewrite keep it, or a second pass is allowed `debt` (should-fix-policy audit)
+- [ ] T361 `skills/prove-it/ROUNDS.md:37-38` says a failing round fixes its Shoulds, but `skills/build-it/SKILL.md:33-34` fix mode takes only the small and local ones; say a large Should in a failing round is logged `debt` (should-fix-policy audit)
+- [ ] T362 `skills/prove-it/ROUNDS.md:38` and `:46` disagree for a Should-pass `reaudit` that raises a Must and a Should: that round fails, so one line says fix the Should and the other says log it; make line 46 apply to a passing reaudit only `debt` (should-fix-policy audit)
+- [ ] T363 `skills/finish-it/DIGEST.md:24` and `TRACKS.md:113` log every other Nice, with no trivial-Nice exception, and the merge-review Should fix at `TRACKS.md:112-115` has no verify or revert step; a slice with a clean audit and a small Should is only logged `nice-to-have` (should-fix-policy audit)
+- [ ] T364 `skills/prove-it/ROUNDS.md:56` runs 103 columns where its neighbours wrap near 80; `tests/audit-convergence.test.mjs` and `tests/tracks-record.test.mjs` repeat the whitespace-flatten shape instead of sharing `flat`, and `tests/tracks-record.test.mjs:317` picks a section by a length check `nice-to-have` (should-fix-policy audit)
+- [ ] T365 The Should pass cannot be told apart from a review-driven `reaudit` in state; both spend `clean_passes`, so the cap of 3 is the only hard backstop, and only the prose `Should pass` marker separates them (a `reaudit --should` event would) `idea` (should-fix-policy audit)
+- [ ] T366 The tests for the Should policy pin a phrase per caller (`small and local`, `open Should and Nice`), so a sentence that moves or is contradicted still passes; one test that checks ROUNDS.md's rules against each caller would pin the policy itself `nice-to-have` (should-fix-policy audit)

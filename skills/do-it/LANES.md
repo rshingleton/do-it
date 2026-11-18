@@ -48,9 +48,9 @@ slice. Without the flag lane L is unchanged: one slice per `/do-it`. A
 `--complete` run commits locally, per phase by default (`--commit phase|slice|none`) (ADR 0008); a run never pushes or opens a PR.
 
 With `--tracks N` above 1, a complete run hands independent slices to worktree
-tracks ([TRACKS.md](../finish-it/TRACKS.md)): each track builds and audits one
-slice on its own branch, while the coordinator keeps scope, the run record, the
-gate, the merges and the ship. Width is `min(free ready slices, tracks)`,
+tracks ([TRACKS.md](../finish-it/TRACKS.md)): each track builds one slice on its
+own branch, and the coordinator audits it (TRACKS.md, The audit) and keeps scope,
+the run record, the gate, the merges and the ship. Width is `min(free ready slices, tracks)`,
 never above `DO_IT_TRACKS` (default 3) or the ceiling of 5. A run that commits
 nothing holds one track, since a track would have no branch to merge.
 

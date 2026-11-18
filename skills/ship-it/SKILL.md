@@ -36,7 +36,7 @@ One turn; write nothing yet. **Show** (information, no answer needed):
   the slice's `Ref` cell, or `--ref`) with a comment drawn from the changelog; a
   roadmap's last slice also shows what finalize offers a to e will write
   ([FINALIZE.md](FINALIZE.md)).
-- Numbered: the audit's Should and Nice findings (no changelog), surfaced
+- Numbered: the audit's open Should and Nice findings (no changelog), surfaced
   `defects:`, a roadmap Verify clause they leave unmet ([DOCS.md](DOCS.md)).
 - Guardrail candidates or a failed audit round: one line offering `/retro-it <id>`;
   `work.mjs close` deletes the candidates, so it runs before "commit now".
