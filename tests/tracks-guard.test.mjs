@@ -71,7 +71,8 @@ test('run tracks refuses a record set to none before it starts a worktree', () =
 test('ADR 0012 is Proposed or Accepted, carries the measured shares and the width rule', () => {
   const adr = text('docs/adr/0012-coordinator-plus-tracks.md');
   assert.match(adr, /^---\nstatus: (Proposed|Accepted)\n---/, 'the ADR is proposed or accepted');
-  assert.match(adr, /in\(ready independent slices, the machine's resource cap, DO_IT_TRACKS\)/, 'the width rule is written out');
+  assert.match(adr, /Width is `min\(ready independent slices, tracks, DO_IT_TRACKS\)`/, 'the width rule is the three terms the function uses, under the ceiling');
+  assert.doesNotMatch(adr, /resource cap/, 'the machine cap no caller produces is not part of the rule');
 });
 
 test('DO_IT_TRACKS sits beside the run keys, and the two skills state the mode and link the contract', () => {

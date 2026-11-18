@@ -5,6 +5,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const LEAKY = /^(DO_IT_|JIRA_|GITHUB_)/;
 for (const k of Object.keys(process.env)) if (LEAKY.test(k)) delete process.env[k];
@@ -17,6 +18,14 @@ export function tmpDir(prefix = 'do-it-') {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
   temps.push(dir);
   return dir;
+}
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+// A file in this repo, as text. A docs test that pins a heading or a link reads
+// through this; never a whole sentence.
+export function read(rel) {
+  return fs.readFileSync(path.join(ROOT, rel), 'utf8');
 }
 
 const freshHome = () => tmpDir('do-it-home-');

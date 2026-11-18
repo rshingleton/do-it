@@ -1,4 +1,4 @@
-import { tmpDir } from './env.mjs'; // first: isolates the developer's environment
+import { read, tmpDir } from './env.mjs'; // first: isolates the developer's environment
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -420,6 +420,24 @@ test('work.mjs: verify-phase records only a passing check; audit-pass hashes the
   assert.equal(r.out.audit.fingerprint, before);
 });
 
+test('work.mjs: a closing-docs file whose name begins with two dots is still excluded from the fingerprint', () => {
+  const dir = tempRepo();
+  const git = (...a) => execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', ...a], { cwd: dir, encoding: 'utf8' });
+  git('commit', '-q', '--allow-empty', '-m', 'base');
+  fs.mkdirSync(path.join(dir, '.do-it'));
+  fs.writeFileSync(path.join(dir, '.do-it/config.env'), 'DO_IT_TODO_FILE=..env\n');
+  fs.writeFileSync(path.join(dir, '..env'), 'one\n');
+  const item = work(dir, 'new', 'dot', '--lane', 's', '--title', 'Dot');
+  assert.equal(item.status, 0, JSON.stringify(item.out));
+  for (const e of ['approve', 'start']) assert.equal(work(dir, 'event', 'dot', e).status, 0);
+  fs.writeFileSync(path.join(dir, 'code.js'), 'x\n');
+  const before = work(dir, 'fingerprint', 'dot');
+  assert.equal(before.status, 0, JSON.stringify(before.out));
+  assert.ok(before.out.fingerprint);
+  fs.writeFileSync(path.join(dir, '..env'), 'one\ntwo\n');
+  assert.equal(work(dir, 'fingerprint', 'dot').out.fingerprint, before.out.fingerprint, 'editing ..env is closing docs, not code');
+});
+
 test('work.mjs: review-diff shows edits made after ship prepared, without touching the index', () => {
   const dir = tempRepo();
   const git = (...a) => execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', ...a], { cwd: dir, encoding: 'utf8' });
@@ -606,41 +624,47 @@ test('ship-it: the retro-it offer sits at the question, before close deletes the
 
 const flat = (text) => text.replace(/\s+/g, ' ');
 
-test('ship-it: the question offers the audit leftovers, DOCS.md and prove-it name where they go', () => {
-  const ship = fs.readFileSync(path.join(ROOT, 'skills/ship-it/SKILL.md'), 'utf8');
-  const docs = fs.readFileSync(path.join(ROOT, 'skills/ship-it/DOCS.md'), 'utf8');
-  const prove = fs.readFileSync(path.join(ROOT, 'skills/prove-it/SKILL.md'), 'utf8');
+test('ship-it: §2 names the audit leftovers and links the docs it writes, and prove-it names where they go', () => {
+  const ship = read('skills/ship-it/SKILL.md');
+  const docs = read('skills/ship-it/DOCS.md');
+  const prove = read('skills/prove-it/SKILL.md');
   const question = ship.slice(ship.indexOf('## 2. The one question'), ship.indexOf('## 3. After the answer'));
   assert.match(question, /the audit's Should and Nice findings \(no changelog\)/, 'the question shows the findings');
   assert.ok(flat(question).includes('audit findings and surfaced defects above (default: findings and defects'), 'question 2 offers them, default log');
-  assert.ok(docs.includes('## Audit findings'), 'DOCS.md has the section');
-  const section = docs.slice(docs.indexOf('## Audit findings'));
-  assert.match(section, /"log-it"[\s\S]*`source: <work id> audit`/, 'it logs through log-it with the audit source');
+  assert.ok(question.includes('](DOCS.md)'), 'the question links the docs it will write');
+  assert.ok(question.includes('](FINALIZE.md)'), 'and the finalize it offers');
+  const start = docs.indexOf('## Audit findings');
+  assert.ok(start >= 0, 'DOCS.md has the section');
+  const section = docs.slice(start, docs.indexOf('## Surfaced defects'));
+  assert.match(section, /"log-it"/, 'each chosen finding files through log-it');
+  assert.match(section, /`source: <work id> audit`/, 'with the audit as its source');
   assert.ok(flat(prove).includes('with no changelog offers to log them as to-dos'), 'prove-it names the home');
 });
 
-// Behaviour a finalize must keep: the five offers, the paths it stages and the skills that point at it.
+// Behaviour a finalize must keep: the five offers, every path it writes and the skills that point at it.
 // Wording is free; npm run check holds the line budget.
 test('ship-it: FINALIZE.md keeps its five offers, its paths and its never-list, and ship, run mode, finish-it and roadmap-it point at it', () => {
-  const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
   const ship = read('skills/ship-it/SKILL.md');
   assert.match(ship, /^argument-hint:.*--roadmap <file>/m, 'the hint has the mode');
   assert.ok(ship.includes('(FINALIZE.md)'), 'SKILL.md links FINALIZE.md');
   const finalize = read('skills/ship-it/FINALIZE.md');
-  // The paths a finalize stages, named in one section that run mode points at.
+  // The whole set a finalize writes, named in one section that run mode points at.
   const paths = flat(finalize.slice(finalize.indexOf('## Paths'), finalize.indexOf('## Offers')));
-  for (const want of ['roadmap file', 'ADR', 'docs/TODO.md']) assert.ok(paths.includes(want), `Paths names ${want}`);
-  assert.ok(paths.includes('docs/issues/*.md'), 'Paths names the local issue files');
+  for (const want of ['roadmap file', 'docs/reference/roadmap-history.md', 'the ADRs offer `a` created', 'docs/TODO.md', 'docs/issues/*.md']) assert.ok(paths.includes(want), `Paths names ${want}`);
   assert.ok(!paths.includes('stages exactly'), 'no claim the list is exact when offer e edits more');
-  assert.equal(finalize.slice(finalize.indexOf('## Never')).split('\n').filter((l) => l.startsWith('- Never')).length, 3, 'the never-list keeps its three rules');
+  // Counted by content: a reworded rule still counts, a dropped one does not.
+  const never = finalize.slice(finalize.indexOf('## Never')).split('\n').filter((l) => /^- \S/.test(l));
+  assert.equal(never.length, 3, 'the never-list keeps its three rules');
   for (const [letter, title] of [['a', 'ADRs'], ['b', 'Fog'], ['c', 'Shipped'], ['d', 'Completed'], ['e', 'Milestones']])
-    assert.match(read('skills/ship-it/FINALIZE.md'), new RegExp(`^${letter}\\. \\*\\*${title}:\\*\\*`, 'm'), `offer ${letter}`);
-  assert.match(flat(ship), /\b2\. .*finalize offers a to e/, 'the offers ride in the Ask list item 2, inside the three-ask cap');
+    assert.match(finalize, new RegExp(`^${letter}\\. \\*\\*${title}:\\*\\*`, 'm'), `offer ${letter}`);
+  const question = ship.slice(ship.indexOf('## 2. The one question'), ship.indexOf('## 3. After the answer'));
+  assert.ok(question.includes('(FINALIZE.md)'), 'the offers ride in §2');
+  const ask = question.slice(question.indexOf('**Ask**')).split('\n').filter((l) => /^\d+\. /.test(l));
+  assert.ok(ask.length > 0 && ask.length <= 3, 'the Ask list stays inside the three-ask cap');
   for (const f of ['skills/ship-it/RUNMODE.md', 'skills/finish-it/SKILL.md', 'skills/roadmap-it/SKILL.md']) assert.ok(read(f).includes('FINALIZE.md'), `${f} points at it`);
 });
 
 test('closing Next: do-it §6 and ship-it §4 name a slash command, never a script', () => {
-  const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
   const doIt = read('skills/do-it/SKILL.md');
   const ship = read('skills/ship-it/SKILL.md');
   const closing = doIt.slice(doIt.indexOf('## 6. Closing message'));
@@ -667,15 +691,15 @@ test('defects: a surfaced-defects list round-trips and work.mjs set writes it', 
 });
 
 test('skills: surfaced defects are planned, recorded and offered at ship', () => {
-  const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
   const ship = read('skills/ship-it/SKILL.md');
   const docs = read('skills/ship-it/DOCS.md');
   const question = ship.slice(ship.indexOf('## 2. The one question'), ship.indexOf('## 3. After the answer'));
-  assert.match(flat(question), /surfaced `defects:`/, 'the question lists the defects');
-  assert.match(flat(question), /surfaced defects above.*default/i, 'question 2 offers to log them');
-  const section = docs.slice(docs.indexOf('## Surfaced defects'));
+  assert.match(question, /`defects:`/, 'the question shows the state block field');
+  assert.ok(question.includes('](DOCS.md)'), 'and links where the defects go');
   assert.ok(docs.includes('## Surfaced defects'), 'DOCS.md has the section');
-  assert.match(section, /"log-it"[\s\S]*`source: <work id>`/, 'filed through log-it with the work id');
+  const section = docs.slice(docs.indexOf('## Surfaced defects'), docs.indexOf('## Closes'));
+  assert.match(section, /"log-it"/, 'filed through log-it');
+  assert.match(section, /`source: <work id>`/, 'with the work id');
   const unmetAt = flat(section).indexOf('`shipped <date> <work id>, Verify unmet: <clause>`');
   assert.ok(unmetAt >= 0 && flat(section).indexOf('issue refs', unmetAt) > unmetAt, 'unmet-verify format'); assert.match(section, /unmet/i, 'a roadmap row is not shipped without the unmet-verify note');
   assert.match(read('skills/scope-it/PLAN-FORMAT.md'), /surfaced defect[\s\S]*`log-it`/, 'scope-it adds the file-defects step');
@@ -719,12 +743,11 @@ const ok = (r) => {
 test('work.mjs run: new, show, set and slice round trip with config defaults', () => {
   const dir = tempRepo();
   let r = ok(work(dir, 'run', 'new', 'road', '--date', '2026-10-30'));
-  assert.deepEqual(
-    [r.tracks, r.slice_cap_min, r.audit_cap, r.final_audit_cap, r.audit_total_cap],
-    [1, 120, 3, 3, null],
-    'the documented defaults',
-  );
-  assert.equal(r.started, '2026-10-30');
+  assert.deepEqual(r, {
+    id: 'road', root: fs.realpathSync.native(dir).split(path.sep).join('/'),
+    level: 'full', commit: 'phase', tracks: 1, branch: null, started: '2026-10-30', base: null,
+    max_slices: null, slice_cap_min: 120, audit_cap: 3, final_audit_cap: 3, audit_total_cap: null, slices: [], assumptions: [], rejected: [], limits: [],
+  });
   assert.ok(fs.existsSync(path.join(dir, 'docs/planning/road.run/RUN.md')));
   assert.equal(work(dir, 'run', 'new', 'road').status, 1, 'no second record');
 
@@ -758,6 +781,32 @@ test('work.mjs run: an empty slice cap means no cap, at new and at set', () => {
   ok(work(dir, 'run', 'set', 'x', 'slice_cap_min', 'null'));
   assert.equal(ok(work(dir, 'run', 'show', 'x')).slice_cap_min, null);
   assert.match(work(dir, 'run', 'set', 'x', 'slice_cap_min', '0').out.error, /positive whole number/);
+});
+
+test('work.mjs run: a dirty tree starts, and the record names its base and the note', () => {
+  const dir = tempRepo();
+  const git = (...a) => execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', ...a], { cwd: dir, encoding: 'utf8' });
+  fs.writeFileSync(path.join(dir, 'a.js'), 'one\n');
+  git('add', 'a.js');
+  git('commit', '-q', '-m', 'base');
+  const base = git('rev-parse', 'HEAD').trim();
+  fs.writeFileSync(path.join(dir, 'a.js'), 'two\n');
+  let r = ok(work(dir, 'run', 'new', 'dirty', '--date', '2026-10-30'));
+  assert.equal(r.base, base, 'the base is HEAD, not the empty tree');
+  assert.match(r.base_note, /uncommitted changes/, 'the record says the tree was dirty');
+  assert.match(r.base_note, /part of this run/, 'and that the change is part of the run');
+  assert.deepEqual(ok(work(dir, 'run', 'show', 'dirty')), r, 'read back equals written');
+
+  git('add', 'a.js');
+  git('commit', '-q', '-m', 'committed');
+  r = ok(work(dir, 'run', 'new', 'clean', '--date', '2026-10-30'));
+  assert.equal(r.base, git('rev-parse', 'HEAD').trim());
+  assert.ok(!('base_note' in r), 'a clean tree carries no note');
+
+  const plain = tmpDir('do-it-work-');
+  r = ok(work(plain, 'run', 'new', 'nogit'));
+  assert.equal(r.base, null, 'no repo: no base');
+  assert.ok(!('base_note' in r), 'and no note');
 });
 
 test('work.mjs run: unknown levels, commit modes and non-positive caps are refused', () => {
@@ -826,8 +875,26 @@ test('roadmap-it FORMAT.md describes completed and Shipped and no longer shows C
   assert.ok(lifecycle.includes('`completed:`') && lifecycle.includes('`## Shipped`') && lifecycle.includes('`reopened`'), 'the keep rule and the reopened note are stated');
 });
 
+// A finished roadmap's file must not outlive its durable record: the row lands
+// and the file goes in one commit, and a roadmap with work left stays, named.
+test('a finalize appends the roadmap-history row and removes the file, and leaves an unfinished roadmap in place', () => {
+  const finalize = fs.readFileSync(path.join(ROOT, 'skills/ship-it/FINALIZE.md'), 'utf8');
+  const doc = flat(finalize);
+  const history = fs.readFileSync(path.join(ROOT, 'docs/reference/roadmap-history.md'), 'utf8');
+  assert.equal(
+    history.split('\n').find((line) => line.startsWith('| Roadmap |')),
+    '| Roadmap | File removed | Approved | Completed | Slices in Shipped |',
+    'the history table carries the cells a finalize fills',
+  );
+  assert.ok(doc.includes('docs/reference/roadmap-history.md'), 'the finalize appends the history row');
+  assert.match(doc, /title.*file removed.*approved.*completed.*shipped/i, 'the row holds the title, file, both dates and the shipped count');
+  assert.match(doc, /remove the roadmap file in the same change/i, 'the file goes with the commit that finalizes it');
+  assert.match(doc, /unfinished roadmap is left/i, 'a roadmap with work left is left in place');
+  assert.doesNotMatch(finalize, /Never delete the roadmap/, 'the never-delete rule is gone');
+  assert.doesNotMatch(doc, /keeps its file/, 'a finished roadmap no longer keeps its file');
+});
+
 test('a roadmap finalize leaves no proposed ADR nobody accepts, and the two origin-only Execution notes are gone', () => {
-  const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
   const offerA = flat(read('skills/ship-it/FINALIZE.md')).match(/a\. \*\*ADRs:\*\*.*?(?=b\. \*\*Fog)/)[0];
   assert.match(offerA, /`accepted` ADR/);
   assert.doesNotMatch(offerA, /proposed/);
@@ -938,4 +1005,46 @@ test('clean passes: audit-pass counts, reaudit refuses at the cap, --again grant
   const again = work(dir, 'event', 'cap', 'reaudit', '--again');
   assert.equal(again.status, 0, JSON.stringify(again.out));
   assert.equal(again.out.status, 'auditing');
+});
+
+// The plan format owns `## Link`, link-it points at it, and a replan keeps the
+// body a plan was written with.
+test('scope-it: PLAN-FORMAT owns the ## Link section its rule and its example', () => {
+  const doc = fs.readFileSync(path.join(ROOT, 'skills/scope-it/PLAN-FORMAT.md'), 'utf8');
+  const laneS = [...doc.matchAll(/```markdown\n([\s\S]*?)```/g)][0][1];
+  const section = laneS.match(/^## Link\n(\S.*)$/m);
+  assert.ok(section, 'the lane S example carries a ## Link with one path line');
+  assert.equal(section[1], '~/.local/share/do-it-bridge/billing-api--web-app.md', 'the example derives the pair CONTRACT.md names, sorted');
+  const at = laneS.indexOf('## Link');
+  assert.ok(laneS.indexOf('## Interfaces') < at && at < laneS.indexOf('## Steps'), 'the section sits after Interfaces and before Steps');
+  const rule = flat(doc.slice(doc.indexOf('`## Link` is optional')));
+  for (const clause of [
+    /`## Link` is optional/,
+    /written only when the plan is paired through \[link-it\]\(\.\.\/link-it\/SKILL\.md\)/,
+    /one path line, the contract path link-it §3 derives/,
+    /never an `assumptions:` entry[^.]*`sources:` ref/,
+    /legal in a lane M README/,
+    /`replan` keeps it/,
+  ]) assert.match(rule, clause);
+});
+
+test('link-it: §6 sends a reader to PLAN-FORMAT for the ## Link section', () => {
+  const skill = fs.readFileSync(path.join(ROOT, 'skills/link-it/SKILL.md'), 'utf8');
+  const section = skill.slice(skill.indexOf('## 6. Survive compaction'), skill.indexOf('## 7. Settle'));
+  assert.match(section, /`## Link`/, 'the section is still named');
+  assert.match(section, /\[PLAN-FORMAT\.md\]\(\.\.\/scope-it\/PLAN-FORMAT\.md\)/, 'the pointer resolves inside skills/');
+  assert.match(flat(section), /never in `assumptions` \([^)]*\) or `sources:`/, 'the reason it is not an assumption or a source stays');
+});
+
+test('work.mjs: a replan keeps a plan body\'s ## Link section', () => {
+  const dir = tempRepo();
+  work(dir, 'new', 'bridged', '--lane', 's', '--title', 'Bridged');
+  for (const e of ['approve', 'start']) work(dir, 'event', 'bridged', e);
+  const file = path.join(dir, 'docs/planning/bridged.md');
+  const link = '## Link\n~/.local/share/do-it-bridge/billing-api--web-app.md';
+  fs.appendFileSync(file, `\n${link}\n`);
+  const r = work(dir, 'event', 'bridged', 'replan');
+  assert.equal(r.status, 0, JSON.stringify(r.out));
+  assert.equal(r.out.status, 'draft');
+  assert.ok(readItem(file).body.includes(link), 'the ## Link section survives the replan');
 });

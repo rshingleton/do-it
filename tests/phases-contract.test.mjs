@@ -27,6 +27,28 @@ const bad = (r) => {
   return r.out.errors.join('\n');
 };
 
+// The ```markdown fence whose body opens with `heading`, asserted before it is read, so a renamed
+// heading fails with its own name instead of a TypeError or a block that sits at that position.
+function fence(text, heading) {
+  const found = [...text.matchAll(/```markdown\n([\s\S]*?)```/g)]
+    .map((m) => m[1])
+    .find((body) => heading.test(body.split('\n')[0].replace(/\r$/, '')));
+  assert.ok(found, `no \`\`\`markdown fence opens with ${heading}`);
+  return found;
+}
+
+test('a fence is found by the heading it opens with, so a permuted source still lands each selection on its own block', () => {
+  const format = fs.readFileSync(path.join(ROOT, 'skills/scope-it/PLAN-FORMAT.md'), 'utf8');
+  const bodies = [...format.matchAll(/```markdown\n([\s\S]*?)```/g)].map((m) => m[1]);
+  assert.ok(bodies.length >= 3, 'the format shows the lane S, lane M and phase examples');
+  const wrap = (body) => `\`\`\`markdown\n${body}\`\`\`\n`;
+  const permuted = [...bodies].reverse().map(wrap).join('\n');
+  assert.equal(fence(permuted, /^# Phase N:/m), bodies[2], 'the phase example is found where it now sits');
+  assert.equal(fence(permuted, /^# </m), bodies[1], 'the README example is found where it now sits');
+  assert.equal(fence(permuted, /^---$/m), bodies[0], 'the lane S example is found where it now sits');
+  assert.throws(() => fence(permuted, /^# Phase 9:/m), /# Phase 9:/, 'a heading no fence opens with names itself');
+});
+
 // A lane M plan: the README's state block and its three sections, then one phase file each.
 // `section: false` leaves that phase's `## Files` out.
 function planDir(phases, readmeFiles) {
@@ -172,8 +194,9 @@ test('scope-it states the rule in both planning paths, and its checks name the c
     assert.match(fence, /^## Files$/m, 'the example carries the section');
     assert.match(fence, /^## Interfaces$/m);
   }
-  assert.match(fences[2], /^## Files$/m, 'the phase example carries the section');
-  assert.match(fences[2], /^## Files\r?\nsrc\/limiter\.js\r?$/m, 'it shows a path where the paths go, not prose');
+  const phaseExample = fence(format, /^# Phase N:/m);
+  assert.match(phaseExample, /^## Files$/m, 'the phase example carries the section');
+  assert.match(phaseExample, /^## Files\r?\nsrc\/limiter\.js\r?$/m, 'it shows a path where the paths go, not prose');
   assert.match(format, /union of its phases' files/, 'lane M says where the README list comes from');
   assert.match(format.replace(/\s+/g, ' '), /no dependency path between them must not share a file/, 'the cutting rule is stated');
 
@@ -186,6 +209,8 @@ test('scope-it states the rule in both planning paths, and its checks name the c
   assert.match(checks, /an empty one/, 'the row counts an empty list as missing');
   assert.match(checks, /^\| Contract \|/m, 'the analyse pass has a Contract row');
   assert.match(checks, /contract\.mjs/, 'the row names the command a scope-it run calls');
+  assert.match(checks, /^\| Verify commands \|/m, 'the analyse pass has a probe row');
+  assert.match(checks.replace(/\s+/g, ' '), /lane S step lines only/, 'the row says the probe reads lane S steps only');
   assert.match(checks.replace(/\s+/g, ' '), /`phases\.mjs` means `node <this skill's directory>\/scripts\/phases\.mjs`/, 'the command is given from this skill\'s own directory');
-  assert.match(checks.replace(/\s+/g, ' '), /Lane S does the first four checks/, 'lane S still stops before the lane M checks');
+  assert.match(checks.replace(/\s+/g, ' '), /Lane S does the first five checks/, 'lane S still stops before the lane M checks');
 });

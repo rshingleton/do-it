@@ -24,6 +24,10 @@ const HOME = os.homedir();
 function readJson(file) {
   if (!fs.existsSync(file)) return {};
   const text = fs.readFileSync(file, 'utf8');
+  // A BOM makes JSON.parse fail at its first byte, which is not what it is.
+  if (text.charCodeAt(0) === 0xfeff) {
+    throw new Error(`${file} starts with a byte-order mark (BOM); save it as UTF-8 without one. See README "Hooks".`);
+  }
   try {
     return JSON.parse(text);
   } catch {
@@ -96,24 +100,49 @@ export function mergeClaude(settings, root, { strip = false } = {}) {
   return next;
 }
 
-function opencodeMajor() {
+// Which OpenCode form the config gets, and where that came from. The host's
+// version is the signal when `opencode` can answer. Failing that, the host's own
+// config is read: v2 writes the `plugins` key, v1 the `plugin` key. With
+// neither, the v1 form is a guess, and the guess is said out loud, because the
+// v2 host would skip it silently.
+function opencodeForm(config) {
   try {
-    return Number(execFileSync('opencode', ['--version'], { encoding: 'utf8' }).match(/(\d+)\./)?.[1]) || 1;
+    const major = Number(execFileSync('opencode', ['--version'], { encoding: 'utf8' }).match(/(\d+)\./)?.[1]);
+    if (major) return major;
   } catch {
+    /* the binary cannot answer: fall through to the config */
+  }
+  if (Array.isArray(config.plugins)) {
+    console.error('note: opencode --version did not answer; the config\'s "plugins" key names the OpenCode 2 form');
+    return 2;
+  }
+  if (Array.isArray(config.plugin)) {
+    console.error('note: opencode --version did not answer; the config\'s "plugin" key names the OpenCode 1 form');
     return 1;
   }
+  console.error('note: opencode --version did not answer and the config names no plugin key; guessing the OpenCode 1 form');
+  return 1;
 }
 
-export function mergeOpencode(config, root, { strip = false, major = 1 } = {}) {
+// The paths a registration of this checkout's plugin can name: the folder the
+// v2 host loads, its entry file for the v1 form, and the old `plugins/` name, so
+// an install that predates the move is recognised either way. The doctor reads
+// this list back against the config this step writes.
+export function pluginPaths(root) {
   // Not `plugin/` or `plugins/`: OpenCode 2 discovers both directory names
   // inside a project, so a checkout opened directly would load its plugin twice
   // (once by discovery, once by this registration).
   const dir = path.join(root, '.opencode', 'do-it-plugin');
   // The old name, so an install that predates the move is replaced, not kept beside it.
   const legacy = path.join(root, '.opencode', 'plugins');
-  const own = [dir, path.join(dir, 'do-it.mjs'), legacy, path.join(legacy, 'do-it.mjs')];
+  // Both per host: the folder a v2 host loads, the entry file a v1 host does.
+  return [dir, path.join(dir, 'do-it.mjs'), legacy, path.join(legacy, 'do-it.mjs')];
+}
+
+export function mergeOpencode(config, root, { strip = false, major = 1 } = {}) {
+  const own = pluginPaths(root);
+  const [dir, file] = own;
   const mine = (p) => own.some((o) => p === o || sameTarget(p, o));
-  const file = path.join(dir, 'do-it.mjs');
   const next = { ...config };
   for (const key of ['plugin', 'plugins']) {
     if (Array.isArray(next[key])) next[key] = next[key].filter((p) => !mine(p));
@@ -134,7 +163,8 @@ function main() {
   } else if (host === 'opencode') {
     const file = path.join(process.env.XDG_CONFIG_HOME || path.join(HOME, '.config'), 'opencode', 'opencode.json');
     const before = readJson(file);
-    writeJson(file, before, mergeOpencode(before, ROOT, { strip: remove, major: opencodeMajor() }));
+    // A removal strips both keys, so it needs no form and asks for none.
+    writeJson(file, before, mergeOpencode(before, ROOT, { strip: remove, major: remove ? 1 : opencodeForm(before) }));
   } else {
     console.error('usage: install-hooks.mjs claude|opencode [--remove] [--dry-run]');
     process.exit(2);

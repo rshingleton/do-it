@@ -1,4 +1,4 @@
-import { tmpDir } from './env.mjs'; // first: isolates the developer's environment
+import { read, tmpDir } from './env.mjs'; // first: isolates the developer's environment
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -6,7 +6,7 @@ import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { DEFAULTS } from '../skills/track-it/scripts/config.mjs';
-import { dirtyHashes } from '../skills/do-it/scripts/commit.mjs';
+import { commitSlice, dirtyHashes } from '../skills/do-it/scripts/commit.mjs';
 import { loadChecks } from '../hooks/lib/checks.mjs';
 import { beforeShell } from '../hooks/lib/guard.mjs';
 
@@ -54,6 +54,15 @@ function fixture({ branch = 'main', config = '' } = {}) {
   write(dir, 'b.js', 'new file\n');
   write(dir, 'unrelated.txt', 'mine, edited\n');
   return { dir, remote };
+}
+// The same tree with no commit at all: `.git` replaced by a fresh init on `branch`.
+function noCommit(dir, branch = 'main') {
+  fs.rmSync(path.join(dir, '.git'), { recursive: true });
+  git(dir, 'init', '-q', '-b', branch);
+  git(dir, 'config', 'user.name', 't');
+  git(dir, 'config', 'user.email', 't@t');
+  git(dir, 'config', 'commit.gpgsign', 'false');
+  return dir;
 }
 const verify = (dir, n = 1) => ok(work(dir, 'verify-phase', 'feat', String(n), '--', 'true'));
 // The files a slice maps, as `run verify --paths` takes them; the fixtures' other dirty files stay out.
@@ -174,6 +183,14 @@ test('a glob or deleted-directory path cannot stage another slice\'s edits', () 
   fs.rmSync(path.join(dir, 'src'), { recursive: true });
   assert.match(work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'src').out.error, /directory/);
   assert.equal(git(dir, 'rev-parse', 'HEAD'), head);
+});
+
+test('the first phase commit works in a repo with no commits yet', () => {
+  const { dir } = fixture();
+  ok(work(dir, 'run', 'new', 'road'));
+  verify(dir);
+  noCommit(dir, 'work');
+  assert.ok(ok(work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'a.js')).commit);
 });
 
 test('a phase retry with a new edit, or onto a different tag, is refused rather than skipped', () => {
@@ -315,16 +332,16 @@ test('a lane S slice is one commit with no tag; mode none and slice rules hold',
   assert.match(work(dir, 'run', 'commit', 'off', 'small', '--paths', 'x.js').out.error, /mode none/);
 });
 
-test('without a run record nothing commits, and build-it still forbids commits', () => {
+test('without a run record nothing commits, and build-it points its rules at the commit boundary', () => {
   const { dir } = fixture();
   verify(dir);
   const head = git(dir, 'rev-parse', 'HEAD');
   assert.match(work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'a.js').out.error, /no run record/);
   assert.equal(git(dir, 'rev-parse', 'HEAD'), head);
-  const text = fs.readFileSync(path.join(ROOT, 'skills/build-it/SKILL.md'), 'utf8');
+  const text = read('skills/build-it/SKILL.md');
   const rules = text.slice(text.indexOf('## Rules'));
-  assert.match(rules, /No commits, no pushes, no stashes on the user's branch, unless a run record\s+exists/);
-  assert.match(fs.readFileSync(path.join(ROOT, 'skills/build-it/COMMITS.md'), 'utf8'), /No run record: none of this applies/);
+  assert.match(rules, /\]\(COMMITS\.md\)/, 'the rules point at the commit boundary');
+  assert.match(read('skills/build-it/COMMITS.md'), /^## Mode$/m, 'COMMITS.md names the commit mode it runs in');
 });
 
 test('the run flag wins over DO_IT_COMMIT=never for that run, and never alone means none', () => {
@@ -467,17 +484,45 @@ test('dirtyHashes sees an edit inside a dirty submodule', () => {
   assert.notEqual(dirtyHashes(dir, ['sub'])['sub'], one, 'a second edit inside the submodule changes the record');
 });
 
-test('dirtyHashes reads past 1 MB of status output and fails when git does', () => {
+test('dirtyHashes records every entry of a status past 1 MB and fails when git does', () => {
   const dir = tmpDir('do-it-bigstatus-');
   git(dir, 'init', '-q');
-  // About 5000 names of 200 characters put the status past 1 MB with a fifth of the files.
-  const many = 5000;
-  const name = (i) => `${'x'.repeat(190)}-${String(i).padStart(6, '0')}.txt`;
-  for (let i = 0; i < many; i++) fs.writeFileSync(path.join(dir, name(i)), `${i}\n`);
+  // Each entry is its path, so three long directory names and one file name put
+  // the status past 1 MB with about 1,350 files instead of 5,000 writes.
+  const part = (c) => c.repeat(200);
+  const many = 1350;
+  const name = (i) => `${'x'.repeat(192)}-${String(i).padStart(7, '0')}.txt`;
+  // The path git reports, forward slashes on every platform.
+  const rel = (i) => [part('d'), part('e'), part('f'), name(i)].join('/');
+  const deep = path.join(dir, part('d'), part('e'), part('f'));
+  fs.mkdirSync(deep, { recursive: true });
+  for (let i = 0; i < many; i++) fs.writeFileSync(path.join(deep, name(i)), '');
+  assert.ok(many * (rel(0).length + 4) > 1024 * 1024, 'the fixture puts the status past 1 MB');
   const seen = dirtyHashes(dir);
   assert.equal(Object.keys(seen).length, many, 'every file is recorded, none read as clean');
-  assert.match(seen[name(7)], /^644:[0-9a-f]{40}$/);
+  assert.match(seen[rel(7)], /^644:[0-9a-f]{40}$/);
   assert.throws(() => dirtyHashes(tmpDir('do-it-notrepo-')), /git status failed/);
+});
+
+test('dirtyHashes reads a worktree rename as its new path and the old one gone', () => {
+  const dir = tmpDir('do-it-worktree-rename-');
+  git(dir, 'init', '-q', '-b', 'main');
+  git(dir, 'config', 'user.name', 't');
+  git(dir, 'config', 'user.email', 't@t');
+  git(dir, 'config', 'commit.gpgsign', 'false');
+  write(dir, 'old.js', 'kept content\n');
+  git(dir, 'add', '-A');
+  git(dir, 'commit', '-qm', 'init');
+  // A rename made in the worktree, nothing staged: git status lists the delete and the untracked new file.
+  fs.renameSync(path.join(dir, 'old.js'), path.join(dir, 'new.js'));
+  const all = dirtyHashes(dir);
+  assert.match(all['new.js'], /^644:[0-9a-f]{40}$/);
+  assert.equal(all['old.js'], 'gone');
+  // A verify that mapped only the new name must still hold the gone side, or the commit compare reads
+  // the old path as clean and lets the rename through.
+  const named = dirtyHashes(dir, ['new.js']);
+  assert.match(named['new.js'], /^644:[0-9a-f]{40}$/);
+  assert.equal(named['old.js'], 'gone');
 });
 
 // A repo on `topic` with x.js and y.js committed and a started lane S item "small"; `edit` makes
@@ -551,6 +596,21 @@ test('lane S refuses a path spelled through a symlinked root, naming it as outsi
   assert.equal(git(dir, 'diff', '--cached', '--name-only'), '');
 });
 
+test('a repo file whose name starts with two dots commits; a parent path is refused', () => {
+  const dir = laneS((d) => {
+    write(d, '..env', 'TOKEN=1\n');
+    write(d, '..foo/bar', 'inside a dot-dot directory\n');
+    write(d, 'x.js', '2\n');
+  });
+  // `..\x` is a parent path only where the backslash separates path segments.
+  const parent = process.platform === 'win32' ? ['..', '../x', '..\\x'] : ['..', '../x'];
+  for (const p of parent) assert.match(sliceCommit(dir, [p, 'x.js']).out.error, /inside the repo/, `${p} leads out of the root`);
+  const away = path.join(tmpDir('do-it-outside-'), 'x.js');
+  assert.match(sliceCommit(dir, [away, 'x.js']).out.error, /inside the repo/, 'an absolute path outside the root is refused too');
+  ok(sliceCommit(dir, ['..env', '..foo/bar', 'x.js']));
+  assert.deepEqual(names(dir), ['..env', '..foo/bar', 'x.js'].sort());
+});
+
 // A protected-branch run whose phase 1 commit is rejected by a pre-commit hook that runs `hook`.
 function rejectedCommit(hook, setup = () => {}) {
   const { dir } = fixture();
@@ -559,6 +619,9 @@ function rejectedCommit(hook, setup = () => {}) {
   setup(dir);
   write(dir, '.git/hooks/pre-commit', `#!/bin/sh\n${hook}\nexit 1\n`);
   fs.chmodSync(path.join(dir, '.git/hooks/pre-commit'), 0o755);
+  // The fixture's own hooks, so a developer's global core.hooksPath cannot skip the hook and
+  // make these tests green for the wrong reason.
+  git(dir, 'config', 'core.hooksPath', path.join(dir, '.git', 'hooks').replaceAll('\\', '/'));
   const r = work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'a.js');
   assert.equal(r.status, 1);
   return { dir, error: r.out.error };
@@ -583,7 +646,53 @@ test('a rejected commit keeps a scratch branch a hook committed on, and says so'
   assert.equal(git(reused.dir, 'branch', '--list', 'do-it/road').trim(), 'do-it/road', 'a branch it did not make stays');
 });
 
-test('a tag that cannot be made after the commit landed is reported with the commit', () => {
+test('a rejected commit in a repo with no commits returns to its unborn branch and leaves no scratch branch', () => {
+  const { dir } = fixture();
+  ok(work(dir, 'run', 'new', 'road'));
+  verify(dir);
+  noCommit(dir);
+  write(dir, '.git/hooks/pre-commit', '#!/bin/sh\nexit 1\n');
+  fs.chmodSync(path.join(dir, '.git/hooks/pre-commit'), 0o755);
+  const r = work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'a.js');
+  assert.equal(r.status, 1);
+  assert.doesNotMatch(r.out.error, /could not switch back|gained commits/, 'the undo finds nothing it could not undo');
+  assert.equal(git(dir, 'symbolic-ref', '--quiet', '--short', 'HEAD'), 'main', 'back on the unborn default branch');
+  assert.equal(git(dir, 'branch', '--list', 'do-it/road'), '', 'the branch it made is gone');
+  assert.equal(git(dir, 'diff', '--cached', '--name-only'), '', 'nothing staged');
+});
+
+test('a rejected commit runs the fixture hook even when the global config names another hooks path', () => {
+  const noHooks = path.join(tmpDir('do-it-nohooks-'), 'hooks');
+  const globalConfig = path.join(tmpDir('do-it-gitconfig-'), 'config');
+  fs.writeFileSync(globalConfig, `[core]\n\thooksPath = ${noHooks.replaceAll('\\', '/')}\n`);
+  const before = process.env.GIT_CONFIG_GLOBAL;
+  process.env.GIT_CONFIG_GLOBAL = globalConfig;
+  try {
+    const { dir, error } = rejectedCommit(':');
+    assert.doesNotMatch(error, /kept|could not/);
+    assert.equal(git(dir, 'branch', '--show-current'), 'main', 'the hook ran and the undo switched back');
+  } finally {
+    process.env.GIT_CONFIG_GLOBAL = before;
+  }
+});
+
+test('a rethrown commit error keeps the stack of the git failure, not the catch', () => {
+  const dir = laneS((d) => write(d, 'x.js', '2\n'));
+  write(dir, '.git/hooks/pre-commit', '#!/bin/sh\nexit 1\n');
+  fs.chmodSync(path.join(dir, '.git/hooks/pre-commit'), 0o755);
+  const items = new Map([['small', { state: { lane: 's', verified: true, title: 'Small fix' } }]]);
+  let error;
+  try {
+    commitSlice({ root: dir, planningDir: path.join(dir, 'docs', 'planning'), config: DEFAULTS, items, slug: 'sl', id: 'small', paths: ['x.js'] });
+  } catch (e) {
+    error = e;
+  }
+  assert.ok(error, 'the rejected commit throws');
+  assert.match(error.message, /git commit failed/);
+  assert.match(error.stack, /skills[\\/]do-it[\\/]scripts[\\/]git\.mjs:\d+/, 'the stack names the original throw site');
+});
+
+test('a tag that cannot be made after the commit landed is reported with the commit, and the same command retags', () => {
   const { dir } = fixture();
   ok(work(dir, 'run', 'new', 'road'));
   verify(dir);
@@ -593,4 +702,11 @@ test('a tag that cannot be made after the commit landed is reported with the com
   assert.equal(r.status, 1);
   assert.match(r.out.error, /committed [0-9a-f]{40} on do-it\/road but .*run the same command again to tag it/);
   assert.equal(git(dir, 'log', '-1', '--format=%s'), 'feat: phase 1 Limiter', 'the commit landed');
+  // The retry the message promises: with the blocker gone, the same command only tags, never commits again.
+  fs.rmSync(path.join(dir, '.git/refs/tags/do-it/feat/phase-1'), { recursive: true });
+  const again = ok(work(dir, 'run', 'commit', 'road', 'feat', '--phase', '1', '--paths', 'a.js'));
+  assert.equal(again.tag, 'do-it/feat/phase-1');
+  assert.equal(again.commit, git(dir, 'rev-parse', 'HEAD'));
+  assert.equal(git(dir, 'rev-parse', 'do-it/feat/phase-1^{commit}'), again.commit, 'the tag names the landed commit');
+  assert.equal(git(dir, 'rev-list', '--count', 'HEAD'), '2', 'the retry tags, it does not commit a second time');
 });

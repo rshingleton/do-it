@@ -12,6 +12,9 @@
 // Hooks:    on by default; registered in ~/.claude/settings.json and
 //           ~/.config/opencode/opencode.json (backups written alongside).
 //
+// The root an install runs from: `install({ root })`, else `DO_IT_HOME`, else
+// this checkout. `DO_IT_HOME` is read once, and only when no root is given.
+//
 // A link is a symlink. Where Windows refuses one (no Developer Mode), a
 // directory becomes a junction and a file becomes a copy; copies are listed in
 // ~/.claude/do-it/install.json so a re-run refreshes them and --uninstall
@@ -24,18 +27,29 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { ROOT } from './lib/skills.mjs';
 import { hashFile, norm, readManifest, sameTarget, under, writeManifest } from './lib/install-state.mjs';
-// doctor.mjs imports this module's plan, so the two read each other; both
-// imports are function declarations, available before either body runs.
-import { ageOf, readRef } from './doctor.mjs';
+// The ref this installer prints comes from lib/read-ref.mjs, so the doctor can
+// plan its links through this module without the two importing each other.
+import { fetchText, plural, readRef } from './lib/read-ref.mjs';
 import { isMain } from '../skills/it-core/scripts/is-main.mjs';
 
 const USAGE = 'usage: install.mjs [--no-hooks] [--force] [--dry-run] [--uninstall]';
+
+// A directory with nothing in it is not a skill. An untracked `skills/<name>`
+// made and then emptied would otherwise be planned, linked and, in the doctor's
+// read-back, reported as installed.
+const filled = (dir) => {
+  try {
+    return fs.readdirSync(dir).length > 0;
+  } catch {
+    return false;
+  }
+};
 
 const entries = (dir, want) => {
   try {
     return fs
       .readdirSync(dir, { withFileTypes: true })
-      .filter((d) => (want === 'dir' ? d.isDirectory() : d.isFile() && d.name.endsWith('.md')))
+      .filter((d) => (want === 'dir' ? d.isDirectory() && filled(path.join(dir, d.name)) : d.isFile() && d.name.endsWith('.md')))
       .map((d) => d.name)
       .sort();
   } catch {
@@ -97,7 +111,7 @@ function removeEntry(p) {
   }
 }
 
-function runHooks(args, home) {
+function runHooks(args, home, root) {
   // The hook step resolves the host's home itself (`os.homedir`), so a caller
   // installing into another home has to carry it in the environment, or the
   // step edits the real host config. OpenCode writes its runtime log under the
@@ -120,19 +134,43 @@ function runHooks(args, home) {
         XDG_STATE_HOME: stateHome,
       }
     : process.env;
+  // The step is the installed checkout's own, so its hooks.json and plugin are
+  // the ones registered; a tree without the script (a fixture, a partial
+  // checkout) falls back to the running installer's. Say so: the fallback
+  // registers ROOT's hooks while the links point at root.
+  const own = path.join(root, 'scripts', 'install-hooks.mjs');
+  const script = fs.existsSync(own) ? own : path.join(ROOT, 'scripts', 'install-hooks.mjs');
+  if (script !== own) console.error(`note: ${root} has no scripts/install-hooks.mjs; hooks come from ${ROOT}`);
   const runtimeDirs = [
     path.join(home, '.local', 'share', 'opencode'),
     path.join(home, '.cache', 'opencode'),
     path.join(home, '.local', 'state', 'opencode'),
   ];
   const alreadyThere = new Set(runtimeDirs.filter((dir) => fs.existsSync(dir)));
-  const status = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'install-hooks.mjs'), ...args], { stdio: 'inherit', env }).status ?? 1;
+  const status = spawnSync(process.execPath, [script, ...args], { stdio: 'inherit', env }).status ?? 1;
   // Clear only runtime dirs the hook step just created. An install into the
   // current home must leave its OpenCode data alone: the database there holds
   // the user's saved accounts.
   for (const dir of runtimeDirs) if (!alreadyThere.has(dir)) fs.rmSync(dir, { recursive: true, force: true });
   return status;
 }
+
+// Both hosts' hook work, in order, even after one fails: a host that refuses
+// its config must not leave the other host's hooks installed or unregistered.
+// Each host's status, so each caller keeps the exit policy it already had.
+function runHookSteps(args, { root, home, dry }) {
+  const extra = dry ? ['--dry-run'] : [];
+  const status = {};
+  for (const host of ['claude', 'opencode']) status[host] = runHooks([host, ...args, ...extra], home, root);
+  return status;
+}
+
+// The checkout an install runs from: the caller's root, else DO_IT_HOME, else
+// this checkout. The environment is read once, and only when no root argument
+// was given, so a caller that names one is never overridden by it. Resolved to
+// an absolute path here, so a relative DO_IT_HOME cannot make a link target
+// that resolves inside the link's own directory.
+const resolveRoot = (root) => path.resolve(root ?? (process.env.DO_IT_HOME || ROOT));
 
 // The checkout's ref, as the doctor reads it: local reads only, so an install
 // never fetches. A directory that is not a repository, or a machine without
@@ -146,84 +184,139 @@ function checkoutRef(root) {
   }
 }
 
-// The line an install ends with: the commit it came from, and how far this
-// checkout is behind the ref the install follows. Null when git cannot answer,
-// so an install prints what it always printed and carries on. `dry` says what
-// would be installed rather than what was.
+// The line an install ends with: the commit it came from, how far this checkout
+// is behind the ref the install follows, and where those counts came from.
+// Null when git cannot answer, so an install prints what it always printed and
+// carries on. `dry` says what would be installed rather than what was.
 function installLine(ref, { root, dry }) {
   if (ref.unknown) return null;
   const at = `${dry ? 'would install from' : 'installed from'} ${root} at ${ref.sha} (${ref.branch ?? 'detached HEAD'})`;
   const followed = ref.followed;
   if (!followed) return at;
   const where = followed.behind > 0
-    ? `${followed.behind} ${followed.behind === 1 ? 'commit' : 'commits'} behind ${followed.name}`
+    ? `${plural(followed.behind, 'commit', 'commits')} behind ${followed.name}`
     : `up to date with ${followed.name}`;
-  const fetched = ref.fetchedAt ? `last fetch ${ageOf(ref.fetchedAt)}` : 'never fetched';
-  return `${at}, ${where}; ${fetched}`;
+  return `${at}, ${where}; ${fetchText(ref)}`;
 }
 
-export function install({ root = ROOT, home = os.homedir(), configHome, hooks = true, force = false, dry = false, uninstall = false, placeFs } = {}) {
+// The directories an install fills, each with the checkout's directory its links
+// point into: everything under the first that is a link into the second is ours.
+function installDirs(root, home, configHome) {
+  return [
+    [path.join(home, '.claude', 'skills'), path.join(root, 'skills')],
+    [path.join(home, '.agents', 'skills'), path.join(root, 'skills')],
+    [path.join(home, '.claude', 'agents'), path.join(root, 'agents')],
+    [path.join(configHome, 'opencode', 'command'), path.join(root, '.opencode', 'command')],
+    [path.join(configHome, 'opencode', 'commands'), path.join(root, '.opencode', 'commands')],
+    [path.join(configHome, 'opencode', 'agents'), path.join(root, '.opencode', 'agents')],
+  ];
+}
+
+// The links into this checkout that the plan no longer lists: a skill since
+// renamed or removed, a directory the plan now leaves out, or a source deleted
+// after the install. The doctor calls each one an orphan and its fix is this
+// installer, so the installer is what removes them; a link the plan lists is
+// placed or refreshed by the loop that follows.
+function pruneOrphans(root, home, configHome, plan, { dry, say, run }) {
+  const planned = new Map(); // destination directory -> the names the plan puts there
+  for (const { dst } of plan) {
+    const dir = path.dirname(dst);
+    if (!planned.has(dir)) planned.set(dir, new Set());
+    planned.get(dir).add(path.basename(dst));
+  }
+  for (const [dir, prefix] of installDirs(root, home, configHome)) {
+    let names = [];
+    try {
+      names = fs.readdirSync(dir);
+    } catch {
+      continue;
+    }
+    for (const name of names) {
+      if (planned.get(dir)?.has(name)) continue;
+      const entry = path.join(dir, name);
+      if (!lstat(entry)?.isSymbolicLink()) continue;
+      let target;
+      try {
+        target = fs.readlinkSync(entry);
+      } catch {
+        continue;
+      }
+      if (!under(target, prefix)) continue;
+      if (dry) run(`rm ${entry}`);
+      else removeEntry(entry);
+      say(`unlink ${entry} (the plan does not list it)`);
+    }
+  }
+}
+
+// Remove what this checkout's install put down, and only that: links into this
+// checkout, and copies whose hash still matches the manifest. `install({
+// uninstall: true })` dispatches here, so callers keep their one entry point.
+export function uninstall({ root, home = os.homedir(), configHome, hooks = true, dry = false } = {}) {
+  root = resolveRoot(root);
   configHome = configHome || process.env.XDG_CONFIG_HOME || path.join(home, '.config');
+  const say = (s) => console.log(s);
+  const run = (what) => dry && say(`would: ${what}`);
+  const manifest = readManifest(home);
+  const dirs = installDirs(root, home, configHome);
+  // Every link into this checkout, including links to skills since renamed or removed.
+  for (const [dir, prefix] of dirs) {
+    let names = [];
+    try {
+      names = fs.readdirSync(dir);
+    } catch {
+      continue;
+    }
+    for (const name of names) {
+      const entry = path.join(dir, name);
+      if (!lstat(entry)?.isSymbolicLink()) continue;
+      let target;
+      try {
+        target = fs.readlinkSync(entry);
+      } catch {
+        continue;
+      }
+      if (!under(target, prefix)) continue;
+      if (!dry) removeEntry(entry);
+      else run(`rm ${entry}`);
+      say(`unlink ${entry}`);
+    }
+  }
+  const kept = [];
+  for (const c of manifest) {
+    if (!under(c.src, root)) {
+      kept.push(c);
+      continue;
+    }
+    const st = lstat(c.dst);
+    if (!st) continue;
+    if (st.isFile() && hashFile(c.dst) === c.hash) {
+      if (!dry) removeEntry(c.dst);
+      else run(`rm ${c.dst}`);
+      say(`unlink ${c.dst}`);
+    } else {
+      say(`skip  ${c.dst} (copy was edited; left alone)`);
+      kept.push(c);
+    }
+  }
+  if (!dry) writeManifest(home, kept);
+  if (!hooks) return 0;
+  const host = runHookSteps(['--remove'], { root, home, dry });
+  return host.claude || host.opencode;
+}
+
+export function install({ root, home = os.homedir(), configHome, hooks = true, force = false, dry = false, uninstall: remove = false, placeFs } = {}) {
+  root = resolveRoot(root);
+  configHome = configHome || process.env.XDG_CONFIG_HOME || path.join(home, '.config');
+  if (remove) return uninstall({ root, home, configHome, hooks, dry });
   const say = (s) => console.log(s);
   const run = (what) => dry && say(`would: ${what}`);
   const manifest = readManifest(home);
   const plan = planLinks(root, home, configHome);
 
-  if (uninstall) {
-    const dirs = [
-      [path.join(home, '.claude', 'skills'), path.join(root, 'skills')],
-      [path.join(home, '.agents', 'skills'), path.join(root, 'skills')],
-      [path.join(home, '.claude', 'agents'), path.join(root, 'agents')],
-      [path.join(configHome, 'opencode', 'command'), path.join(root, '.opencode', 'command')],
-      [path.join(configHome, 'opencode', 'commands'), path.join(root, '.opencode', 'commands')],
-      [path.join(configHome, 'opencode', 'agents'), path.join(root, '.opencode', 'agents')],
-    ];
-    // Every link into this checkout, including links to skills since renamed or removed.
-    for (const [dir, prefix] of dirs) {
-      let names = [];
-      try {
-        names = fs.readdirSync(dir);
-      } catch {
-        continue;
-      }
-      for (const name of names) {
-        const entry = path.join(dir, name);
-        if (!lstat(entry)?.isSymbolicLink()) continue;
-        let target;
-        try {
-          target = fs.readlinkSync(entry);
-        } catch {
-          continue;
-        }
-        if (!under(target, prefix)) continue;
-        if (!dry) removeEntry(entry);
-        else run(`rm ${entry}`);
-        say(`unlink ${entry}`);
-      }
-    }
-    const kept = [];
-    for (const c of manifest) {
-      if (!under(c.src, root)) {
-        kept.push(c);
-        continue;
-      }
-      const st = lstat(c.dst);
-      if (!st) continue;
-      if (st.isFile() && hashFile(c.dst) === c.hash) {
-        if (!dry) removeEntry(c.dst);
-        else run(`rm ${c.dst}`);
-        say(`unlink ${c.dst}`);
-      } else {
-        say(`skip  ${c.dst} (copy was edited; left alone)`);
-        kept.push(c);
-      }
-    }
-    if (!dry) writeManifest(home, kept);
-    if (!hooks) return 0;
-    const claude = runHooks(['claude', '--remove', ...(dry ? ['--dry-run'] : [])], home);
-    if (claude) return claude;
-    return runHooks(['opencode', '--remove', ...(dry ? ['--dry-run'] : [])], home);
-  }
+  // Before the plan: an orphan link into this checkout has no place in it, and
+  // removing it first lets a renamed entry take the name back in the same run.
+  pruneOrphans(root, home, configHome, plan, { dry, say, run });
 
   const copies = new Map(manifest.map((c) => [c.dst, c]));
   const made = [];
@@ -292,10 +385,9 @@ export function install({ root = ROOT, home = os.homedir(), configHome, hooks = 
   say(installLine(checkoutRef(root), { root, dry }) ?? `do-it installed from ${root}`);
 
   if (hooks) {
-    const extra = dry ? ['--dry-run'] : [];
-    const claude = runHooks(['claude', ...extra], home);
-    if (claude) return claude;
-    if (runHooks(['opencode', ...extra], home)) say('OpenCode hooks not registered; see README');
+    const host = runHookSteps([], { root, home, dry });
+    if (host.opencode) say('OpenCode hooks not registered; see README');
+    if (host.claude) return host.claude;
   }
   return 0;
 }

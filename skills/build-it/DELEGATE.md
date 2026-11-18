@@ -23,6 +23,9 @@ holds status, paths and the cap, not excerpts.
 
 ## 2. What main does with the report
 
+Delegated phase: the agent runs items 1, 2 and 4 of `## 3. Build one unit` in
+[SKILL.md](SKILL.md); item 3 it reports as `failed`; main runs item 5.
+
 - `done`: `work.mjs verify-phase <id> <n> --brief -- "<commands>"` (in a run,
   `work.mjs run verify`). Main owns
   every state-block write.

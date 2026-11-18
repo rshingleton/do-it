@@ -126,7 +126,9 @@ test('the roadmap docs state the hint, the batch preference and the plan contrac
     /^\| Slice \| Kind \| Delivers \| Covers \| Files \| Blocked by \| Verify \| Risk \| Status \| Ref \|$/m,
     'the example table has a Files column between Covers and Blocked by',
   );
-  const field = flat(format).match(/\*\*Files:\*\*[\s\S]*?(?=\*\*Blocked by:\*\*)/)[0];
+  const filesField = flat(format).match(/\*\*Files:\*\*[\s\S]*?(?=\*\*Blocked by:\*\*)/);
+  assert.ok(filesField, 'the format states a **Files:** field before **Blocked by:**');
+  const field = filesField[0];
   assert.match(field, /optional/, 'the cell is optional');
   assert.match(field, /comma separated/, 'the paths are comma separated');
   assert.match(field, /scouting/, 'they come from scouting');
@@ -144,4 +146,17 @@ test('the roadmap docs state the hint, the batch preference and the plan contrac
   const stateLine = read('skills/do-it/STATE.md').split(/\r?\n/).find((line) => line.includes('`--batch n`'));
   assert.ok(stateLine, 'STATE.md documents --batch');
   assert.match(stateLine, /`files` hint/, 'the --batch contract states the hint preference, not a plain prefix');
+});
+
+test('every skills/*/SKILL.md stays within the 100-line budget', () => {
+  const dir = path.join(ROOT, 'skills');
+  const skills = fs
+    .readdirSync(dir, { withFileTypes: true })
+    .filter((e) => e.isDirectory() && fs.existsSync(path.join(dir, e.name, 'SKILL.md')))
+    .map((e) => e.name);
+  assert.ok(skills.length > 0, 'the scan found skills');
+  const over = skills
+    .map((name) => [name, read(`skills/${name}/SKILL.md`).replace(/\n$/, '').split('\n').length])
+    .filter(([, lines]) => lines > 100);
+  assert.deepEqual(over, [], 'a SKILL.md over budget moves its detail into a sibling file');
 });

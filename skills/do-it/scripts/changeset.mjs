@@ -259,12 +259,19 @@ function hunkLines(patch) {
 // Hash of the change since `base`: the binary diff from the base tree to a
 // snapshot of the working tree, as a git blob id. Untracked files are in the
 // snapshot, so committing a file after `base` (a run's phase commits) never
-// moves the hash, and only a change in content does. `exclude` leaves paths out,
-// which is what keeps another slice's files out of a run's verify.
-export function fingerprint(cwd, base, { exclude = [] } = {}) {
+// moves the hash, and only a change in content does. `exclude` leaves paths
+// out, which is what keeps another slice's files out of a run's verify, and
+// `paths` narrows only the diff, to the files an item's plan names: the
+// snapshot still walks the tree, so a file outside the list is never part of
+// this hash.
+export function fingerprint(cwd, base, { exclude = [], paths = null } = {}) {
+  // A list naming no file is no change at all; it never widens back to the tree.
+  if (paths && !paths.length) return crypto.createHash('sha1').update('blob 0\0').digest('hex');
   const { top, base: resolved } = changeset(cwd, base, { exclude });
   const tree = snapshot(top, { exclude });
-  const spec = ['--', '.', ...exclude.map((p) => `:(exclude)${p}`)];
+  const spec = paths
+    ? ['--', ...paths.map((p) => `:(literal)${p}`), ...exclude.map((p) => `:(exclude)${p}`)]
+    : ['--', '.', ...exclude.map((p) => `:(exclude)${p}`)];
   const diff = git(top, ['diff', '--binary', '--no-ext-diff', '--no-textconv', '--no-color', '--no-renames', resolved, tree, ...spec], 'buffer');
   if (diff.status !== 0) throw new Error(`git diff failed: ${diff.stderr}`);
   return crypto.createHash('sha1').update(`blob ${diff.stdout.length}\0`).update(diff.stdout).digest('hex');
@@ -328,10 +335,16 @@ export function snapshot(cwd, { exclude = [] } = {}) {
   }
 }
 
-// Files that differ between two snapshots (or commits), with a diffstat;
-// `exclude` paths are left out.
-export function treeDiff(cwd, from, to, { exclude = [] } = {}) {
-  const spec = exclude.length ? ['--', '.', ...exclude.map((p) => `:(exclude,literal)${p}`)] : [];
+// Files that differ between two snapshots (or commits), with a diffstat; `exclude` paths are left
+// out, and `paths` narrows the diff to those files (the ones the run's own commits touch).
+export function treeDiff(cwd, from, to, { exclude = [], paths = null } = {}) {
+  // A run whose commits touch no file has no change: never widen the diff back to the whole tree.
+  if (paths && !paths.length) return { files: [], stat: '' };
+  const spec = paths
+    ? ['--', ...paths.map((p) => `:(literal)${p}`), ...exclude.map((p) => `:(exclude,literal)${p}`)]
+    : exclude.length
+      ? ['--', '.', ...exclude.map((p) => `:(exclude,literal)${p}`)]
+      : [];
   const names = git(cwd, ['diff', '--name-status', from, to, ...spec]);
   if (names.status !== 0) throw new Error(`git diff failed: ${names.stderr}`);
   const stat = git(cwd, ['diff', '--stat', from, to, ...spec]).stdout.trim();

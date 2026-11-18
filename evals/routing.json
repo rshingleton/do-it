@@ -161,9 +161,12 @@
     "test-it": {
       "positive": [
         "build this feature test-first",
+        "new feature, please go test-first: one failing test at a time",
         "fix the bug with a failing test first, red green refactor",
         "add integration tests for the order service",
-        "let's do TDD on the new parser"
+        "cover the new export flow with an integration test that survives a refactor",
+        "let's do TDD on the new parser",
+        "write the tests before the code and drive the parser one failing test at a time"
       ],
       "negative": [
         { "prompt": "diagnose why this test is flaky and failing intermittently", "owner": "debug-it" }

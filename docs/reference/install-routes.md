@@ -25,23 +25,23 @@ names that fetch's age.
 | Claude Code plugin | Claude Code only | Skills, agents (namespaced, `do-it:it-reviewer`), hooks | `claude plugin marketplace add rshingleton/do-it`, then `claude plugin install do-it@do-it` | `/plugin marketplace update do-it` | `node scripts/doctor.mjs`, the `plugin:` line | No, reported |
 | `skills` CLI | Any host the CLI supports | Skills only | `npx skills@latest add rshingleton/do-it -a opencode` (add `-g` for the global install) | `npx skills@latest update` for a git source; `npx skills@latest add <path>` for a local one | `node scripts/doctor.mjs`, the `skills CLI:` line | No, reported |
 
-One route per host. Why the symlink install is the managed one: it is the only
-route that carries the OpenCode commands and agents, and the only one that
-serves both hosts at once, and it is what the one-liner bootstrap runs. A
-project `skills` CLI install carries skills alone and puts a second copy in
-that project's `.agents/skills`, where OpenCode's precedence order decides
-which copy wins. A global CLI install (`-g`) writes into `~/.agents/skills`,
-the same folder the symlink install fills, and replaces its links with copies.
-Either way, one route per host
-([ADR 0013](../adr/0013-routes-and-the-version-gate.md)).
+Why the symlink install is the managed one: it is the only route that carries
+the OpenCode commands and agents, and the only one that serves both hosts at
+once, and it is what the one-liner bootstrap runs. A project `skills` CLI
+install carries skills alone and puts a second copy in that project's
+`.agents/skills`, where OpenCode's precedence order decides which copy wins. A
+global CLI install (`-g`) writes into `~/.agents/skills`, the same folder the
+symlink install fills, and replaces its links with copies. Either way, one
+route per host ([ADR 0013](../adr/0013-routes-and-the-version-gate.md)).
 
 Every command in the Update column is one `node scripts/doctor.mjs` prints, on
-the finding it fixes. With all 110 entries ok, the plugin current and no CLI entry
-recorded, this checkout's own run prints one of them: the ref fix in the footer.
-The others print on their own finding: the symlink install command on any entry
-that is not ok (shown below), `/plugin marketplace update do-it` on a stale
-plugin the host reads in place, `claude plugin update do-it@do-it` on a stale
-cached one, `npx skills@latest update` on a recorded CLI git entry, and
+the finding it fixes. With all 110 entries ok, the plugin current and no CLI
+entry recorded, this checkout's own run prints one of them: the ref fix in the
+footer. The others print on their own finding:
+`node <checkout>/scripts/install.mjs`, the doctor's install fix, on any entry
+that is not ok (shown below); `/plugin marketplace update do-it` on a stale
+plugin the host reads in place; `claude plugin update do-it@do-it` on a stale
+cached one; `npx skills@latest update` on a recorded CLI git entry; and
 `npx skills@latest add <path>` on a recorded local one (`scripts/doctor.mjs`,
 the plugin and CLI route sections).
 
@@ -53,7 +53,7 @@ node scripts/doctor.mjs --home $h
 ```
 
 ```text
-missing     C:\Users\reshi\AppData\Local\Temp\do-it-probe-home\.claude\skills\build-it  no link; the plan has one to C:\projects\do-it\skills\build-it  fix: node C:\projects\do-it\scripts\install.mjs
+missing     <probe dir>\.claude\skills\build-it  no link; the plan has one to <checkout>\skills\build-it  fix: node <checkout>\scripts\install.mjs
 summary 110 entries: 0 ok, 110 missing
 ```
 
@@ -62,15 +62,21 @@ That run exits 1 and installs nothing.
 ## What the doctor prints on this machine
 
 Its closing lines, from `node scripts/doctor.mjs` in this checkout on
-2026-11-16:
+2026-11-16, with the branch and refs it names replaced by placeholders:
 
 ```text
 summary 110 entries: 110 ok; 49 entries not ours (left alone)
-  ref: do-it/issues-store @ 22473ae, upstream origin/do-it/issues-store (0 ahead, 0 behind), origin/main (1 behind), fetched 8h ago
-  ref: 1 commit behind origin/main; the install follows main  fix: git -C C:\projects\do-it pull --ff-only
+  ref: <branch> @ <sha>, upstream <upstream ref> (0 ahead, 0 behind), <followed ref> (1 behind), fetched 8h ago
+  ref: 1 commit behind <followed ref>; the install follows it  fix: git -C <checkout> pull --ff-only
   plugin: ok, the folder is 0.2.0, the manifest 0.2.0; the host reads this checkout in place
-  skills CLI: not installed on this route
+  skills CLI: not installed on this route  fix: npx skills@latest add <checkout>
+  hooks: ok, the config registers <checkout>\.opencode\do-it-plugin
 ```
+
+A fresh clone has no `FETCH_HEAD` to age, so its footer reads `cloned, not yet
+fetched` instead of naming a fetch: the refs the counts came from arrived with
+the clone, and nothing has moved them since. A checkout that never had a remote
+keeps `never fetched`.
 
 An entry finding carries its own fix, the installer that places it: `fix: node
 <checkout>\scripts\install.mjs`. An edited copy gets the same command with
@@ -84,8 +90,8 @@ serves. On this machine, for `do-it@do-it`:
 
 ```text
 version       0.1.0
-installPath   C:\Users\reshi\.claude\plugins\cache\do-it\do-it\0.1.0
-readFromFolder   C:\projects\do-it
+installPath   <plugin cache>\do-it\do-it\0.1.0
+readFromFolder   <checkout>
 folderVersion  0.2.0
 ```
 
@@ -125,51 +131,25 @@ core is `name` plus `description`.
 ## Probes
 
 Files on disk prove what an install placed. They do not prove a host loaded it.
-So each route is asked, headless, from a directory outside this repo
-(`C:\Users\reshi\AppData\Local\Temp\opencode`), which no checkout configures.
+So each route is asked, headless, from a temp directory outside this repo
+(`<probe dir>`), which no checkout configures.
 
 **Claude Code plugin route.** From the temp directory above:
 
 ```bash
-claude -p "List the exact names of every available skill whose name starts with it- or do-it-" --output-format json
+claude -p "List the exact names of every available skill whose name ends with -it. Names only, one per line." --output-format json
 ```
 
-The JSON envelope's `result` field:
-
-```text
-No available skill has a name starting with `it-` or `do-it-`. The skills in the do-it family are named `debug-it`, `design-it`, `doubt-it`, `grill-it`, `guard-it`, `link-it`, `log-it`, `look-it-up`, `map-it`, `merge-it`, `name-it`, `review-it`, `sketch-it`, `skill-it`, `sweep-it`, `test-it` and `track-it`. They all end in `-it` rather than starting with it.
-
-`it-builder`, `it-planner`, `it-reviewer`, `it-scout` and `it-skeptic` (also listed as `do-it:it-*`) do exist, but they are agent types, not skills.
-```
+The JSON envelope's `result` field prints the names, one per line.
 
 **Symlink install route.** From the same directory, on the configured default
 model (no `-m`):
 
 ```bash
-opencode run "List the exact names of every available skill whose name starts with it- or do-it-"
-```
-
-The host printed its model line and one Glob line above this answer:
-
-```text
-**None.** No available skill has a name starting with `it-` or `do-it-`. I checked the full available-skills list and the skill directories on disk to confirm.
-
-You may be thinking of two nearby things:
-
-- **Subagents (not skills)** named with an `it-` prefix: `it-builder`, `it-planner`, `it-reviewer`, `it-scout`, `it-skeptic`. These are spawned via the subagent tool, not loaded as skills.
-- **Skills ending in `-it`** (suffix, not prefix): `debug-it`, `design-it`, `doubt-it`, `grill-it`, `guard-it`, `link-it`, `log-it`, `map-it`, `merge-it`, `name-it`, `review-it`, `sketch-it`, `skill-it`, `sweep-it`, `test-it`, `track-it`.
-```
-
-Both answered the question as asked: no skill name starts with `it-` or
-`do-it-`, because every name carries `it` as an inner segment, most of them as a
-suffix. The names the Claude Code answer reported (`it-builder` and the rest)
-are the namespaced agents, not skills. As a probe of what loads, the question
-was the wrong shape, so it was asked again with the suffix:
-
-```bash
-claude -p "List the exact names of every available skill whose name ends with -it. Names only, one per line." --output-format json
 opencode run "List the exact names of every available skill whose name ends with -it. Names only, one per line."
 ```
+
+The host prints its model line and one Glob line above the answer.
 
 Both printed the same sixteen, in this order:
 
@@ -201,13 +181,24 @@ typed (`build-it`, `deepen-it`, `do-it`, `finish-it`, `it-core`, `pass-it`,
 prompt's skill list: the host hides them from the model, so a probe can only
 witness them by typing the slash command.
 
-What the probes settle and what they cannot: the plugin route serves the
-checkout's skills, with the five do-it agents namespaced under `do-it:`, and the
-symlink install serves the same sixteen to OpenCode. Neither probe can see a
-typed skill, and neither can tell a later host update's effect, so the check to
-re-run after an update is the doctor plus the same two commands above.
+### The question has to ask for the suffix
 
-## The CLI route on this machine
+The first version of this probe asked for every skill whose name starts with
+`it-` or `do-it-`, and both hosts answered that no such skill exists:
+
+```text
+No available skill has a name starting with `it-` or `do-it-`. The skills in the
+do-it family are named ... They all end in `-it` rather than starting with it.
+```
+
+That answer was right: every do-it name carries `it` as an inner segment, most
+of them as a suffix, so a prefix question can match none of them. The names it
+did report beside the answer, `it-builder` and the rest, are the namespaced
+agents, not skills. A probe written that way measures nothing, which is why the
+commands above ask for the suffix, and the routes test pins both directions: the
+suffix question finds the sixteen, the prefix one none.
+
+### The CLI route, probed on macOS
 
 Probed on 2026-11-16 with `skills` CLI 1.9.0 on macOS, in a temp directory
 outside this checkout and with a temp `HOME` for the global run, both with
@@ -236,9 +227,17 @@ The global run (`-g`) wrote `~/.agents/skills/<name>/` and
 is not `~/.config/opencode/skills`: on 1.9.0 the `-a opencode` global
 destination is the same `~/.agents/skills` the symlink install fills, and the
 CLI replaced a symlink planted there with a copy. `npx skills list` credits the
-project install to Antigravity CLI, Cursor, Gemini CLI, GitHub Copilot,
-OpenCode and one more host.
+project install to five hosts by name (Antigravity CLI, Cursor, Gemini CLI,
+GitHub Copilot, OpenCode) and credits a sixth it does not record, so no name is
+given for it here.
 
-The doctor runs none of this. A machine with either lock gets a `skills CLI:`
-line naming its scope, source, path, hash, commit and date, plus the command
-that refreshes it.
+The doctor runs none of this. A `skills CLI:` line comes from the project lock
+in the directory the doctor runs in, or from the global one, and names scope,
+source, path, hash, commit, the global lock's date and the refresh command.
+
+What the probes settle and what they cannot: the plugin route serves the
+checkout's skills, with the five do-it agents namespaced under `do-it:`, the
+symlink install serves the same sixteen to OpenCode, and the CLI runs show where
+1.9.0 writes its files on macOS and what its two locks record. No probe can see
+a typed skill, and none can tell a later host update's effect, so the check to
+re-run after an update is the doctor plus the two skill-list probes above.

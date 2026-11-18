@@ -217,6 +217,75 @@ test('final review: a run with no base reads the working tree and says so', () =
   assert.match(r.note, /no base recorded/);
 });
 
+// A clone of a repository with one upstream commit, on a branch tracking origin/main.
+function branchRepo(prefix) {
+  const up = tmpDir('do-it-upstream-');
+  git(up, 'init', '-q', '-b', 'main');
+  git(up, 'config', 'user.name', 't');
+  git(up, 'config', 'user.email', 't@t');
+  git(up, 'config', 'commit.gpgsign', 'false');
+  fs.writeFileSync(path.join(up, 'upstream.js'), 'one\n');
+  git(up, 'add', '-A');
+  git(up, 'commit', '-qm', 'upstream');
+  const hold = tmpDir(prefix);
+  git(hold, 'clone', '-q', up, 'work');
+  const dir = path.join(hold, 'work');
+  git(dir, 'config', 'user.name', 't');
+  git(dir, 'config', 'user.email', 't@t');
+  git(dir, 'config', 'commit.gpgsign', 'false');
+  return { up, dir };
+}
+
+// A pre-run local commit, then the run's two files: the run's base is the local commit.
+function runWork(dir) {
+  fs.writeFileSync(path.join(dir, 'before-run.js'), 'one\n');
+  git(dir, 'add', '-A');
+  git(dir, 'commit', '-qm', 'before the run');
+  ok(work(dir, 'run', 'new', 'road', '--commit', 'phase'));
+  fs.writeFileSync(path.join(dir, 'a.js'), 'one\n');
+  fs.writeFileSync(path.join(dir, 'b.js'), 'one\n');
+  git(dir, 'add', '-A');
+  git(dir, 'commit', '-qm', 'run commit');
+}
+
+// The upstream pushes a file of its own, and the clone fetches it.
+function upstreamMoves(up, dir) {
+  fs.writeFileSync(path.join(up, 'upstream-only.js'), 'one\n');
+  git(up, 'add', '-A');
+  git(up, 'commit', '-qm', 'upstream moves');
+  git(dir, 'fetch', '-q', 'origin');
+}
+
+test('final review: a plain branch lists only the run\'s files', () => {
+  const { dir } = branchRepo('do-it-plain-');
+  runWork(dir);
+  const r = review(dir);
+  assert.equal(r.mode, 'range');
+  assert.deepEqual(r.files.map((f) => f.path).sort(), ['a.js', 'b.js'], 'the run\'s own commits, not the local commit the branch already had');
+  git(dir, 'branch', '--unset-upstream');
+  assert.deepEqual(review(dir), r, 'the same change with no upstream configured');
+});
+
+test('final review: a rebase onto an advanced upstream lists only the run\'s files', () => {
+  const { up, dir } = branchRepo('do-it-rebased-');
+  runWork(dir);
+  upstreamMoves(up, dir);
+  git(dir, 'rebase', '-q', 'origin/main');
+  const r = review(dir);
+  assert.equal(r.mode, 'range');
+  assert.deepEqual(r.files.map((f) => f.path).sort(), ['a.js', 'b.js'], 'the upstream file the rebase brought in is not the run\'s change');
+});
+
+test('final review: a merge of an advanced upstream lists only the run\'s files', () => {
+  const { up, dir } = branchRepo('do-it-merged-');
+  runWork(dir);
+  upstreamMoves(up, dir);
+  git(dir, 'merge', '-q', '--no-edit', 'origin/main');
+  const r = review(dir);
+  assert.equal(r.mode, 'range');
+  assert.deepEqual(r.files.map((f) => f.path).sort(), ['a.js', 'b.js'], 'the upstream file the merge brought in is not the run\'s change');
+});
+
 // A record built in place, for the digest's own rules.
 const record = (over = {}) => ({ id: 'road', level: 'full', commit: 'phase', started: 't', slices: [], assumptions: [], rejected: [], limits: [], gates: [], ...over });
 
@@ -256,6 +325,28 @@ test('digest: a newline in a limit, an assumption, a rejection, a finding or a r
   const r1 = slices.split('\n').filter((l) => l.startsWith('- R1:'));
   assert.equal(r1.length, 1, 'the reason stays one bullet');
   assert.ok(r1[0].includes('why') && r1[0].includes('Forged') && r1[0].endsWith('(needs user)'));
+});
+
+test('digest: a newline in a header field or a usage figure cannot open a heading', () => {
+  const text = buildDigest({
+    record: record({
+      id: 'road\n## Forged id',
+      level: 'full\n## Forged level',
+      commit: 'abc123\n## Forged commit',
+      started: '2026-10-30\n## Forged started',
+    }),
+    usage: { input: '1200\n## Forged input', output: 'many' },
+  });
+  assert.deepEqual(text.split('\n').filter((l) => /^## /.test(l) && /Forged/.test(l)), []);
+  for (const field of ['id', 'level', 'commit', 'started']) assert.ok(text.includes(`Forged ${field}`), `${field} text is kept, on its line`);
+  assert.ok(text.split('\n').includes('- input 0, output 0'), 'a usage figure that is not a finite number prints 0');
+});
+
+test('digest: an earlier rejection prints the key it names and says earlier', () => {
+  const text = buildDigest({ record: record({ rejected: ['earlier feat#1: Default page size 50 (instead: page size 25)'] }) });
+  assert.ok(text.split('\n').includes('- feat #1: Default page size 50 (instead: page size 25) (earlier)'));
+  const plain = buildDigest({ record: record({ rejected: ['feat#1: Default page size 50 (instead: page size 25)'] }) });
+  assert.ok(plain.split('\n').includes('- feat #1: Default page size 50 (instead: page size 25)'), 'a plain entry prints as it did');
 });
 
 test('digest: only a well-formed phase tag of this run is printed into a rollback command', () => {

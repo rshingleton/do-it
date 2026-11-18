@@ -20,6 +20,6 @@ A copied agent or command file does not follow edits to the checkout until `inst
 
 - The six `unparseable frontmatter` errors seen on Windows came from CRLF working copies, not from the colon in the descriptions; `.gitattributes` (LF) is the fix and the quoted descriptions are strict-YAML hygiene.
 - Tests that need bash skip with a reason when bash is not on PATH; twelve tests skip on Windows (POSIX mode bits, unprivileged symlinks, a newline in a file name, a shell-script `gh` stand-in).
-- `install.mjs` does not read `DO_IT_HOME`; only the `install.sh` bootstrap does (T237).
+- `install.mjs` reads `DO_IT_HOME` when no `root` argument is given, and resolves it to an absolute path so a relative value cannot make a link target resolve inside the link's own directory; before R27 only the `install.sh` bootstrap read it (T237).
 - Open cleanups from the audit are on the to-do list (T237 to T245): `install()` split, a shared `norm`, one shared path helper, `check-shell` coverage.
 - CI on windows-latest is added to the matrix; making it a required check is a branch-protection setting.

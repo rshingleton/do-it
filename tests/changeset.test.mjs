@@ -394,6 +394,22 @@ test('fingerprint hashes base..working tree and survives commits after the base'
   assert.equal(fingerprint(dir, base, { exclude: ['docs/planning'] }), steady, 'a planning file is left out');
 });
 
+test('fingerprint narrowed to paths is the change in those files alone', () => {
+  const { dir, git, write, commit } = gitRepo();
+  write('a.js', 'one\n');
+  write('b.js', 'one\n');
+  commit();
+  const base = git('rev-parse', 'HEAD').trim();
+  write('a.js', 'two\n');
+  write('b.js', 'two\n');
+  const mine = fingerprint(dir, base, { paths: ['a.js'] });
+  write('b.js', 'another item wrote here\n');
+  assert.equal(fingerprint(dir, base, { paths: ['a.js'] }), mine, 'a change outside the list leaves the hash');
+  write('a.js', 'three\n');
+  assert.notEqual(fingerprint(dir, base, { paths: ['a.js'] }), mine, 'a change inside the list moves it');
+  assert.notEqual(fingerprint(dir, base), fingerprint(dir, base, { paths: ['a.js'] }), 'the whole-tree hash still sees both files');
+});
+
 test('a partly staged excluded path does not break the snapshot', () => {
   const { dir, git, write, commit } = gitRepo();
   write('docs/TODO.md', 'a\n');

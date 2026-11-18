@@ -333,13 +333,13 @@ test('commits run from a subdirectory scan the right files', () => {
   git(root, 'commit', '-qm', 'init');
   fs.writeFileSync(path.join(root, 'sub', 'b.js'), `const t = "${FAKE_SLACK}";\n`);
   const ctx = ctxFor(root);
-  assert.equal(beforeShell(ctx, 'git -C sub commit -m x b.js').action, 'block');
-  assert.equal(beforeShell(ctx, 'git -C sub commit -am x').action, 'block');
+  assert.equal(beforeShell(ctx, 'git -C sub commit -m x b.js').action, 'block', 'a named path under git -C');
+  assert.equal(beforeShell(ctx, 'git -C sub commit -am x').action, 'block', '-am under git -C scans the whole tree');
   // The agent's shell sits in sub/: its paths are relative to there.
   const inSub = { ...ctx, cwd: path.join(root, 'sub') };
-  assert.equal(beforeShell(inSub, 'git commit -m x b.js').action, 'block');
+  assert.equal(beforeShell(inSub, 'git commit -m x b.js').action, 'block', 'the shell cwd moves its paths');
   git(root, 'add', 'sub/b.js');
-  assert.equal(beforeShell(ctx, 'git -C sub commit -m x').action, 'block');
+  assert.equal(beforeShell(ctx, 'git -C sub commit -m x').action, 'block', 'a staged change under git -C scans the whole tree');
 });
 
 test('a commit the scan cannot resolve for sure scans every tracked change from the root', () => {

@@ -5,7 +5,7 @@ turn: anything only the user can answer joins the approval turn (§5).
 
 ## 1. Analyze (read-only consistency)
 
-Run it yourself, right after the plan is written. Lane S does the first four
+Run it yourself, right after the plan is written. Lane S does the first five
 checks; lane M does all of them.
 
 | Check | Fails when |
@@ -13,24 +13,34 @@ checks; lane M does all of them.
 | Coverage, forward | A done-when line, a source's acceptance item or a roadmap `Covers` id has no step or phase that delivers it |
 | Coverage, back | A step or phase serves nothing in done-when, the sources or `Covers` (scope creep; move it to Non-goals or justify it) |
 | Verifiable | A step has no `→ verify:` check, or the check is not observable ("works", "looks right") |
-| Contract | The plan has no `## Files` or `## Interfaces` section, or `## Files` lists no file, so no track can pair the slice |
+| Verify commands | A runnable `→ verify:` command names an npm script `package.json` lacks, a path that does not exist, or a command that cannot fail (`true`, `:`, `echo`, `exit 0`, a `|| true` tail) |
+| Contract | The plan has no `## Files` or `## Interfaces` section, or `## Files` lists no file, so no track can pair the slice; in lane M the README's `## Files` is the union of its phases' files, and `## Interfaces` stays at the README |
 | Names | A term differs from the area's `CONTEXT.md`, or the same thing is named two ways across phases |
 | Blocks | `blocked_by` has a cycle, or a block only restates order |
 | Rules | The plan contradicts it-core, an accepted ADR, or a guard-it rule (secrets, env files, `.compliance-rules/`) |
-| Locality | Lane M only: a phase file has no `## Files` or an empty one, the README's list is not the union of its phases' files, or two phases no block edge separates share a file |
+| Locality | Lane M only: a phase file has no `## Files` or an empty one, the README's list is not the union of its phases' files, or two phases with no dependency path between them, direct or through other phases and in either direction, share a file |
 
 The Contract check is a command, not a read: `node
 skills/do-it/scripts/contract.mjs <plan file>` prints the two lists and exits 1
-naming each missing section. For lane M it runs on the README, where the
-sections are the union of the phases' files ([PLAN-FORMAT.md](PLAN-FORMAT.md)).
+naming each missing section. For lane M it runs on the README, where `## Files`
+is the union of the phases' files and `## Interfaces` stays at the README
+([PLAN-FORMAT.md](PLAN-FORMAT.md)).
+
+The Verify commands check is part of the same command: it reads lane S step
+lines only, taking each `→ verify:` command that starts with a backticked token
+or `npm`, `node` or `git`, and probes it against the repo found by walking up
+from the plan file. An absent npm script, an absent path or a command that
+cannot fail refuses the plan with the command and the reason named. A lane M
+README states no steps, so the pass probes none of its phases.
 
 The Locality check is a command too: `phases.mjs` means `node <this skill's
 directory>/scripts/phases.mjs`, and `phases.mjs <plan dir>` reads the README
 and every `phase-*.md` beside it, and exits 1 naming each phase file with no
 `## Files` or an empty one, each phase file and state phase that do not pair,
 each path only on one side of the union, and each file two phases share with no
-block edge between them. A lane S plan has one list: give the command its plan
-file and it says so.
+dependency path between them, direct or through other phases and in either
+direction. A lane S plan has one list: give the command its plan file and it
+says so.
 
 A **Rules** failure is CRITICAL: change the plan, or raise it with the user
 as a decision. Fix every other failure in the plan before going on. Record

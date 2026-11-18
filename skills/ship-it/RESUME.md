@@ -10,9 +10,9 @@ Detail for [SKILL.md](SKILL.md) §1 and §3 step 2.
   closes, leave those edits uncommitted and say so, then close the remote
   tracker (§3 step 4).
 
-Lane XS with no id: the question always asks, no default: the ref to use, or
-"file one" with `log-it`? "File one" calls `log-it`; the ref given or filed is
-the commit id and joins `--ref` from here on.
+Lane XS with no id: ask for the ref to use, or "file one" with `log-it`.
+"File one" calls `log-it`; the ref given or filed is the commit id and joins
+`--ref` from here on.
 
 ## Resumed after review
 
@@ -26,7 +26,7 @@ the commit id and joins `--ref` from here on.
     message, and ask one line: commit as reviewed (default), or re-audit first
     (default when a changed file is in a risk area,
     [LANES.md](../do-it/LANES.md)). As reviewed: `event ship-prepared`
-    again, then §3 step 4. Re-audit: add the `review-diff` files to `### Touched`
-    ([ROUNDS.md](../prove-it/ROUNDS.md)), then `event reaudit`; **Next:**
-    `/prove-it <id>`. A refused `reaudit` is the clean-pass cap: follow
-    ROUNDS.md "The cap" (log the rest, offer the ship).
+    again, then §3 step 4. Re-audit: add the `review-diff` files to
+    `### Touched` ([ROUNDS.md](../prove-it/ROUNDS.md)), then `event reaudit`;
+    **Next:** `/prove-it <id>`. A refused `reaudit` is the clean-pass cap:
+    follow ROUNDS.md "The cap" (log the rest, offer the ship).

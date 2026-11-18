@@ -1,4 +1,4 @@
-import { tmpDir } from './env.mjs'; // first: isolates the developer's environment
+import { read, tmpDir } from './env.mjs'; // first: isolates the developer's environment
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -26,8 +26,9 @@ const ok = (r) => {
 };
 
 // A repo with a started lane S item "feat" and a run record "road" whose slice R1 is that item.
-function fixture(runFlags = []) {
-  const dir = tmpDir('do-it-gate-');
+// `prefix` lets a test put a space in the checkout path, as a quoted shell check must survive.
+function fixture(runFlags = [], prefix = 'do-it-gate-') {
+  const dir = tmpDir(prefix);
   git(dir, 'init', '-q');
   git(dir, 'config', 'user.name', 't');
   git(dir, 'config', 'user.email', 't@t');
@@ -45,6 +46,8 @@ function fixture(runFlags = []) {
 }
 const verify = (dir, cmd = 'true') => work(dir, 'run', 'verify', 'road', 'R1', '--', cmd);
 const gate = (dir, id = 'R1') => ok(work(dir, 'run', 'gate', 'road', id));
+// A slice begins before it audits: `run audit` refuses an id the record holds no gate entry for.
+const start = (dir, id) => ok(work(dir, 'run', 'start', 'road', id, '--work', 'feat'));
 
 // The plan's last audit round, ended on these Musts: what the next `run audit` is classified against.
 // The plan's third failed round in a row blocks the item, so unblock it before the next one.
@@ -128,10 +131,10 @@ test('run verify on an item past building says it must be building and that a re
 });
 
 test('flaky: a failure that passes on its one rerun parks the slice and records no pass', () => {
-  const dir = fixture();
+  const dir = fixture([], 'do-it gate ');
   // Fails the first run, passes the second: exactly one rerun.
   const marker = path.join(dir, '.attempt');
-  const cmd = `test -f ${sh(marker)} || { touch ${sh(marker)}; exit 1; }`;
+  const cmd = `test -f "${sh(marker)}" || { touch "${sh(marker)}"; exit 1; }`;
   const r = verify(dir, cmd);
   assert.equal(r.status, 1);
   assert.match(r.out.error, /FLAKY/);
@@ -409,6 +412,8 @@ test('run audit: the plan\'s last Must classifies the round; a slice with no pla
   assert.equal(audit(dir, 'R1').audit_spent, 0, 'the first round on the plan\'s Must is new work');
   auditFailed(dir, 'fix the leak');
   assert.equal(audit(dir, 'R1').audit_spent, 1, 'the same Must again spends the one round');
+  // A started slice whose work item holds no plan: there is nothing to repeat.
+  ok(work(dir, 'run', 'start', 'road', 'R2', '--work', 'noplan'));
   const plain = audit(dir, 'R2');
   assert.deepEqual([plain.audit_rounds, plain.audit_spent], [1, 0], 'a slice with no plan has nothing to repeat');
 });
@@ -435,6 +440,18 @@ test('gate: the slice cap reads audit_spent, not the rounds the slice started', 
   const room = auditRoom(rec({ audit_rounds: 2, audit_spent: 1 }), 'R1');
   assert.deepEqual([room.allow, room.reason], [false, 'SLICE_AUDIT_CAP']);
   assert.match(room.detail, /slice R1: 1 rounds repeated an earlier Must, cap 1/, 'the dispatch detail keeps its counter line');
+});
+
+test('run audit: an id the record holds no gate entry for is refused, so no round is spent on it', () => {
+  const dir = fixture();
+  const r = work(dir, 'run', 'audit', 'road', 'R9');
+  assert.equal(r.status, 1);
+  assert.match(r.out.error, /run audit: R9 has no gate entry; run start first/);
+  const rec = ok(work(dir, 'run', 'show', 'road'));
+  assert.equal((rec.gates ?? []).some((g) => g.id === 'R9'), false, 'no R9 gates entry');
+  assert.equal(rec.audit_rounds, undefined, 'no round spent');
+  start(dir, 'R9');
+  assert.equal(audit(dir, 'R9').audit_rounds, 1, 'started, the slice audits');
 });
 
 test('audit cap: the round after a slice\'s cap is refused and uncounted, naming the slice; its last allowed round ships', () => {
@@ -472,6 +489,7 @@ test('audit cap: a slice at its cap parks and the run goes on; resume gives it f
   assert.deepEqual([parked.status, parked.needs], ['parked', 'decision']);
   assert.match(parked.reason, /slice R1: 1 rounds repeated an earlier Must, cap 1/);
   assert.match(parked.reason, /last fix unreviewed$/);
+  start(dir, 'R2');
   assert.equal(audit(dir, 'R2').allow, true, 'another slice still audits');
   ok(work(dir, 'run', 'slice', 'road', 'R1', 'ready'));
   assert.equal(audit(dir, 'R1').allow, true, 'resume zeroes the slice\'s rounds');
@@ -484,6 +502,7 @@ test('audit cap: a slice at its cap parks and the run goes on; resume gives it f
 test('audit cap: the final review and run total still stop the run without parking a slice', () => {
   const dir = fixture(['--audit-cap', '2', '--max-slices', '1']);
   for (const id of ['R1', 'R1']) assert.equal(audit(dir, id).allow, true);
+  start(dir, 'R2');
   const r = audit(dir, 'R2');
   assert.deepEqual([r.allow, r.reason, r.limit], [false, 'AUDIT_CAP', 'run total']);
   assert.equal(ok(work(dir, 'run', 'show', 'road')).slices.length, 0);
@@ -509,6 +528,7 @@ test('audit cap: lowering a cap back to the value it refused at does not revive 
   // The run-total refusal clears the same way.
   const total = fixture(['--audit-cap', '2', '--max-slices', '2']);
   ok(verify(total));
+  for (const id of ['R2', 'R3']) start(total, id);
   for (const id of ['R1', 'R1', 'R2', 'R2']) assert.equal(audit(total, id).allow, true);
   assert.equal(audit(total, 'R3').allow, false);
   assert.equal(gate(total).reason, 'AUDIT_CAP', 'the refusal stops the gate while the cap is unchanged');
@@ -544,6 +564,15 @@ test('audit cap: resuming the slice a stop names clears audit_stop; another slic
   assert.match(ok(work(dir, 'run', 'show', 'road')).audit_stop, /^slice R1:/, 'resuming R2 leaves R1\'s stop');
   ok(work(dir, 'run', 'slice', 'road', 'R1', 'ready'));
   assert.equal(ok(work(dir, 'run', 'show', 'road')).audit_stop, undefined);
+  // The prefix names the slice exactly: resuming R1 leaves an R10 stop alone.
+  start(dir, 'R10');
+  assert.equal(audit(dir, 'R10').allow, true);
+  assert.equal(audit(dir, 'R10').allow, true, 'the repeat spends the one round');
+  assert.equal(audit(dir, 'R10').allow, false);
+  const r10 = ok(work(dir, 'run', 'show', 'road')).audit_stop;
+  assert.match(r10, /^slice R10:/);
+  ok(work(dir, 'run', 'slice', 'road', 'R1', 'ready'));
+  assert.equal(ok(work(dir, 'run', 'show', 'road')).audit_stop, r10, 'resuming R1 leaves R10\'s stop');
 });
 
 // The converging-audit issue's R17: each round found a new, real Must, and the old cap parked the
@@ -574,10 +603,21 @@ test('audit cap: a slice repeating the same Must four times parks the fifth with
   assert.match(r.detail, /last fix unreviewed$/);
   const parked = ok(work(dir, 'run', 'show', 'road')).slices.find((s) => s.id === 'R1');
   assert.match(parked.reason, /last fix unreviewed$/);
+  start(dir, 'R2');
   assert.equal(audit(dir, 'R2').allow, true, 'another slice has its own rounds');
   assert.equal(spawnSync('node', [WORK, 'run', 'digest', 'road'], { cwd: dir, encoding: 'utf8', env: { ...process.env, XDG_CONFIG_HOME: dir } }).status, 0);
   const digest = fs.readFileSync(path.join(dir, 'docs/planning/road.run/DIGEST.md'), 'utf8');
   assert.match(digest, /## Limit fired[\s\S]*- SLICE_AUDIT_CAP, slice R1: 3 rounds repeated an earlier Must, cap 3/);
+});
+
+test('gate reads the record: it adds no gates entry for a slice that has none', () => {
+  const rec = { slices: [], gates: [], audit_cap: 3, slice_cap_min: 120 };
+  gateRule(rec, 'R9', { current: 'fp' });
+  assert.deepEqual(rec.gates, []);
+  // A cap the record already shows as spent, and still no entry for the slice: the cap path reads only.
+  const spent = { slices: [], gates: [], audit_cap: 3, audit_total_cap: 0, audit_refused: 0, slice_cap_min: 120 };
+  assert.equal(gateRule(spent, 'R9', { current: 'fp' }).reason, 'AUDIT_CAP');
+  assert.deepEqual(spent.gates, []);
 });
 
 test('audit cap: the final review has its own cap and does not spend a slice\'s rounds', () => {
@@ -592,6 +632,7 @@ test('audit cap: the final review has its own cap and does not spend a slice\'s 
 
 test('audit cap: the run total stops a runaway; max_slices x the per-slice cap is its default', () => {
   const dir = fixture(['--audit-cap', '2', '--max-slices', '2']);
+  for (const id of ['R2', 'R3', 'R4']) start(dir, id);
   for (const id of ['R1', 'R1', 'R2', 'R2']) assert.equal(audit(dir, id).allow, true);
   const r = audit(dir, 'R3');
   assert.deepEqual([r.allow, r.limit], [false, 'run total']);
@@ -600,11 +641,15 @@ test('audit cap: the run total stops a runaway; max_slices x the per-slice cap i
   assert.equal(audit(dir, 'R3').allow, true, 'the overridden total allows one more');
   assert.equal(audit(dir, 'R4').allow, false);
   const none = fixture();
-  for (let i = 1; i <= 12; i++) assert.equal(audit(none, `R${i}`).allow, true, 'no max_slices and no total: no backstop');
+  for (let i = 1; i <= 12; i++) {
+    start(none, `R${i}`);
+    assert.equal(audit(none, `R${i}`).allow, true, 'no max_slices and no total: no backstop');
+  }
   // Under the defaults a long run at two rounds a slice finishes.
   const defaults = fixture();
   for (let i = 1; i <= 8; i++) {
     const id = `R${i}`;
+    start(defaults, id);
     assert.equal(audit(defaults, id).allow, true);
     assert.equal(audit(defaults, id).allow, true, `${id} second round`);
     ok(work(defaults, 'run', 'slice', 'road', id, 'shipped'));
@@ -623,6 +668,53 @@ test('audit cap: a record already past the cap still stops the gate', () => {
   const rec2 = JSON.parse(JSON.stringify(rec));
   rec2.gates.find((g) => g.id === 'R1').audit_spent = 2;
   assert.equal(gateRule(rec2, 'R1', { current: 'fp' }).reason, 'SLICE_AUDIT_CAP');
+});
+
+test('run audit: a refusal another writer clears before the write is not reported, and the retried round is', () => {
+  const dir = fixture(['--audit-cap', '1']);
+  auditFailed(dir, 'm');
+  audit(dir, 'R1'); // the first round on the plan's Must is new work
+  audit(dir, 'R1'); // the repeat spends the slice's one allowed round
+  let raised = false;
+  // The plan lookup a refusal makes is where the other writer lands: it raises the cap.
+  const items = {
+    get: () => {
+      if (!raised) {
+        raised = true;
+        ok(work(dir, 'run', 'set', 'road', 'audit_cap', '2'));
+      }
+      return { state: { status: 'building' } };
+    },
+  };
+  const out = countAudit(path.join(dir, 'docs/planning'), 'road', { id: 'R1', items });
+  assert.deepEqual([out.allow, out.audit_rounds], [true, 3], 'the retry\'s own answer, never the first attempt\'s refusal');
+});
+
+test('run audit: a second audit that lands in the read-modify-write window keeps its round', () => {
+  const dir = fixture(['--audit-cap', '1']);
+  const planning = path.join(dir, 'docs/planning');
+  auditFailed(dir, 'm');
+  audit(dir, 'R1'); // the first round on the plan's Must is new work
+  audit(dir, 'R1'); // the repeat spends R1's one allowed round
+  start(dir, 'R2');
+  // The refusal path looks the plan up; the second audit lands there, between this call's read and
+  // its write, so the record it read is replaced under it.
+  let landed = false;
+  const items = {
+    get: () => {
+      if (!landed) {
+        landed = true;
+        assert.equal(ok(work(dir, 'run', 'audit', 'road', 'R2')).allow, true, 'the second audit is counted');
+      }
+      return { state: { status: 'building' } };
+    },
+  };
+  const out = countAudit(planning, 'road', { id: 'R1', items });
+  assert.deepEqual([out.allow, out.audit_rounds, out.limit], [false, 2, 'slice R1'], 'R1 is still at its cap: refused and not counted');
+  const rec = showRun(planning, 'road');
+  assert.equal(rec.gates.find((g) => g.id === 'R2').audit_rounds, 1, 'the audit that landed in the window kept its round');
+  assert.equal(rec.audit_rounds, 3, 'both rounds are in the record');
+  assert.ok(rec.slices.some((s) => s.id === 'R1' && s.status === 'parked'), 'the refusal still parks R1');
 });
 
 test('run next: stops handing out slices once max_slices shipped, and says why', () => {
@@ -777,12 +869,14 @@ test('runVerify: a pass records the fingerprint and file hashes, a failure recor
   assert.ok(rec.gates[0].verified_files['a.js'], 'the named dirty file is hashed');
   const bare = runVerify({ ...base, opts: { '--': ['true'] } });
   assert.equal(bare.gates[0].verified_files, undefined, 'without --paths no files are recorded, and the older record is dropped');
+  const back = runVerify({ ...base, opts: { '--': ['true'], paths: 'a.js' } });
+  assert.ok(back.gates[0].verified_files['a.js'], 'the reverse order: --paths after a bare verify records the files again');
   assert.throws(() => runVerify({ ...base, id: 'R9', opts: { '--': ['true'] } }), /run start first/);
   assert.throws(() => runVerify({ ...base, opts: {} }), /needs the checks/);
 });
 
 test('runVerify: --in resolves against the caller\'s directory, and a check that passes only on its rerun parks the slice', () => {
-  const dir = fixture();
+  const dir = fixture([], 'do-it gate ');
   const sub = path.join(dir, 'sub');
   fs.mkdirSync(path.join(sub, 'inner'), { recursive: true });
   fs.writeFileSync(path.join(sub, 'inner', 'here.txt'), 'x\n');
@@ -791,7 +885,7 @@ test('runVerify: --in resolves against the caller\'s directory, and a check that
   assert.equal(runVerify({ ...base, opts: { '--': ['test -f here.txt'], in: 'inner' } }).gates[0].verified_fingerprint, 'fp');
   assert.throws(() => runVerify({ ...base, opts: { '--': ['test -f here.txt'] } }), /exited 1/, 'without --in the check runs at the root');
   const flaky = path.join(dir, 'ran-once');
-  assert.throws(() => runVerify({ ...base, opts: { '--': [`test -f ${flaky} || { touch ${flaky}; exit 1; }`] } }), /FLAKY/);
+  assert.throws(() => runVerify({ ...base, opts: { '--': [`test -f "${sh(flaky)}" || { touch "${sh(flaky)}"; exit 1; }`] } }), /FLAKY/);
   const parked = showRun(base.planningDir, 'road').slices.find((s) => s.id === 'R1');
   assert.deepEqual([parked.status, parked.needs, /^FLAKY/.test(parked.reason)], ['parked', 'user', true]);
 });
@@ -812,7 +906,9 @@ test('every reason the gate and run next return is a code in STOPS, shared with 
   const rec = { max_slices: 1, slice_cap_min: 1, audit_cap: 1, slices: [{ id: 'S', status: 'shipped' }], gates: [{ id: 'R1', started: '2026-01-01T00:00:00Z', audit_spent: 2 }] };
   const seen = new Set();
   const stop = (r) => seen.add(r.reason);
-  stop(gateRule(rec, 'R1', { current: 'fp', now: Date.parse('2026-01-01T00:00:30Z') }));
+  // MAX_SLICES comes from run next, the path that emits it; the gate's other four from the rule.
+  const road = { slices: [{ id: 'R1', blocked_by: [], state: 'shipped' }, { id: 'R2', blocked_by: [], state: 'ready' }], ready: ['R2'] };
+  stop(nextSlice(road, { max_slices: 1, slices: [{ id: 'R1', status: 'shipped' }] }).stop);
   stop(gateRule({ ...rec, max_slices: null }, 'R1', { current: 'fp', now: Date.parse('2026-01-01T00:00:30Z') }));
   stop(gateRule({ ...rec, max_slices: null, audit_cap: 9 }, 'R1', { current: 'fp', now: Date.parse('2026-01-01T00:05:00Z') }));
   const soon = { current: 'fp', now: Date.parse('2026-01-01T00:00:30Z') };
@@ -829,6 +925,7 @@ const CALL_SITE = {
   UNVERIFIED: 'gate',
   SLICE_CAP: 'gate',
   FLAKY: 'verify',
+  VERIFY_CAP: 'gate',
   MAX_SLICES: 'next',
   AUDIT_CAP: 'audit',
   SLICE_AUDIT_CAP: 'audit',
@@ -883,10 +980,10 @@ const closesEarly = (loop) => {
   return /\bNext:|close[sd]? the turn|ends? (the|your) turn|stop here|hand(s|ed)? (it |control )?back to the user/i.test(items);
 };
 
-test('the finish-it loop ends its turn only at §4, and says a parked or resumed slice is not a stop', () => {
-  const loop = section(fs.readFileSync(path.join(ROOT, 'skills/finish-it/SKILL.md'), 'utf8'), '2. Loop');
-  assert.match(loop, /The turn ends only at §4, when `run next` returns no `next`/);
-  assert.match(loop, /parked or\s+resumed slice/);
+test('the finish-it loop ends its turn only at §4, never per slice', () => {
+  const doc = read('skills/finish-it/SKILL.md');
+  const loop = section(doc, '2. Loop');
+  assert.match(doc, /^## 4\. Close$/m, 'the Close section follows the loop');
   assert.equal(closesEarly(loop), false);
   assert.equal(closesEarly(`${loop}\n7. A slice parked: close the turn with a Next: line.`), true, 'a fixture that closes before §4 fails');
 });
@@ -937,6 +1034,8 @@ test('reject-assumption: an assumption ship-it already rejected plan-side only u
   const edited = runRejectAssumption({ ...hand, key: 'feat#2', instead: 'x' });
   assert.deepEqual([edited.reopened, hand.fired], [false, []]);
   assert.ok(edited.followup, 'a hand-edited plan is named in followup');
+  assert.match(edited.followup, /no longer lists it \(rejected plan-side or edited\): only the record changed/);
+  assert.deepEqual(hand.plan.state.assumptions, ['edited by hand', 'edited too'], 'the hand-edited plan is left alone');
   // A closed item has no plan to reopen, so only the record changes.
   const closed = rejectFixture();
   closed.items.get = () => {
@@ -968,12 +1067,20 @@ test('reject-assumption: the replacement is collapsed to one line before it reac
   assert.equal(t.fired[0][2], 'x ## forged line two');
 });
 
-test('reject-assumption: equal texts after a plan-side reject: rejecting feat#1 leaves feat#2 and the plan\'s one entry', () => {
+test('reject-assumption: equal texts after a plan-side reject leave the plan alone and ambiguous names every id', () => {
   const t = rejectFixture();
   t.plan.state.assumptions = ['same']; // ship-it rejected one plan-side; the list closed up
-  const first = runRejectAssumption({ ...t, key: 'feat#1', instead: 'x' });
-  assert.deepEqual([first.reopened, t.fired], [false, []], 'the lists differ and the texts are equal: nothing is guessed, the record alone changes');
-  assert.match(first.followup, /feat#1, feat#2/);
+  const out = runRejectAssumption({ ...t, key: 'feat#1', instead: 'x' });
+  assert.deepEqual([out.reopened, t.fired], [false, []], 'the texts are equal and the lists differ: nothing is guessed');
+  assert.match(out.followup, /equal texts \(feat#1, feat#2\)/);
+  assert.deepEqual(t.plan.state.assumptions, ['same'], 'the plan is left alone');
+  assert.deepEqual(showRun(t.planningDir, 'road').rejected, ['feat#1: same (instead: x)']);
+});
+
+test('reject-assumption: once an equal text is rejected, the survivor\'s rejection fires the plan event at its one entry', () => {
+  const t = rejectFixture();
+  t.plan.state.assumptions = ['same'];
+  runRejectAssumption({ ...t, key: 'feat#1', instead: 'x' });
   const second = runRejectAssumption({ ...t, key: 'feat#2', instead: 'y' });
   assert.deepEqual(t.fired, [['feat', 'reject-assumption', 1, 'y']], 'feat#2 is the survivor: the plan event fires with the right text');
   assert.equal(second.reopened, true);
@@ -1044,8 +1151,40 @@ test('reject-assumption: a refused plan event leaves the record exactly as it wa
   assert.equal(JSON.stringify(showRun(t.planningDir, 'road')), before);
 });
 
+test('updateRun: a change that writes the record again is retried on the fresh record, so neither write is lost', () => {
+  const dir = fixture();
+  const { planningDir, slug } = unit(dir);
+  let once = false;
+  const rec = updateRun(planningDir, slug, (r) => {
+    r.limits = [...r.limits, 'the slower writer'];
+    if (once) return;
+    once = true;
+    // A second writer lands between this change and its write.
+    updateRun(planningDir, slug, (other) => {
+      other.limits = [...other.limits, 'the faster writer'];
+    });
+  });
+  assert.deepEqual(rec.limits, ['the faster writer', 'the slower writer'], 'the retried change is applied to the record the other writer left');
+  assert.deepEqual(showRun(planningDir, slug).limits, ['the faster writer', 'the slower writer']);
+});
+
+test('updateRun: a record that changes on every attempt is reported as a lost update, and the losing change is never written', () => {
+  const dir = fixture();
+  const { planningDir, slug } = unit(dir);
+  assert.throws(
+    () =>
+      updateRun(planningDir, slug, (r) => {
+        r.limits = [...r.limits, 'never written'];
+        updateRun(planningDir, slug, (other) => {
+          other.limits = [...other.limits, 'always another writer'];
+        });
+      }),
+    /lost update/,
+  );
+  assert.ok(!showRun(planningDir, slug).limits.includes('never written'), 'the losing change never reached the record');
+});
+
 test('the docs name the do-it commit line as the ATTRIBUTION constant, and finish-it maps the level argument to run new --level', () => {
-  const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
   assert.doesNotMatch(read('skills/build-it/COMMITS.md') + read('skills/do-it/scripts/commit.mjs'), /user's (commit )?rules?/);
   assert.match(read('skills/build-it/COMMITS.md'), /ATTRIBUTION/);
   assert.match(read('skills/finish-it/SKILL.md'), /run new <slug> --level\s+lite\|full\|ultra/);

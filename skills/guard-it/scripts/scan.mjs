@@ -9,9 +9,56 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const HERE = path.dirname(fs.realpathSync(fileURLToPath(import.meta.url)));
-const { loadConfig } = await import(pathToFileURL(path.join(HERE, '../../track-it/scripts/config.mjs')).href);
-const { loadChecks, scan, format } = await import(pathToFileURL(path.join(HERE, '../../../hooks/lib/checks.mjs')).href);
-const { addedLines } = await import(pathToFileURL(path.join(HERE, '../../do-it/scripts/changeset.mjs')).href);
+
+// A step that did not run is unverified, never a clean scan: a copy install
+// (`skills` CLI, plugin) has no shared code to run, and that must be said.
+function unverified(why) {
+  console.error(`Unverified: ${why}`);
+  process.exit(2);
+}
+
+// The checkout holding the shared code: the nearest directory above this script
+// with hooks/lib/checks.mjs in it.
+function findCheckout(start) {
+  for (let dir = start; ; ) {
+    if (fs.existsSync(path.join(dir, 'hooks/lib/checks.mjs'))) return dir;
+    const parent = path.dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+}
+
+const CHECKOUT = findCheckout(HERE);
+if (!CHECKOUT) unverified(`cannot resolve hooks/lib/checks.mjs from ${HERE}`);
+
+// Each module: the checkout's copy, else the sibling skill layout (an install
+// keeps each skill's tree but not the checkout); nothing found is unverified.
+const SHARED = {
+  'skills/track-it/scripts/config.mjs': '../../track-it/scripts/config.mjs',
+  'hooks/lib/checks.mjs': '../../../hooks/lib/checks.mjs',
+  'skills/do-it/scripts/changeset.mjs': '../../do-it/scripts/changeset.mjs',
+};
+const found = {};
+const missing = [];
+for (const [at, sibling] of Object.entries(SHARED)) {
+  const beside = path.join(HERE, sibling);
+  const file = [path.join(CHECKOUT, at), beside].find((f) => fs.existsSync(f));
+  if (file) found[at] = file;
+  else missing.push(at);
+}
+if (missing.length) unverified(`cannot resolve ${missing.join(', ')} from ${CHECKOUT}`);
+
+async function load(at) {
+  try {
+    return await import(pathToFileURL(found[at]).href);
+  } catch (e) {
+    unverified(`cannot load ${found[at]}: ${e.message}`);
+  }
+}
+
+const { loadConfig } = await load('skills/track-it/scripts/config.mjs');
+const { loadChecks, scan, format } = await load('hooks/lib/checks.mjs');
+const { addedLines } = await load('skills/do-it/scripts/changeset.mjs');
 
 const args = process.argv.slice(2);
 const at = args.indexOf('--since');

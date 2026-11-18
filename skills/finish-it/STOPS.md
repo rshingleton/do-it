@@ -13,14 +13,19 @@ Before chaining a slice to ship, `work.mjs run gate <slug> <slice>` prints
 - `STALE_VERIFY` (park): this slice's change moved since the last passing verify. Files another slice's plan owns are left out of both reads, so its work in the same tree does not count; a changed file no plan names does. Rerun `work.mjs run verify`.
 - `UNVERIFIED` (park): no passing verify recorded. Run `work.mjs run verify`.
 - `FLAKY` (park): `run verify` reran a failing check once and it passed. Never rerun again.
+- `VERIFY_CAP` (park): the slice failed `run verify` three rounds in a row. The script parks the slice (needs `user`) and the third call throws `VERIFY_CAP: <why>`. The count is `verify_failures` on the slice's gate entry; a passing verify or `run slice <slug> <slice> ready` clears it.
 - `SLICE_CAP` (park): the slice spent more in-flight minutes than `slice_cap_min` (default 120; empty means no cap). Parked time, queued check time and the gap after the last command that showed the slice alive are not counted, so a session interrupted for a day gates on its work, not its wall clock.
 - `MAX_SLICES` (stop): shipped slices reached `max_slices` while a slice is left. `run next` returns no slice and a `stop` with this code, and the detail names a slice already in flight. With nothing left to build the run finishes, with no `stop`.
-- `SLICE_AUDIT_CAP` (park): `run audit` is refused because the slice's rounds kept repeating an earlier Must `audit_cap` times (default 3). A round that raises a Must no earlier round did is new work and spends nothing, so a slice whose rounds keep finding something new is never parked for it; `detail` ends `last fix unreviewed`, because the fix that was not checked is the one that repeated. The script parks the slice (needs `decision`) and the run goes on with the others. A slice whose last allowed round passed still ships. Before moving on, re-run `run slice <slug> <slice> parked --needs decision --reason "<detail>; open Must: <findings>"` so the park says what the audit found. `--resume` gives it fresh rounds, both counters at zero; the digest repeats the limit under "Limit fired".
+- `SLICE_AUDIT_CAP` (park): `run audit` is refused because the slice's rounds kept repeating an earlier Must `audit_cap` times (default 3). A round that raises a Must no earlier round did is new work and spends nothing, so a slice whose rounds keep finding something new is never parked for it; `detail` ends `last fix unreviewed`, because the fix that was not checked is the one that repeated. The script parks the slice (needs `decision`) and the run goes on with the others. A slice whose last allowed round passed still ships. Before moving on, re-run `run slice <slug> <slice> parked --needs decision --reason "<detail>; open Must: <findings>"` so the park says what the audit found. `--resume` gives it fresh rounds, both counters at zero; the digest repeats the limit under "Limit fired". A resumed slice's own count starts again, but the rounds it already spent stay in the run total the digest reports.
 - `AUDIT_CAP` (stop): `run audit` is refused because the `final review` (`final_audit_cap`, default 3) or the `run total` (`audit_total_cap`, else `max_slices` x `audit_cap`, else none) is spent. `limit` and `detail` name which. `run set` on any cap clears the refusal.
 
 Calls: `run start <slug> <slice> --work <work id>` when a slice begins,
 `run verify <slug> <slice> [--phase n] [--paths a,b] -- <checks>` instead of `verify-phase`,
 `run audit <slug> <slice>` before each slice audit round (`run audit <slug> --final` for the final review's); a refusal parks the slice (`SLICE_AUDIT_CAP`) or, for the final review and run total, stops the run.
+
+`run slice <slug> <slice> parked --needs user|decision --reason "<why>"` parks a slice, the stop code first in `--reason`; `needs` is `decision` for an unanswered question, else `user`.
+
+`run verify` takes one call per lane M phase with `--phase n`; lane S passes no `--phase`.
 
 ## Judgment (no script sees these)
 

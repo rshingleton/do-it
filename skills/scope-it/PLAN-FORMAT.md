@@ -16,8 +16,9 @@ so it holds every file the slice edits, tests included, and no directory: names
 are compared and none is expanded.
 
 Lane S puts both sections in the plan body, after `## Seams`. Lane M puts them
-in its README, as the union of its phases' files, so a track reads one file for
-the whole slice.
+in its README: the README's `## Files` is the union of its phases' files, while
+`## Interfaces` stays at the README only, because a track pairs the whole slice
+by it.
 
 `## Files`: repo-relative paths, one per line, `/` on every platform.
 
@@ -80,6 +81,9 @@ test/limiter.test.mjs
 `Limiter.check(key) -> {allowed, wait}`
 `POST /login -> 429 on the 6th try`
 
+## Link
+~/.local/share/do-it-bridge/billing-api--web-app.md
+
 ## Steps
 1. Add `Limiter` with a sliding window → verify: unit tests at `Limiter.check`
 2. Call it from the login handler → verify: request test gets 429 on the 6th try
@@ -90,6 +94,12 @@ test/limiter.test.mjs
 ## Non-goals
 - Per-account limits (filed as docs/issues/per-account-limits.md)
 ```
+
+`## Link` is optional, written only when the plan is paired through
+[link-it](../link-it/SKILL.md). It holds one path line, the contract path
+link-it §3 derives, so it is never an `assumptions:` entry (ship asks the user
+about those) or a `sources:` ref. It is legal in a lane M README as well as a
+lane S plan, and `replan` keeps it.
 
 ## Lane M: `docs/planning/<id>/`
 
@@ -122,10 +132,12 @@ test/limiter.test.mjs
 ```
 
 The README's `## Files` is the union of its phases' files, while `## Interfaces`
-stays at the README: every phase file states its own list, and the README
-states what a track pairs the whole slice by. Two phases with no dependency
-path between them must not share a file, or one blocks the other: cut along the
-file boundary, or add the `blocked_by` edge that makes the pair serial.
+stays at the README: every phase file states its own `## Files`, and the README
+states what a track pairs the whole slice by. A phase's consumed and produced
+interfaces go in its `## Seams`, not a per-phase `## Interfaces`. Two phases with
+no dependency path between them must not share a file, or one blocks the other:
+cut along the file boundary, or add the `blocked_by` edge that makes the pair
+serial.
 
 Each `phase-N.md`:
 

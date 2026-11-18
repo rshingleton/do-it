@@ -22,7 +22,8 @@
 //
 // The ref footer answers whether the checkout itself is current: its branch and
 // short sha, the commits ahead and behind its upstream and behind origin/main,
-// and the age of .git/FETCH_HEAD. An install follows origin/main when that ref
+// and whether those counts came from a fetch, from the clone that has not
+// fetched since, or from neither. An install follows origin/main when that ref
 // exists and its own upstream otherwise, so commits behind the ref it follows
 // are a finding and exit 1; a branch ahead of its own upstream is reported and
 // does not fail. No network call unless --fetch is given; a checkout that is not
@@ -36,6 +37,12 @@
 // lock in the working directory and its global lock, keeps the entries that
 // name this checkout, and says what each recorded, with the command that
 // refreshes it. Neither route runs an update command or touches the network.
+//
+// The hooks route reads the OpenCode config the hook step edits: a plugin entry
+// that names this checkout is ok, no such entry is stale, and a file that is not
+// plain JSON is reported here because the step that refuses it prints its reason
+// beside another host's exit code. A route with nothing on it carries the
+// command that installs it, so the first run names a fix for every route.
 
 import fs from 'node:fs';
 import os from 'node:os';
@@ -43,6 +50,8 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { ROOT } from './lib/skills.mjs';
 import { hashFile, manifestPath, readManifestState, sameTarget, under } from './lib/install-state.mjs';
+import { fetchText, firstLine, plural, readRef } from './lib/read-ref.mjs';
+import { pluginPaths } from './install-hooks.mjs';
 import { planLinks } from './install.mjs';
 import { git } from '../skills/do-it/scripts/git.mjs';
 import { isMain } from '../skills/it-core/scripts/is-main.mjs';
@@ -176,114 +185,21 @@ function scanFindings(plan, copyAt, root, fix) {
   return { findings, notOurs };
 }
 
-// The first line of a git error without git's "fatal: " prefix: the reason as
-// a person reads it.
-const firstLine = (text) => String(text ?? '').trim().split('\n')[0].replace(/^fatal: /, '');
-
-// The checkout's ref, read through the one git wrapper (it passes
-// safe.bareRepository, which a fixture bare repo needs). Every read is a local
-// one: the remote moves only when `fetch` asks it to. Each count comes from a
-// remote-tracking ref, so a checkout that has not fetched reports what it knew
-// at its last fetch; the age of FETCH_HEAD is printed beside the counts for
-// that reason. `unknown` carries the reason git could not answer.
-export function readRef({ root, fetch = false } = {}) {
-  const at = (args) => {
-    try {
-      return git(root, args);
-    } catch (e) {
-      return { status: -1, stdout: '', stderr: e.code === 'ENOENT' ? 'git is not installed' : e.message };
-    }
-  };
-
-  const top = at(['rev-parse', '--show-toplevel']);
-  if (top.status !== 0) return { unknown: firstLine(top.stderr) || 'git cannot read this directory' };
-  const toplevel = top.stdout.trim();
-  // git walks up from a subdirectory; a ref belongs to the checkout only when
-  // that checkout is the repository's top level.
-  if (!sameTarget(toplevel, root)) return { unknown: `not the root of a git checkout (its top level is ${toplevel})` };
-
-  let fetchError = null;
-  if (fetch) {
-    const f = at(['fetch', '--quiet']);
-    if (f.status !== 0) fetchError = firstLine(f.stderr) || 'fetch failed';
-  }
-
-  const sha = at(['rev-parse', '--short', 'HEAD']);
-  if (sha.status !== 0) return { unknown: `no commit at HEAD: ${firstLine(sha.stderr)}` };
-
-  const head = at(['rev-parse', '--abbrev-ref', 'HEAD']).stdout.trim();
-  const up = at(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}']);
-
-  // `rev-list --left-right --count A...HEAD` prints commits only in A, then
-  // only in HEAD: behind, then ahead.
-  const count = (left) => {
-    const r = at(['rev-list', '--left-right', '--count', `${left}...HEAD`]);
-    if (r.status !== 0) return null;
-    const [behind, ahead] = r.stdout.trim().split(/\s+/).map(Number);
-    return { ahead, behind };
-  };
-
-  const upstream = up.status === 0 ? up.stdout.trim() : null;
-  const vsUpstream = upstream ? count(upstream) : null;
-  const vsMain = at(['rev-parse', '--verify', '--quiet', 'origin/main^{commit}']).status === 0 ? count('origin/main') : null;
-
-  // The one rule for which ref an install follows: origin/main when it
-  // resolves, else the branch's own upstream, else none. Both the footer and
-  // the installer's closing line read this field instead of picking again.
-  const followed = typeof vsMain?.behind === 'number'
-    ? { name: 'origin/main', behind: vsMain.behind }
-    : upstream && vsUpstream
-      ? { name: upstream, behind: vsUpstream.behind }
-      : null;
-
-  const common = at(['rev-parse', '--git-common-dir']);
-  const gitDir = common.status === 0 ? path.resolve(root, common.stdout.trim()) : path.join(root, '.git');
-  const fetched = fs.statSync(path.join(gitDir, 'FETCH_HEAD'), { throwIfNoEntry: false });
-
-  const ref = {
-    branch: head && head !== 'HEAD' ? head : null,
-    sha: sha.stdout.trim(),
-    upstream,
-    ahead: vsUpstream ? vsUpstream.ahead : null,
-    behind: vsUpstream ? vsUpstream.behind : null,
-    behindMain: vsMain ? vsMain.behind : null,
-    followed,
-    fetchedAt: fetched ? fetched.mtime.toISOString() : null,
-  };
-  if (fetchError) ref.fetchError = fetchError;
-  return ref;
-}
-
-// The age of the last fetch, as an age alone: the footer and the installer's
-// line each put their own words in front of it.
-export function ageOf(fetchedAt) {
-  if (!fetchedAt) return 'never';
-  const mins = Math.max(0, Math.floor((Date.now() - Date.parse(fetchedAt)) / 60000));
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  return hours < 48 ? `${hours}h ago` : `${Math.floor(hours / 24)}d ago`;
-}
-
-// The age of the last fetch, in the one line the footer has room for.
-function ageText(fetchedAt) {
-  return fetchedAt ? `fetched ${ageOf(fetchedAt)}` : 'never fetched';
-}
-
 // A ref footer line: indented, so it reads as its own route below the entry
 // table rather than as another entry.
 const refFooter = (text) => `  ref: ${text}`;
 
-// The ref footer: one line naming the ref compared and the age of the fetch,
-// then, when the checkout is behind main, the finding and the command that
-// updates it. Indented below the entries' summary: these lines are not entries.
+// The ref footer: one line naming the ref compared and where the counts came
+// from, then, when the checkout is behind main, the finding and the command
+// that updates it. Indented below the entries' summary: these lines are not
+// entries.
 function refSection(report) {
   const ref = report.ref;
   if (ref.unknown) return [refFooter(`unknown, ${ref.unknown}`)];
   const where = `${ref.branch ?? 'detached HEAD'} @ ${ref.sha}`;
   const upstream = ref.upstream ? `upstream ${ref.upstream} (${ref.ahead} ahead, ${ref.behind} behind)` : 'upstream none';
   const main = ref.behindMain === null ? 'origin/main absent' : `origin/main (${ref.behindMain} behind)`;
-  const fetched = ageText(ref.fetchedAt);
+  const fetched = fetchText(ref);
   const failed = ref.fetchError ? `, fetch failed: ${ref.fetchError}` : '';
   const lines = [refFooter(`${where}, ${upstream}, ${main}, ${fetched}${failed}`)];
   if (ref.followed && ref.followed.behind > 0) {
@@ -298,13 +214,14 @@ function refSection(report) {
 
 // The host binary, found the way the platform finds it. On Windows the shell
 // is not trusted here: one PATH entry with a stray quote makes cmd miss a
-// binary `where` finds, so each entry is checked directly. A .cmd needs the
-// shell to run, an .exe does not.
+// binary `where` finds, so each entry is checked directly, with every quote
+// stripped (a copy-pasted quoted value leaves one inside the entry). A .cmd
+// needs the shell to run, an .exe does not.
 function claudeCall() {
   const args = ['plugin', 'list', '--json'];
   if (process.platform !== 'win32') return { cmd: 'claude', args };
   for (const entry of String(process.env.PATH ?? '').split(path.delimiter)) {
-    const dir = entry.trim().replace(/^"+|"+$/g, '');
+    const dir = entry.replaceAll('"', '').trim();
     if (!dir) continue;
     for (const name of ['claude.exe', 'claude.cmd', 'claude.bat']) {
       const file = path.join(dir, name);
@@ -364,6 +281,14 @@ export function pluginState({ exec = claudeList } = {}) {
 
 const quote = (s) => (/\s/.test(s) ? `"${s}"` : s);
 
+// A node command as a route's fix prints it: the script, then its arguments.
+const nodeCmd = (...parts) => `node ${parts.map(quote).join(' ')}`;
+
+// The two hosts' commands that put this checkout's plugin on the host. Absent
+// on the plugin route is the one state where the route needs them: every entry
+// finding already carries the installer that places it.
+const PLUGIN_INSTALL = 'claude plugin marketplace add rshingleton/do-it && claude plugin install do-it@do-it';
+
 function manifestVersion(root) {
   try {
     return JSON.parse(fs.readFileSync(path.join(root, '.claude-plugin', 'plugin.json'), 'utf8')).version ?? null;
@@ -374,13 +299,15 @@ function manifestVersion(root) {
 
 // One section for the plugin route: the version the host loads, against the
 // manifest on disk. A checkout without a manifest has nothing on this route,
-// so the host is not asked and another checkout's plugin is not read as ours.
+// so the host is not asked, no install command is offered, and another
+// checkout's plugin is not read as ours.
 function pluginRoute({ root, exec }) {
-  const absent = { route: 'plugin', state: 'absent', detail: 'not installed on this route', fix: null };
-  if (!fs.existsSync(path.join(root, '.claude-plugin', 'plugin.json'))) return absent;
+  if (!fs.existsSync(path.join(root, '.claude-plugin', 'plugin.json'))) {
+    return { route: 'plugin', state: 'absent', detail: 'this checkout ships no plugin manifest', fix: null };
+  }
   const state = pluginState({ exec });
   if (state.unknown) return { route: 'plugin', state: 'unknown', detail: state.unknown, fix: null };
-  if (!state.installed) return absent;
+  if (!state.installed) return { route: 'plugin', state: 'absent', detail: 'not installed on this route', fix: PLUGIN_INSTALL };
   const version = manifestVersion(root);
   if (!version) return { route: 'plugin', state: 'unknown', detail: 'cannot read the version in .claude-plugin/plugin.json', fix: null };
   const inPlace = state.readFromFolder !== null && sameTarget(state.readFromFolder, root);
@@ -512,7 +439,7 @@ function cliRoute({ root, home, env = process.env, cwd = process.cwd() }) {
   if (error) return { route: 'skills CLI', state: 'unknown', detail: error, fix: null };
   const origins = found.some((e) => e.sourceType !== 'local') ? originForms(root) : [];
   const entries = found.filter((e) => namesCheckout(e, { root, home, lockDir: e.lockDir, origins }));
-  if (!entries.length) return { route: 'skills CLI', state: 'absent', detail: 'not installed on this route', fix: null };
+  if (!entries.length) return { route: 'skills CLI', state: 'absent', detail: 'not installed on this route', fix: `npx skills@latest add ${quote(root)}` };
   const checkout = commitDate(root);
   const local = entries.filter((e) => e.sourceType === 'local');
   const state = local.length === entries.length ? 'local' : local.length ? 'mixed' : 'git';
@@ -520,12 +447,45 @@ function cliRoute({ root, home, env = process.env, cwd = process.cwd() }) {
   return { route: 'skills CLI', state, detail: entries.map((e) => cliLine(e, { checkout, root })).join('; '), fix };
 }
 
+// ---- The hooks route ----------------------------------------------------
+
+// The plugin entry a checkout's registration names: `pluginPaths` is the hook
+// step's own list, so the doctor reads back exactly what that step writes.
+const ourEntry = (entry, root) => pluginPaths(root).some((p) => sameTarget(entry, p));
+
+// One section for the hooks route: the OpenCode config the hook step edits. A
+// missing file, no entry naming this checkout, or an entry naming another
+// checkout's plugin is stale and carries the command that writes the entry. A
+// file that is not plain JSON is `unreadable`: the step refuses it and reports
+// its reason beside the other host's exit code, so the doctor repeats it where
+// the user looks and fails the run, rather than passing on a config no hook
+// reads.
+function hooksRoute({ root, configHome }) {
+  const file = path.join(configHome, 'opencode', 'opencode.json');
+  const register = nodeCmd(path.join(root, 'scripts', 'install-hooks.mjs'), 'opencode');
+  let config;
+  try {
+    config = JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch (e) {
+    if (e.code === 'ENOENT') return { route: 'hooks', state: 'absent', detail: `no ${file}`, fix: register };
+    const why = e instanceof SyntaxError ? 'is not plain JSON (comments?); the OpenCode hook step refuses it' : `cannot be read: ${e.message}`;
+    return { route: 'hooks', state: 'unreadable', detail: `${file} ${why}`, fix: null };
+  }
+  const listed = ['plugin', 'plugins'].flatMap((key) => (Array.isArray(config?.[key]) ? config[key] : [])).filter((p) => typeof p === 'string');
+  if (!listed.length) return { route: 'hooks', state: 'stale', detail: `no plugin entry in ${file}`, fix: register };
+  const ours = listed.filter((p) => ourEntry(p, root));
+  if (!ours.length) return { route: 'hooks', state: 'stale', detail: `no entry in ${file} names this checkout`, fix: register };
+  // A second do-it plugin from another checkout would load beside this one.
+  const other = listed.find((p) => /(^|[\\/])do-it-plugin([\\/]|$)/.test(p) && !ourEntry(p, root));
+  if (other) return { route: 'hooks', state: 'stale', detail: `the config also names ${other}, another checkout's plugin`, fix: register };
+  return { route: 'hooks', state: 'ok', detail: `the config registers ${ours[0]}`, fix: null };
+}
+
 // The install's findings for one home and one checkout, in print order, with
 // the checkout's own ref and the other two routes beside them.
 export function doctor({ root = ROOT, home = os.homedir(), configHome, fetch = false, cwd = process.cwd(), env = process.env, exec } = {}) {
   configHome = configHome || process.env.XDG_CONFIG_HOME || path.join(home, '.config');
-  const installer = path.join(root, 'scripts', 'install.mjs');
-  const fix = `node ${/\s/.test(installer) ? `"${installer}"` : installer}`;
+  const fix = nodeCmd(path.join(root, 'scripts', 'install.mjs'));
   const manifest = readManifestState(home);
   const ref = readRef({ root, fetch });
   const findings = [];
@@ -546,12 +506,16 @@ export function doctor({ root = ROOT, home = os.homedir(), configHome, fetch = f
   const scan = scanFindings(plan, copyAt, root, fix);
   findings.push(...scan.findings);
   const behind = Boolean(ref.followed && ref.followed.behind > 0);
-  const routes = [pluginRoute({ root, exec }), cliRoute({ root, home, env, cwd })];
-  const stale = routes.some((r) => r.state === 'stale');
+  const routes = [pluginRoute({ root, exec }), cliRoute({ root, home, env, cwd }), hooksRoute({ root, configHome })];
+  // `unreadable` fails the run: a config no hook can read leaves the route
+  // unregistered, which is a finding and not a host that cannot answer.
+  const stale = routes.some((r) => r.state === 'stale' || r.state === 'unreadable');
   return { root, home, configHome, ref, findings, routes, notOurs: scan.notOurs, ok: findings.every((f) => f.state === 'ok') && !behind && !stale };
 }
 
-const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+// `plural` is re-exported where it lived before the ref read moved to lib: the
+// installer's suite pins the one helper through the doctor.
+export { plural };
 
 // One indented line per route, after the checkout's ref: its state, its detail
 // and the command that updates it, or the words for a route nothing is on.
