@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: proposed
 ---
 
 # The coordinator audits a track's slice
