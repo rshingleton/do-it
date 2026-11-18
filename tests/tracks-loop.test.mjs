@@ -157,6 +157,15 @@ test('run tracks: the paired slices only, each with its worktree, plan, base ref
   assert.equal(fs.existsSync(first.worktree), false, 'the coordinator creates the worktree, never this call');
 });
 
+test('a track brief sends the build, never the audit: the coordinator proves the slice', () => {
+  const dir = fixture(2);
+  const brief = tracksOf(dir).tracks[0].brief;
+  assert.match(brief, /the coordinator audits this slice/, 'the brief names the coordinator as the auditor');
+  assert.doesNotMatch(brief, /prove-it/, 'the track is not told to run prove-it');
+  assert.match(brief, /Run no audit/, 'the brief says so outright');
+  assert.match(brief, /sends back any Must/, 'a Must comes back to the same track');
+});
+
 test('run tracks at 1: no track, no batch, no worktree, so a run that does not ask is unchanged', () => {
   const dir = fixture(1);
   const out = tracksOf(dir);
@@ -275,7 +284,7 @@ test('a failed track parks its slice with its reason and the run goes on with th
   const parked = ok(work(dir, 'run', 'show', 'road')).slices.find((s) => s.id === 'R1');
   assert.deepEqual([parked.status, parked.needs], ['parked', 'user']);
   assert.match(parked.reason, /npm test exits 1/);
-  assert.match(fs.readFileSync(path.join(ROOT, 'skills/finish-it/TRACKS.md'), 'utf8'), /park its slice with the\s+report's reason/);
+  assert.match(fs.readFileSync(path.join(ROOT, 'skills/finish-it/TRACKS.md'), 'utf8'), /park its slice with the reason the report or the Must gives/);
 });
 
 test('a merged track: the suite runs once on the merged tree, the merged fingerprint is recorded, then ship', () => {
@@ -349,7 +358,7 @@ test('the track text: dispatch, merge in contract order, the merged suite, one s
   assert.match(merge, /passing the slice's plan path/);
   // A failed track parks its slice and the run goes on.
   const failed = section(doc, 'A failed track');
-  assert.match(failed, /park its slice with the\s+report's reason/);
+  assert.match(failed, /park its slice with the reason the report or the Must gives/);
   assert.match(failed, /go on with the tracks still running/);
   assert.match(failed, /`git merge --abort`/);
   // The record stays the coordinator's.

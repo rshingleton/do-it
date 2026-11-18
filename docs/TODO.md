@@ -3,7 +3,7 @@
 Nice-to-haves and things to circle back to. Managed by log-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T341
+Next id: T346
 
 ## Open
 
@@ -41,7 +41,7 @@ Next id: T341
   - Related: T23 (behaviour evals).
 - [ ] T245 The spawn-a-check block is duplicated in runs.mjs and work.mjs; share it when a third caller appears `nice-to-have` (skills/do-it/scripts/runs.mjs:174-180, work.mjs:230-235; windows-support audit)
 - [ ] T247 The R1 wraps leave `skills/do-it/SKILL.md` at 103 lines and `skills/finish-it/SKILL.md` at 116 (111 at R1; tracks-mode added five); R3's repo-wide line count brings both under 100 `nice-to-have` (source: r1-text-truth; counts re-read 2026-11-16)
-- [ ] T255 A track's `prove-it` takes no check slot, so the two heavy suites the slot exists for never queue `debt` (tracks-mode audit; check-slot.mjs:1)
+- [ ] T255 The coordinator's `prove-it` of a track's slice takes no check slot, so the two heavy suites the slot exists for never queue `debt` (tracks-mode audit; check-slot.mjs:1; R22, T305)
 - [ ] T257 The Contract check hard-codes `node skills/do-it/scripts/contract.mjs`, so it exits ENOENT in a project without a skills directory `debt` (tracks-mode audit; CHECKS.md:22)
 - [ ] T258 The Contract analyze row sits among the lane S checks, so every plan outside a track now fails the pass `debt` (tracks-mode audit; CHECKS.md:16)
 - [ ] T259 `runVerifyMerged` lacks `runVerify`'s non-git guard: it runs the suite, then fails in `fingerprintOf` and records nothing `debt` (tracks-mode audit; runs.mjs:243-254)
@@ -81,7 +81,6 @@ Next id: T341
 - [ ] T312 `skills/usage-it/SKILL.md:44-98` was reflowed to long lines because it links no sibling, so the R6 goal ("detail in a sibling") does not cover it `nice-to-have` (R6 ship review)
 - [ ] T310 `tests/work.test.mjs:895`'s `/unfinished roadmap is left/i` also matches the intro, so deleting "and is named" from the Remove section stays green `nice-to-have` (R3 ship review)
 - [ ] T307 `skills/guard-it/scripts/scan.mjs:34-35` never reaches the sibling skill layout in an install (line 32 exits first), and the `load` catch at 51-57 is untested; a present but broken module is its only path `nice-to-have` (R68 ship review)
-- [ ] T305 A track prove-it cannot spawn its fresh reviewers (subagent depth 1), so every track audit runs in-context and the coordinator one scoped reviewer is the only fresh check `debt` (R68 build audit, 2026-11-16)
 - [ ] T304 `tests/changeset.test.mjs:329` fails intermittently on timing; it failed once in R1's worktree (the run parked R1 as FLAKY) and once in R2's merged run; a third time in R9's worktree under three concurrent suites (6729 ms against its budget) and parked R9; twice more in R5's worktree and merged check with another suite running (6266 ms, 6272 ms) `debt` (R1 and R2 audits; R5 and R9 verifies, 2026-11-16)
 - [ ] T313 `tests/tracks-record.test.mjs:96` says a refused round "ships" but only proves the cap clears (the gate there is `UNVERIFIED`), and the case at `:114` passes on the old code, so R1's "new cases fail on the old code" holds for two of its three cases `nice-to-have` (R1 ship review)
 - [ ] T314 `tests/hook-trust.test.mjs` has a timing-dependent case that failed under a full-suite run (10.8 s) in R7's worktree, then passed alone and on rerun `debt` (R7 build, 2026-11-16)
@@ -111,3 +110,8 @@ Next id: T341
 - [ ] T338 `skills/do-it/scripts/gate.mjs:187`'s comment says "the verified rounds in a row" where the check counts failed rounds `nice-to-have` (R23 review)
 - [ ] T339 `skills/do-it/scripts/runs.mjs:239` claims a flaky park cannot hide the count, but no test asserts `verify_failures` after a FLAKY round `nice-to-have` (R23 review)
 - [ ] T340 `skills/setup-it/scripts/default-branch.mjs:10` says "Always exits 0", then states `git()` throws; with git off PATH the CLI exits 1 with a stack, so the line should read "exits 0 for every answer" `nice-to-have` (R26 review)
+- [ ] T341 `tests/opencode-usage.test.mjs:43` ("v1 events: each completed message counts once, a subagent session keeps its agent") failed once as `true !== false` under load in R32's verify and passed on rerun, parking R32; it must be time- or order-dependent `debt` (R32 verify, 2026-11-17)
+- [ ] T342 `skills/do-it/LANES.md:51` still says each track "builds and audits one slice", the claim t305-track-audit reverses; say builds and point at TRACKS.md's audit `nice-to-have` (t305-track-audit audit)
+- [ ] T343 `docs/adr/0012-coordinator-plus-tracks.md:7` says "A track builds and audits its slice" while the amendment in the same ADR reverses it; mark the clause superseded by 0015 `nice-to-have` (t305-track-audit audit)
+- [ ] T344 `skills/finish-it/TRACKS.md:81` parks a slice whose review axis is unverified, while prove-it blocks and `A failed track` removes the worktree; a `run slice ... blocked` keeps the tree the retry needs `debt` (t305-track-audit audit)
+- [ ] T345 `skills/finish-it/TRACKS.md:75` says the coordinator writes the audit report, while prove-it §4 still writes findings and fires `audit-pass` in every mode; carve `--since` out in prove-it §4 `debt` (t305-track-audit audit)

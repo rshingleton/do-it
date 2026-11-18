@@ -190,8 +190,8 @@ test('the track text: the coordinator records every round, refuses a spent cap, 
   const doc = fs.readFileSync(path.join(ROOT, 'skills/finish-it/TRACKS.md'), 'utf8');
   const rounds = section(doc, 'Rounds');
   assert.match(rounds, /work\.mjs run audit\s+<slug>\s+<slice>/, 'the round is recorded through the script');
-  assert.match(rounds, /Before a\s+track starts a prove pass/, 'the round is recorded before it is spent');
-  assert.match(rounds, /A track\s+never calls `run audit` or `run start`/, 'a track records neither');
+  assert.match(rounds, /Before the\s+coordinator audits a track's slice/, 'the round is recorded before it is spent');
+  assert.match(rounds, /A track never calls\s+`run audit` or `run start`/, 'a track records neither');
   assert.match(rounds, /SLICE_AUDIT_CAP/);
   assert.match(rounds, /AUDIT_CAP/);
   assert.match(rounds, /`refused`/, 'the dispatch refusal is named');
@@ -206,4 +206,56 @@ test('the track text: the coordinator records every round, refuses a spent cap, 
   assert.match(record, /`work\.mjs run show <slug>`/, 'the coordinator\'s record is read with run show');
   assert.match(record, /history\s+only/, 'a lane record is history only');
   assert.match(record, /never reads them/);
+});
+
+test('the audit is the coordinator\'s: verify the tree, record the round, prove it, then merge', () => {
+  const doc = fs.readFileSync(path.join(ROOT, 'skills/finish-it/TRACKS.md'), 'utf8');
+  const audit = section(doc, 'The audit');
+  assert.ok(audit, 'TRACKS.md has an ## The audit section');
+  assert.match(audit, /A track builds and reports; it never audits/, 'the track is out of the audit');
+  assert.match(audit, /subagent depth 1/, 'the reason a track cannot audit is named');
+  assert.match(audit, /run audit <slug> <slice>/, 'the round is recorded before the audit starts');
+  assert.match(audit, /--since <base>/, 'the audit reads the track tree since its base');
+  assert.match(audit, /writes no state/, '--since writes nothing, so the coordinator writes the report');
+  assert.match(audit, /`## Audit` in a lane S plan/, 'the lane S report goes in the plan');
+  assert.match(audit, /audit-report\.md` for lane M/, 'the lane M report is its own file');
+  assert.match(audit, /sources:/, 'the plan and its sources are the spec');
+  assert.match(audit, /same `it-builder` session/, 'a Must goes back to the track that built it');
+  assert.match(audit, /unverified axis is no pass/, 'an unverified axis never merges');
+  assert.match(audit, /`build-done` then `audit-pass`/, 'the coordinator fires the item events');
+  // The merge review is scoped to the merge; it no longer says the track proved the slice.
+  const merge = section(doc, 'Merge, in contract order');
+  assert.match(merge, /already audited the slice on its tree/, 'the merge review names the coordinator\'s audit');
+  assert.doesNotMatch(merge, /already ran prove-it/, 'the track did not prove its slice');
+  // A Must the track cannot fix parks, like a failed track.
+  const failed = section(doc, 'A failed track');
+  assert.match(failed, /a Must the same `it-builder`\s+session cannot fix/, 'a stuck Must parks the slice');
+});
+
+test('the docs agree a track builds and the coordinator audits: CONTEXT, ADR 0015 and ADR 0012', () => {
+  const context = fs.readFileSync(path.join(ROOT, 'CONTEXT.md'), 'utf8');
+  const track = context.slice(context.indexOf('**Track**'), context.indexOf('**Contract**'));
+  assert.match(track, /builds one slice/, 'a track builds the slice');
+  assert.match(track, /coordinator\s+audits it/, 'the coordinator audits it');
+  assert.doesNotMatch(track, /builds and proves/, 'a track no longer proves its slice');
+  const adr = fs.readFileSync(path.join(ROOT, 'docs/adr/0015-coordinator-audits-track-slices.md'), 'utf8');
+  assert.match(adr, /^---\nstatus: proposed\n---/, 'the ADR starts proposed');
+  for (const want of ['0012', '--since', 'it-builder', 'fresh', 'TRACKS.md']) assert.ok(adr.includes(want), `ADR 0015 names ${want}`);
+  const prior = fs.readFileSync(path.join(ROOT, 'docs/adr/0012-coordinator-plus-tracks.md'), 'utf8');
+  assert.match(prior, /Amended 2026-11-17/, 'ADR 0012 names the amendment');
+  assert.match(prior, /0015-coordinator-audits-track-slices\.md/, 'the amendment points at 0015');
+});
+
+test('T255 and R22 name the coordinator\'s audit, not a track\'s prove', () => {
+  const todo = fs.readFileSync(path.join(ROOT, 'docs/TODO.md'), 'utf8');
+  const t255 = todo.split('\n').find((l) => l.startsWith('- [ ] T255'));
+  assert.ok(t255, 'T255 is still open');
+  assert.match(t255, /coordinator's `prove-it` of a track's slice/, 'the slot gap names the coordinator audit');
+  assert.doesNotMatch(t255, /A track's `prove-it`/, 'a track no longer proves its slice');
+  const road = fs.readFileSync(path.join(ROOT, 'docs/roadmap/todo-clearance-2026-11.md'), 'utf8');
+  const r22 = road.split('\n').find((l) => l.startsWith('| R22 |'));
+  assert.ok(r22, 'R22 is on the roadmap');
+  assert.match(r22, /the coordinator's prove-it of a track's slice takes a check slot/, 'R22 delivers the slot for the audit');
+  assert.match(r22, /The coordinator's audit of a track takes the slot/, 'its verify names the audit');
+  assert.doesNotMatch(r22, /a track's prove-it takes a check slot/, 'the old wording is gone');
 });

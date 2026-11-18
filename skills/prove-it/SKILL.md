@@ -17,8 +17,8 @@ block.
   `git diff <base_ref>` plus untracked files, minus `docs/planning/` and
   `docs/issues/`: `git ls-files --others --exclude-standard`.
   Any phase not `done`: stop, `blocked`.
-- `--since <ref>`: a track's path: the same change, run from its worktree,
-  with no plan read and no state written. Spec is the user's, or skipped.
+- `--since <ref>`: the coordinator's audit of a track's slice, run from the
+  worktree: no work item read, no state written, spec from the caller.
 
 Empty change: stop and say so.
 

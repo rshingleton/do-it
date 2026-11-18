@@ -156,10 +156,11 @@ test('a passing verify and a resume clear the failed verify count, so only three
   assert.equal(gate(dir).allow, true, 'the pass the slice already had stands once the user settled the cause');
 });
 
-test('prove-it names --since as the track path: read from the worktree, no plan read, no state written', () => {
+test('prove-it names --since as the coordinator audit of a track: read from the worktree, no work item, no state', () => {
   const doc = fs.readFileSync(path.join(ROOT, 'skills/prove-it/SKILL.md'), 'utf8');
   const pin = doc.slice(doc.indexOf('## 1.'), doc.indexOf('## 2.'));
-  assert.match(pin, /`--since <ref>`: a track's path/, 'the mode is named as the track path');
+  assert.match(pin, /`--since <ref>`: the coordinator's audit of a track's slice/, 'the mode is named as the coordinator audit');
   assert.match(pin, /worktree/, 'the review runs from the track\'s worktree');
-  assert.match(pin, /no plan read and no state written/, 'it reads no plan and writes no state');
+  assert.match(pin, /no work item read, no state written/, 'it reads no work item and writes no state');
+  assert.match(pin, /spec from the caller/, 'the spec comes from the caller');
 });

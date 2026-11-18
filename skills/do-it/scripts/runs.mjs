@@ -105,13 +105,16 @@ export function runContract({ planningDir, root, slug, road, items }) {
 
 // The brief one track starts with: where it works, what it reads, what it reports. A lane M plan
 // keeps its phase files beside it; a lane S plan is one file and says nothing about phases.
+// The track builds and reports only: the coordinator audits its tree (TRACKS.md), because a
+// subagent here cannot start the fresh reviewers an audit needs.
 function trackBrief({ slug, id, plan, lane, worktree, branch, base }) {
   const about = String(lane).toLowerCase() === 'm' ? 'a lane M plan: its phase files beside it' : `a lane ${String(lane).toUpperCase()} plan`;
   return (
     `Track ${slug} ${id}: worktree ${worktree}, branch ${branch}, base ${base}. ` +
     `Read the plan ${plan} (${about}) and follow build-it in the worktree. ` +
-    `Commit on ${branch}, audit with prove-it --since ${base}. ` +
+    `Commit on ${branch}. ` +
     'Report done | failed | blocked, the commit id, the checks that passed and any defect, under 150 words. ' +
+    'Run no audit: the coordinator audits this slice on your tree and sends back any Must. ' +
     'Never call run start or run audit and never write the planning dir or the run record: the coordinator records both.'
   );
 }
