@@ -493,7 +493,7 @@ test('refreshUtilization runs `claude -p /usage` only when the cached reading is
   const marker = path.join(bin, 'ran');
   // A shim Windows installs: npm writes claude.cmd, which a shell or a PATHEXT resolve finds, never a bare spawn.
   if (process.platform === 'win32') fs.writeFileSync(path.join(bin, 'claude.cmd'), `@echo %* >> "${marker}"\r\n`);
-  else fs.writeFileSync(path.join(bin, 'claude'), `#!/bin/sh\necho "$@" >> ${marker}\n`, { mode: 0o755 });
+  else fs.writeFileSync(path.join(bin, 'claude'), `#!/bin/sh\necho "$@" >> "${marker}"\n`, { mode: 0o755 });
   const cfg = tmp();
   const base = { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}`, CLAUDE_CONFIG_DIR: cfg };
   const env = { ...base, DO_IT_USAGE_REFRESH: '1' };

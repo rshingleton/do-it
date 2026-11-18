@@ -143,17 +143,13 @@ function closingDocsExclude(ctx, item) {
     .filter(Boolean);
 }
 
-// The fingerprint of the item's change since its base: the files its plan's `## Files` names, the
-// whole tree when it names none. Planning files and closing docs excluded. `at` is the tree it
-// is taken in: the coordinator's checkout unless the work ran in a track's worktree.
-// shortcut: an edit outside the plan's files keeps this hash, so only the audit's diff catches it; upgrade by scoping on the files a verify records when an out-of-plan edit slips past an audit.
-function itemFingerprint(ctx, item, at = ctx.root) {
+// The fingerprint of the item's change since its base, planning files excluded. `at` is the tree it
+// is taken in: the coordinator's checkout unless the work ran in a track's worktree. `extra` is the
+// paths another slice's plan owns, which a run's verify leaves out so its gate reads this slice's
+// change alone.
+function itemFingerprint(ctx, item, at = ctx.root, extra = []) {
   if (!item.state.base_ref) throw new Error(`${item.state.id} has no base_ref yet: run event start first`);
-  const files = readPlan(item.path).files;
-  return fingerprint(at, item.state.base_ref, {
-    exclude: [...planningExclude(ctx), ...closingDocsExclude(ctx, item)],
-    paths: files.length ? files : null,
-  });
+  return fingerprint(at, item.state.base_ref, { exclude: [...planningExclude(ctx), ...closingDocsExclude(ctx, item), ...extra] });
 }
 
 function shellQuote(arg) {
@@ -349,11 +345,14 @@ export async function run(argv, { cwd = process.cwd() } = {}) {
         case 'audit':
           return countAudit(ctx.planningDir, slug, { id: args[0], final: opts.final === true, items });
         case 'gate':
-          return runGate({ planningDir: ctx.planningDir, root: ctx.root, slug, id: args[0], items, fingerprintOf: (item, at) => itemFingerprint(ctx, item, at) });
+          return runGate({
+            planningDir: ctx.planningDir, root: ctx.root, slug, id: args[0], items,
+            fingerprintOf: (item, at, extra) => itemFingerprint(ctx, item, at, extra),
+          });
         case 'verify': {
           const call = {
             planningDir: ctx.planningDir, root: ctx.root, cwd, slug, id: args[0], opts, items,
-            fingerprintOf: (item, at) => itemFingerprint(ctx, item, at), quote: shellQuote,
+            fingerprintOf: (item, at, extra) => itemFingerprint(ctx, item, at, extra), quote: shellQuote,
           };
           // The merged tree's suite is the gate's fact, never a second phase record.
           return opts.merged === undefined ? runVerify(call) : runVerifyMerged(call);

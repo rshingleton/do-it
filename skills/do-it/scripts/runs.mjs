@@ -38,7 +38,9 @@ const verifiedRoot = (root, top) => {
 
 // `run gate`: the slice's gate result against the fingerprint of its work item in the tree the
 // verify recorded, and against the merged tree once a merged check is a fact of the record. A
-// verify taken in a track's worktree is compared there, not in the coordinator's checkout.
+// verify taken in a track's worktree is compared there, not in the coordinator's checkout. The
+// fingerprint leaves out the files its plan says another slice owns, so a concurrent slice's work
+// in the same tree never reads as this slice's change.
 export function runGate({ planningDir, root, slug, id, items, fingerprintOf }) {
   const record = showRun(planningDir, slug);
   const g = (record.gates ?? []).find((x) => x.id === id);
@@ -48,7 +50,7 @@ export function runGate({ planningDir, root, slug, id, items, fingerprintOf }) {
   let current = null;
   if (item) {
     try {
-      current = fingerprintOf(item, at);
+      current = fingerprintOf(item, at, foreignPaths(record, id, items));
     } catch (e) {
       throw new Error(`run gate: ${id}'s verified root ${g.verified_root} cannot be read (${e.message}); run verify again`);
     }
@@ -68,6 +70,27 @@ function planOf(items, work) {
     if (!/^no plan for /.test(e.message)) throw e;
     return null;
   }
+}
+
+// The plan files the run's other slices own, never a file this slice's own plan names: moving one is
+// their work, so the gate does not read it as this slice's change. A file no plan names is nobody's
+// and still counts. `items.get` throws for a work item that is gone, which leaves it out.
+function foreignPaths(record, id, items) {
+  const filesOf = (work) => {
+    if (!work) return [];
+    try {
+      return parseContract(items.get(work)?.body ?? '').files;
+    } catch {
+      return [];
+    }
+  };
+  const mine = new Set(filesOf((record.gates ?? []).find((x) => x.id === id)?.work));
+  const foreign = new Set();
+  for (const g of record.gates ?? []) {
+    if (g.id === id) continue;
+    for (const file of filesOf(g.work)) if (!mine.has(file)) foreign.add(file);
+  }
+  return [...foreign];
 }
 
 // `run contract <slug> [roadmap file]`: the contract the run pairs its tracks by. Each slice's plan
@@ -214,7 +237,8 @@ function withCheckSlot(planningDir, slug, work) {
 // check parks the slice, and so does a third failed round in a row (VERIFY_CAP); the two
 // failures before it throw as they always have. `quote` shell-quotes one word.
 export function runVerify({ planningDir, root, cwd, slug, id, opts, items, fingerprintOf, quote }) {
-  const g = (showRun(planningDir, slug).gates ?? []).find((x) => x.id === id);
+  const record = showRun(planningDir, slug);
+  const g = (record.gates ?? []).find((x) => x.id === id);
   if (!g?.work) throw new Error(`run verify: ${id} has no work id; run start first`);
   const command = opts['--'] ?? [];
   if (!command.length) throw new Error('run verify needs the checks after --');
@@ -263,7 +287,9 @@ export function runVerify({ planningDir, root, cwd, slug, id, opts, items, finge
       // The phase is already recorded as verified; say which record is missing so the retry is not a guess.
       throw new Error(`${e.message}; the checks passed and the phase is recorded, but ${id}'s verified_files is not: run verify again`);
     }
-    recordVerified(planningDir, slug, id, fingerprintOf(items.get(g.work), top), files, verifiedRoot(root, top));
+    // The fingerprint leaves out the files another slice's plan owns, so the gate compares this
+    // slice's change alone; a file no plan names is still in it.
+    recordVerified(planningDir, slug, id, fingerprintOf(items.get(g.work), top, foreignPaths(record, id, items)), files, verifiedRoot(root, top));
     return showRun(planningDir, slug);
   });
 }
