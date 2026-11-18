@@ -51,6 +51,7 @@ import { spawnSync } from 'node:child_process';
 import { ROOT } from './lib/skills.mjs';
 import { hashFile, manifestPath, readManifestState, sameTarget, under } from './lib/install-state.mjs';
 import { fetchText, firstLine, plural, readRef } from './lib/read-ref.mjs';
+import { hostBin } from './lib/host-bin.mjs';
 import { pluginPaths } from './install-hooks.mjs';
 import { planLinks } from './install.mjs';
 import { git } from '../skills/do-it/scripts/git.mjs';
@@ -212,23 +213,9 @@ function refSection(report) {
 
 // ---- The plugin route ---------------------------------------------------
 
-// The host binary, found the way the platform finds it. On Windows the shell
-// is not trusted here: one PATH entry with a stray quote makes cmd miss a
-// binary `where` finds, so each entry is checked directly, with every quote
-// stripped (a copy-pasted quoted value leaves one inside the entry). A .cmd
-// needs the shell to run, an .exe does not.
+// `claude plugin list --json`, through the binary this machine installs.
 function claudeCall() {
-  const args = ['plugin', 'list', '--json'];
-  if (process.platform !== 'win32') return { cmd: 'claude', args };
-  for (const entry of String(process.env.PATH ?? '').split(path.delimiter)) {
-    const dir = entry.replaceAll('"', '').trim();
-    if (!dir) continue;
-    for (const name of ['claude.exe', 'claude.cmd', 'claude.bat']) {
-      const file = path.join(dir, name);
-      if (fs.existsSync(file)) return { cmd: file, args, shell: /\.(cmd|bat)$/i.test(name) };
-    }
-  }
-  return { cmd: 'claude', args };
+  return { ...hostBin('claude'), args: ['plugin', 'list', '--json'] };
 }
 
 // The one host read this section makes: what `claude` says it holds.
