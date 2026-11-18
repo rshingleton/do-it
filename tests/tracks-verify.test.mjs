@@ -164,3 +164,19 @@ test('prove-it names --since as the coordinator audit of a track: read from the 
   assert.match(pin, /no work item read, no state written/, 'it reads no work item and writes no state');
   assert.match(pin, /spec from the caller/, 'the spec comes from the caller');
 });
+
+test('prove-it §4 under --since fires no event and writes no report: the verdict goes back to the caller', () => {
+  const doc = fs.readFileSync(path.join(ROOT, 'skills/prove-it/SKILL.md'), 'utf8');
+  const verdict = doc.slice(doc.indexOf('## 4.'), doc.indexOf('## 5.')).replace(/\s+/g, ' ');
+  const carve = verdict.search(/With `--since` \(no id, round, event or audit write\): return verdict and findings\./);
+  assert.ok(carve >= 0, 'the carve-out sits in the verdict section');
+  // It leads the section, so it governs every bullet that names an event.
+  for (const event of ['event <id> block', 'event <id> audit-pass', 'event <id> audit-fail']) {
+    assert.ok(carve < verdict.indexOf(event), `the carve-out comes before ${event}`);
+  }
+  assert.ok(doc.split('\n').length - 1 <= 100, 'the carve-out fits the 100-line budget');
+  // §5 routes by id and round, so each route says what `--since` does.
+  const route = doc.slice(doc.indexOf('## 5.')).replace(/\s+/g, ' ');
+  assert.match(route, /`PASS`: return `done`\. Called by `do-it` or with `--since`/, 'a --since PASS returns done and names no id');
+  assert.match(route, /`FAIL`, round 1 or 2 \(any `--since` FAIL\): return `failed`/, 'a --since FAIL has no round to branch on');
+});

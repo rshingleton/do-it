@@ -3,7 +3,7 @@
 Nice-to-haves and things to circle back to. Managed by log-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T354
+Next id: T359
 
 ## Open
 
@@ -108,7 +108,8 @@ Next id: T354
 - [ ] T342 `skills/do-it/scripts/changeset.mjs:270` freezes the hash at git's empty blob when a plan's `## Files` entry cannot be matched (a line like `- a.js (new)`), so that item's own change never reads `STALE_VERIFY`; an unmatched path should throw or fall back to the whole tree `debt` (R30 review)
 - [ ] T343 `skills/do-it/scripts/work.mjs:148` says "so only the audit's diff catches it", but `skills/prove-it/SKILL.md` scopes the audit diff to the same `## Files`, so an out-of-plan edit is caught by neither `nice-to-have` (R30 review)
 - [ ] T344 The merged gate inherits the fingerprint's file scope, so it no longer reports `STALE_VERIFY` when another item's file changes after a slice's merged check; the plan's Non-goals said the merged check was out of scope `nice-to-have` (R30 review)
-- [ ] T351 `skills/do-it/LANES.md:51` still says each track "builds and audits one slice", the claim t305-track-audit reverses; say builds and point at TRACKS.md's audit `nice-to-have` (t305-track-audit audit)
-- [ ] T352 `docs/adr/0012-coordinator-plus-tracks.md:7` says "A track builds and audits its slice" while the amendment in the same ADR reverses it; mark the clause superseded by 0015 `nice-to-have` (t305-track-audit audit)
-- [ ] T353 `skills/finish-it/TRACKS.md:81` parks a slice whose review axis is unverified, while prove-it blocks and `A failed track` removes the worktree; a `run slice ... blocked` keeps the tree the retry needs `debt` (t305-track-audit audit)
-- [ ] T345 `skills/finish-it/TRACKS.md:75` says the coordinator writes the audit report, while prove-it §4 still writes findings and fires `audit-pass` in every mode; carve `--since` out in prove-it §4 `debt` (t305-track-audit audit)
+- [ ] T354 `skills/prove-it/SKILL.md:92-94` still says "the `block` event above set" and names `unblock`/`build-done`, with no `--since` case; a fresh reviewer rejected it as a nit in round 2, two later reviewers raised it as a Should `nice-to-have` (track-audit-followups audit)
+- [ ] T355 `skills/prove-it/SKILL.md:55`: the `--since` sentence ends the validate paragraph instead of leading §4 (the test comment says it leads), and "audit write" does not plainly cover the lane S and M write-up at line 66 `nice-to-have` (track-audit-followups audit)
+- [ ] T356 `skills/prove-it/SKILL.md:82`: "Called by `do-it` or with `--since`, let it continue" gives "it" no referent when the coordinator is the caller `nice-to-have` (track-audit-followups audit)
+- [ ] T357 `tests/tracks-verify.test.mjs:168-185` repeats the 100-line budget that `npm run check` enforces, and slices §4 with `indexOf('## 4.')`, which hides a renamed heading behind an empty slice `nice-to-have` (track-audit-followups audit)
+- [ ] T358 `skills/do-it/LANES.md:51-53` runs one line past the others where two sentences join, and `skills/prove-it/SKILL.md` rewords the Guardrail paragraph only to free a line for the 100-line budget `nice-to-have` (track-audit-followups audit)

@@ -79,7 +79,8 @@ instead, where a reviewer does start cold.
    them, `run verify --in` records the fix, and the next round repeats 2 and 3. A Must
    that session cannot fix parks the slice (A failed track).
 5. An unverified axis is no pass: run that reviewer once more in the same round, and
-   if it is still unverified, park the slice naming the axis. Nothing merges.
+   if it is still unverified, park the slice naming the axis, which keeps its worktree
+   and branch (A failed track). Nothing merges.
 6. PASS: merge (below). After the merged check and the scoped merge review, the
    coordinator fires `build-done` then `audit-pass`, as a slice built in place does.
 
@@ -123,7 +124,9 @@ the coordinator's tree is the merged tree, so never two at once.
   `work.mjs run slice <slug> <slice> parked --needs user --reason "<why>"`
   (`--needs decision` when the report asks a question), remove its worktree and
   branch, and go on with the tracks still running and the next round. The run never
-  reruns a failed track; `--resume` starts it again.
+  reruns a failed track; `--resume` starts it again. An unverified axis is the
+  exception: that slice keeps its worktree and branch, and `--resume` audits that
+  tree again, because the build is sound and only the review failed.
 - A conflict merge-it cannot settle: `git merge --abort`, park the slice with the
   conflicting files and what merge-it tried, and go on.
 

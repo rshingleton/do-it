@@ -52,6 +52,7 @@ finding, recorded decisions are not findings, numbered Must / Should / Nice.
 Then validate every Must except failed mechanical checks per
 [VALIDATE.md](VALIDATE.md): a fresh `it-reviewer` agent confirms or rejects each
 from the code alone; rejected ones move to **Not confirmed** and stop blocking.
+With `--since` (no id, round, event or audit write): return verdict and findings.
 
 - Any confirmed **Must**: `FAIL`.
 - A review axis that is **unverified** (a reviewer that errored, timed out or
@@ -78,11 +79,11 @@ A refused event (the script exits 1) is `blocked`.
 
 ## 5. Route
 
-- `PASS`: return `done`. Called by `do-it`, let it continue; run alone, say
-  **Next:** `/ship-it <id>`.
-- `FAIL`, round 1 or 2: return `failed` with the claims. `do-it` sends
-  them to `build-it`, which fixes only those (its fix mode) and hands back
-  for a re-audit scoped and ordered per [ROUNDS.md](ROUNDS.md).
+- `PASS`: return `done`. Called by `do-it` or with `--since`, let it continue;
+  run alone, say **Next:** `/ship-it <id>`.
+- `FAIL`, round 1 or 2 (any `--since` FAIL): return `failed` with the claims.
+  `do-it` sends them to `build-it`, which fixes only those (its fix mode) and
+  hands back for a re-audit scoped and ordered per [ROUNDS.md](ROUNDS.md).
 - `FAIL`, round 3 or later (script sets `status: blocked`): return `blocked`.
   Show the Musts and ask the user whether to fix (`unblock`; the round
   count continues), accept with a recorded decision (add it to the plan's
@@ -94,7 +95,6 @@ A refused event (the script exits 1) is `blocked`.
 
 Should and Nice findings never block or start a re-audit. `ship-it` carries
 them into the changelog or ADR notes, and with no changelog offers to log them
-as to-dos. Mechanical rules that keep failing are listed as
-**Guardrail candidates**: rules for `.compliance-rules/checks.json` or the
-lint config, so the hooks catch them next time. `/retro-it` turns them into
-those rules.
+as to-dos. Mechanical rules that keep failing are listed as **Guardrail
+candidates** (rules for `.compliance-rules/checks.json` or the lint
+config); `/retro-it` turns them into those rules.

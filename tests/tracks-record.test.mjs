@@ -277,3 +277,23 @@ test('T255 and R22 name the coordinator\'s audit, not a track\'s prove', () => {
   assert.match(r22, /The coordinator's audit of a track takes the slot/, 'its verify names the audit');
   assert.doesNotMatch(r22, /a track's prove-it takes a check slot/, 'the old wording is gone');
 });
+
+test('an unverified axis parks the slice but keeps its worktree and branch, and --resume audits that tree', () => {
+  const doc = fs.readFileSync(path.join(ROOT, 'skills/finish-it/TRACKS.md'), 'utf8');
+  const audit = section(doc, 'The audit').replace(/\s+/g, ' ');
+  assert.match(audit, /unverified axis is no pass/, 'the existing rule stands');
+  assert.match(audit, /park the slice naming the axis, which keeps its worktree and branch/, 'the audit step keeps the tree');
+  const failed = section(doc, 'A failed track').replace(/\s+/g, ' ');
+  assert.match(failed, /unverified axis[^.]*keeps its worktree and branch[^.]*`--resume` audits that tree again/, 'the failed-track rule names the exception');
+});
+
+test('LANES.md says a track builds one slice and the coordinator audits it', () => {
+  const lanes = fs.readFileSync(path.join(ROOT, 'skills/do-it/LANES.md'), 'utf8').replace(/\s+/g, ' ');
+  assert.doesNotMatch(lanes, /builds and audits one slice/, 'a track no longer audits');
+  assert.match(lanes, /builds one slice[^.]*coordinator audits it[^.]*TRACKS\.md/, 'the audit points at TRACKS.md');
+});
+
+test('ADR 0012 marks its "builds and audits its slice" clause superseded by 0015', () => {
+  const adr = fs.readFileSync(path.join(ROOT, 'docs/adr/0012-coordinator-plus-tracks.md'), 'utf8').replace(/\s+/g, ' ');
+  assert.match(adr, /builds and audits its slice[^.]*superseded by \[0015\]\(0015-coordinator-audits-track-slices\.md\)/, 'the clause carries its supersession');
+});

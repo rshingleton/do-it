@@ -4,7 +4,7 @@ status: Accepted
 
 # Coordinator plus tracks
 
-A `--complete` run can hand one independent slice each to up to five worktree tracks. A track builds and audits its slice on its own `do-it/<slug>--<slice>` branch; the coordinator owns scope, the audit-round count, the run record, the gate, the merges, the ship and every closing doc, so one run still has one record, one branch and one final review. `--tracks` defaults to 1 and `DO_IT_TRACKS` defaults to 3, so a run that does not ask behaves exactly as before. The contract is [TRACKS.md](../../skills/finish-it/TRACKS.md), and the key is in [CONFIG.md](../../skills/track-it/CONFIG.md).
+A `--complete` run can hand one independent slice each to up to five worktree tracks. A track builds and audits its slice (the audit half superseded by [0015](0015-coordinator-audits-track-slices.md)) on its own `do-it/<slug>--<slice>` branch; the coordinator owns scope, the audit-round count, the run record, the gate, the merges, the ship and every closing doc, so one run still has one record, one branch and one final review. `--tracks` defaults to 1 and `DO_IT_TRACKS` defaults to 3, so a run that does not ask behaves exactly as before. The contract is [TRACKS.md](../../skills/finish-it/TRACKS.md), and the key is in [CONFIG.md](../../skills/track-it/CONFIG.md).
 
 The design follows a measured bar, not the assumption that more agents are faster. A track that only builds bought 1.08x to 1.19x, and one that builds and proves bought 1.65x on the same slices. Two real tracks landed 2.0x wall clock on game-skillet R18 and R19. Prove overlap is the lever, so the mode is shaped to overlap audit rounds, and a slice with no room to audit beside another is not paired.
 
