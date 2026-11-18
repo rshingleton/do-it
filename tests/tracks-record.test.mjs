@@ -43,7 +43,7 @@ function fixture(runFlags = []) {
     '| R2 | feat | bus | low | - | ready |',
     '',
   ].join('\n'));
-  for (const [id, slice, file] of [['api', 'R1', 'src/api.js'], ['bus', 'R2', 'src/bus.js']]) {
+  for (const [id, slice, file] of [['api', 'R1', 'src/api.js,src/other.js'], ['bus', 'R2', 'src/bus.js']]) {
     ok(work(dir, 'new', id, '--lane', 's', '--title', id));
     ok(work(dir, 'set', id, 'roadmap', JSON.stringify(`docs/roadmap/r.md#${slice}`)));
     ok(work(dir, 'event', id, 'approve'));
@@ -159,8 +159,10 @@ test('a spent run total refuses every track and names the run total', () => {
 test('the slice ships on the merged tree\'s fingerprint: an edit after ship-prepare is STALE_VERIFY', () => {
   const dir = fixture();
   const wt = tracks(dir).tracks[0].worktree;
-  // The coordinator's own change, so a fingerprint taken from the wrong tree shows.
-  fs.writeFileSync(path.join(dir, 'coord.js'), 'export const coord = 1;\n');
+  // The coordinator's own change, to a file the item's plan names, so a fingerprint taken from the
+  // wrong tree shows.
+  fs.mkdirSync(path.join(dir, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'src/other.js'), 'export const other = 1;\n');
   fs.mkdirSync(path.dirname(wt), { recursive: true });
   git(dir, 'worktree', 'add', '-q', wt, '-b', 'do-it/road--R1');
   fs.mkdirSync(path.join(wt, 'src'), { recursive: true });
