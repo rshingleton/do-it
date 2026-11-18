@@ -99,7 +99,6 @@ Next id: T373
 - [ ] T333 `skills/do-it/scripts/digest.mjs:25` marks an `earlier` entry by appending `(earlier)`, so a replacement text that already ends that way and is re-added prints `(earlier) (earlier)` `nice-to-have` (R19 review)
 - [ ] T334 `skills/do-it/scripts/digest.mjs:16` uses `Number.isFinite(Number(v))`, so a usage figure of `true` prints `input 1` and `[5]` prints 5; require a number or numeric string `nice-to-have` (R19 review)
 - [ ] T335 `scripts/install-hooks.mjs:119-121`'s `plugin`-key signal is untested: deleting that branch leaves the suite green, while it works when tried by hand `nice-to-have` (R27 round-3 review)
-- [ ] T336 On Windows `opencode --version` never runs (a `.cmd` `execFileSync` cannot launch), so the hook-form note fires on every install there; a probe that works or a quieter note would `debt` (R27 round-3 review)
 - [ ] T338 `skills/do-it/scripts/gate.mjs:187`'s comment says "the verified rounds in a row" where the check counts failed rounds `nice-to-have` (R23 review)
 - [ ] T339 `skills/do-it/scripts/runs.mjs:239` claims a flaky park cannot hide the count, but no test asserts `verify_failures` after a FLAKY round `nice-to-have` (R23 review)
 - [ ] T340 `skills/setup-it/scripts/default-branch.mjs:10` says "Always exits 0", then states `git()` throws; with git off PATH the CLI exits 1 with a stack, so the line should read "exits 0 for every answer" `nice-to-have` (R26 review)
