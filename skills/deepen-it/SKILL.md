@@ -38,6 +38,10 @@ friction, not fixes:
 - an interface is nearly as large as what sits behind it;
 - logic was split into pure helpers for testing, but the bugs live in how
   they are wired together;
+- a function or file with one caller hides nothing, a shared function keeps
+  gaining parameters or flags per caller, or an abstraction rests on fewer
+  than three real uses (inline these; skip thin code kept on purpose, per the
+  guards in [SMELLS.md](../review-it/SMELLS.md));
 - callers reach past a seam into internals;
 - the behaviour that matters most cannot be tested through any interface.
 

@@ -69,6 +69,9 @@ build transcript; findings name paths and lines, not pasted code.
 
 > Find (a) requirements missing or only partly done, (b) behaviour added that
 > nobody asked for, (c) requirements that look done but behave wrongly.
+> For (b), an unrequested public API, option, data format or shared helper is
+> `Should` at least; internal code may be `Nice`. For (c), a larger timeout,
+> a disabled safeguard or an edited test expectation fixes the symptom.
 > One line per finding: `Must|Should|Nice | file:line | claim | case`, the
 > case quoting the spec line. Under 40 words a line, 300 in all.
 

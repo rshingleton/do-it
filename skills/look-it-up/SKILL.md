@@ -19,6 +19,11 @@ in use (check the repo's lockfile or manifest for it), the source code, the
 spec or RFC, the vendor's changelog or release notes. Blog posts, forums and
 answers sites only point toward a primary source; they never settle a claim.
 
+When the answer will shape a skill or doc here, the source's licence comes
+first: read its licence file, add a row to `docs/SOURCES.md` (SPDX id, use,
+date), and treat a source with no licence, a GPL-family or a non-commercial one
+as idea-only: take the idea, write the text fresh.
+
 ## 2. Send it out
 
 Start one background agent on the mid-tier model (`model: sonnet` in Claude

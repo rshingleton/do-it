@@ -507,6 +507,9 @@ Design: [docs/DESIGN.md](docs/DESIGN.md). Decisions: [docs/adr/](docs/adr/).
 do-it began as a rewrite of the Doc Cycle in
 [rshingleton/skills](https://github.com/rshingleton/skills) and borrows ideas
 from several other repos. All text here is this repo's own; no code is copied.
+Each source's licence and what was taken are recorded in
+[docs/SOURCES.md](docs/SOURCES.md); see [CONTRIBUTING.md](CONTRIBUTING.md) for
+how to add one.
 
 | Source | What do-it took from it |
 |--------|-------------------------|
@@ -517,7 +520,8 @@ from several other repos. All text here is this repo's own; no code is copied.
 | [juliusbrussee/caveman](https://github.com/juliusbrussee/caveman) | Terse voice and fixed report shapes with word caps for internal agent text. Its proxy, compress and per-turn tools are not used |
 | [shinpr/claude-code-workflows](https://github.com/shinpr/claude-code-workflows) | For the complete run: one batch approval, a per-task commit gate, a boundary check before staging, readiness states for decisions, and a final review of the whole change |
 | [glebis/claude-skills](https://github.com/glebis/claude-skills) | For the complete run, from its feature-factory: two gates, a flaky check counted as a failure, a plan audit, and short retro lines |
-| [mattpocock/skills](https://github.com/mattpocock/skills) (MIT) | The starting points for the discipline skills, rewritten here: `grill-it`, `name-it`, `design-it`, `test-it`, `debug-it`, `review-it`, `look-it-up`, `sketch-it`, `pass-it`, `skill-it`, `deepen-it`, `retro-it` |
+| [chinmaypandya/noman](https://github.com/chinmaypandya/noman) | Three review checks in `review-it`: weighing an unrequested public API or shared helper above internal code, fixing a cause rather than a symptom, and flagging hard-coded lists |
+| [mattpocock/skills](https://github.com/mattpocock/skills) (MIT) | The ideas behind the discipline skills, written fresh here: `grill-it`, `name-it`, `design-it`, `test-it`, `debug-it`, `review-it`, `look-it-up`, `sketch-it`, `pass-it`, `skill-it`, `deepen-it`, `retro-it` |
 
 Where do-it runs on or calls other tools, they keep their own licenses and
 terms: [Claude Code](https://claude.com/claude-code),

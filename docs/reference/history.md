@@ -395,3 +395,13 @@ One central history; shipping removes every plan and run file. 2026-11-18, lane 
 - Plan files a review commit swept in are `git rm`ed and committed as `<id>: remove the plan files`; commit-now never stages `docs/planning/`.
 - Assumptions kept: entries are never pruned; no code guard on deleting a plan with no entry.
 - Findings logged: T367 to T372. T309 closed.
+
+### source-licence-gate
+
+Source licence gate, with thin-code and noman review checks. 2026-11-19, lane S, commit message prefix `source-licence-gate:` (ADR [0017](../adr/0017-source-licence-gate.md)).
+
+- Every outside source gets a row in `docs/SOURCES.md` (SPDX licence, idea-only or copied, what was taken) before it shapes anything; a source with no licence is idea-only. Enforced by `.compliance-rules/licensing.md` (guard-it), a Fit line in `review-it`, and a step in `look-it-up`; `CONTRIBUTING.md` tells contributors.
+- `review-it`: unrequested public surface weighs higher, symptom fixes and hard-coded lists are flagged (noman), and three smells (one-use helper, early extraction, wrong abstraction) carry false-positive guards. `deepen-it` checks the same.
+- Overlap check against mattpocock/skills found one near-derivative file, `deepen-it/HTML-REPORT.md`; it was rewritten from scratch and the LICENSE notice dropped on the owner's word that nothing is adapted.
+- Assumptions kept: lane S; manifest at `docs/SOURCES.md`; `none` means idea-only; no scripted credits check yet; `.compliance-rules/` is safe to add.
+- Not done: a scripted credits-to-manifest check; confirming with the ballet and andrej-karpathy-skills authors.
