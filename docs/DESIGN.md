@@ -380,9 +380,11 @@ do-it/
   - `sweep-it`: pre-existing problems, ranked, concrete cases, files what the
     user picks (replaces `doc-it` phase 2 and the old `audit-it repo` mode;
     adds ponytail-audit's lenses).
-  - `deepen-it`: upstream mattpocock `improve-codebase-architecture`, plus a
-    hand-off to `do-it` or `log-it`.
-  - `look-it-up`: mattpocock `research`, unchanged.
+  - `deepen-it`: inspired by mattpocock's `improve-codebase-architecture`,
+    written fresh here (report page included), plus a hand-off to `do-it` or
+    `log-it`.
+  - `look-it-up`: inspired by mattpocock's `research`, written fresh here, with
+    a source-licence step.
 - **Project docs resolve per repo.** Context map (`CONTEXT-MAP.md`), context
   (`CONTEXT.md`), changelog, ADR and reference directories are detected or
   configured once (`resolveDocs` in the shared config) and injected into every

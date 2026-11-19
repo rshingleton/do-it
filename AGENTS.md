@@ -35,7 +35,9 @@ skills, file layout, line budget, `-it` names) is in
 - A new model-invoked skill needs positive and negative prompts in
   `evals/routing.json`; `npm run check` runs the routing eval.
 - Skills are written in this repo's own words. Ideas from other repos are
-  welcome and credited in the README; their text is not copied in.
+  welcome and credited in the README; their text is not copied in. Check a
+  source's licence first and record it in `docs/SOURCES.md`
+  ([CONTRIBUTING.md](CONTRIBUTING.md)).
 - No em-dashes in skills.
 - No runtime dependencies. Node 18+ built-ins and bash only.
 - Hooks fail open: a crash or bad input must never block the agent.

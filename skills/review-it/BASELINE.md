@@ -16,6 +16,9 @@ module depth and seams (design-it).
 - **Comments say why.** A comment earns its place by explaining a non-obvious
   reason; one that repeats what the code says is noise.
 
+- **Sources are recorded.** A new credit, or text taken from outside, has a row
+  in `docs/SOURCES.md` with its licence, and an idea-only source brings no text.
+
 ## Hygiene
 
 - UTF-8 text, LF line endings unless `.gitattributes` says otherwise.
