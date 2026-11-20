@@ -405,3 +405,13 @@ Source licence gate, with thin-code and noman review checks. 2026-11-19, lane S,
 - Overlap check against mattpocock/skills found one near-derivative file, `deepen-it/HTML-REPORT.md`; it was rewritten from scratch and the LICENSE notice dropped on the owner's word that nothing is adapted.
 - Assumptions kept: lane S; manifest at `docs/SOURCES.md`; `none` means idea-only; no scripted credits check yet; `.compliance-rules/` is safe to add.
 - Not done: a scripted credits-to-manifest check; confirming with the ballet and andrej-karpathy-skills authors.
+
+### parallel-builds
+
+Parallel builds start from a dirty tree. 2026-11-19, lane M, commit message prefix `parallel-builds:` (ADR [0018](../adr/0018-adopt-in-place-work-for-parallel-builds.md)).
+
+- build-it picks its mode once per item from the plan's waves; a wave wider than one means every phase builds in a worktree, so one early in-place phase no longer turns later waves sequential. scope-it shows the waves at approval.
+- A dirty tree is adopted as the first scratch commit through a temporary index (the user's index, branch and stash untouched); `land` applies only the delta built since, or changes nothing and names the scratch branch. `skills/build-it/scripts/parallel.mjs`, `tests/parallel-land.test.mjs`.
+- The audit took three fix rounds' worth of review: non-UTF-8 bytes, then user diff and apply config (`apply.whitespace=fix` altered landed bytes) and pathspec env switches. Lessons: pin every git read that feeds `git apply`, and test with hostile user config.
+- Assumptions kept: waves are computed, not stored; ignored files stay out of the snapshot; `--complete` runs and tracks are unchanged; plugin 0.3.5 to 0.3.6.
+- Findings logged: T373 to T378, and an issue for the date-dependent `usage` test fixture.

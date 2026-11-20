@@ -3,7 +3,7 @@
 Nice-to-haves and things to circle back to. Managed by log-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T373
+Next id: T379
 
 ## Open
 
@@ -125,3 +125,9 @@ Next id: T373
 - [ ] T370 A `--complete` run that stops early (a cap, a parked slice nobody resumes) keeps `<slug>.run/` indefinitely: no abandon path removes it with its record `nice-to-have` (central-history audit)
 - [ ] T371 `tests/run-remove.test.mjs` repeats the shipped-rows roadmap fixture and its unknown-slug assertion does not match its error; the DIGEST and plan-removal tests pin substrings; the not-written-DIGEST assertion is in `tests/digest.test.mjs` and `tests/run-gate.test.mjs` `nice-to-have` (central-history audit)
 - [ ] T372 `skills/finish-it/DIGEST.md:34` says "for §4" where SKILL.md's §4 is the closing report; `skills/ship-it/SKILL.md:77`, `DOCS.md:12` and `RESUME.md:22` run past the 80 columns their neighbours wrap at `nice-to-have` (central-history audit)
+- [ ] T373 `skills/build-it/scripts/parallel.mjs:82`: `land` writes through `git apply`, so the user's EOL config (`core.autocrlf`, `.gitattributes eol=crlf`) turns an LF delta into CRLF; it matches the user's own checkout, so say so in PARALLEL.md or pin it `nice-to-have` (parallel-builds audit)
+- [ ] T374 `skills/build-it/scripts/parallel.mjs`: `land` passes `GIT_DIR` and `GIT_WORK_TREE` from the caller's env through to git, so a caller that sets them can aim it at another repo `nice-to-have` (parallel-builds audit)
+- [ ] T375 `skills/build-it/scripts/parallel.mjs:17`: `gitBytes(cwd, args, input)` and `gitOut(cwd, args, env, input)` order their parameters differently; move `gitBytes` beside `gitOut` in `git.mjs` if a second caller appears `nice-to-have` (parallel-builds audit)
+- [ ] T376 `skills/build-it/scripts/parallel.mjs:25`: `excludes` repeats how `work.mjs` finds the planning dir and issue store; share one helper `debt` (parallel-builds audit)
+- [ ] T377 `skills/build-it/scripts/parallel.mjs:55-56`: if the second `git branch` in `snapshot` fails, the `--snapshot` ref is left behind; delete it on failure `nice-to-have` (parallel-builds audit)
+- [ ] T378 `skills/build-it/scripts/parallel.mjs`: `do-it/<id>`, `--snapshot` and `--phase-N` names are built in `snapshot`, `land` and PARALLEL.md separately; one `branches(id)` helper `nice-to-have` (parallel-builds audit)
