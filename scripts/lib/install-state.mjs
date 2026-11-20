@@ -48,6 +48,34 @@ export const under = (target, prefix) => norm(target).startsWith(norm(prefix) + 
 
 export const hashFile = (p) => crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex');
 
+// A stable hash of a directory's contents, so a directory copy can be told from
+// one edited after the install, the same way a single-file copy is. Paths are
+// relative to `dir`, sorted, and carry their kind, so a rename changes the hash
+// even when the bytes match.
+export function hashTree(dir) {
+  const hash = crypto.createHash('sha256');
+  const walk = (rel) => {
+    const base = rel ? path.join(dir, rel) : dir;
+    const items = fs
+      .readdirSync(base, { withFileTypes: true })
+      .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+    for (const item of items) {
+      const inner = rel ? `${rel}/${item.name}` : item.name;
+      const at = path.join(base, item.name);
+      if (item.isDirectory()) {
+        hash.update(`d ${inner}\n`);
+        walk(inner);
+      } else if (item.isSymbolicLink()) {
+        hash.update(`l ${inner} ${fs.readlinkSync(at)}\n`);
+      } else {
+        hash.update(`f ${inner} ${hashFile(at)}\n`);
+      }
+    }
+  };
+  walk('');
+  return hash.digest('hex');
+}
+
 export const manifestPath = (home) => path.join(home, '.claude', 'do-it', 'install.json');
 
 // The copies an install made, telling "no copies" from "could not read": a

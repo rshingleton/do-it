@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-// Install do-it from this checkout by links, for Claude Code and OpenCode, on
-// any platform.
+// Install do-it from this checkout, for Claude Code and OpenCode, on any
+// platform.
 //
-//   node scripts/install.mjs [--no-hooks] [--force] [--dry-run] [--uninstall]
+//   node scripts/install.mjs [--link] [--no-hooks] [--force] [--dry-run] [--uninstall]
 //
 // Skills:   skills/<name>    -> ~/.claude/skills/<name> and ~/.agents/skills/<name>
 // Agents:   agents/<name>.md -> ~/.claude/agents/<name>.md (Claude Code only)
@@ -12,27 +12,34 @@
 // Hooks:    on by default; registered in ~/.claude/settings.json and
 //           ~/.config/opencode/opencode.json (backups written alongside).
 //
+// Every entry is copied, so the install outlives the checkout: someone who is
+// not developing do-it can delete the clone once its hooks are deregistered.
+// `--link` installs links into the checkout instead, which is the development
+// mode: edits are live and nothing has to be re-copied after a pull. Hooks and
+// the OpenCode plugin stay registered by absolute path from the checkout the
+// installer ran in; copies are for skills, agents and commands.
+//
 // The root an install runs from: `install({ root })`, else `DO_IT_HOME`, else
 // this checkout. `DO_IT_HOME` is read once, and only when no root is given.
 //
 // A link is a symlink. Where Windows refuses one (no Developer Mode), a
-// directory becomes a junction and a file becomes a copy; copies are listed in
-// ~/.claude/do-it/install.json so a re-run refreshes them and --uninstall
-// removes only them. An existing entry that is not ours is left alone unless
-// --force.
+// directory becomes a junction and a file becomes a copy; every copied entry is
+// listed in ~/.claude/do-it/install.json so a re-run refreshes it and
+// --uninstall removes only it. An existing entry that is not ours is left alone
+// unless --force.
 
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { ROOT } from './lib/skills.mjs';
-import { hashFile, norm, readManifest, sameTarget, under, writeManifest } from './lib/install-state.mjs';
+import { hashFile, hashTree, norm, readManifest, sameTarget, under, writeManifest } from './lib/install-state.mjs';
 // The ref this installer prints comes from lib/read-ref.mjs, so the doctor can
 // plan its links through this module without the two importing each other.
 import { fetchText, plural, readRef } from './lib/read-ref.mjs';
 import { isMain } from '../skills/it-core/scripts/is-main.mjs';
 
-const USAGE = 'usage: install.mjs [--no-hooks] [--force] [--dry-run] [--uninstall]';
+const USAGE = 'usage: install.mjs [--link] [--no-hooks] [--force] [--dry-run] [--uninstall]';
 
 // A directory with nothing in it is not a skill. An untracked `skills/<name>`
 // made and then emptied would otherwise be planned, linked and, in the doctor's
@@ -57,7 +64,7 @@ const entries = (dir, want) => {
   }
 };
 
-// The links an install makes: [{ src, dst, kind: 'dir' | 'file' }], in the order
+// The entries an install places: [{ src, dst, kind: 'dir' | 'file' }], in the order
 // install.sh made them. `configHome` is XDG_CONFIG_HOME or ~/.config.
 export function planLinks(root, home, configHome = path.join(home, '.config')) {
   const plan = [];
@@ -74,11 +81,16 @@ export function planLinks(root, home, configHome = path.join(home, '.config')) {
 
 const REFUSED = new Set(['EPERM', 'EACCES', 'ENOTSUP', 'ENOSYS']);
 
-// Put `src` at `dst`: a symlink; failing that a junction (directory, Windows)
-// or a copy (file). Returns 'symlink', 'junction' or 'copy'. Any other error,
-// such as EEXIST, is thrown.
-export function place(src, dst, { fs: f = fs, platform = process.platform } = {}) {
+// Put `src` at `dst`: a copy, or with `link` a symlink (failing that a junction
+// for a directory on Windows, or a copy for a file). Returns 'copy', 'symlink'
+// or 'junction'. Any other error, such as EEXIST, is thrown.
+export function place(src, dst, { fs: f = fs, platform = process.platform, link = false } = {}) {
   const isDir = f.statSync(src).isDirectory();
+  if (!link) {
+    if (isDir) f.cpSync(src, dst, { recursive: true });
+    else f.copyFileSync(src, dst);
+    return 'copy';
+  }
   try {
     f.symlinkSync(src, dst, isDir ? 'dir' : 'file');
     return 'symlink';
@@ -95,6 +107,32 @@ export function place(src, dst, { fs: f = fs, platform = process.platform } = {}
 }
 
 const lstat = (p) => fs.lstatSync(p, { throwIfNoEntry: false });
+
+// Where a link points, or null when it cannot be read.
+const readlink = (p) => {
+  try {
+    return fs.readlinkSync(p);
+  } catch {
+    return null;
+  }
+};
+
+// What a manifest entry hashes: a directory by its tree, a file by its bytes.
+const hashOf = (p, kind) => (kind === 'dir' ? hashTree(p) : hashFile(p));
+
+// The copy a manifest entry records is still the one that was installed: it is
+// there, of the recorded kind, and nothing inside it changed.
+const copyUnchanged = (c) => {
+  const st = lstat(c.dst);
+  if (!st) return false;
+  const kind = c.kind === 'dir' ? 'dir' : 'file';
+  if (kind === 'dir' ? !st.isDirectory() || st.isSymbolicLink() : !st.isFile()) return false;
+  try {
+    return hashOf(c.dst, kind) === c.hash;
+  } catch {
+    return false;
+  }
+};
 
 // Remove an entry without ever following a link into what it points at.
 function removeEntry(p) {
@@ -212,14 +250,18 @@ function installDirs(root, home, configHome) {
   ];
 }
 
-// The links into this checkout that the plan no longer lists: a skill since
-// renamed or removed, a directory the plan now leaves out, or a source deleted
-// after the install. The doctor calls each one an orphan and its fix is this
-// installer, so the installer is what removes them; a link the plan lists is
-// placed or refreshed by the loop that follows.
-function pruneOrphans(root, home, configHome, plan, { dry, say, run }) {
+// The entries this checkout's install left that the plan no longer lists: a
+// skill since renamed or removed, a directory the plan now leaves out, or a
+// source deleted after the install. Links into this checkout go, and so does a
+// recorded copy nobody edited. The doctor calls each one an orphan and its fix
+// is this installer, so the installer is what removes them; an entry the plan
+// lists is placed or refreshed by the loop that follows. Returns the manifest
+// with the pruned copies dropped.
+function pruneOrphans(root, home, configHome, plan, manifest, { dry, say, run, force }) {
   const planned = new Map(); // destination directory -> the names the plan puts there
+  const plannedDst = new Set();
   for (const { dst } of plan) {
+    plannedDst.add(path.resolve(dst));
     const dir = path.dirname(dst);
     if (!planned.has(dir)) planned.set(dir, new Set());
     planned.get(dir).add(path.basename(dst));
@@ -234,19 +276,43 @@ function pruneOrphans(root, home, configHome, plan, { dry, say, run }) {
     for (const name of names) {
       if (planned.get(dir)?.has(name)) continue;
       const entry = path.join(dir, name);
-      if (!lstat(entry)?.isSymbolicLink()) continue;
-      let target;
-      try {
-        target = fs.readlinkSync(entry);
-      } catch {
-        continue;
-      }
-      if (!under(target, prefix)) continue;
+      const st = lstat(entry);
+      if (!st?.isSymbolicLink()) continue;
+      const target = readlink(entry);
+      if (target === null || !under(target, prefix)) continue;
       if (dry) run(`rm ${entry}`);
       else removeEntry(entry);
       say(`unlink ${entry} (the plan does not list it)`);
     }
   }
+  const kept = [];
+  let removed = 0;
+  const cliOwns = cliOwner(home);
+  for (const c of manifest) {
+    if (!under(c.src, root) || plannedDst.has(path.resolve(c.dst))) {
+      kept.push(c);
+      continue;
+    }
+    // Another route's copy is neither ours to remove nor still ours to record.
+    if (cliOwns(c.dst)) {
+      removed += 1;
+      continue;
+    }
+    if (!lstat(c.dst)) {
+      removed += 1; // the entry is gone, so its record goes with it
+      continue;
+    }
+    // An edited copy is the user's; --force is their word that it is not.
+    if (!force && !copyUnchanged(c)) {
+      kept.push(c);
+      continue;
+    }
+    if (dry) run(`rm -rf ${c.dst}`);
+    else removeEntry(c.dst);
+    say(`rm ${c.dst} (the plan does not list it)`);
+    removed += 1;
+  }
+  return { kept, removed };
 }
 
 // Remove what this checkout's install put down, and only that: links into this
@@ -270,30 +336,28 @@ export function uninstall({ root, home = os.homedir(), configHome, hooks = true,
     for (const name of names) {
       const entry = path.join(dir, name);
       if (!lstat(entry)?.isSymbolicLink()) continue;
-      let target;
-      try {
-        target = fs.readlinkSync(entry);
-      } catch {
-        continue;
-      }
-      if (!under(target, prefix)) continue;
+      const target = readlink(entry);
+      if (target === null || !under(target, prefix)) continue;
       if (!dry) removeEntry(entry);
       else run(`rm ${entry}`);
       say(`unlink ${entry}`);
     }
   }
   const kept = [];
+  const cliOwns = cliOwner(home);
   for (const c of manifest) {
     if (!under(c.src, root)) {
       kept.push(c);
       continue;
     }
+    // A copy the `skills` CLI now owns is not ours to uninstall, nor to record.
+    if (cliOwns(c.dst)) continue;
     const st = lstat(c.dst);
     if (!st) continue;
-    if (st.isFile() && hashFile(c.dst) === c.hash) {
+    if (copyUnchanged(c)) {
       if (!dry) removeEntry(c.dst);
-      else run(`rm ${c.dst}`);
-      say(`unlink ${c.dst}`);
+      else run(`rm -rf ${c.dst}`);
+      say(`${c.kind === 'dir' ? 'rm' : 'unlink'} ${c.dst}`);
     } else {
       say(`skip  ${c.dst} (copy was edited; left alone)`);
       kept.push(c);
@@ -305,20 +369,37 @@ export function uninstall({ root, home = os.homedir(), configHome, hooks = true,
   return host.claude || host.opencode;
 }
 
-export function install({ root, home = os.homedir(), configHome, hooks = true, force = false, dry = false, uninstall: remove = false, placeFs } = {}) {
+// A predicate: is `dst` a copy the `skills` CLI installed? Only the folder the
+// CLI writes into and the names its lock records count, so the same skill name
+// anywhere else is ours. The lock is the only place the CLI writes down what it
+// owns: ours to leave alone, not to adopt, replace or uninstall.
+function cliOwner(home) {
+  let names = new Set();
+  try {
+    const lock = JSON.parse(fs.readFileSync(path.join(home, '.agents', '.skill-lock.json'), 'utf8'));
+    names = new Set(Object.keys(lock.skills ?? {}));
+  } catch {
+    // No lock, no route to protect.
+  }
+  const dir = path.join(home, '.agents', 'skills');
+  return (dst) => names.has(path.basename(dst)) && sameTarget(path.dirname(dst), dir);
+}
+
+export function install({ root, home = os.homedir(), configHome, hooks = true, force = false, dry = false, uninstall: remove = false, link = false, placeFs } = {}) {
   root = resolveRoot(root);
   configHome = configHome || process.env.XDG_CONFIG_HOME || path.join(home, '.config');
   if (remove) return uninstall({ root, home, configHome, hooks, dry });
   const say = (s) => console.log(s);
   const run = (what) => dry && say(`would: ${what}`);
-  const manifest = readManifest(home);
   const plan = planLinks(root, home, configHome);
 
-  // Before the plan: an orphan link into this checkout has no place in it, and
-  // removing it first lets a renamed entry take the name back in the same run.
-  pruneOrphans(root, home, configHome, plan, { dry, say, run });
+  // Before the plan: an orphan entry this checkout's install left has no place
+  // in it, and removing it first lets a renamed entry take the name back in the
+  // same run.
+  const manifest = pruneOrphans(root, home, configHome, plan, readManifest(home), { dry, say, run, force });
 
-  const copies = new Map(manifest.map((c) => [c.dst, c]));
+  const copies = new Map(manifest.kept.map((c) => [c.dst, c]));
+  const cliOwns = cliOwner(home);
   const made = [];
   const dirsDone = new Set();
   for (const { src, dst, kind } of plan) {
@@ -328,56 +409,111 @@ export function install({ root, home = os.homedir(), configHome, hooks = true, f
       else fs.mkdirSync(path.dirname(dst), { recursive: true });
     }
     const st = lstat(dst);
-    if (st?.isSymbolicLink()) {
-      let target = null;
-      try {
-        target = fs.readlinkSync(dst);
-      } catch {
-        /* unreadable: treat as not ours */
-      }
-      if (target !== null && sameTarget(target, src)) continue;
-    }
     const copy = copies.get(dst);
-    if (st && kind === 'file' && st.isFile() && copy && sameTarget(copy.src, src)) {
-      if (hashFile(dst) !== copy.hash) {
-        if (!force) {
-          say(`skip  ${dst} (copy was edited; --force to replace)`);
+    const oursCopy = Boolean(copy && sameTarget(copy.src, src));
+    const target = st?.isSymbolicLink() ? readlink(dst) : null;
+    const oursLink = target !== null && sameTarget(target, src);
+
+    // A copy the `skills` CLI recorded is that route's, in either mode, and
+    // --force does not make it ours.
+    if (st && !oursLink && cliOwns(dst)) {
+      say(`skip  ${dst} (installed by the skills CLI)`);
+      continue;
+    }
+
+    if (link) {
+      // A link this run wants is already right. Our own copy becomes a link,
+      // unless the user edited it; a stranger's entry waits for --force.
+      if (oursLink) continue;
+      if (st && !force && !oursCopy) {
+        // An unrecorded copy identical to its source is an interrupted run's,
+        // which this mode finishes by linking it.
+        let same = false;
+        try {
+          same = !st.isSymbolicLink() && hashOf(dst, kind) === hashOf(src, kind);
+        } catch {
+          same = false;
+        }
+        if (!same) {
+          say(`skip  ${dst} (exists: not ours; --force to replace)`);
           continue;
         }
-      } else if (hashFile(src) === copy.hash) {
+      }
+      if (st && !force && oursCopy && !copyUnchanged(copy)) {
+        say(`skip  ${dst} (copy was edited; --force to replace)`);
         continue;
       }
-      // Our copy, or one we may replace: refresh it below.
-    } else if (st) {
-      if (!force) {
-        let what = 'not a link';
-        try {
-          if (st.isSymbolicLink()) what = fs.readlinkSync(dst);
-        } catch {
-          /* keep the default */
+    } else {
+      if (oursCopy && st) {
+        const copyKind = copy.kind === 'dir' ? 'dir' : 'file';
+        const ours = copyKind === 'dir' ? st.isDirectory() && !st.isSymbolicLink() : st.isFile();
+        if (oursLink) {
+          // Our own link with a record left beside it (an interrupted --link
+          // run): replace it with the copy this mode wants.
+        } else if (!ours) {
+          // Not the entry we recorded: a directory where a file was copied, or
+          // the reverse. The user put it there, so only --force replaces it.
+          if (!force) {
+            say(`skip  ${dst} (not the ${copyKind} copy we installed; --force to replace)`);
+            continue;
+          }
+        } else if (!copyUnchanged(copy)) {
+          if (!force) {
+            say(`skip  ${dst} (copy was edited; --force to replace)`);
+            continue;
+          }
+        } else if (hashOf(src, kind) === copy.hash) {
+          continue; // already the copy this run would make
         }
-        say(`skip  ${dst} (exists: ${what}; --force to replace)`);
-        continue;
+      } else if (st && !oursLink) {
+        if (!force) {
+          // A link that is not ours is a stranger's, never an interrupted run's.
+          if (st.isSymbolicLink()) {
+            say(`skip  ${dst} (exists: not ours; --force to replace)`);
+            continue;
+          }
+          // An entry that is not recorded, yet is byte-identical to the source,
+          // is a copy an interrupted run left: adopt it rather than asking for
+          // --force. Anything else is a stranger's.
+          let same = false;
+          try {
+            same = hashOf(dst, kind) === hashOf(src, kind);
+          } catch {
+            same = false;
+          }
+          if (!same) {
+            say(`skip  ${dst} (exists: not ours; --force to replace)`);
+            continue;
+          }
+          made.push(kind === 'dir' ? { src, dst, kind: 'dir', hash: hashOf(dst, 'dir') } : { src, dst, hash: hashOf(dst, 'file') });
+          say(`keep  ${dst} (an unrecorded copy that matches the source)`);
+          continue;
+        }
       }
     }
+
     if (st) {
       if (dry) run(`rm -rf ${dst}`);
       else removeEntry(dst);
     }
     if (dry) {
-      run(`ln -s ${src} ${dst}`);
-      say(`link  ${dst}`);
+      run(link ? `ln -s ${src} ${dst}` : `cp -R ${src} ${dst}`);
+      say(`${link ? 'link' : 'copy'}  ${dst}`);
       continue;
     }
-    const how = place(src, dst, placeFs ? { fs: placeFs } : {});
-    if (how === 'copy') made.push({ src, dst, hash: hashFile(dst) });
-    say(`link  ${dst}${how === 'symlink' ? '' : ` (${how})`}`);
+    const how = place(src, dst, { ...(placeFs ? { fs: placeFs } : {}), link });
+    if (kind === 'dir' && how === 'copy') made.push({ src, dst, kind: 'dir', hash: hashTree(dst) });
+    else if (how === 'copy') made.push({ src, dst, hash: hashFile(dst) });
+    say(`${link ? 'link' : 'copy'}  ${dst}${how === 'symlink' || how === 'copy' ? '' : ` (${how})`}`);
   }
 
   if (!dry) {
     const refreshed = new Set(made.map((c) => c.dst));
-    const live = [...manifest.filter((c) => !refreshed.has(c.dst) && lstat(c.dst)?.isFile()), ...made];
-    if (live.length !== manifest.length || made.length) writeManifest(home, live);
+    const live = [
+      ...manifest.kept.filter((c) => !refreshed.has(c.dst) && lstat(c.dst) && (c.kind === 'dir' ? lstat(c.dst).isDirectory() : lstat(c.dst).isFile())),
+      ...made,
+    ];
+    if (manifest.removed || live.length !== manifest.kept.length || made.length) writeManifest(home, live);
   }
 
   // Before the hooks block: a hook failure returns early, and the line is the
@@ -393,9 +529,10 @@ export function install({ root, home = os.homedir(), configHome, hooks = true, f
 }
 
 function main(argv) {
-  const o = { hooks: true, force: false, dry: false, uninstall: false };
+  const o = { hooks: true, force: false, dry: false, uninstall: false, link: false };
   for (const arg of argv) {
-    if (arg === '--no-hooks') o.hooks = false;
+    if (arg === '--link') o.link = true;
+    else if (arg === '--no-hooks') o.hooks = false;
     else if (arg === '--force') o.force = true;
     else if (arg === '--dry-run') o.dry = true;
     else if (arg === '--uninstall') o.uninstall = true;

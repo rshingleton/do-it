@@ -3,8 +3,10 @@
 //
 //   node scripts/doctor.mjs [--home <dir>] [--config-home <dir>] [--root <checkout>] [--fetch] [--json]
 //
-// The symlink install places a link per skill, agent and OpenCode file, and
-// records a copy where the platform refuses a link (scripts/install.mjs). This
+// The managed install puts a copy of every skill, agent and OpenCode file where
+// the host reads it, and records each in install.json (scripts/install.mjs).
+// With --link an entry is a link into the checkout instead, and this read-back
+// accepts either. This
 // command reads those entries back:
 //
 //   ok           the planned link points at its source, or the copy matches it
@@ -49,7 +51,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { ROOT } from './lib/skills.mjs';
-import { hashFile, manifestPath, readManifestState, sameTarget, under } from './lib/install-state.mjs';
+import { hashFile, hashTree, manifestPath, readManifestState, sameTarget, under } from './lib/install-state.mjs';
 import { fetchText, firstLine, plural, readRef } from './lib/read-ref.mjs';
 import { hostBin } from './lib/host-bin.mjs';
 import { pluginPaths } from './install-hooks.mjs';
@@ -89,7 +91,7 @@ function linkFindings(plan, copyAt, fix) {
     if (copyAt.has(path.resolve(dst))) continue; // the copy pass reports it
     const st = lstat(dst);
     if (!st) {
-      findings.push({ state: 'missing', entry: dst, detail: `no link; the plan has one to ${src}`, fix });
+      findings.push({ state: 'missing', entry: dst, detail: `nothing installed; the plan has ${src}`, fix });
       continue;
     }
     if (!st.isSymbolicLink()) {
@@ -122,18 +124,20 @@ function copyFindings(copies, root, fix) {
       else findings.push({ state: 'foreign', entry: c.dst, detail: `a link to ${target ?? 'an unreadable target'}, not the recorded copy`, fix });
       continue;
     }
-    if (!st.isFile()) {
-      findings.push({ state: 'foreign', entry: c.dst, detail: 'a directory is in place of the recorded copy', fix });
+    const kind = c.kind === 'dir' ? 'dir' : 'file';
+    const right = kind === 'dir' ? st.isDirectory() : st.isFile();
+    if (!right) {
+      findings.push({ state: 'foreign', entry: c.dst, detail: `a ${kind === 'dir' ? 'file' : 'directory'} is in place of the recorded copy`, fix });
       continue;
     }
-    const hash = hashFile(c.dst);
+    const hash = kind === 'dir' ? hashTree(c.dst) : hashFile(c.dst);
     if (hash !== c.hash) {
       findings.push({ state: 'edited copy', entry: c.dst, detail: `differs from install.json (${hash.slice(0, 7)} here, ${c.hash.slice(0, 7)} recorded)`, fix: `${fix} --force` });
       continue;
     }
     let srcHash = null;
     try {
-      srcHash = hashFile(c.src);
+      srcHash = kind === 'dir' ? hashTree(c.src) : hashFile(c.src);
     } catch {
       /* the source is gone; reported below */
     }

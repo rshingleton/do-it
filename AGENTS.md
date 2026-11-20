@@ -7,7 +7,7 @@ not an application.
 
 - `skills/<name>/SKILL.md`: one directory per skill, flat. Detail goes in
   sibling files one level deep. Skills link to each other only within
-  `skills/` (`../do-it/STATE.md`), so links survive a symlink install.
+  `skills/` (`../do-it/STATE.md`), so links resolve in a copied install too.
 - `agents/`: role agents (scout, reviewer, builder, planner, skeptic), each
   pinning its model and tools; skills name them instead of describing a tier.
   The voice block in each is copied from `skills/it-core/VOICE.md` by

@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
-# Install do-it from this checkout by links, for Claude Code and OpenCode.
+# Install do-it from this checkout, for Claude Code and OpenCode.
 #
-#   scripts/install.sh [--no-hooks] [--force] [--dry-run] [--uninstall]
+#   scripts/install.sh [--link] [--no-hooks] [--force] [--dry-run] [--uninstall]
 #   bash <(curl -fsSL https://raw.githubusercontent.com/rshingleton/do-it/main/scripts/install.sh)
 #
 # This is only the bootstrap. Run from a pipe (no checkout around it), it
 # clones DO_IT_REPO into DO_IT_HOME (default ~/.local/share/do-it), or pulls
 # that clone. Either way it then hands over to scripts/install.mjs, which does
-# the linking on every platform; see that file for what goes where.
+# the copying on every platform; see that file for what goes where. --link
+# installs links into the checkout instead, for developing do-it itself.
 #
-# An existing link or directory that is not ours is left alone unless --force.
+# An existing entry that is not ours is left alone unless --force.
 # Using the Claude Code plugin instead? Skip this script for Claude; the plugin
 # carries skills, agents and hooks itself.
 set -euo pipefail
@@ -24,7 +25,7 @@ for arg in "$@"; do
     --dry-run) dry=1 ;;
     --uninstall) uninstall=1 ;;
     -h | --help)
-      if [ -f "$src" ]; then sed -n '2,14p' "$src"; else echo "usage: install.sh [--no-hooks] [--force] [--dry-run] [--uninstall]"; fi
+      if [ -f "$src" ]; then sed -n '2,15p' "$src"; else echo "usage: install.sh [--link] [--no-hooks] [--force] [--dry-run] [--uninstall]"; fi
       exit 0 ;;
   esac
 done

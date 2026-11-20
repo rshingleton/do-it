@@ -36,10 +36,19 @@ machine. Waiting for it does not spend a slice's cap.
 _Not_: queue, lock
 
 **Route**:
-One way do-it's files reach a host: the symlink install, the Claude Code
-plugin, or a `skills` CLI install. One host is installed on one route; two
+One way do-it's files reach a host: the managed install (copies), the Claude
+Code plugin, or a `skills` CLI install. One host is installed on one route; two
 copies of a skill load twice, at two versions.
 _Not_: method, channel, installer
+
+**Managed install**:
+The route `node scripts/install.mjs` runs, directly or through the
+`scripts/install.sh` bootstrap: a copy of every skill, agent and OpenCode file
+in the host's directories, recorded in `install.json`. A host reads those
+copies, not the checkout; the hooks and plugin it registers still run from
+there. A development install (`--link`) links into the checkout instead and
+follows a pull with no re-copy.
+_Not_: symlink install, linked install
 
 **Stale install**:
 An install whose content no longer matches the checkout it came from: the
