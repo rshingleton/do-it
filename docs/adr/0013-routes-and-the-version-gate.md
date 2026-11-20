@@ -2,12 +2,14 @@
 status: accepted
 ---
 
-# The symlink install is the managed route; the plugin and `skills` CLI are reported
+# The managed install is the managed route; the plugin and `skills` CLI are reported
 
 do-it reaches a host by one of three routes, and it manages one of them.
 `scripts/install.mjs` is the managed route on both hosts: it is the only route
 that carries the OpenCode commands and agents, and the only one that serves
-both hosts at once, and it is what the one-liner bootstrap runs. The Claude
+both hosts at once, and it is what the one-liner bootstrap runs. It copies
+skills, agents and commands, and links them only with `--link` for developing
+do-it itself ([ADR 0019](0019-install-copies-by-default.md)). The Claude
 Code plugin carries skills, agents and hooks for Claude Code alone, and a
 `skills` CLI install carries skills alone, from a local path that
 `skills update` never touches
@@ -27,13 +29,13 @@ game-skillet makes the `skills` CLI its managed route for every non-Claude
 client and drops hand-copy and symlink as routes
 (`../game-skillet/docs/adr/0004-distribution-and-versioning.md`). That fits a
 skills-only payload. Adopting the CLI here would put every skill on the machine
-twice, since OpenCode's commands and agents still need the symlink install, and
+twice, since OpenCode's commands and agents still need the managed install, and
 the client's precedence order would decide which copy wins.
 
 So a CLI install found on a machine is detected and reported by
 `scripts/doctor.mjs`, never adopted: the report names its source path and
 recorded hash and says to re-run `npx skills@latest add <path>`, because the
-CLI has no update for a local install. The alternatives rejected: adopting the CLI alongside the symlink
+CLI has no update for a local install. The alternatives rejected: adopting the CLI alongside the managed
 install (duplicate skills, two things to keep honest); dropping the CLI from
 the docs and the doctor (people reach for it anyway, and silence reads as
 support).

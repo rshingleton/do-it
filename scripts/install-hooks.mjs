@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Register (or remove) the do-it hooks for a symlink install. The Claude Code
+// Register (or remove) the do-it hooks for a managed install. The Claude Code
 // plugin install does not need this; it reads hooks/hooks.json itself.
 //
 // Usage: install-hooks.mjs claude|opencode [--remove] [--dry-run]

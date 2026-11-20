@@ -3,7 +3,7 @@
 Nice-to-haves and things to circle back to. Managed by log-it; edit freely.
 Closed items are removed: the changelog, the commit or git history keeps them.
 
-Next id: T379
+Next id: T381
 
 ## Open
 
@@ -131,3 +131,5 @@ Next id: T379
 - [ ] T376 `skills/build-it/scripts/parallel.mjs:25`: `excludes` repeats how `work.mjs` finds the planning dir and issue store; share one helper `debt` (parallel-builds audit)
 - [ ] T377 `skills/build-it/scripts/parallel.mjs:55-56`: if the second `git branch` in `snapshot` fails, the `--snapshot` ref is left behind; delete it on failure `nice-to-have` (parallel-builds audit)
 - [ ] T378 `skills/build-it/scripts/parallel.mjs`: `do-it/<id>`, `--snapshot` and `--phase-N` names are built in `snapshot`, `land` and PARALLEL.md separately; one `branches(id)` helper `nice-to-have` (parallel-builds audit)
+- [ ] T379 `tests/changeset.test.mjs:313`'s 6s wall-clock bound fails under `npm test`'s parallel files on this machine (7-8s), while the file passes alone; raise the bound or measure differently `debt` (copy-installs audit)
+- [ ] T380 `scripts/install.mjs` under `--link` rewrites a file it must store as a copy on every run, because a fallback copy is indistinguishable from a wanted link `nice-to-have` (copy-installs audit)

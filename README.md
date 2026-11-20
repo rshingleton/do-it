@@ -13,7 +13,7 @@ Always-on coding standards and compliance hooks come with it.
 
 ## Quick start
 
-1. [Install](#install) (Node 18+): one command links the skills, agents and hooks.
+1. [Install](#install) (Node 18+): one command copies the skills, agents and commands, and registers the hooks.
 2. In a repo, run `/setup-it` once. It detects your test and lint commands,
    tracker and doc paths, and writes only what you accept.
 3. Run `/do-it "<what you want>"` or `/do-it <issue ref>`. It sizes the work
@@ -204,23 +204,29 @@ collides with another skill repo installed beside this one.
 ## Install
 
 Requires Node 18+. do-it reaches a host by one of three routes, and manages one.
-The symlink install is the managed route: it is the only one that carries the
-OpenCode commands and agents, and the only one that serves both hosts at once,
-and it is what the one-liner runs. The Claude Code plugin and a `skills` CLI
-install are supported and reported, not managed. What each route carries, how it
+The managed install is the route the one-liner runs: it is the only one that
+carries the OpenCode commands and agents, and the only one that serves both
+hosts at once. It copies every skill, agent and command, so a host reads those
+from its own directories, never from the checkout; the hooks and plugin it
+registers still run from the checkout. The Claude Code plugin and a `skills`
+CLI install are supported and reported, not managed. What each route carries, how it
 updates and what each host answers when asked what it loaded:
 [docs/reference/install-routes.md](docs/reference/install-routes.md).
 
-One route per host. Claude Code takes the symlink install or the plugin, never
-both. A `skills` CLI install is the one route for any host the CLI supports:
-on OpenCode that means the symlink install or the CLI, never both, and the
-symlink install also carries its commands and agents. A global CLI install
-replaces the symlink install's links with copies in `~/.agents/skills`, the
-folder they share, so those hosts take one route or the other. That folder
-serves OpenCode, Gemini CLI, GitHub Copilot and Antigravity, and the install
-serves Claude Code through `~/.claude/skills` as well.
+`--link` installs links into the checkout instead, for developing do-it itself:
+edits are live and a pull needs no re-copy, but the install stops working when
+the checkout moves.
 
-**Symlink install, one-liner (Claude Code and OpenCode):**
+One route per host. Claude Code takes the managed install or the plugin, never
+both. A `skills` CLI install is the one route for any host the CLI supports:
+on OpenCode that means the managed install or the CLI, never both, and the
+managed install also carries its commands and agents. A global CLI install
+writes copies into `~/.agents/skills`, the folder they share, so those hosts
+take one route or the other. That folder serves OpenCode, Gemini CLI, GitHub
+Copilot and Antigravity, and the install serves Claude Code through
+`~/.claude/skills` as well.
+
+**Managed install, one-liner (Claude Code and OpenCode):**
 
 ```bash
 bash <(curl -fsSL 'https://raw.githubusercontent.com/rshingleton/do-it/main/scripts/install.sh')
@@ -228,10 +234,10 @@ bash <(curl -fsSL 'https://raw.githubusercontent.com/rshingleton/do-it/main/scri
 
 `install.sh` is a thin bootstrap. It clones the repo into
 `~/.local/share/do-it` (or pulls it when the clone is there), then runs
-`scripts/install.mjs` from the clone, which does the linking on every
-platform; re-run it to update. Options pass
-through: append `--no-hooks`, `--dry-run` or `--uninstall`. `DO_IT_REPO`
-points it at a mirror, `DO_IT_HOME` at another clone directory.
+`scripts/install.mjs` from the clone, which copies the files into place on
+every platform; re-run it to update. Options pass through: append `--link`,
+`--force`, `--no-hooks`, `--dry-run` or `--uninstall`. `DO_IT_REPO` points it
+at a mirror, `DO_IT_HOME` at another clone directory.
 
 **From a clone:**
 
@@ -247,20 +253,22 @@ scripts/install.sh --uninstall
 `scripts/install.sh` hands off to `node scripts/install.mjs`, which you can
 also run directly with the same options.
 
-Skills link into `~/.claude/skills` and `~/.agents/skills` (OpenCode reads
+Skills copy into `~/.claude/skills` and `~/.agents/skills` (OpenCode reads
 both, and the other three hosts read the second). The five role agents in
 `agents/` (`it-scout`, `it-reviewer`,
-`it-builder`, `it-planner`, `it-skeptic`) link into `~/.claude/agents`; each
+`it-builder`, `it-planner`, `it-skeptic`) copy into `~/.claude/agents`; each
 pins its own model, so skills that delegate pick the tier by naming the agent.
 For OpenCode, `.opencode/command/` (OpenCode 1) and `.opencode/commands/`
-(OpenCode 2) link into `~/.config/opencode/`, and `.opencode/agents/` links
+(OpenCode 2) copy into `~/.config/opencode/`, and `.opencode/agents/` copies
 into `~/.config/opencode/agents/`: the same five roles, generated from
 `agents/` with a deny-first `permission` map in place of `tools` and no
-`model` (OpenCode has no tiers). Never link `agents/*.md` itself into an
+`model` (OpenCode has no tiers). Never copy `agents/*.md` itself into an
 OpenCode agents directory: its `tools: Read, Grep` form makes OpenCode reject
 the whole config.
 An existing skill of the same name from another repo is skipped unless you
-pass `--force`. Hooks register in `~/.claude/settings.json` and
+pass `--force`. A copy the `skills` CLI recorded in `~/.agents/.skill-lock.json`
+is skipped even with `--force`: that route owns it. Hooks register in
+`~/.claude/settings.json` and
 `~/.config/opencode/opencode.json`; each file is backed up as `*.bak-do-it`
 first.
 
@@ -273,14 +281,13 @@ scripts and the hooks call `bash`.
 git clone https://github.com/rshingleton/do-it.git $HOME\.local\share\do-it; node $HOME\.local\share\do-it\scripts\install.mjs
 ```
 
-The options are the same (`--no-hooks`, `--dry-run`, `--uninstall`). Linking
-tries a symlink first. Without Developer Mode a symlink needs a privilege most
-accounts lack, so a directory falls back to a junction (live, no privilege
-needed) and a file falls back to a copy. Turn on Developer Mode to get real
-symlinks everywhere. A copy does not follow edits to the clone: to update,
-`git pull` in the clone and run `node scripts\install.mjs` again, which
-refreshes any copy whose source changed. The commit and secret guard covers
-the Bash tool only on Windows, not PowerShell.
+The options are the same (`--link`, `--no-hooks`, `--dry-run`, `--uninstall`).
+A copy does not follow edits to the clone: to update, `git pull` in the clone
+and run `node scripts\install.mjs` again, which refreshes any copy whose source
+changed. With `--link` on a Windows account without Developer Mode, a symlink
+needs a privilege most accounts lack, so a directory becomes a junction and a
+file a copy; turn on Developer Mode to get real symlinks. The commit and secret
+guard covers the Bash tool only on Windows, not PowerShell.
 
 **Claude Code plugin:**
 
@@ -318,8 +325,9 @@ npx skills@latest add rshingleton/do-it -a opencode -g   # global
 Without `-g` it writes the skill folders into the project's `.agents/skills`
 and `skills-lock.json`, recording the source commit and a content hash per
 skill. With `-g` it writes `~/.agents/skills` and
-`~/.agents/.skill-lock.json`: the same folder the symlink install fills, so a
-global CLI install replaces its links with copies. `npx skills@latest list`
+`~/.agents/.skill-lock.json`: the same folder the managed install fills, so the
+two write copies to one place and a host takes one route or the other.
+`npx skills@latest list`
 shows what is installed. Verified on 2026-11-16 with CLI 1.9.0
 ([details](docs/reference/install-routes.md#the-cli-route-probed-on-macos)).
 
@@ -331,9 +339,9 @@ node scripts/doctor.mjs --fetch  # refresh the remote refs first
 node scripts/doctor.mjs --json   # the same report, for a script
 ```
 
-It prints one line per link and per recorded copy, a summary, the checkout's ref
-and where its counts came from, and one line for each of the other three routes.
-Every finding names its fix: `node <clone>/scripts/install.mjs` for the symlink
+It prints one line per installed entry, a summary, the checkout's ref
+and where its counts came from, and one line for each of the other two routes.
+Every finding names its fix: `node <clone>/scripts/install.mjs` for the managed
 route; `git -C <clone> pull --ff-only` when the checkout is behind the ref its
 install follows (`origin/main` when it exists, else the branch's upstream);
 `/plugin marketplace update do-it` for the plugin, or `claude plugin update
@@ -342,11 +350,11 @@ CLI never installed and `npx skills@latest update` for a CLI git install; and
 `node <clone>/scripts/install-hooks.mjs opencode` for the OpenCode config. It
 runs none of them.
 
-**Update:** re-run the one-liner, which pulls the clone and re-links; or
+**Update:** re-run the one-liner, which pulls the clone and re-copies; or
 `git -C ~/.local/share/do-it pull --ff-only` then
-`node ~/.local/share/do-it/scripts/install.mjs`, which adds links for skills
-added since and refreshes any copy whose source changed. Symlinks and junctions
-follow the pull on their own; a copy does not. The plugin updates with
+`node ~/.local/share/do-it/scripts/install.mjs`, which adds entries for skills
+added since and refreshes any copy whose source changed. A `--link` install
+follows the pull on its own; a copy does not. The plugin updates with
 `/plugin marketplace update do-it`, and a cached install with
 `claude plugin update do-it@do-it`: neither brings new content until the
 version moves. A `skills` CLI install of a git source updates with

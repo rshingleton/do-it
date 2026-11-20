@@ -1,5 +1,5 @@
-// doctor.mjs: the symlink install read back against the checkout it came from.
-// A link in each state, a copy that drifted and a copy someone edited, the
+// doctor.mjs: the managed install read back against the checkout it came from.
+// A copy in each state, a copy that drifted and one someone edited, the
 // entries the installer did not make, and an unreadable manifest.
 
 import { cleanEnv, tmpDir } from './env.mjs'; // first: isolates the developer's environment
@@ -11,15 +11,11 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { install } from '../scripts/install.mjs';
 import { sameTarget, under, readManifestState } from '../scripts/lib/install-state.mjs';
-import { eperm, miniRoot, quiet } from './mini-root.mjs';
+import { miniRoot, quiet } from './mini-root.mjs';
 import { linkDir } from './links.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CLI = path.join(ROOT, 'scripts', 'doctor.mjs');
-
-// Files fall back to a copy, as on a Windows account without Developer Mode;
-// directories link as the platform allows.
-const copyFiles = { ...fs, symlinkSync: (s, d, t) => (t === 'file' ? (() => { throw eperm(); })() : fs.symlinkSync(s, d, t)) };
 
 // Install `root` into a fresh home, then run the doctor on it.
 function fixture(opts = {}) {
@@ -35,14 +31,20 @@ const doctor = (home, root, ...args) =>
     env: cleanEnv({}, home),
   });
 
-// Remove a link without following it into what it points at.
+// Remove an installed entry without following a link into what it points at: a
+// link goes, and so does a copy, directory or file.
 function unlink(at) {
-  try {
-    fs.unlinkSync(at);
-  } catch (e) {
-    if (e.code !== 'EPERM' && e.code !== 'EISDIR') throw e;
-    fs.rmdirSync(at); // a junction on some Node/Windows builds
+  const st = fs.lstatSync(at, { throwIfNoEntry: false });
+  if (!st) return;
+  if (st.isSymbolicLink()) {
+    try {
+      fs.unlinkSync(at);
+    } catch {
+      fs.rmdirSync(at); // a junction on some Node/Windows builds
+    }
+    return;
   }
+  fs.rmSync(at, { recursive: true, force: true });
 }
 
 const states = (out) => out.split('\n').map((line) => line.split(/\s/)[0]).filter(Boolean);
@@ -86,7 +88,7 @@ test('a missing link, a link to another checkout and a link to a renamed skill e
 });
 
 test('a copy that drifted from its source and a copy someone edited are separate findings', () => {
-  const { root, home } = fixture({ placeFs: copyFiles });
+  const { root, home } = fixture();
   const agent = path.join(home, '.claude', 'agents', 'x.md');
   assert.equal(fs.readFileSync(agent, 'utf8'), 'v1', 'the agent is a copy');
   assert.equal(doctor(home, root).status, 0);
@@ -101,6 +103,24 @@ test('a copy that drifted from its source and a copy someone edited are separate
   const stale = doctor(home, root);
   assert.equal(stale.status, 1, stale.stdout);
   assert.match(stale.stdout, /^stale copy\s+.*x\.md/m, stale.stdout);
+  assert.doesNotMatch(stale.stdout, /edited copy/);
+});
+
+test('a directory copy that drifted and one someone edited are separate findings', () => {
+  const { root, home } = fixture();
+  const skill = path.join(home, '.claude', 'skills', 'a-it');
+  assert.equal(doctor(home, root).status, 0, 'the fresh copy is ok');
+
+  fs.writeFileSync(path.join(skill, 'SKILL.md'), 'edited');
+  const edited = doctor(home, root);
+  assert.equal(edited.status, 1, edited.stdout);
+  assert.match(edited.stdout, /^edited copy\s+.*a-it/m, edited.stdout);
+
+  quiet(() => install({ root, home, hooks: false, force: true }));
+  fs.writeFileSync(path.join(root, 'skills', 'a-it', 'SKILL.md'), 'b');
+  const stale = doctor(home, root);
+  assert.equal(stale.status, 1, stale.stdout);
+  assert.match(stale.stdout, /^stale copy\s+.*a-it/m, stale.stdout);
   assert.doesNotMatch(stale.stdout, /edited copy/);
 });
 

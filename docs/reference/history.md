@@ -415,3 +415,14 @@ Parallel builds start from a dirty tree. 2026-11-19, lane M, commit message pref
 - The audit took three fix rounds' worth of review: non-UTF-8 bytes, then user diff and apply config (`apply.whitespace=fix` altered landed bytes) and pathspec env switches. Lessons: pin every git read that feeds `git apply`, and test with hostile user config.
 - Assumptions kept: waves are computed, not stored; ignored files stay out of the snapshot; `--complete` runs and tracks are unchanged; plugin 0.3.5 to 0.3.6.
 - Findings logged: T373 to T378, and an issue for the date-dependent `usage` test fixture.
+
+### copy-installs
+
+The install copies by default and links only with `--link`. 2026-11-20, lane S, commit message prefix `copy-installs:` (ADR [0019](../adr/0019-install-copies-by-default.md)).
+
+- `scripts/install.mjs` copies every skill, agent and OpenCode file, so a host reads nothing from the checkout; `--link` keeps the live-link install for developing do-it. A recorded directory copy carries a `hashTree`: refreshed when its source changed, left alone when edited, replaced only with `--force`.
+- A copy the `skills` CLI recorded in `~/.agents/.skill-lock.json` is never adopted, replaced or uninstalled, in either mode; `uninstall` and `pruneOrphans` share the guard. An interrupted run is finished without `--force` when the copy is identical.
+- The audit took four rounds: the CLI copy was adopted by bare name, the guard was missing under `--link`, and a recorded copy swapped for another kind was deleted without `--force`. Lessons: a route's ownership is a path plus a lock, not a name; a kind change is an edit.
+- Assumptions kept: links become copies, identical copies are adopted, other routes' entries are left alone, edited copies need `--force`.
+- Findings logged: T379, T380.
+- Not done: hooks and the OpenCode plugin still register by absolute path from the checkout.

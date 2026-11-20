@@ -12,7 +12,7 @@ node scripts/doctor.mjs [--fetch] [--json]
 ```
 
 It prints one line per recorded entry, a summary, a `ref:` footer for the
-checkout itself, and one line per route that is not the symlink install. Exit 0
+checkout itself, and one line per route that is not the managed install. Exit 0
 when everything is ok, 1 when any finding is not. `--fetch` updates the remote
 refs first; without it every count comes from the last fetch, and the footer
 names that fetch's age.
@@ -21,21 +21,24 @@ names that fetch's age.
 
 | Route | Host | Carries | Install command | Update command | Check | Managed |
 |-------|------|---------|-----------------|----------------|-------|---------|
-| Symlink install | Claude Code and OpenCode | Skills, the five agents, the OpenCode commands and agents, hooks | `bash <(curl -fsSL 'https://raw.githubusercontent.com/rshingleton/do-it/main/scripts/install.sh')` | `git -C <checkout> pull --ff-only`, then `node <checkout>/scripts/install.mjs` | `node scripts/doctor.mjs`, the entry table and the `ref:` footer | Yes |
+| Managed install | Claude Code and OpenCode | Skills, the five agents, the OpenCode commands and agents, hooks | `bash <(curl -fsSL 'https://raw.githubusercontent.com/rshingleton/do-it/main/scripts/install.sh')` | `git -C <checkout> pull --ff-only`, then `node <checkout>/scripts/install.mjs` | `node scripts/doctor.mjs`, the entry table and the `ref:` footer | Yes |
 | Claude Code plugin | Claude Code only | Skills, agents (namespaced, `do-it:it-reviewer`), hooks | `claude plugin marketplace add rshingleton/do-it`, then `claude plugin install do-it@do-it` | `/plugin marketplace update do-it` | `node scripts/doctor.mjs`, the `plugin:` line | No, reported |
 | `skills` CLI | Any host the CLI supports | Skills only | `npx skills@latest add rshingleton/do-it -a opencode` (add `-g` for the global install) | `npx skills@latest update` for a git source; `npx skills@latest add <path>` for a local one | `node scripts/doctor.mjs`, the `skills CLI:` line | No, reported |
 
-Why the symlink install is the managed one: it is the only route that carries
+Why this is the managed route: it is the only one that carries
 the OpenCode commands and agents, and the only one that serves both hosts at
-once, and it is what the one-liner bootstrap runs. A project `skills` CLI
+once, and it is what the one-liner bootstrap runs. It copies every entry, so a
+host never reads a skill, agent or command from the checkout; the hooks it
+registers still run from there. `--link` is the development mode
+and links into the checkout instead. A project `skills` CLI
 install carries skills alone and puts a second copy in that project's
 `.agents/skills`, where OpenCode's precedence order decides which copy wins. A
 global CLI install (`-g`) writes into `~/.agents/skills`, the same folder the
-symlink install fills, and replaces its links with copies. Either way, one
+managed install fills. Either way, one
 route per host ([ADR 0013](../adr/0013-routes-and-the-version-gate.md)).
 
 Every command in the Update column is one `node scripts/doctor.mjs` prints, on
-the finding it fixes. With all 110 entries ok, the plugin current and no CLI
+the finding it fixes. With all 108 entries ok, the plugin current and no CLI
 entry recorded, this checkout's own run prints one of them: the ref fix in the
 footer. The others print on their own finding:
 `node <checkout>/scripts/install.mjs`, the doctor's install fix, on any entry
@@ -45,7 +48,7 @@ cached one; `npx skills@latest update` on a recorded CLI git entry; and
 `npx skills@latest add <path>` on a recorded local one (`scripts/doctor.mjs`,
 the plugin and CLI route sections).
 
-An empty home shows the install fix on all 110 entries:
+An empty home shows the install fix on all 108 entries:
 
 ```powershell
 $h = Join-Path $env:TEMP 'do-it-probe-home'
@@ -53,8 +56,8 @@ node scripts/doctor.mjs --home $h
 ```
 
 ```text
-missing     <probe dir>\.claude\skills\build-it  no link; the plan has one to <checkout>\skills\build-it  fix: node <checkout>\scripts\install.mjs
-summary 110 entries: 0 ok, 110 missing
+missing     <probe dir>\.claude\skills\build-it  nothing installed; the plan has <checkout>\skills\build-it  fix: node <checkout>\scripts\install.mjs
+summary 108 entries: 0 ok, 108 missing
 ```
 
 That run exits 1 and installs nothing.
@@ -65,7 +68,7 @@ Its closing lines, from `node scripts/doctor.mjs` in this checkout on
 2026-11-16, with the branch and refs it names replaced by placeholders:
 
 ```text
-summary 110 entries: 110 ok; 49 entries not ours (left alone)
+summary 108 entries: 108 ok; 37 entries not ours (left alone)
   ref: <branch> @ <sha>, upstream <upstream ref> (0 ahead, 0 behind), <followed ref> (1 behind), fetched 8h ago
   ref: 1 commit behind <followed ref>; the install follows it  fix: git -C <checkout> pull --ff-only
   plugin: ok, the folder is 0.2.0, the manifest 0.2.0; the host reads this checkout in place
@@ -111,7 +114,7 @@ unless the string changes, so `scripts/version-gate.mjs` fails a change under
 ## One install, four hosts
 
 `~/.agents/skills` is not OpenCode's directory. OpenCode reads it, and so do
-Gemini CLI, GitHub Copilot and Antigravity. The symlink install writes every
+Gemini CLI, GitHub Copilot and Antigravity. The managed install writes every
 skill there as well as into `~/.claude/skills`, so one install serves four
 hosts, and a skill added to this checkout reaches three of them with no host
 specific setup.
@@ -142,7 +145,7 @@ claude -p "List the exact names of every available skill whose name ends with -i
 
 The JSON envelope's `result` field prints the names, one per line.
 
-**Symlink install route.** From the same directory, on the configured default
+**Managed install route.** From the same directory, on the configured default
 model (no `-m`):
 
 ```bash
@@ -225,7 +228,7 @@ The global run (`-g`) wrote `~/.agents/skills/<name>/` and
 `~/.agents/.skill-lock.json` at version 3, whose entry carries `sourceUrl`,
 `skillFolderHash` (40 hex, a git tree SHA), `installedAt` and `updatedAt`. It
 is not `~/.config/opencode/skills`: on 1.9.0 the `-a opencode` global
-destination is the same `~/.agents/skills` the symlink install fills, and the
+destination is the same `~/.agents/skills` the managed install fills, and the
 CLI replaced a symlink planted there with a copy. `npx skills list` credits the
 project install to five hosts by name (Antigravity CLI, Cursor, Gemini CLI,
 GitHub Copilot, OpenCode) and credits a sixth it does not record, so no name is
@@ -237,7 +240,7 @@ source, path, hash, commit, the global lock's date and the refresh command.
 
 What the probes settle and what they cannot: the plugin route serves the
 checkout's skills, with the five do-it agents namespaced under `do-it:`, the
-symlink install serves the same sixteen to OpenCode, and the CLI runs show where
+managed install serves the same sixteen to OpenCode, and the CLI runs show where
 1.9.0 writes its files on macOS and what its two locks record. No probe can see
 a typed skill, and none can tell a later host update's effect, so the check to
 re-run after an update is the doctor plus the two skill-list probes above.

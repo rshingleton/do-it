@@ -100,7 +100,7 @@ Principles behind it:
 ## 5. Skills
 
 Every skill is named as an `-it` verb so this repo can be installed beside
-mattpocock/skills or rshingleton/skills without name collisions (symlink and
+mattpocock/skills or rshingleton/skills without name collisions (copies and
 OpenCode installs have no namespace). Renamed from their sources:
 
 | Old | New | Old | New |
@@ -271,7 +271,7 @@ One step, one or two commits:
 ```
 do-it/
   AGENTS.md, CLAUDE.md        # conventions for working on this repo
-  skills/<name>/SKILL.md      # flat, so ../other-skill links survive symlinks
+  skills/<name>/SKILL.md      # flat, so ../other-skill links survive a copy too
   agents/<role>.md            # it-scout, it-reviewer, it-builder, it-planner, it-skeptic: pinned model and tools
   hooks/
     claude.mjs                # Claude Code entry: session/subagent start, pre/post tool
@@ -283,7 +283,7 @@ do-it/
   .opencode/agents/*.md       # generated from agents/: deny-first permission map, no model
   .claude-plugin/             # plugin.json, marketplace.json
   scripts/
-    install.sh                # symlinks + hook registration (hooks on by default)
+    install.sh                # copies + hook registration (hooks on by default; --link for development)
     install-hooks.mjs         # idempotent settings merge, with backups
     gen-opencode.mjs          # skills -> OpenCode commands, agents -> OpenCode agents (--check for drift)
     check.mjs                 # frontmatter, -it names, "Use when", line budget, skill calls, spawn caps, links, em-dashes, agent files and tools
@@ -303,7 +303,7 @@ do-it/
   stays allow-all), so agents use the `permission` map; a Claude-style
   `tools: Read, Grep` makes a 1.x config invalid (2.x reads it); `skills`, `instructions`
   (frontmatter included), `commands/` and `command/` are all read. No `skills`
-  or `instructions` entry is installed: the symlinks already work, and the
+  or `instructions` entry is installed: the copies already work, and the
   plugin injects the posture each turn.
 - OpenCode context: both hosts ask for the system context on every model
   request, so the plugin builds it once and reuses it until `.git/HEAD`, its

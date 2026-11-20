@@ -11,21 +11,25 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { planLinks, place, install } from '../scripts/install.mjs';
 import { sameTarget } from '../scripts/lib/install-state.mjs';
-import { present } from './links.mjs';
+import { linkDir, present, standsFor } from './links.mjs';
 import { clone, eperm, miniRoot, quiet, seed } from './mini-root.mjs';
 import { gitOut } from '../skills/do-it/scripts/git.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CLI = path.join(ROOT, 'scripts', 'install.mjs');
 
-// Symlinks refused, junctions allowed: a Windows account without Developer Mode.
-const noSymlinks = {
-  ...fs,
-  symlinkSync: (s, d, t) => {
-    if (t === 'junction') return fs.symlinkSync(s, d, t);
-    throw eperm();
-  },
-};
+test('a default install turns a link into a copy, and --link turns the copy back', () => {
+  const root = miniRoot();
+  const home = tmpDir('do-it-home-');
+  const skill = path.join(home, '.claude', 'skills', 'a-it');
+  quiet(() => install({ root, home, hooks: false, link: true }));
+  assert.equal(fs.lstatSync(skill).isSymbolicLink(), true, '--link installs a link');
+  quiet(() => install({ root, home, hooks: false }));
+  assert.equal(fs.lstatSync(skill).isSymbolicLink(), false, 'a default install replaces our link with a copy');
+  assert.equal(fs.readFileSync(path.join(skill, 'SKILL.md'), 'utf8'), 'a');
+  quiet(() => install({ root, home, hooks: false, link: true }));
+  assert.equal(fs.lstatSync(skill).isSymbolicLink(), true, '--link turns our copy back into a link');
+});
 
 test('planLinks lists skills for both hosts, agents and the OpenCode files, and nothing else', () => {
   const root = miniRoot();
@@ -41,46 +45,237 @@ test('planLinks lists skills for both hosts, agents and the OpenCode files, and 
   ]);
 });
 
-test('place falls back from a refused symlink: junction for a directory on Windows, copy for a file', () => {
+test('place copies by default; with link it falls back from a refused symlink: junction for a directory on Windows, copy for a file', () => {
   const root = miniRoot();
   const out = tmpDir();
+  // Copying is the default: nothing is linked, so nothing can be refused.
+  assert.equal(place(path.join(root, 'skills', 'a-it'), path.join(out, 'd'), {}), 'copy');
+  assert.equal(fs.lstatSync(path.join(out, 'd')).isSymbolicLink(), false, 'the directory is a real directory');
+  assert.equal(fs.readFileSync(path.join(out, 'd', 'SKILL.md'), 'utf8'), 'a', 'its contents came across whole');
+  assert.equal(place(path.join(root, 'agents', 'x.md'), path.join(out, 'x.md'), {}), 'copy');
+
   const refuse = { ...fs, symlinkSync: () => { throw eperm(); } };
-  assert.equal(place(path.join(root, 'agents', 'x.md'), path.join(out, 'x.md'), { fs: refuse, platform: 'linux' }), 'copy');
-  assert.equal(fs.readFileSync(path.join(out, 'x.md'), 'utf8'), 'v1');
+  assert.equal(place(path.join(root, 'agents', 'x.md'), path.join(out, 'y.md'), { fs: refuse, platform: 'linux', link: true }), 'copy');
+  assert.equal(fs.readFileSync(path.join(out, 'y.md'), 'utf8'), 'v1');
   const types = [];
   const record = { ...fs, symlinkSync: (s, d, t) => { types.push(t); if (t !== 'junction') throw eperm(); } };
-  assert.equal(place(path.join(root, 'skills', 'a-it'), path.join(out, 'a-it'), { fs: record, platform: 'win32' }), 'junction');
+  assert.equal(place(path.join(root, 'skills', 'a-it'), path.join(out, 'a-it'), { fs: record, platform: 'win32', link: true }), 'junction');
   assert.deepEqual(types, ['dir', 'junction']);
-  assert.throws(() => place(path.join(root, 'skills', 'a-it'), path.join(out, 'b'), { fs: refuse, platform: 'linux' }), { code: 'EPERM' });
+  assert.throws(() => place(path.join(root, 'skills', 'a-it'), path.join(out, 'b'), { fs: refuse, platform: 'linux', link: true }), { code: 'EPERM' });
 });
 
 test('the installer folds case only where the filesystem does, so a POSIX pair differing by case is two paths', { skip: process.platform === 'win32' && 'a Windows filesystem folds case' }, () => {
   assert.equal(sameTarget('/tmp/A', '/tmp/a'), false);
 });
 
-test('with symlinks refused: copies are in the manifest, refreshed on change, and uninstall removes exactly them', { skip: process.platform !== 'win32' && 'a junction fallback needs Windows' }, () => {
+test('an install copies skills and files, records both in the manifest, refreshes a changed source, and uninstall removes exactly them', () => {
   const root = miniRoot();
   const home = tmpDir('do-it-home-');
-  const opts = { root, home, hooks: false, placeFs: noSymlinks };
+  const opts = { root, home, hooks: false };
   const manifest = path.join(home, '.claude', 'do-it', 'install.json');
   const agent = path.join(home, '.claude', 'agents', 'x.md');
+  const skill = path.join(home, '.claude', 'skills', 'a-it');
   quiet(() => install(opts));
   assert.equal(fs.readFileSync(agent, 'utf8'), 'v1');
-  assert.deepEqual(JSON.parse(fs.readFileSync(manifest, 'utf8')).copies.map((c) => c.dst), [agent]);
-  assert.ok(fs.existsSync(path.join(home, '.claude', 'skills', 'a-it', 'SKILL.md')), 'the directory is reachable through its junction');
+  assert.equal(fs.lstatSync(skill).isSymbolicLink(), false, 'the skill is a real directory, not a link into the checkout');
+  const copies = JSON.parse(fs.readFileSync(manifest, 'utf8')).copies;
+  assert.deepEqual(copies.map((c) => [path.relative(home, c.dst).split(path.sep).join('/'), c.kind ?? 'file']).sort(), [
+    ['.agents/skills/a-it', 'dir'],
+    ['.claude/agents/x.md', 'file'],
+    ['.claude/skills/a-it', 'dir'],
+  ]);
 
   fs.writeFileSync(path.join(root, 'agents', 'x.md'), 'v2');
+  fs.writeFileSync(path.join(root, 'skills', 'a-it', 'SKILL.md'), 'b');
   quiet(() => install(opts));
-  assert.equal(fs.readFileSync(agent, 'utf8'), 'v2', 'a changed source refreshes the copy');
+  assert.equal(fs.readFileSync(agent, 'utf8'), 'v2', 'a changed file source refreshes the copy');
+  assert.equal(fs.readFileSync(path.join(skill, 'SKILL.md'), 'utf8'), 'b', 'a changed skill source refreshes the copy');
 
   const mine = path.join(home, '.claude', 'agents', 'mine.md');
   fs.writeFileSync(mine, 'user');
   quiet(() => install({ ...opts, uninstall: true }));
   assert.equal(present(agent), false);
+  assert.equal(present(skill), false, 'the copied skill is removed with the rest');
   assert.equal(present(manifest), false, 'no manifest once nothing is copied');
   assert.equal(fs.readFileSync(mine, 'utf8'), 'user', 'a user file is left alone');
-  assert.equal(present(path.join(home, '.claude', 'skills', 'a-it')), false);
-  assert.ok(fs.existsSync(path.join(root, 'skills', 'a-it', 'SKILL.md')), 'uninstall never follows a link into the checkout');
+  assert.ok(fs.existsSync(path.join(root, 'skills', 'a-it', 'SKILL.md')), 'uninstall never touches the checkout');
+});
+
+test('an edited directory copy is left alone on a re-run and on uninstall', () => {
+  const root = miniRoot();
+  const home = tmpDir('do-it-home-');
+  const opts = { root, home, hooks: false };
+  const skill = path.join(home, '.claude', 'skills', 'a-it');
+  quiet(() => install(opts));
+  fs.writeFileSync(path.join(skill, 'SKILL.md'), 'mine');
+  fs.writeFileSync(path.join(root, 'skills', 'a-it', 'SKILL.md'), 'b');
+  quiet(() => install(opts));
+  assert.equal(fs.readFileSync(path.join(skill, 'SKILL.md'), 'utf8'), 'mine', 'an edited copy is not overwritten');
+  quiet(() => install({ ...opts, uninstall: true }));
+  assert.equal(fs.readFileSync(path.join(skill, 'SKILL.md'), 'utf8'), 'mine', 'uninstall leaves an edited copy');
+});
+
+test('--link does not replace an edited copy without --force', () => {
+  const root = miniRoot();
+  const home = tmpDir('do-it-home-');
+  const skill = path.join(home, '.claude', 'skills', 'a-it');
+  quiet(() => install({ root, home, hooks: false }));
+  fs.writeFileSync(path.join(skill, 'SKILL.md'), 'mine');
+  quiet(() => install({ root, home, hooks: false, link: true }));
+  assert.equal(fs.lstatSync(skill).isSymbolicLink(), false, 'the edited copy is kept');
+  assert.equal(fs.readFileSync(path.join(skill, 'SKILL.md'), 'utf8'), 'mine');
+  quiet(() => install({ root, home, hooks: false, link: true, force: true }));
+  assert.equal(fs.lstatSync(skill).isSymbolicLink(), true, '--force replaces it with the link');
+});
+
+test('--force removes an orphaned copy the user edited', () => {
+  const root = miniRoot();
+  fs.mkdirSync(path.join(root, 'skills', 'b-it'));
+  fs.writeFileSync(path.join(root, 'skills', 'b-it', 'SKILL.md'), 'b');
+  const home = tmpDir('do-it-home-');
+  const opts = { root, home, hooks: false };
+  quiet(() => install(opts));
+  const b = path.join(home, '.claude', 'skills', 'b-it');
+  fs.writeFileSync(path.join(b, 'SKILL.md'), 'mine');
+  fs.rmSync(path.join(root, 'skills', 'b-it'), { recursive: true, force: true });
+  quiet(() => install(opts));
+  assert.equal(fs.readFileSync(path.join(b, 'SKILL.md'), 'utf8'), 'mine', 'edited and orphaned: left without --force');
+  quiet(() => install({ ...opts, force: true }));
+  assert.equal(present(b), false, '--force removes it');
+});
+
+test('a copy the skills CLI recorded is left alone and never recorded', () => {
+  const root = miniRoot();
+  const home = tmpDir('do-it-home-');
+  const cli = path.join(home, '.agents', 'skills', 'a-it');
+  const claude = path.join(home, '.claude', 'skills', 'a-it');
+  fs.mkdirSync(path.dirname(cli), { recursive: true });
+  fs.cpSync(path.join(root, 'skills', 'a-it'), cli, { recursive: true });
+  fs.writeFileSync(
+    path.join(home, '.agents', '.skill-lock.json'),
+    JSON.stringify({ version: 3, skills: { 'a-it': { source: 'somewhere' } } }),
+  );
+  quiet(() => install({ root, home, hooks: false }));
+  const manifest = path.join(home, '.claude', 'do-it', 'install.json');
+  const recorded = JSON.parse(fs.readFileSync(manifest, 'utf8')).copies.map((c) => c.dst);
+  assert.equal(recorded.includes(cli), false, 'the CLI copy is not recorded as ours');
+  assert.equal(recorded.includes(claude), true, 'the same skill name in another folder is ours to install');
+  assert.equal(fs.readFileSync(path.join(cli, 'SKILL.md'), 'utf8'), 'a', 'and it is left in place');
+  quiet(() => install({ root, home, hooks: false, force: true }));
+  assert.equal(fs.readFileSync(path.join(cli, 'SKILL.md'), 'utf8'), 'a', '--force does not take another route’s copy either');
+  quiet(() => install({ root, home, hooks: false, uninstall: true }));
+  assert.equal(present(cli), true, 'uninstall leaves another route’s copy alone');
+});
+
+test('a link that is not ours is left alone and not recorded', () => {
+  const root = miniRoot();
+  const other = tmpDir('do-it-else-');
+  fs.mkdirSync(path.join(other, 'skills', 'a-it'), { recursive: true });
+  fs.writeFileSync(path.join(other, 'skills', 'a-it', 'SKILL.md'), 'a');
+  const home = tmpDir('do-it-home-');
+  const dst = path.join(home, '.claude', 'skills', 'a-it');
+  fs.mkdirSync(path.dirname(dst), { recursive: true });
+  linkDir(path.join(other, 'skills', 'a-it'), dst);
+  quiet(() => install({ root, home, hooks: false }));
+  assert.equal(fs.lstatSync(dst).isSymbolicLink(), true, 'the foreign link stays a link');
+  const manifest = path.join(home, '.claude', 'do-it', 'install.json');
+  const recorded = JSON.parse(fs.readFileSync(manifest, 'utf8')).copies.map((c) => c.dst);
+  assert.equal(recorded.includes(dst), false, 'and it is not recorded as ours');
+});
+
+test('a record whose entry vanished is dropped on the next run', () => {
+  const root = miniRoot();
+  fs.mkdirSync(path.join(root, 'skills', 'b-it'));
+  fs.writeFileSync(path.join(root, 'skills', 'b-it', 'SKILL.md'), 'b');
+  const home = tmpDir('do-it-home-');
+  const opts = { root, home, hooks: false };
+  const manifest = path.join(home, '.claude', 'do-it', 'install.json');
+  quiet(() => install(opts));
+  const b = path.join(home, '.claude', 'skills', 'b-it');
+  fs.rmSync(b, { recursive: true, force: true });
+  fs.rmSync(path.join(root, 'skills', 'b-it'), { recursive: true, force: true });
+  quiet(() => install(opts));
+  const recorded = JSON.parse(fs.readFileSync(manifest, 'utf8')).copies.map((c) => c.dst);
+  assert.equal(recorded.includes(b), false, 'the record went with the entry');
+});
+
+test('a recorded copy whose kind changed is kept without --force', () => {
+  const root = miniRoot();
+  const home = tmpDir('do-it-home-');
+  const agent = path.join(home, '.claude', 'agents', 'x.md');
+  quiet(() => install({ root, home, hooks: false }));
+  fs.rmSync(agent);
+  fs.mkdirSync(agent, { recursive: true });
+  fs.writeFileSync(path.join(agent, 'user.txt'), 'mine');
+  quiet(() => install({ root, home, hooks: false }));
+  assert.equal(fs.readFileSync(path.join(agent, 'user.txt'), 'utf8'), 'mine', 'the user directory is left alone');
+  quiet(() => install({ root, home, hooks: false, force: true }));
+  assert.equal(fs.readFileSync(agent, 'utf8'), 'v1', '--force puts the recorded file back');
+});
+
+test('--link finishes an interrupted run, and still refuses another route', () => {
+  const root = miniRoot();
+  const home = tmpDir('do-it-home-');
+  const agent = path.join(home, '.claude', 'agents', 'x.md');
+  const cli = path.join(home, '.agents', 'skills', 'a-it');
+  fs.mkdirSync(path.dirname(agent), { recursive: true });
+  fs.mkdirSync(path.dirname(cli), { recursive: true });
+  fs.copyFileSync(path.join(root, 'agents', 'x.md'), agent);
+  fs.cpSync(path.join(root, 'skills', 'a-it'), cli, { recursive: true });
+  fs.writeFileSync(
+    path.join(home, '.agents', '.skill-lock.json'),
+    JSON.stringify({ version: 3, skills: { 'a-it': {} } }),
+  );
+
+  quiet(() => install({ root, home, hooks: false, link: true }));
+  assert.ok(standsFor(agent, path.join(root, 'agents', 'x.md')), 'an identical unrecorded copy is finished, not refused');
+  assert.equal(fs.lstatSync(cli).isSymbolicLink(), false, 'the CLI copy stays a directory');
+
+  quiet(() => install({ root, home, hooks: false, link: true, force: true }));
+  assert.equal(fs.lstatSync(cli).isSymbolicLink(), false, 'the CLI copy stays a directory under --force');
+  assert.equal(fs.readFileSync(path.join(cli, 'SKILL.md'), 'utf8'), 'a', 'and keeps its content');
+});
+
+test('a record for a copy the skills CLI now owns is dropped when its source goes', () => {
+  const root = miniRoot();
+  const home = tmpDir('do-it-home-');
+  const opts = { root, home, hooks: false };
+  quiet(() => install(opts));
+  const dst = path.join(home, '.agents', 'skills', 'a-it');
+  fs.writeFileSync(
+    path.join(home, '.agents', '.skill-lock.json'),
+    JSON.stringify({ version: 3, skills: { 'a-it': {} } }),
+  );
+  fs.rmSync(path.join(root, 'skills', 'a-it'), { recursive: true, force: true });
+  quiet(() => install(opts));
+  const manifest = path.join(home, '.claude', 'do-it', 'install.json');
+  const recorded = JSON.parse(fs.readFileSync(manifest, 'utf8')).copies.map((c) => c.dst);
+  assert.equal(recorded.includes(dst), false, 'the record goes when the route takes the copy');
+});
+
+test('a default run finishes an interrupted --link that left a link and its record', () => {
+  const root = miniRoot();
+  const home = tmpDir('do-it-home-');
+  const skill = path.join(home, '.claude', 'skills', 'a-it');
+  quiet(() => install({ root, home, hooks: false }));
+  fs.rmSync(skill, { recursive: true, force: true });
+  linkDir(path.join(root, 'skills', 'a-it'), skill);
+  quiet(() => install({ root, home, hooks: false }));
+  assert.equal(fs.lstatSync(skill).isSymbolicLink(), false, 'the link becomes the copy the record promised');
+  assert.equal(fs.readFileSync(path.join(skill, 'SKILL.md'), 'utf8'), 'a');
+});
+
+test('an unrecorded copy that matches the source is adopted, not refused with --force', () => {
+  const root = miniRoot();
+  const home = tmpDir('do-it-home-');
+  const skill = path.join(home, '.claude', 'skills', 'a-it');
+  fs.mkdirSync(path.dirname(skill), { recursive: true });
+  fs.cpSync(path.join(root, 'skills', 'a-it'), skill, { recursive: true });
+  const manifest = path.join(home, '.claude', 'do-it', 'install.json');
+  quiet(() => install({ root, home, hooks: false }));
+  assert.equal(fs.readFileSync(path.join(skill, 'SKILL.md'), 'utf8'), 'a');
+  const recorded = JSON.parse(fs.readFileSync(manifest, 'utf8')).copies.map((c) => c.dst);
+  assert.ok(recorded.includes(skill), 'the identical copy was adopted into the manifest');
 });
 
 test('a user file at a target is skipped without --force and replaced with it; an edited copy is left alone', () => {
@@ -89,12 +284,12 @@ test('a user file at a target is skipped without --force and replaced with it; a
   const agent = path.join(home, '.claude', 'agents', 'x.md');
   fs.mkdirSync(path.dirname(agent), { recursive: true });
   fs.writeFileSync(agent, 'user');
-  // Files fall back to a copy; directories link as the platform allows.
-  const placeFs = { ...fs, symlinkSync: (s, d, t) => (t === 'file' ? (() => { throw eperm(); })() : fs.symlinkSync(s, d, t)) };
-  const opts = { root, home, hooks: false, placeFs };
+  const manifest = path.join(home, '.claude', 'do-it', 'install.json');
+  const opts = { root, home, hooks: false };
   quiet(() => install(opts));
   assert.equal(fs.readFileSync(agent, 'utf8'), 'user');
-  assert.equal(present(path.join(home, '.claude', 'do-it', 'install.json')), false, 'nothing was copied');
+  const recorded = JSON.parse(fs.readFileSync(manifest, 'utf8')).copies.map((c) => c.dst);
+  assert.equal(recorded.includes(agent), false, 'a user file is not recorded as ours');
   quiet(() => install({ ...opts, force: true }));
   assert.equal(fs.readFileSync(agent, 'utf8'), 'v1');
   fs.writeFileSync(agent, 'edited');
@@ -110,7 +305,7 @@ test('--dry-run writes nothing, and an unknown option exits 2 as install.sh did'
   const run = (...a) => spawnSync('node', [CLI, ...a], { encoding: 'utf8', env: cleanEnv({}, home) });
   const dry = run('--dry-run', '--no-hooks');
   assert.equal(dry.status, 0, dry.stderr);
-  assert.match(dry.stdout, /^link  /m);
+  assert.match(dry.stdout, /^copy  /m);
   assert.deepEqual(fs.readdirSync(home), [], 'a dry run creates nothing');
   const bad = run('--nope');
   assert.equal(bad.status, 2);
