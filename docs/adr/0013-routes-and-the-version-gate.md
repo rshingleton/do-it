@@ -22,8 +22,10 @@ ships to plugin users as `0.1.0`; they reach it only when the string moves.
 `scripts/version-gate.mjs` fails a change under `skills/`, `agents/` or
 `hooks/` that leaves it alone: the version must be higher, compared
 numerically, than the merge base's and the base ref's tip; and `package.json`,
-when it exists, must carry the same string. CI runs it, and so does `npm run
-check` against `origin/main`.
+when it exists, must carry the same string. CI runs it on a pull request and
+on a push to `main`. Amended by
+[0020](0020-the-version-bumps-once-per-release.md): it is a release check, not
+part of `npm run check`, and a slice never bumps the version.
 
 game-skillet makes the `skills` CLI its managed route for every non-Claude
 client and drops hand-copy and symlink as routes

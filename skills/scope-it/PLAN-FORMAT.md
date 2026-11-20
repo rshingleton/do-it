@@ -22,6 +22,12 @@ by it.
 
 `## Files`: repo-relative paths, one per line, `/` on every platform.
 
+A release version is not a slice's file: no manifest `version`, no tag, no
+changelog heading. The commit that lands the branch sets it once, so a plan
+that names it makes every pair share a file and serialises the run for
+nothing. A repo that wants a bump in each change still gives it to the commit
+that lands, not to the slices that precede it.
+
 `## Interfaces`: one line per interface, `<signature> -> <what it produces>`.
 The left of `->` is what a caller passes, the right the shape the slice
 produces. A line without `->` names an interface the slice only consumes, so

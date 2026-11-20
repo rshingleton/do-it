@@ -8,7 +8,7 @@
   "engines": { "node": ">=18" },
   "scripts": {
     "test": "node scripts/test.mjs",
-    "check": "node scripts/check.mjs && node scripts/gen-opencode.mjs --check && node scripts/eval-routing.mjs && node scripts/version-gate.mjs --base origin/main --skip-missing-base",
+    "check": "node scripts/check.mjs && node scripts/gen-opencode.mjs --check && node scripts/eval-routing.mjs",
     "eval": "node scripts/eval-routing.mjs --verbose",
     "gen": "node scripts/gen-opencode.mjs && node scripts/gen-agents.mjs"
   }

@@ -42,6 +42,10 @@ skills, file layout, line budget, `-it` names) is in
 - No runtime dependencies. Node 18+ built-ins and bash only.
 - Hooks fail open: a crash or bad input must never block the agent.
 - No AI attribution in commits, docs or code comments.
+- The plugin version moves once per release, in the commit that lands a run:
+  `.claude-plugin/plugin.json` and `package.json` together. A slice never
+  names either file, and CI's version gate, not `npm run check`, enforces it
+  ([ADR 0020](docs/adr/0020-the-version-bumps-once-per-release.md)).
 
 ## Before handing off
 
