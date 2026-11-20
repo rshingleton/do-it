@@ -173,6 +173,16 @@ test('a directory that is not a git repo exits 2', () => {
   assert.equal(run(fixture().dir, ['--base', 'origin/no-such-branch']).status, 2);
 });
 
+// The gate belongs to the release, so CI runs it and the per-slice check does not:
+// a gate in `npm run check` made two parallel lanes bump the same line, and the
+// plan pre-flight then refused to pair them ([0020](../docs/adr/0020-the-version-bumps-once-per-release.md)).
+test('CI runs the gate and the per-slice check does not', () => {
+  const { check } = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).scripts;
+  assert.doesNotMatch(check, /version-gate/);
+  const ci = fs.readFileSync(path.join(ROOT, '.github/workflows/ci.yml'), 'utf8');
+  assert.match(ci, /node scripts\/version-gate\.mjs/);
+});
+
 test('a manifest that does not parse, in the tree or at the base, exits 2', () => {
   const tree = fixture();
   tree.write('.claude-plugin/plugin.json', '{ "version": ');

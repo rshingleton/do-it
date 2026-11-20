@@ -25,6 +25,9 @@ and the base ref's own tip. A version absent at the base counts as a bump.
 It also fails when ${PACKAGE_FILE} exists and its version differs from
 ${VERSION_FILE}'s.
 
+Run it at the release boundary, never in the per-slice check: a slice does not
+move the version, the commit that lands the branch does.
+
 The range starts at \`git merge-base <base> HEAD\`, is read against the working
 tree, and adds untracked files, so uncommitted work counts.
 
