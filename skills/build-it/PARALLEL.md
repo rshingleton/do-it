@@ -6,25 +6,28 @@ The scratch commits never reach the user's branch.
 
 ## Preconditions
 
-- More than one frontier phase.
-- The user's tree has no uncommitted changes outside `docs/planning/` and the
-  issue store (`docs/issues/`, `DO_IT_ISSUES_DIR`): a backlog record there
-  cannot collide with code. If earlier phases were built in place, build the
-  rest in place too.
+- Some wave is wider than one (mode rule in [SKILL.md](SKILL.md) §2).
 - The host can run background subagents. Otherwise build sequentially.
 
 ## 1. Scratch integration branch
 
 ```bash
-top=$(git rev-parse --show-toplevel)
-# Absolute, so every later git -C and worktree command resolves it the same way.
-root="$(dirname "$top")/$(basename "$top").do-it/<id>"
-git worktree add "$root/int" -b "do-it/<id>" <base_ref>
+# Adopts the user's uncommitted work into do-it/<id> and do-it/<id>--snapshot through a
+# temporary index: the user's index, branch and stash stay as they are. Prints
+# {branch, snapshot, root}; root is absolute, so every later worktree command resolves it alike.
+node <build-it dir>/scripts/parallel.mjs snapshot <id> --base <base_ref>
+root=<the printed root>
+git worktree add "$root/int" "do-it/<id>"
 ```
+
+`parallel.mjs` below means `node <build-it dir>/scripts/parallel.mjs`, run from the user's checkout.
+
+The planning dir and the issue store are left out of the snapshot. A clean tree
+makes the snapshot the base commit itself.
 
 The planning files stay only in the user's checkout. Implementers read them
 there by absolute path, so the scratch branches carry code alone and the final
-squash cannot collide with the uncommitted plan.
+landing cannot collide with the uncommitted plan.
 
 ## 2. One implementer per frontier phase
 
@@ -70,12 +73,16 @@ implementers for newly ready phases.
 When no phase can start, from the user's checkout:
 
 ```bash
-git merge --squash "do-it/<id>"     # stages the change; commits nothing
-git reset -q                        # unstage, so the user reviews a plain working tree
+parallel.mjs land <id>              # applies the delta since the snapshot; commits and stages nothing
 git worktree remove "$root/phase-N" # each phase worktree
 git worktree remove "$root/int"
-git branch -D "do-it/<id>" "do-it/<id>--phase-N"
+git branch -D "do-it/<id>" "do-it/<id>--snapshot" "do-it/<id>--phase-N"
 ```
+
+`land` prints `{landed, files}`. On `{landed:false, reason, branch}` the user's
+tree is unchanged (a file the user also created, or a hunk they also edited);
+keep the branches and worktrees, name `branch` in the report and ask the user
+how to proceed.
 
 Leave a blocked phase's branch and worktree in place and name them in
 the report.

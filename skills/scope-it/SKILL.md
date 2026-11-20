@@ -71,9 +71,9 @@ next free number in the repo's ADR directory, linked from the plan.
 ## 5. Approve
 
 Present the plan in chat: the steps or phases (`Blocked by`, what each delivers),
-the `/map-it <area>` context step when §2 proposed it, the assumptions, and any
-builder-check questions (each with a recommended answer). The plan stays `draft`.
-End the turn; lane M makes this its last grill round ([GRILL.md](GRILL.md)).
+the waves of phases grouped by `blocked_by` (e.g. "wave 1: phases 1, 3, 4; wave 2: phase 2"),
+the `/map-it <area>` context step when §2 proposed it, the assumptions, and any builder-check
+questions (each with a recommended answer). Plan stays `draft`. End the turn; lane M makes this its last grill round ([GRILL.md](GRILL.md)).
 
 Only an explicit accept approves ([grill-it](../grill-it/SKILL.md#what-counts-as-acceptance)):
 then `work.mjs event <id> approve --brief`. Any other reply is folded in and re-presented.

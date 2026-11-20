@@ -39,12 +39,12 @@ Builds what the plan approved, nothing else, uncommitted; `ship-it` commits.
 - Lane S: the plan's steps, in order, as one unit.
 - Lane M: the **frontier**, every phase not `done` whose `blocked_by` phases
   are all `done`. With `phase N`, just that phase if it is on the frontier.
-- More than one frontier phase, a host that runs background subagents, and no
-  uncommitted changes outside `docs/planning/` and the issue store
-  (`docs/issues/`, which the tracker `start` and `log-it` write): build them in
-  parallel per [PARALLEL.md](PARALLEL.md). Otherwise build them one at a
-  time in place, each in an `it-builder` agent per [DELEGATE.md](DELEGATE.md)
-  (main builds when it says so: lane S, fix mode, no subagents).
+- Mode, once per item when lane M starts: compute waves from `blocked_by`. A
+  wave wider than one and background subagents: every phase builds in a
+  worktree per [PARALLEL.md](PARALLEL.md), a width-1 first wave included.
+  Otherwise one at a time in place, each in an `it-builder` agent per
+  [DELEGATE.md](DELEGATE.md) (main builds: lane S, fix mode, no subagents).
+  Print `Mode: parallel` or `Mode: sequential (<reason>)`.
 
 ## 3. Build one unit
 

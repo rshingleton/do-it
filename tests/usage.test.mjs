@@ -161,7 +161,7 @@ test('importTranscripts backfills sessions and subagents, and is safe to repeat'
   fs.writeFileSync(path.join(pdir, 's9.jsonl'), line('m1', 10, { cwd: '/repo/do-it' }));
   fs.writeFileSync(path.join(pdir, 's9', 'subagents', 'agent-zz.jsonl'), line('x1', 4));
   fs.writeFileSync(path.join(pdir, 's9', 'subagents', 'agent-zz.meta.json'), JSON.stringify({ agentType: 'Explore' }));
-  const opts = { dir, days: 7 };
+  const opts = { dir, days: 7, now: new Date('2026-10-21T12:00:00Z') };
   assert.equal(importTranscripts(root, opts), 2);
   assert.equal(importTranscripts(root, opts), 2);
   const recs = readAll(dir);

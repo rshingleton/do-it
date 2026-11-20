@@ -6,6 +6,12 @@
 The size of a piece of work, XS, S, M or L, and the steps that size runs.
 _Not_: track, shard
 
+**Wave**:
+A group of lane M phases that can build together because every phase they
+are blocked by is done. build-it builds each phase of a wave wider than one
+in its own worktree.
+_Not_: track, lane
+
 **Track**:
 One worktree worker in a complete run that builds one slice; the coordinator
 audits it. A run has one track by default and up to five, held below the
